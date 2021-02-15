@@ -108,7 +108,7 @@ func (n *internalNode) Insert(key []byte, value []byte) error {
 	return n.insert(key, 0, value)
 }
 
-func (n *internalNode) insert(key []byte, offset uint, value []byte) error {
+func offset2Key(key []byte, offset uint) uint {
 	// The node has 1024 children, i.e. 10 bits. Extract it
 	// from the key to figure out which child to recurse into.
 	// The number is necessarily spread across 2 bytes because
@@ -119,7 +119,11 @@ func (n *internalNode) insert(key []byte, offset uint, value []byte) error {
 	firstBitShift := (8 - (offset % 8))
 	lastBitShift := (8 - nBitsInSecondByte) % 8
 	leftMask := (key[nFirstByte] >> firstBitShift) << firstBitShift
-	nChild := (uint(key[nFirstByte]^leftMask) << ((nBitsInSecondByte-1)%8 + 1)) | uint(key[nFirstByte+1]>>lastBitShift)
+	return (uint(key[nFirstByte]^leftMask) << ((nBitsInSecondByte-1)%8 + 1)) | uint(key[nFirstByte+1]>>lastBitShift)
+}
+
+func (n *internalNode) insert(key []byte, offset uint, value []byte) error {
+	nChild := offset2Key(key, offset)
 
 	switch child := n.children[nChild].(type) {
 	case empty:
