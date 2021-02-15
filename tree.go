@@ -84,6 +84,26 @@ type (
 	empty struct{}
 )
 
+func newInternalNode() VerkleNode {
+	node := new(internalNode)
+	for idx := range node.children {
+		node.children[idx] = empty(struct{}{})
+	}
+	return node
+}
+
+func newLastLevelNode() VerkleNode {
+	node := new(lastLevelNode)
+	for idx := range node.children {
+		node.children[idx] = empty(struct{}{})
+	}
+	return node
+}
+
+func New() VerkleNode {
+	return newInternalNode()
+}
+
 func (n *internalNode) Insert(key []byte, value []byte) error {
 	return n.insert(key, 0, value)
 }
@@ -95,10 +115,11 @@ func (n *internalNode) insert(key []byte, offset uint, value []byte) error {
 	// the pitch is 10 and therefore a multiple of 2. Hence, no
 	// 3 byte scenario is possible.
 	nFirstByte := offset / 8
-	firstBitShift := (8 - (offset % 8)) % 8
-	lastBitShift := (8 - (offset+10)%8) % 8
+	nBitsInSecondByte := (offset + 10) % 8
+	firstBitShift := (8 - (offset % 8))
+	lastBitShift := (8 - nBitsInSecondByte) % 8
 	leftMask := (key[nFirstByte] >> firstBitShift) << firstBitShift
-	nChild := uint(key[nFirstByte]^leftMask) | uint(key[nFirstByte+1]>>lastBitShift)
+	nChild := (uint(key[nFirstByte]^leftMask) << ((nBitsInSecondByte-1)%8 + 1)) | uint(key[nFirstByte+1]>>lastBitShift)
 
 	switch child := n.children[nChild].(type) {
 	case empty:
@@ -106,9 +127,9 @@ func (n *internalNode) insert(key []byte, offset uint, value []byte) error {
 		// on the depth it's a full internal node (1024
 		// entries) or a last-level node (64 entries).
 		if offset == 240 {
-			n.children[nChild] = new(lastLevelNode)
+			n.children[nChild] = newLastLevelNode()
 		} else {
-			n.children[nChild] = new(internalNode)
+			n.children[nChild] = newInternalNode()
 		}
 		return n.children[nChild].insert(key, offset+10, value)
 	case hashedNode:
