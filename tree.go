@@ -146,7 +146,14 @@ func (n *internalNode) Insert(key []byte, value []byte) error {
 }
 
 func (n *internalNode) Get(k []byte) ([]byte, error) {
-	return nil, errors.New("not implemented yet")
+	nChild := offset2Key(k, n.depth)
+
+	switch child := n.children[nChild].(type) {
+	case empty, hashedNode, leafNode:
+		return nil, errors.New("trying to read from an invalid child")
+	default:
+		return child.Get(k)
+	}
 }
 
 func (n *internalNode) Hash() common.Hash {
@@ -172,7 +179,18 @@ func (n *lastLevelNode) Insert(k []byte, value []byte) error {
 }
 
 func (n *lastLevelNode) Get(k []byte) ([]byte, error) {
-	return nil, errors.New("not implemented yet")
+	nChild := k[31] & 0x3F
+
+	switch child := n.children[nChild].(type) {
+	case empty:
+		return nil, nil
+	case hashedNode:
+		return nil, errors.New("can not Get value from hash")
+	case leafNode:
+		return []byte(child), nil
+	default:
+		return nil, errors.New("invalid node type encountered")
+	}
 }
 
 func (n *lastLevelNode) Hash() common.Hash {

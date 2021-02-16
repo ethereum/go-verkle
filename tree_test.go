@@ -68,8 +68,8 @@ func TestInsertIntoRoot(t *testing.T) {
 
 func TestInsertTwoLeaves(t *testing.T) {
 	root := New()
-	root.Insert(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000000"), []byte("hello"))
-	root.Insert(common.Hex2Bytes("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"), []byte("hello"))
+	root.Insert(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000000"), testValue)
+	root.Insert(common.Hex2Bytes("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"), testValue)
 
 	// Check that the first value is present in the tree
 	node := root
@@ -117,5 +117,29 @@ func TestInsertTwoLeaves(t *testing.T) {
 
 	if !bytes.Equal(leaf[:], testValue) {
 		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaf[:])
+	}
+}
+
+func TestGetTwoLeaves(t *testing.T) {
+	root := New()
+	root.Insert(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000000"), testValue)
+	root.Insert(common.Hex2Bytes("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"), testValue)
+
+	val, err := root.Get(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000000"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(val, testValue) {
+		t.Fatalf("got a different value from the tree than expected %x != %x", val, testValue)
+	}
+
+	val, err = root.Get(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000001"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if val != nil {
+		t.Fatalf("got a different value from the tree than expected %x != nil", val)
 	}
 }
