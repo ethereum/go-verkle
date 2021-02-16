@@ -143,3 +143,11 @@ func TestGetTwoLeaves(t *testing.T) {
 		t.Fatalf("got a different value from the tree than expected %x != nil", val)
 	}
 }
+
+func TestTreeHashing(t *testing.T) {
+	root := New()
+	root.Insert(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000000"), testValue)
+	root.Insert(common.Hex2Bytes("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"), testValue)
+
+	root.Hash()
+}

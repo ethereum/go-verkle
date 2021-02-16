@@ -26,6 +26,7 @@
 package verkle
 
 import (
+	"crypto/sha256"
 	"errors"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -53,6 +54,8 @@ const (
 
 var (
 	errInsertIntoHash = errors.New("trying to insert into hashed node")
+
+	zeroHash = common.HexToHash("0000000000000000000000000000000000000000000000000000000000000000")
 )
 
 type (
@@ -157,7 +160,12 @@ func (n *internalNode) Get(k []byte) ([]byte, error) {
 }
 
 func (n *internalNode) Hash() common.Hash {
-	panic("not implemented yet")
+	digest := sha256.New()
+	for _, child := range n.children {
+		digest.Write(child.Hash().Bytes())
+	}
+
+	return common.BytesToHash(digest.Sum(nil))
 }
 
 func (n *lastLevelNode) Insert(k []byte, value []byte) error {
@@ -194,7 +202,12 @@ func (n *lastLevelNode) Get(k []byte) ([]byte, error) {
 }
 
 func (n *lastLevelNode) Hash() common.Hash {
-	panic("not implemented yet")
+	digest := sha256.New()
+	for _, child := range n.children {
+		digest.Write(child.Hash().Bytes())
+	}
+
+	return common.BytesToHash(digest.Sum(nil))
 }
 
 func (n leafNode) Insert(k []byte, value []byte) error {
@@ -206,18 +219,18 @@ func (n leafNode) Get(k []byte) ([]byte, error) {
 }
 
 func (n leafNode) Hash() common.Hash {
-	panic("not implemented yet")
+	return common.Hash(sha256.Sum256(n[:]))
 }
 func (n hashedNode) Insert(k []byte, value []byte) error {
 	return errInsertIntoHash
 }
 
 func (n hashedNode) Get(k []byte) ([]byte, error) {
-	return nil, errors.New("not implemented yet")
+	return nil, errors.New("can not read from a hash node")
 }
 
 func (n hashedNode) Hash() common.Hash {
-	panic("not implemented yet")
+	return common.Hash(n)
 }
 
 func (e empty) Insert(k []byte, value []byte) error {
@@ -229,5 +242,5 @@ func (e empty) Get(k []byte) ([]byte, error) {
 }
 
 func (e empty) Hash() common.Hash {
-	panic("not implemented yet")
+	return zeroHash
 }
