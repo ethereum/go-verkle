@@ -35,7 +35,6 @@ import (
 type VerkleNode interface {
 	// Insert or Update value `v` at key `k`
 	Insert(k []byte, v []byte) error
-	insert(k []byte, offset uint, v []byte) error
 
 	// Get value at key `k`
 	Get(k []byte) ([]byte, error)
@@ -63,6 +62,9 @@ type (
 		// List of child nodes of this internal node.
 		children [InternalNodeNumChildren]VerkleNode
 
+		// node depth in the tree, in bits
+		depth uint
+
 		// Cache the hash of the current node
 		hash common.Hash
 	}
@@ -84,11 +86,12 @@ type (
 	empty struct{}
 )
 
-func newInternalNode() VerkleNode {
+func newInternalNode(depth uint) VerkleNode {
 	node := new(internalNode)
 	for idx := range node.children {
 		node.children[idx] = empty(struct{}{})
 	}
+	node.depth = depth
 	return node
 }
 
@@ -100,14 +103,13 @@ func newLastLevelNode() VerkleNode {
 	return node
 }
 
+// New creates a new tree root
 func New() VerkleNode {
-	return newInternalNode()
+	return newInternalNode(0)
 }
 
-func (n *internalNode) Insert(key []byte, value []byte) error {
-	return n.insert(key, 0, value)
-}
-
+// offset2Key extracts the 10 bits of a key that correspond to the
+// index of a child node.
 func offset2Key(key []byte, offset uint) uint {
 	// The node has 1024 children, i.e. 10 bits. Extract it
 	// from the key to figure out which child to recurse into.
@@ -122,24 +124,24 @@ func offset2Key(key []byte, offset uint) uint {
 	return (uint(key[nFirstByte]^leftMask) << ((nBitsInSecondByte-1)%8 + 1)) | uint(key[nFirstByte+1]>>lastBitShift)
 }
 
-func (n *internalNode) insert(key []byte, offset uint, value []byte) error {
-	nChild := offset2Key(key, offset)
+func (n *internalNode) Insert(key []byte, value []byte) error {
+	nChild := offset2Key(key, n.depth)
 
 	switch child := n.children[nChild].(type) {
 	case empty:
 		// empty subtree; recurse-initialize. Depending
 		// on the depth it's a full internal node (1024
 		// entries) or a last-level node (64 entries).
-		if offset == 240 {
+		if n.depth == 240 {
 			n.children[nChild] = newLastLevelNode()
 		} else {
-			n.children[nChild] = newInternalNode()
+			n.children[nChild] = newInternalNode(n.depth + 10)
 		}
-		return n.children[nChild].insert(key, offset+10, value)
+		return n.children[nChild].Insert(key, value)
 	case hashedNode:
 		return errInsertIntoHash
 	default:
-		return child.insert(key, offset+10, value)
+		return child.Insert(key, value)
 	}
 }
 
@@ -152,10 +154,6 @@ func (n *internalNode) Hash() common.Hash {
 }
 
 func (n *lastLevelNode) Insert(k []byte, value []byte) error {
-	return n.insert(k, 0, value)
-}
-
-func (n *lastLevelNode) insert(k []byte, offset uint, value []byte) error {
 	// Child index is in the last 6 bits of the key
 	nChild := k[31] & 0x3F
 
@@ -182,10 +180,6 @@ func (n *lastLevelNode) Hash() common.Hash {
 }
 
 func (n leafNode) Insert(k []byte, value []byte) error {
-	return n.insert(k, 0, value)
-}
-
-func (n leafNode) insert(k []byte, offset uint, value []byte) error {
 	return errors.New("hmmmm... a leaf node should not be inserted directly into")
 }
 
@@ -197,10 +191,6 @@ func (n leafNode) Hash() common.Hash {
 	panic("not implemented yet")
 }
 func (n hashedNode) Insert(k []byte, value []byte) error {
-	return n.insert(k, 0, value)
-}
-
-func (n hashedNode) insert(k []byte, offset uint, value []byte) error {
 	return errInsertIntoHash
 }
 
@@ -213,10 +203,6 @@ func (n hashedNode) Hash() common.Hash {
 }
 
 func (e empty) Insert(k []byte, value []byte) error {
-	return e.insert(k, 0, value)
-}
-
-func (e empty) insert(k []byte, offset uint, value []byte) error {
 	return errors.New("hmmmm... a leaf node should not be inserted directly into")
 }
 
