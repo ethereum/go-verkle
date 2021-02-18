@@ -42,6 +42,9 @@ type VerkleNode interface {
 
 	// Hash of the current node
 	Hash() common.Hash
+
+	// GetCommitment computes the commitment of the node
+	GetCommitment() *kzg.G1
 }
 
 const (
@@ -185,6 +188,19 @@ func compressG1Point(p *kzg.G1) []byte {
 	return compressed
 }
 
+func (n *internalNode) GetCommitment() *kzg.G1 {
+	var poly [1024]kzg.Big
+	for idx, childC := range n.children {
+		compressed := compressG1Point(childC.GetCommitment())
+		h := sha256.Sum256(compressed)
+		kzg.BigNumFrom32(&poly[idx], h)
+	}
+
+	s1, s2 := generateSetup("1927409816240961209460912649124", 1024)
+	ks := kzg.NewKZGSettings(kzg.NewFFTSettings(6), s1, s2)
+	return ks.CommitToPoly(poly[:])
+}
+
 func (n *lastLevelNode) Insert(k []byte, value []byte) error {
 	// Child index is in the last 6 bits of the key
 	nChild := k[31] & 0x3F
@@ -227,6 +243,18 @@ func (n *lastLevelNode) Hash() common.Hash {
 	return common.BytesToHash(digest.Sum(nil))
 }
 
+func (n *lastLevelNode) GetCommitment() *kzg.G1 {
+	var poly [64]kzg.Big
+	for idx, childC := range n.children {
+		// children are leaves, just get their hashes
+		kzg.BigNumFrom32(&poly[idx], childC.Hash())
+	}
+
+	s1, s2 := generateSetup("1927409816240961209460912649124", 1024)
+	ks := kzg.NewKZGSettings(kzg.NewFFTSettings(6), s1, s2)
+	return ks.CommitToPoly(poly[:])
+}
+
 func (n leafNode) Insert(k []byte, value []byte) error {
 	n.key = k
 	n.value = value
@@ -235,6 +263,10 @@ func (n leafNode) Insert(k []byte, value []byte) error {
 
 func (n leafNode) Get(k []byte) ([]byte, error) {
 	return nil, errors.New("not implemented yet")
+}
+
+func (n leafNode) GetCommitment() *kzg.G1 {
+	panic("can't get the commitment directly")
 }
 
 func (n leafNode) Hash() common.Hash {
@@ -252,6 +284,9 @@ func (n hashedNode) Hash() common.Hash {
 	return common.Hash(n)
 }
 
+func (n hashedNode) GetCommitment() *kzg.G1 {
+	panic("not supported yet")
+}
 func (e empty) Insert(k []byte, value []byte) error {
 	return errors.New("hmmmm... a leaf node should not be inserted directly into")
 }
