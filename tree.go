@@ -84,7 +84,10 @@ type (
 
 	hashedNode common.Hash
 
-	leafNode []byte
+	leafNode struct {
+		key   []byte
+		value []byte
+	}
 
 	empty struct{}
 )
@@ -176,7 +179,7 @@ func (n *lastLevelNode) Insert(k []byte, value []byte) error {
 	// or an empty node.
 	switch n.children[nChild].(type) {
 	case empty, leafNode:
-		n.children[nChild] = leafNode(value)
+		n.children[nChild] = leafNode{key: k, value: value}
 	case hashedNode:
 		return errors.New("trying to update a hashed leaf node")
 	default:
@@ -195,7 +198,7 @@ func (n *lastLevelNode) Get(k []byte) ([]byte, error) {
 	case hashedNode:
 		return nil, errors.New("can not Get value from hash")
 	case leafNode:
-		return []byte(child), nil
+		return child.Get(k)
 	default:
 		return nil, errors.New("invalid node type encountered")
 	}
@@ -211,7 +214,9 @@ func (n *lastLevelNode) Hash() common.Hash {
 }
 
 func (n leafNode) Insert(k []byte, value []byte) error {
-	return errors.New("hmmmm... a leaf node should not be inserted directly into")
+	n.key = k
+	n.value = value
+	return nil
 }
 
 func (n leafNode) Get(k []byte) ([]byte, error) {
