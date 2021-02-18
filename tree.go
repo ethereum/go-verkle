@@ -30,7 +30,7 @@ import (
 	"errors"
 
 	"github.com/ethereum/go-ethereum/common"
-	//"github.com/protolambda/go-kzg"
+	"github.com/protolambda/go-kzg"
 )
 
 type VerkleNode interface {
@@ -169,6 +169,20 @@ func (n *internalNode) Hash() common.Hash {
 	}
 
 	return common.BytesToHash(digest.Sum(nil))
+}
+
+func compressG1Point(p *kzg.G1) []byte {
+	// Get the compressed form of the commitment as described in:
+	// https://docs.rs/bls12_381/0.4.0/bls12_381/notes/serialization/index.html
+	compressed := p.X.Serialize()
+	compressed[0] |= 0x80 // compressed form
+	if p.Z.IsZero() {
+		compressed[0] |= 0x40 // infinity
+	} else if !p.Y.IsNegative() {
+		compressed[0] |= 0x20 // largest Y coordinate
+	}
+
+	return compressed
 }
 
 func (n *lastLevelNode) Insert(k []byte, value []byte) error {
