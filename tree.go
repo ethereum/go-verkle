@@ -270,7 +270,10 @@ func (n leafNode) GetCommitment() *kzg.G1 {
 }
 
 func (n leafNode) Hash() common.Hash {
-	return common.Hash(sha256.Sum256(n[:]))
+	digest := sha256.New()
+	digest.Write(n.key)
+	digest.Write(n.value)
+	return common.BytesToHash(digest.Sum(nil))
 }
 func (n hashedNode) Insert(k []byte, value []byte) error {
 	return errInsertIntoHash
