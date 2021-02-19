@@ -31,6 +31,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/protolambda/go-kzg"
+	"github.com/protolambda/go-kzg/bls"
 )
 
 type VerkleNode interface {
@@ -44,7 +45,7 @@ type VerkleNode interface {
 	Hash() common.Hash
 
 	// GetCommitment computes the commitment of the node
-	GetCommitment() *kzg.G1
+	GetCommitment() *bls.G1Point
 }
 
 const (
@@ -174,7 +175,7 @@ func (n *internalNode) Hash() common.Hash {
 	return common.BytesToHash(digest.Sum(nil))
 }
 
-func compressG1Point(p *kzg.G1) []byte {
+func compressG1Point(p *bls.G1Point) []byte {
 	// Get the compressed form of the commitment as described in:
 	// https://docs.rs/bls12_381/0.4.0/bls12_381/notes/serialization/index.html
 	compressed := p.X.Serialize()
@@ -188,12 +189,12 @@ func compressG1Point(p *kzg.G1) []byte {
 	return compressed
 }
 
-func (n *internalNode) GetCommitment() *kzg.G1 {
-	var poly [1024]kzg.Big
+func (n *internalNode) GetCommitment() *bls.G1Point {
+	var poly [1024]bls.Fr
 	for idx, childC := range n.children {
 		compressed := compressG1Point(childC.GetCommitment())
 		h := sha256.Sum256(compressed)
-		kzg.BigNumFrom32(&poly[idx], h)
+		bls.FrFrom32(&poly[idx], h)
 	}
 
 	s1, s2 := generateSetup("1927409816240961209460912649124", 1024)
@@ -243,11 +244,11 @@ func (n *lastLevelNode) Hash() common.Hash {
 	return common.BytesToHash(digest.Sum(nil))
 }
 
-func (n *lastLevelNode) GetCommitment() *kzg.G1 {
-	var poly [64]kzg.Big
+func (n *lastLevelNode) GetCommitment() *bls.G1Point {
+	var poly [64]bls.Fr
 	for idx, childC := range n.children {
 		// children are leaves, just get their hashes
-		kzg.BigNumFrom32(&poly[idx], childC.Hash())
+		bls.FrFrom32(&poly[idx], childC.Hash())
 	}
 
 	s1, s2 := generateSetup("1927409816240961209460912649124", 1024)
@@ -265,7 +266,7 @@ func (n leafNode) Get(k []byte) ([]byte, error) {
 	return nil, errors.New("not implemented yet")
 }
 
-func (n leafNode) GetCommitment() *kzg.G1 {
+func (n leafNode) GetCommitment() *bls.G1Point {
 	panic("can't get the commitment directly")
 }
 
@@ -287,9 +288,10 @@ func (n hashedNode) Hash() common.Hash {
 	return common.Hash(n)
 }
 
-func (n hashedNode) GetCommitment() *kzg.G1 {
+func (n hashedNode) GetCommitment() *bls.G1Point {
 	panic("not supported yet")
 }
+
 func (e empty) Insert(k []byte, value []byte) error {
 	return errors.New("hmmmm... a leaf node should not be inserted directly into")
 }
@@ -300,4 +302,8 @@ func (e empty) Get(k []byte) ([]byte, error) {
 
 func (e empty) Hash() common.Hash {
 	return zeroHash
+}
+
+func (e empty) GetCommitment() *bls.G1Point {
+	return &bls.ZeroG1
 }
