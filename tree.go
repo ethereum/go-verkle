@@ -28,6 +28,7 @@ package verkle
 import (
 	"crypto/sha256"
 	"errors"
+	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/protolambda/go-kzg"
@@ -50,6 +51,14 @@ type VerkleNode interface {
 	// GetCommitment retrieves the (previously computed)
 	// commitment of a node.
 	GetCommitment() *bls.G1Point
+
+	// GetCommitmentAlongPath follows the path of one key,
+	// and collect the commitments along this path in
+	// reverse order, since f_{m-1} = commitment at root
+	// level and f_0 = commitment to leaf.
+	// It returns the list of commitments, as well as the
+	// z_i.
+	GetCommitmentsAlongPath([]byte) ([]*bls.G1Point, []*bls.Fr)
 }
 
 const (
@@ -215,6 +224,14 @@ func (n *internalNode) GetCommitment() *bls.G1Point {
 	return n.commitment
 }
 
+func (n *internalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr) {
+	childIdx := offset2Key(key, n.depth)
+	comms, zis := n.children[childIdx].GetCommitmentsAlongPath(key)
+	var zi bls.Fr
+	bls.SetFr(&zi, fmt.Sprintf("%x", childIdx))
+	return append(comms, n.GetCommitment()), append(zis, zi)
+}
+
 func (n *lastLevelNode) Insert(k []byte, value []byte) error {
 	// Child index is in the last 6 bits of the key
 	nChild := k[31] & 0x3F
@@ -272,6 +289,14 @@ func (n *lastLevelNode) GetCommitment() *bls.G1Point {
 	return n.commitment
 }
 
+func (n *lastLevelNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr) {
+	childIdx := offset2Key(key, 240)
+	comm, zis := n.children[childIdx].GetCommitmentsAlongPath(key)
+	var zi bls.Fr
+	bls.SetFr(&zi, fmt.Sprintf("%x", childIdx))
+	return append(comm, n.GetCommitment()), append(zis, &zi)
+}
+
 func (n leafNode) Insert(k []byte, value []byte) error {
 	n.key = k
 	n.value = value
@@ -288,6 +313,15 @@ func (n leafNode) ComputeCommitment(*kzg.KZGSettings) *bls.G1Point {
 
 func (n leafNode) GetCommitment() *bls.G1Point {
 	panic("can't get the commitment directly")
+}
+
+func (n leafNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr) {
+	h := n.Hash()
+	var hFr bls.Fr
+	bls.FrFrom32(&hFr, h)
+	var ret bls.G1Point
+	bls.MulG1(&ret, &bls.GenG1, &hFr)
+	return []*bls.G1Point{&ret}, nil
 }
 
 func (n leafNode) Hash() common.Hash {
@@ -319,6 +353,9 @@ func (n hashedNode) GetCommitment() *bls.G1Point {
 	bls.MulG1(&out, &bls.GenG1, &tmp)
 	return &out
 }
+func (n hashedNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr) {
+	panic("can not get the full path, and there is no proof of absence")
+}
 
 func (e empty) Insert(k []byte, value []byte) error {
 	return errors.New("hmmmm... a leaf node should not be inserted directly into")
@@ -338,4 +375,8 @@ func (e empty) ComputeCommitment(*kzg.KZGSettings) *bls.G1Point {
 
 func (e empty) GetCommitment() *bls.G1Point {
 	return &bls.ZeroG1
+}
+
+func (e empty) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr) {
+	panic("trying to produce a commitment for an empty subtree")
 }
