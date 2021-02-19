@@ -44,7 +44,11 @@ type VerkleNode interface {
 	// Hash of the current node
 	Hash() common.Hash
 
-	// GetCommitment computes the commitment of the node
+	// ComputeCommitment computes the commitment of the node
+	ComputeCommitment(*kzg.KZGSettings) *bls.G1Point
+
+	// GetCommitment retrieves the (previously computed)
+	// commitment of a node.
 	GetCommitment() *bls.G1Point
 }
 
@@ -74,6 +78,9 @@ type (
 
 		// Cache the hash of the current node
 		hash common.Hash
+
+		// Cache the commitment value
+		commitment *bls.G1Point
 	}
 
 	// Represents an internal node at the last level,
@@ -84,6 +91,9 @@ type (
 
 		// Cache the hash of the current node
 		hash common.Hash
+
+		// Cache the commitment value
+		commitment *bls.G1Point
 	}
 
 	hashedNode common.Hash
@@ -189,17 +199,20 @@ func compressG1Point(p *bls.G1Point) []byte {
 	return compressed
 }
 
-func (n *internalNode) GetCommitment() *bls.G1Point {
+func (n *internalNode) ComputeCommitment(ks *kzg.KZGSettings) *bls.G1Point {
 	var poly [1024]bls.Fr
 	for idx, childC := range n.children {
-		compressed := compressG1Point(childC.GetCommitment())
+		compressed := compressG1Point(childC.ComputeCommitment(ks))
 		h := sha256.Sum256(compressed)
 		bls.FrFrom32(&poly[idx], h)
 	}
 
-	s1, s2 := generateSetup("1927409816240961209460912649124", 1024)
-	ks := kzg.NewKZGSettings(kzg.NewFFTSettings(6), s1, s2)
-	return ks.CommitToPoly(poly[:])
+	n.commitment = ks.CommitToPoly(poly[:])
+	return n.commitment
+}
+
+func (n *internalNode) GetCommitment() *bls.G1Point {
+	return n.commitment
 }
 
 func (n *lastLevelNode) Insert(k []byte, value []byte) error {
@@ -244,16 +257,19 @@ func (n *lastLevelNode) Hash() common.Hash {
 	return common.BytesToHash(digest.Sum(nil))
 }
 
-func (n *lastLevelNode) GetCommitment() *bls.G1Point {
+func (n *lastLevelNode) ComputeCommitment(ks *kzg.KZGSettings) *bls.G1Point {
 	var poly [64]bls.Fr
 	for idx, childC := range n.children {
 		// children are leaves, just get their hashes
 		bls.FrFrom32(&poly[idx], childC.Hash())
 	}
 
-	s1, s2 := generateSetup("1927409816240961209460912649124", 1024)
-	ks := kzg.NewKZGSettings(kzg.NewFFTSettings(6), s1, s2)
-	return ks.CommitToPoly(poly[:])
+	n.commitment = ks.CommitToPoly(poly[:])
+	return n.commitment
+}
+
+func (n *lastLevelNode) GetCommitment() *bls.G1Point {
+	return n.commitment
 }
 
 func (n leafNode) Insert(k []byte, value []byte) error {
@@ -264,6 +280,10 @@ func (n leafNode) Insert(k []byte, value []byte) error {
 
 func (n leafNode) Get(k []byte) ([]byte, error) {
 	return nil, errors.New("not implemented yet")
+}
+
+func (n leafNode) ComputeCommitment(*kzg.KZGSettings) *bls.G1Point {
+	panic("can't compute the commitment directly")
 }
 
 func (n leafNode) GetCommitment() *bls.G1Point {
@@ -288,8 +308,16 @@ func (n hashedNode) Hash() common.Hash {
 	return common.Hash(n)
 }
 
+func (n hashedNode) ComputeCommitment(*kzg.KZGSettings) *bls.G1Point {
+	panic("not implemented yet")
+}
+
 func (n hashedNode) GetCommitment() *bls.G1Point {
-	panic("not supported yet")
+	var tmp bls.Fr
+	var out bls.G1Point
+	bls.FrFrom32(&tmp, n)
+	bls.MulG1(&out, &bls.GenG1, &tmp)
+	return &out
 }
 
 func (e empty) Insert(k []byte, value []byte) error {
@@ -302,6 +330,10 @@ func (e empty) Get(k []byte) ([]byte, error) {
 
 func (e empty) Hash() common.Hash {
 	return zeroHash
+}
+
+func (e empty) ComputeCommitment(*kzg.KZGSettings) *bls.G1Point {
+	return &bls.ZeroG1
 }
 
 func (e empty) GetCommitment() *bls.G1Point {

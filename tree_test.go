@@ -61,8 +61,8 @@ func TestInsertIntoRoot(t *testing.T) {
 		t.Fatal("invalid leaf node type")
 	}
 
-	if !bytes.Equal(leaf[:], testValue) {
-		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaf[:])
+	if !bytes.Equal(leaf.value[:], testValue) {
+		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaf.value[:])
 	}
 }
 
@@ -91,8 +91,8 @@ func TestInsertTwoLeaves(t *testing.T) {
 		t.Fatal("invalid leaf node type")
 	}
 
-	if !bytes.Equal(leaf[:], testValue) {
-		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaf[:])
+	if !bytes.Equal(leaf.value[:], testValue) {
+		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaf.value[:])
 	}
 
 	// Check that the second value is present in the tree
@@ -115,8 +115,8 @@ func TestInsertTwoLeaves(t *testing.T) {
 		t.Fatal("invalid leaf node type")
 	}
 
-	if !bytes.Equal(leaf[:], testValue) {
-		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaf[:])
+	if !bytes.Equal(leaf.value[:], testValue) {
+		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaf.value[:])
 	}
 }
 
