@@ -70,3 +70,15 @@ func calcR(cs []bls.G1Point, indices []bls.Fr, ys []bls.Fr) bls.Fr {
 	return tmp
 
 }
+
+func calcT(r bls.Fr, d *bls.G1Point) bls.Fr {
+	digest := sha256.New()
+
+	tmpBytes := bls.FrTo32(&r)
+	digest.Write(tmpBytes[:])
+	digest.Write(compressG1Point(d))
+
+	var tmp bls.Fr
+	bls.FrFrom32(&tmp, common.BytesToHash(digest.Sum(nil)))
+	return tmp
+}
