@@ -33,17 +33,17 @@ import (
 )
 
 
-func calcR(cs []bls.G1Point, indices []bls.Fr, ys []bls.Fr) bls.Fr {
+func calcR(cs []*bls.G1Point, indices []*bls.Fr, ys []*bls.Fr) bls.Fr {
 	digest := sha256.New()
 	for _, c := range cs {
-		digest.Write(compressG1Point(&c))
+		digest.Write(compressG1Point(c))
 	}
 	for _, idx := range indices {
-		tmp := bls.FrTo32(&idx)
+		tmp := bls.FrTo32(idx)
 		digest.Write(tmp[:])
 	}
 	for _, y := range ys {
-		tmp := bls.FrTo32(&y)
+		tmp := bls.FrTo32(y)
 		digest.Write(tmp[:])
 	}
 
