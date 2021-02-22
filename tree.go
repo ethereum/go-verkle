@@ -226,10 +226,12 @@ func (n *internalNode) GetCommitment() *bls.G1Point {
 
 func (n *internalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr) {
 	childIdx := offset2Key(key, n.depth)
-	comms, zis := n.children[childIdx].GetCommitmentsAlongPath(key)
+	comms, zis, yis := n.children[childIdx].GetCommitmentsAlongPath(key)
 	var zi bls.Fr
 	bls.SetFr(&zi, fmt.Sprintf("%x", childIdx))
-	return append(comms, n.GetCommitment()), append(zis, zi)
+	var yi bls.Fr
+	bls.SetFr(&yi, fmt.Sprintf("%x", n.children[childIdx].Hash()))
+	return append(comms, n.GetCommitment()), append(zis, &zi), append(yis, &yi)
 }
 
 func (n *lastLevelNode) Insert(k []byte, value []byte) error {
@@ -291,10 +293,12 @@ func (n *lastLevelNode) GetCommitment() *bls.G1Point {
 
 func (n *lastLevelNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr) {
 	childIdx := offset2Key(key, 240)
-	comm, zis := n.children[childIdx].GetCommitmentsAlongPath(key)
-	var zi bls.Fr
-	bls.SetFr(&zi, fmt.Sprintf("%x", childIdx))
-	return append(comm, n.GetCommitment()), append(zis, &zi)
+	comm, zis, yis := n.children[childIdx].GetCommitmentsAlongPath(key)
+	var z0 bls.Fr
+	bls.SetFr(&z0, fmt.Sprintf("%x", childIdx))
+	var y0 bls.Fr
+	bls.SetFr(&y0, fmt.Sprintf("%x", n.children[childIdx].Hash()))
+	return append(comm, n.GetCommitment()), append(zis, &z0), append(yis, &y0)
 }
 
 func (n leafNode) Insert(k []byte, value []byte) error {
@@ -319,9 +323,7 @@ func (n leafNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr
 	h := n.Hash()
 	var hFr bls.Fr
 	bls.FrFrom32(&hFr, h)
-	var ret bls.G1Point
-	bls.MulG1(&ret, &bls.GenG1, &hFr)
-	return []*bls.G1Point{&ret}, nil
+	return nil, nil, []*bls.Fr{&hFr}
 }
 
 func (n leafNode) Hash() common.Hash {
