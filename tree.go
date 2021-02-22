@@ -58,7 +58,7 @@ type VerkleNode interface {
 	// level and f_0 = commitment to leaf.
 	// It returns the list of commitments, as well as the
 	// z_i.
-	GetCommitmentsAlongPath([]byte) ([]*bls.G1Point, []*bls.Fr)
+	GetCommitmentsAlongPath([]byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr)
 }
 
 const (
@@ -224,7 +224,7 @@ func (n *internalNode) GetCommitment() *bls.G1Point {
 	return n.commitment
 }
 
-func (n *internalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr) {
+func (n *internalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr) {
 	childIdx := offset2Key(key, n.depth)
 	comms, zis := n.children[childIdx].GetCommitmentsAlongPath(key)
 	var zi bls.Fr
@@ -289,7 +289,7 @@ func (n *lastLevelNode) GetCommitment() *bls.G1Point {
 	return n.commitment
 }
 
-func (n *lastLevelNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr) {
+func (n *lastLevelNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr) {
 	childIdx := offset2Key(key, 240)
 	comm, zis := n.children[childIdx].GetCommitmentsAlongPath(key)
 	var zi bls.Fr
@@ -315,7 +315,7 @@ func (n leafNode) GetCommitment() *bls.G1Point {
 	panic("can't get the commitment directly")
 }
 
-func (n leafNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr) {
+func (n leafNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr) {
 	h := n.Hash()
 	var hFr bls.Fr
 	bls.FrFrom32(&hFr, h)
@@ -353,7 +353,7 @@ func (n hashedNode) GetCommitment() *bls.G1Point {
 	bls.MulG1(&out, &bls.GenG1, &tmp)
 	return &out
 }
-func (n hashedNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr) {
+func (n hashedNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr) {
 	panic("can not get the full path, and there is no proof of absence")
 }
 
@@ -377,6 +377,6 @@ func (e empty) GetCommitment() *bls.G1Point {
 	return &bls.ZeroG1
 }
 
-func (e empty) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr) {
+func (e empty) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr) {
 	panic("trying to produce a commitment for an empty subtree")
 }
