@@ -119,6 +119,22 @@ type (
 	empty struct{}
 )
 
+func init() {
+	// Calculate the lagrangian basis for internal nodes and
+	// last level nodes.
+	var tmp bls.Fr
+	bls.CopyFr(&tmp, &bls.ONE)
+	for i := 0; i < LastLevelNodeNumChildren; i++ {
+		bls.CopyFr(&omega64[i], &tmp)
+		bls.MulModFr(&tmp, &tmp, &bls.Scale2RootOfUnity[6])
+	}
+	bls.CopyFr(&tmp, &bls.ONE)
+	for i := 0; i < InternalNodeNumChildren; i++ {
+		bls.CopyFr(&omega1024[i], &tmp)
+		bls.MulModFr(&tmp, &tmp, &bls.Scale2RootOfUnity[10])
+	}
+}
+
 var omega64 [LastLevelNodeNumChildren]bls.Fr
 var omega1024 [InternalNodeNumChildren]bls.Fr
 
