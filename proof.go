@@ -64,3 +64,89 @@ func calcT(r bls.Fr, d *bls.G1Point) bls.Fr {
 	bls.FrFrom32(&tmp, common.BytesToHash(digest.Sum(nil)))
 	return tmp
 }
+
+func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, s *bls.Fr, s1 []bls.G1Point, s2 []bls.G2Point) (commitments []common.Hash, y, w bls.Fr, d, pi, rho *bls.G1Point) {
+	path, zis, yis := root.GetCommitmentsAlongPath(key)
+
+	r := calcR(path, zis, yis)
+
+	// Compute D = g(s) and h(s)
+	var hS bls.G1Point
+	d = new(bls.G1Point)
+	bls.CopyG1(d, &bls.ZeroG1)
+	bls.CopyG1(&hS, &bls.ZeroG1)
+	var power_of_r bls.Fr
+	bls.CopyFr(&power_of_r, &bls.ONE)
+	for i := range path {
+		var gi, hi bls.G1Point
+		var yiPoint bls.G1Point
+		bls.MulG1(&yiPoint, &bls.GenG1, yis[i])
+
+		// gᵢ(s) = Cᵢ - yᵢ
+		// hᵢ(s) = Cᵢ
+		bls.SubG1(&gi, path[i], &yiPoint)
+		bls.CopyG1(&hi, path[i])
+
+		// gᵢ(s) = rⁱ * (Cᵢ - yᵢ)
+		// hᵢ(s) = rⁱ * Cᵢ
+		bls.MulG1(&gi, &gi, &power_of_r)
+		bls.MulG1(&hi, &hi, &power_of_r)
+
+		var quotient bls.Fr
+		bls.SubModFr(&quotient, s, zis[i])
+		bls.InvModFr(&quotient, &quotient)
+
+		// gᵢ(s) = rⁱ * (Cᵢ - yᵢ) / (s - zᵢ)
+		// hᵢ(s) = rⁱ * Cᵢ / (s - zᵢ)
+		bls.MulG1(&gi, &gi, &quotient)
+		bls.MulG1(&hi, &hi, &quotient)
+
+		bls.AddG1(d, d, &gi)
+		bls.AddG1(&hS, &hS, &hi)
+
+		// rⁱ⁺¹ = r ⨯ rⁱ
+		bls.MulModFr(&power_of_r, &power_of_r, &r)
+	}
+
+	t := calcT(r, d)
+
+	// Compute w = g(t) and y = h(t); It requires using the
+	// barycentric formula in order to evaluate a function at
+	// ∀i zᵢ ≠ t,
+	g := make([]bls.Fr, 25)
+	h := make([]bls.Fr, 25)
+	fis := root.EvalPathAt(key, &t)
+	bls.CopyFr(&power_of_r, &bls.ONE)
+	for i, fi := range fis {
+		var tmp, denom bls.Fr
+		bls.CopyFr(&tmp, &t)
+		bls.SubModFr(&denom, &tmp, zis[i])
+		bls.MulModFr(&tmp, &power_of_r, fi)
+		bls.DivModFr(&h[i], &tmp, &denom)
+
+		// rⁱ⁺¹ = r ⨯ rⁱ
+		bls.MulModFr(&power_of_r, &power_of_r, &r)
+	}
+	bls.EvalPolyAt(&w, g, &t)
+	bls.EvalPolyAt(&y, h, &t)
+
+	// compute π
+	var sMinusT bls.Fr
+	bls.SubModFr(&sMinusT, s, &t)
+	var hSMinusY, yPoint bls.G1Point
+	bls.MulG1(&yPoint, &bls.GenG1, &y)
+	bls.SubG1(&hSMinusY, &hS, &yPoint)
+	var piMul bls.Fr
+	bls.InvModFr(&piMul, &sMinusT)
+	bls.MulG1(pi, &bls.GenG1, &piMul)
+
+	// compute ρ
+	var dMinusW, wPoint bls.G1Point
+	bls.MulG1(&wPoint, &bls.GenG1, &w)
+	bls.SubG1(&dMinusW, d, &wPoint)
+	var rhoMul bls.Fr
+	bls.InvModFr(&rhoMul, &sMinusT)
+	bls.MulG1(rho, &bls.GenG1, &rhoMul)
+
+	return
+}
