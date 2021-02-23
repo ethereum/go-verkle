@@ -371,7 +371,7 @@ func (n leafNode) Insert(k []byte, value []byte) error {
 }
 
 func (n leafNode) Get(k []byte) ([]byte, error) {
-	return nil, errors.New("not implemented yet")
+	return n.value, nil
 }
 
 func (n leafNode) ComputeCommitment(*kzg.KZGSettings) *bls.G1Point {
