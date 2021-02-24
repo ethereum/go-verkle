@@ -123,6 +123,8 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, s *bls.Fr) (commitments
 		bls.SubModFr(&denom, &tmp, zis[i])
 		bls.MulModFr(&tmp, &power_of_r, fi)
 		bls.DivModFr(&h[i], &tmp, &denom)
+		bls.SubModFr(&tmp, &tmp, yis[i])
+		bls.DivModFr(&g[i], &tmp, &denom)
 
 		// rⁱ⁺¹ = r ⨯ rⁱ
 		bls.MulModFr(&power_of_r, &power_of_r, &r)
