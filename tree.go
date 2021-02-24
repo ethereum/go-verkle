@@ -243,6 +243,9 @@ func (n *internalNode) ComputeCommitment(ks *kzg.KZGSettings) *bls.G1Point {
 }
 
 func (n *internalNode) GetCommitment() *bls.G1Point {
+	if n.commitment == nil {
+		panic("ComputeCommitment hasn't been called")
+	}
 	return n.commitment
 }
 
@@ -330,6 +333,9 @@ func (n *lastLevelNode) ComputeCommitment(ks *kzg.KZGSettings) *bls.G1Point {
 }
 
 func (n *lastLevelNode) GetCommitment() *bls.G1Point {
+	if n.commitment == nil {
+		panic("ComputeCommitment hasn't been called")
+	}
 	return n.commitment
 }
 
