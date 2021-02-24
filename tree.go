@@ -28,7 +28,6 @@ package verkle
 import (
 	"crypto/sha256"
 	"errors"
-	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/protolambda/go-kzg"
@@ -251,9 +250,9 @@ func (n *internalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*b
 	childIdx := offset2Key(key, n.depth)
 	comms, zis, yis := n.children[childIdx].GetCommitmentsAlongPath(key)
 	var zi bls.Fr
-	bls.SetFr(&zi, fmt.Sprintf("%x", childIdx))
+	bls.AsFr(&zi, uint64(childIdx))
 	var yi bls.Fr
-	bls.SetFr(&yi, fmt.Sprintf("%x", n.children[childIdx].Hash()))
+	bls.FrFrom32(&yi, n.children[childIdx].Hash())
 	return append(comms, n.GetCommitment()), append(zis, &zi), append(yis, &yi)
 }
 
@@ -338,9 +337,9 @@ func (n *lastLevelNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*
 	childIdx := offset2Key(key, 240)
 	comm, zis, yis := n.children[childIdx].GetCommitmentsAlongPath(key)
 	var z0 bls.Fr
-	bls.SetFr(&z0, fmt.Sprintf("%x", childIdx))
+	bls.AsFr(&z0, uint64(childIdx))
 	var y0 bls.Fr
-	bls.SetFr(&y0, fmt.Sprintf("%x", n.children[childIdx].Hash()))
+	bls.FrFrom32(&y0, n.children[childIdx].Hash())
 	return append(comm, n.GetCommitment()), append(zis, &z0), append(yis, &y0)
 }
 
