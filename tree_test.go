@@ -34,9 +34,14 @@ import (
 
 var testValue = []byte("hello")
 
+var (
+	zeroKeyTest  = common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000000")
+	ffx32KeyTest = common.Hex2Bytes("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
+)
+
 func TestInsertIntoRoot(t *testing.T) {
 	root := New()
-	err := root.Insert(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000000"), testValue)
+	err := root.Insert(zeroKeyTest, testValue)
 	if err != nil {
 		t.Fatalf("error inserting: %v", err)
 	}
@@ -68,8 +73,8 @@ func TestInsertIntoRoot(t *testing.T) {
 
 func TestInsertTwoLeaves(t *testing.T) {
 	root := New()
-	root.Insert(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000000"), testValue)
-	root.Insert(common.Hex2Bytes("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"), testValue)
+	root.Insert(zeroKeyTest, testValue)
+	root.Insert(ffx32KeyTest, testValue)
 
 	// Check that the first value is present in the tree
 	node := root
@@ -122,10 +127,10 @@ func TestInsertTwoLeaves(t *testing.T) {
 
 func TestGetTwoLeaves(t *testing.T) {
 	root := New()
-	root.Insert(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000000"), testValue)
-	root.Insert(common.Hex2Bytes("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"), testValue)
+	root.Insert(zeroKeyTest, testValue)
+	root.Insert(ffx32KeyTest, testValue)
 
-	val, err := root.Get(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000000"))
+	val, err := root.Get(zeroKeyTest)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -146,8 +151,8 @@ func TestGetTwoLeaves(t *testing.T) {
 
 func TestTreeHashing(t *testing.T) {
 	root := New()
-	root.Insert(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000000"), testValue)
-	root.Insert(common.Hex2Bytes("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"), testValue)
+	root.Insert(zeroKeyTest, testValue)
+	root.Insert(ffx32KeyTest, testValue)
 
 	root.Hash()
 }
