@@ -65,7 +65,7 @@ func calcT(r bls.Fr, d *bls.G1Point) bls.Fr {
 	return tmp
 }
 
-func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, s *bls.Fr, s1 []bls.G1Point, s2 []bls.G2Point) (commitments []common.Hash, y, w bls.Fr, d, pi, rho *bls.G1Point) {
+func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, s *bls.Fr) (commitments []common.Hash, y, w bls.Fr, d, pi, rho *bls.G1Point) {
 	path, zis, yis := root.GetCommitmentsAlongPath(key)
 
 	r := calcR(path, zis, yis)
