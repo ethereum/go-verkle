@@ -75,8 +75,8 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, s *bls.Fr) (commitments
 	d = new(bls.G1Point)
 	bls.CopyG1(d, &bls.ZeroG1)
 	bls.CopyG1(&hS, &bls.ZeroG1)
-	var power_of_r bls.Fr
-	bls.CopyFr(&power_of_r, &bls.ONE)
+	var powR bls.Fr
+	bls.CopyFr(&powR, &bls.ONE)
 	for i := range path {
 		var gi, hi bls.G1Point
 		var yiPoint bls.G1Point
@@ -89,8 +89,8 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, s *bls.Fr) (commitments
 
 		// gᵢ(s) = rⁱ * (Cᵢ - yᵢ)
 		// hᵢ(s) = rⁱ * Cᵢ
-		bls.MulG1(&gi, &gi, &power_of_r)
-		bls.MulG1(&hi, &hi, &power_of_r)
+		bls.MulG1(&gi, &gi, &powR)
+		bls.MulG1(&hi, &hi, &powR)
 
 		var quotient bls.Fr
 		bls.SubModFr(&quotient, s, zis[i])
@@ -105,7 +105,7 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, s *bls.Fr) (commitments
 		bls.AddG1(&hS, &hS, &hi)
 
 		// rⁱ⁺¹ = r ⨯ rⁱ
-		bls.MulModFr(&power_of_r, &power_of_r, &r)
+		bls.MulModFr(&powR, &powR, &r)
 	}
 
 	t := calcT(r, d)
@@ -116,18 +116,18 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, s *bls.Fr) (commitments
 	g := make([]bls.Fr, 25)
 	h := make([]bls.Fr, 25)
 	fis := root.EvalPathAt(key, &t)
-	bls.CopyFr(&power_of_r, &bls.ONE)
+	bls.CopyFr(&powR, &bls.ONE)
 	for i, fi := range fis {
 		var tmp, denom bls.Fr
 		bls.CopyFr(&tmp, &t)
 		bls.SubModFr(&denom, &tmp, zis[i])
-		bls.MulModFr(&tmp, &power_of_r, fi)
+		bls.MulModFr(&tmp, &powR, fi)
 		bls.DivModFr(&h[i], &tmp, &denom)
 		bls.SubModFr(&tmp, &tmp, yis[i])
 		bls.DivModFr(&g[i], &tmp, &denom)
 
 		// rⁱ⁺¹ = r ⨯ rⁱ
-		bls.MulModFr(&power_of_r, &power_of_r, &r)
+		bls.MulModFr(&powR, &powR, &r)
 	}
 	bls.EvalPolyAt(&w, g, &t)
 	bls.EvalPolyAt(&y, h, &t)
