@@ -152,3 +152,54 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, s *bls.Fr) (commitments
 
 	return
 }
+
+func VerifyVerkleProof(d, pi, rho *bls.G1Point, y *bls.Fr, commitments []*bls.G1Point, zis, yis []*bls.Fr, s2 *bls.G2Point) bool {
+	r := calcR(commitments, zis, yis)
+	t := calcT(r, d)
+
+	// Evaluate w = g₂(t) and E
+	g2 := make([]bls.Fr, len(commitments))
+	var powR bls.Fr
+	var e bls.G1Point
+	bls.CopyFr(&powR, &bls.ONE)
+	for i := range g2 {
+		var tMinusZi, rDivZi bls.Fr
+		bls.SubModFr(&tMinusZi, &t, zis[i])
+		bls.DivModFr(&rDivZi, &powR, &tMinusZi)
+
+		// g₂(t)
+		bls.MulModFr(&g2[i], &rDivZi, yis[i])
+
+		// E
+		var eTmp bls.G1Point
+		bls.MulG1(&e, commitments[i], &rDivZi)
+		bls.AddG1(&e, &e, &eTmp)
+
+		// rⁱ⁺¹ = r ⨯ rⁱ
+		bls.MulModFr(&powR, &powR, &r)
+	}
+	var g2t bls.Fr
+	bls.EvalPolyAt(&g2t, g2, &t)
+
+	// w = y - g₂(t)
+	var w bls.Fr
+	bls.SubModFr(&w, y, &g2t)
+
+	// Calculate [s-t]₂
+	var s2MinusT, tPoint bls.G2Point
+	bls.MulG2(&tPoint, &bls.GenG2, &t)
+	bls.SubG2(&s2MinusT, s2, &tPoint)
+
+	// D-[w]₁
+	var dMinusW, wPoint bls.G1Point
+	bls.MulG1(&wPoint, &bls.GenG1, &w)
+	bls.SubG1(&dMinusW, d, &wPoint)
+
+	// E-[y]₁
+	var eMinusY, yPoint bls.G1Point
+	bls.MulG1(&yPoint, &bls.GenG1, y)
+	bls.SubG1(&eMinusY, &e, &yPoint)
+
+	//return checkPairing(E-[y]₁, [1]₂, pi, [s-t]₂) && checkPairing(D-[w]₁, [1]₂, ro, [s-t]₂)
+	return bls.PairingsVerify(&eMinusY, &bls.GenG2, pi, &s2MinusT) && bls.PairingsVerify(&dMinusW, &bls.GenG2, rho, &s2MinusT)
+}
