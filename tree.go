@@ -61,7 +61,7 @@ type VerkleNode interface {
 
 	// EvalPathAt evaluates the polynomial at each level along the
 	// path traced by `key`, and returns the list of evaluations.
-	EvalPathAt([]byte, *bls.Fr) []*bls.Fr
+	EvalPathAt([]byte, *bls.Fr) []bls.Fr
 }
 
 const (
@@ -259,7 +259,7 @@ func (n *internalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*b
 	return append(comms, n.GetCommitment()), append(zis, &zi), append(yis, &yi)
 }
 
-func (n *internalNode) EvalPathAt(key []byte, at *bls.Fr) []*bls.Fr {
+func (n *internalNode) EvalPathAt(key []byte, at *bls.Fr) []bls.Fr {
 	childIdx := offset2Key(key, n.depth)
 	depthIdx := 1 + (240-n.depth)/10 // index to store the computation result at.
 	ret := n.children[childIdx].EvalPathAt(key, at)
@@ -273,8 +273,8 @@ func (n *internalNode) EvalPathAt(key []byte, at *bls.Fr) []*bls.Fr {
 		bls.DivModFr(&fi, &tmp, &quotient)
 
 		// Add fᵢ x ret[depthIdx] to accumulator and iterate
-		bls.AddModFr(&tmp, ret[depthIdx], &fi)
-		bls.CopyFr(ret[depthIdx], &tmp)
+		bls.AddModFr(&tmp, &ret[depthIdx], &fi)
+		bls.CopyFr(&ret[depthIdx], &tmp)
 	}
 	return ret
 }
@@ -341,18 +341,18 @@ func (n *lastLevelNode) GetCommitment() *bls.G1Point {
 
 func (n *lastLevelNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr) {
 	childIdx := offset2Key(key, 240)
-	comm, zis, yis := n.children[childIdx].GetCommitmentsAlongPath(key)
+	_, zis, _ := n.children[childIdx].GetCommitmentsAlongPath(key)
 	var z0 bls.Fr
 	bls.AsFr(&z0, uint64(childIdx))
 	var y0 bls.Fr
 	bls.FrFrom32(&y0, n.children[childIdx].Hash())
-	return append(comm, n.GetCommitment()), append(zis, &z0), append(yis, &y0)
+	return []*bls.G1Point{n.GetCommitment()}, append(zis, &z0), []*bls.Fr{&y0}
 }
 
-func (n *lastLevelNode) EvalPathAt(key []byte, at *bls.Fr) []*bls.Fr {
+func (n *lastLevelNode) EvalPathAt(key []byte, at *bls.Fr) []bls.Fr {
 	// Allocate the vector once, to be filled and passed up the tree
-	ret := make([]*bls.Fr, 26)
-	bls.CopyFr(ret[0], &bls.ZERO)
+	ret := make([]bls.Fr, 26)
+	bls.CopyFr(&ret[0], &bls.ZERO)
 
 	// Apply the barycenter formula to this level
 	for i := range n.children {
@@ -363,8 +363,8 @@ func (n *lastLevelNode) EvalPathAt(key []byte, at *bls.Fr) []*bls.Fr {
 		bls.DivModFr(&fi, &tmp, &quotient)
 
 		// Add fᵢ x ret[0] to accumulator and iterate
-		bls.AddModFr(&tmp, ret[0], &fi)
-		bls.CopyFr(ret[0], &tmp)
+		bls.AddModFr(&tmp, &ret[0], &fi)
+		bls.CopyFr(&ret[0], &tmp)
 	}
 	return ret
 }
@@ -394,7 +394,7 @@ func (n leafNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr
 	return nil, nil, []*bls.Fr{&hFr}
 }
 
-func (n leafNode) EvalPathAt([]byte, *bls.Fr) []*bls.Fr {
+func (n leafNode) EvalPathAt([]byte, *bls.Fr) []bls.Fr {
 	panic("should not evaluate path at key level")
 }
 
@@ -431,7 +431,7 @@ func (n hashedNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.
 	panic("can not get the full path, and there is no proof of absence")
 }
 
-func (n hashedNode) EvalPathAt([]byte, *bls.Fr) []*bls.Fr {
+func (n hashedNode) EvalPathAt([]byte, *bls.Fr) []bls.Fr {
 	panic("can not evaluate path through hash node")
 }
 
@@ -459,6 +459,6 @@ func (e empty) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, [
 	panic("trying to produce a commitment for an empty subtree")
 }
 
-func (e empty) EvalPathAt(_ []byte, _ *bls.Fr) []*bls.Fr {
+func (e empty) EvalPathAt(_ []byte, _ *bls.Fr) []bls.Fr {
 	panic("trying to evaluate the polynomial at an empty place")
 }

@@ -113,15 +113,15 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, s *bls.Fr) (commitments
 	// Compute w = g(t) and y = h(t); It requires using the
 	// barycentric formula in order to evaluate a function at
 	// ∀i zᵢ ≠ t,
-	g := make([]bls.Fr, 25)
-	h := make([]bls.Fr, 25)
+	g := make([]bls.Fr, 26)
+	h := make([]bls.Fr, 26)
 	fis := root.EvalPathAt(key, &t)
 	bls.CopyFr(&powR, &bls.ONE)
 	for i, fi := range fis {
 		var tmp, denom bls.Fr
 		bls.CopyFr(&tmp, &t)
 		bls.SubModFr(&denom, &tmp, zis[i])
-		bls.MulModFr(&tmp, &powR, fi)
+		bls.MulModFr(&tmp, &powR, &fi)
 		bls.DivModFr(&h[i], &tmp, &denom)
 		bls.SubModFr(&tmp, &tmp, yis[i])
 		bls.DivModFr(&g[i], &tmp, &denom)
@@ -140,6 +140,7 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, s *bls.Fr) (commitments
 	bls.SubG1(&hSMinusY, &hS, &yPoint)
 	var piMul bls.Fr
 	bls.InvModFr(&piMul, &sMinusT)
+	pi = new(bls.G1Point)
 	bls.MulG1(pi, &bls.GenG1, &piMul)
 
 	// compute ρ
@@ -148,6 +149,7 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, s *bls.Fr) (commitments
 	bls.SubG1(&dMinusW, d, &wPoint)
 	var rhoMul bls.Fr
 	bls.InvModFr(&rhoMul, &sMinusT)
+	rho = new(bls.G1Point)
 	bls.MulG1(rho, &bls.GenG1, &rhoMul)
 
 	return

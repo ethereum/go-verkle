@@ -28,10 +28,19 @@ package verkle
 import (
 	"testing"
 
+	"github.com/protolambda/go-kzg/bls"
 )
 
-func TestProofGeneration(t *testing.T) {
+func TestProofGenerationTwoLeaves(t *testing.T) {
 	root := New()
 	root.Insert(zeroKeyTest, testValue)
 	root.Insert(ffx32KeyTest, testValue)
+
+	// Calculate all commitments
+	s1, s2 := kzg.GenerateTestingSetup("1927409816240961209460912649124", 1024)
+	ks := kzg.NewKZGSettings(kzg.NewFFTSettings(6), s1, s2)
+	_ = root.ComputeCommitment(ks)
+	var s bls.Fr
+	bls.SetFr(&s, "1927409816240961209460912649124")
+	_, _, _, d, pi, rho := MakeVerkleProofOneLeaf(root, zeroKeyTest, &s)
 }
