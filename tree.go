@@ -65,11 +65,18 @@ type VerkleNode interface {
 }
 
 const (
-	// Number of children in an internal node
-	InternalNodeNumChildren = 1024
+	// log of the number of children in an internal node
+	width = 10
 
-	// Number of children in a last level node
-	LastLevelNodeNumChildren = 64
+	// Number of children in an internal node
+	InternalNodeNumChildren = 1 << width
+
+	// Number of children in the last level node, which
+	// is not width-aligned.
+	LastLevelNodeNumChildren = 1 << (256 % width)
+
+	// Number of internal (i.e. width-sized) node levels
+	nInternalLevels = 256 / width
 )
 
 var (
@@ -124,18 +131,18 @@ func init() {
 	var tmp bls.Fr
 	bls.CopyFr(&tmp, &bls.ONE)
 	for i := 0; i < LastLevelNodeNumChildren; i++ {
-		bls.CopyFr(&omega64[i], &tmp)
+		bls.CopyFr(&omegaLast[i], &tmp)
 		bls.MulModFr(&tmp, &tmp, &bls.Scale2RootOfUnity[6])
 	}
 	bls.CopyFr(&tmp, &bls.ONE)
 	for i := 0; i < InternalNodeNumChildren; i++ {
-		bls.CopyFr(&omega1024[i], &tmp)
+		bls.CopyFr(&omegaInternal[i], &tmp)
 		bls.MulModFr(&tmp, &tmp, &bls.Scale2RootOfUnity[10])
 	}
 }
 
-var omega64 [LastLevelNodeNumChildren]bls.Fr
-var omega1024 [InternalNodeNumChildren]bls.Fr
+var omegaLast [LastLevelNodeNumChildren]bls.Fr
+var omegaInternal [InternalNodeNumChildren]bls.Fr
 
 func newInternalNode(depth uint) VerkleNode {
 	node := new(internalNode)
@@ -168,7 +175,7 @@ func offset2Key(key []byte, offset uint) uint {
 	// the pitch is 10 and therefore a multiple of 2. Hence, no
 	// 3 byte scenario is possible.
 	nFirstByte := offset / 8
-	nBitsInSecondByte := (offset + 10) % 8
+	nBitsInSecondByte := (offset + width) % 8
 	firstBitShift := (8 - (offset % 8))
 	lastBitShift := (8 - nBitsInSecondByte) % 8
 	leftMask := (key[nFirstByte] >> firstBitShift) << firstBitShift
@@ -268,9 +275,9 @@ func (n *internalNode) EvalPathAt(key []byte, at *bls.Fr) []bls.Fr {
 	// Apply the barycenter formula to this level
 	for i := range n.children {
 		var fi, tmp, quotient bls.Fr
-		bls.SubModFr(&quotient, at, &omega1024[i])
+		bls.SubModFr(&quotient, at, &omegaInternal[i])
 		bls.FrFrom32(&fi, n.children[i].Hash())
-		bls.MulModFr(&tmp, &fi, &omega1024[i])
+		bls.MulModFr(&tmp, &fi, &omegaInternal[i])
 		bls.DivModFr(&fi, &tmp, &quotient)
 
 		// Add fᵢ x ret[depthIdx] to accumulator and iterate
