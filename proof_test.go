@@ -28,6 +28,7 @@ package verkle
 import (
 	"testing"
 
+	"github.com/protolambda/go-kzg"
 	"github.com/protolambda/go-kzg/bls"
 )
 
