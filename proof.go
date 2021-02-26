@@ -65,10 +65,10 @@ func calcT(r bls.Fr, d *bls.G1Point) bls.Fr {
 	return tmp
 }
 
-func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, s *bls.Fr) (commitments []common.Hash, y, w bls.Fr, d, pi, rho *bls.G1Point) {
-	path, zis, yis := root.GetCommitmentsAlongPath(key)
+func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, s *bls.Fr) (commitments []*bls.G1Point, y, w bls.Fr, d, pi, rho *bls.G1Point, zis, yis []*bls.Fr) {
+	commitments, zis, yis = root.GetCommitmentsAlongPath(key)
 
-	r := calcR(path, zis, yis)
+	r := calcR(commitments, zis, yis)
 
 	// Compute D = g(s) and h(s)
 	var hS bls.G1Point
@@ -77,15 +77,15 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, s *bls.Fr) (commitments
 	bls.CopyG1(&hS, &bls.ZeroG1)
 	var powR bls.Fr
 	bls.CopyFr(&powR, &bls.ONE)
-	for i := range path {
+	for i := range commitments {
 		var gi, hi bls.G1Point
 		var yiPoint bls.G1Point
 		bls.MulG1(&yiPoint, &bls.GenG1, yis[i])
 
 		// gᵢ(s) = Cᵢ - yᵢ
 		// hᵢ(s) = Cᵢ
-		bls.SubG1(&gi, path[i], &yiPoint)
-		bls.CopyG1(&hi, path[i])
+		bls.SubG1(&gi, commitments[i], &yiPoint)
+		bls.CopyG1(&hi, commitments[i])
 
 		// gᵢ(s) = rⁱ * (Cᵢ - yᵢ)
 		// hᵢ(s) = rⁱ * Cᵢ
