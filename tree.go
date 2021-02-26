@@ -238,15 +238,17 @@ func compressG1Point(p *bls.G1Point) []byte {
 }
 
 func (n *internalNode) ComputeCommitment(ks *kzg.KZGSettings) *bls.G1Point {
-	var poly [1024]bls.Fr
+	var poly [InternalNodeNumChildren]bls.Fr
 	for idx, childC := range n.children {
-		// Skip empty commitments
-		if _, ok := childC.(empty); ok {
-			continue
+		switch child := childC.(type) {
+		case empty:
+		case *leafNode:
+			bls.FrFrom32(&poly[idx], child.Hash())
+		default:
+			compressed := compressG1Point(childC.ComputeCommitment(ks))
+			h := sha256.Sum256(compressed)
+			bls.FrFrom32(&poly[idx], h)
 		}
-		compressed := compressG1Point(childC.ComputeCommitment(ks))
-		h := sha256.Sum256(compressed)
-		bls.FrFrom32(&poly[idx], h)
 	}
 
 	n.commitment = ks.CommitToPoly(poly[:])
@@ -269,7 +271,7 @@ func (n *internalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*b
 
 func (n *internalNode) EvalPathAt(key []byte, at *bls.Fr) []bls.Fr {
 	childIdx := offset2Key(key, n.depth)
-	depthIdx := 1 + (240-n.depth)/10 // index to store the computation result at.
+	depthIdx := 1 + (240-n.depth)/width // index to store the computation result at.
 	ret := n.children[childIdx].EvalPathAt(key, at)
 
 	// Apply the barycenter formula to this level
