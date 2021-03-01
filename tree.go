@@ -181,7 +181,7 @@ func (n *internalNode) Insert(key []byte, value []byte) error {
 		n.children[nChild] = &leafNode{key: key, value: value}
 	case hashedNode:
 		return errInsertIntoHash
-	case leafNode:
+	case *leafNode:
 		// Need to add a new branch node to differentiate
 		// between two keys, if the keys are different.
 		// Otherwise, just update the key.
@@ -291,8 +291,8 @@ func (n *lastLevelNode) Insert(k []byte, value []byte) error {
 	// The child is either a value node, a hashed value
 	// or an empty node.
 	switch n.children[nChild].(type) {
-	case empty, leafNode:
-		n.children[nChild] = leafNode{key: k, value: value}
+	case empty, *leafNode:
+		n.children[nChild] = &leafNode{key: k, value: value}
 	case hashedNode:
 		return errors.New("trying to update a hashed leaf node")
 	default:
@@ -303,39 +303,40 @@ func (n *lastLevelNode) Insert(k []byte, value []byte) error {
 }
 
 
-func (n leafNode) Insert(k []byte, value []byte) error {
+func (n *leafNode) Insert(k []byte, value []byte) error {
 	n.key = k
 	n.value = value
 	return nil
 }
 
-func (n leafNode) Get(k []byte) ([]byte, error) {
+func (n *leafNode) Get(k []byte) ([]byte, error) {
 	if !bytes.Equal(k, n.key) {
 		return nil, errValueNotPresent
 	}
 	return n.value, nil
 }
 
-func (n leafNode) ComputeCommitment(*kzg.KZGSettings) *bls.G1Point {
+func (n *leafNode) ComputeCommitment(*kzg.KZGSettings) *bls.G1Point {
 	panic("can't compute the commitment directly")
 }
 
-func (n leafNode) GetCommitment() *bls.G1Point {
+func (n *leafNode) GetCommitment() *bls.G1Point {
 	panic("can't get the commitment directly")
 }
 
-func (n leafNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr) {
+func (n *leafNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr) {
 	h := n.Hash()
 	var hFr bls.Fr
 	bls.FrFrom32(&hFr, h)
 	return nil, nil, []*bls.Fr{&hFr}
 }
 
-func (n leafNode) EvalPathAt([]byte, *bls.Fr) []bls.Fr {
+func (n *leafNode) EvalPathAt([]byte, *bls.Fr) []bls.Fr {
+	//return make([]bls.Fr, (256+width-1)/width)
 	return nil
 }
 
-func (n leafNode) Hash() common.Hash {
+func (n *leafNode) Hash() common.Hash {
 	digest := sha256.New()
 	digest.Write(n.key)
 	digest.Write(n.value)
