@@ -26,6 +26,7 @@
 package verkle
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"errors"
 
@@ -83,6 +84,10 @@ var (
 	errInsertIntoHash = errors.New("trying to insert into hashed node")
 
 	zeroHash = common.HexToHash("0000000000000000000000000000000000000000000000000000000000000000")
+)
+
+var (
+	errValueNotPresent = errors.New("value not present in tree")
 )
 
 type (
@@ -153,14 +158,6 @@ func newInternalNode(depth uint) VerkleNode {
 	return node
 }
 
-func newLastLevelNode() VerkleNode {
-	node := new(lastLevelNode)
-	for idx := range node.children {
-		node.children[idx] = empty(struct{}{})
-	}
-	return node
-}
-
 // New creates a new tree root
 func New() VerkleNode {
 	return newInternalNode(0)
@@ -187,27 +184,32 @@ func (n *internalNode) Insert(key []byte, value []byte) error {
 
 	switch child := n.children[nChild].(type) {
 	case empty:
-		// empty subtree; recurse-initialize. Depending
-		// on the depth it's a full internal node (1024
-		// entries) or a last-level node (64 entries).
-		if n.depth == 240 {
-			n.children[nChild] = newLastLevelNode()
-		} else {
-			n.children[nChild] = newInternalNode(n.depth + 10)
-		}
-		return n.children[nChild].Insert(key, value)
+		n.children[nChild] = &leafNode{key: key, value: value}
 	case hashedNode:
 		return errInsertIntoHash
-	default:
+	case leafNode:
+		// Need to add a new branch node to differentiate
+		// between two keys, if the keys are different.
+		// Otherwise, just update the key.
+		if bytes.Equal(child.key, key) {
+			child.value = value
+		} else {
+			newBranch := newInternalNode(n.depth).(*internalNode)
+			newBranch.children[offset2Key(child.key, n.depth+width)] = child
+			newBranch.children[offset2Key(key, n.depth+width)] = &leafNode{key: key, value: value}
+			n.children[nChild] = newBranch
+		}
+	default: // internalNode
 		return child.Insert(key, value)
 	}
+	return nil
 }
 
 func (n *internalNode) Get(k []byte) ([]byte, error) {
 	nChild := offset2Key(k, n.depth)
 
 	switch child := n.children[nChild].(type) {
-	case empty, hashedNode, leafNode:
+	case empty, hashedNode, nil:
 		return nil, errors.New("trying to read from an invalid child")
 	default:
 		return child.Get(k)
@@ -271,8 +273,7 @@ func (n *internalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*b
 
 func (n *internalNode) EvalPathAt(key []byte, at *bls.Fr) []bls.Fr {
 	childIdx := offset2Key(key, n.depth)
-	depthIdx := 1 + (240-n.depth)/width // index to store the computation result at.
-	ret := n.children[childIdx].EvalPathAt(key, at)
+	ret := append(n.children[childIdx].EvalPathAt(key, at), bls.Fr{})
 
 	// Apply the barycenter formula to this level
 	for i := range n.children {
@@ -283,8 +284,8 @@ func (n *internalNode) EvalPathAt(key []byte, at *bls.Fr) []bls.Fr {
 		bls.DivModFr(&fi, &tmp, &quotient)
 
 		// Add fᵢ x ret[depthIdx] to accumulator and iterate
-		bls.AddModFr(&tmp, &ret[depthIdx], &fi)
-		bls.CopyFr(&ret[depthIdx], &tmp)
+		bls.AddModFr(&tmp, &ret[0], &fi)
+		bls.CopyFr(&ret[0], &tmp)
 	}
 	return ret
 }
@@ -307,79 +308,6 @@ func (n *lastLevelNode) Insert(k []byte, value []byte) error {
 	return nil
 }
 
-func (n *lastLevelNode) Get(k []byte) ([]byte, error) {
-	nChild := k[31] & 0x3F
-
-	switch child := n.children[nChild].(type) {
-	case empty:
-		return nil, nil
-	case hashedNode:
-		return nil, errors.New("can not Get value from hash")
-	case leafNode:
-		return child.Get(k)
-	default:
-		return nil, errors.New("invalid node type encountered")
-	}
-}
-
-func (n *lastLevelNode) Hash() common.Hash {
-	digest := sha256.New()
-	for _, child := range n.children {
-		digest.Write(child.Hash().Bytes())
-	}
-
-	return common.BytesToHash(digest.Sum(nil))
-}
-
-func (n *lastLevelNode) ComputeCommitment(ks *kzg.KZGSettings) *bls.G1Point {
-	var poly [64]bls.Fr
-	for idx, childC := range n.children {
-		// Skip empty commitments
-		if _, ok := childC.(empty); ok {
-			continue
-		}
-
-		// children are leaves, just get their hashes
-		bls.FrFrom32(&poly[idx], childC.Hash())
-	}
-
-	n.commitment = ks.CommitToPoly(poly[:])
-	return n.commitment
-}
-
-func (n *lastLevelNode) GetCommitment() *bls.G1Point {
-	return n.commitment
-}
-
-func (n *lastLevelNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr) {
-	childIdx := offset2Key(key, 240)
-	_, zis, _ := n.children[childIdx].GetCommitmentsAlongPath(key)
-	var z0 bls.Fr
-	bls.AsFr(&z0, uint64(childIdx))
-	var y0 bls.Fr
-	bls.FrFrom32(&y0, n.children[childIdx].Hash())
-	return []*bls.G1Point{n.GetCommitment()}, append(zis, &z0), []*bls.Fr{&y0}
-}
-
-func (n *lastLevelNode) EvalPathAt(key []byte, at *bls.Fr) []bls.Fr {
-	// Allocate the vector once, to be filled and passed up the tree
-	ret := make([]bls.Fr, 26)
-	bls.CopyFr(&ret[0], &bls.ZERO)
-
-	// Apply the barycenter formula to this level
-	for i := range n.children {
-		var fi, tmp, quotient bls.Fr
-		bls.SubModFr(&quotient, at, &omega64[i])
-		bls.FrFrom32(&fi, n.children[i].Hash())
-		bls.MulModFr(&tmp, &fi, &omega64[i])
-		bls.DivModFr(&fi, &tmp, &quotient)
-
-		// Add fᵢ x ret[0] to accumulator and iterate
-		bls.AddModFr(&tmp, &ret[0], &fi)
-		bls.CopyFr(&ret[0], &tmp)
-	}
-	return ret
-}
 
 func (n leafNode) Insert(k []byte, value []byte) error {
 	n.key = k
@@ -388,6 +316,9 @@ func (n leafNode) Insert(k []byte, value []byte) error {
 }
 
 func (n leafNode) Get(k []byte) ([]byte, error) {
+	if !bytes.Equal(k, n.key) {
+		return nil, errValueNotPresent
+	}
 	return n.value, nil
 }
 
@@ -407,7 +338,7 @@ func (n leafNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr
 }
 
 func (n leafNode) EvalPathAt([]byte, *bls.Fr) []bls.Fr {
-	panic("should not evaluate path at key level")
+	return nil
 }
 
 func (n leafNode) Hash() common.Hash {

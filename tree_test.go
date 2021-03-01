@@ -46,24 +46,9 @@ func TestInsertIntoRoot(t *testing.T) {
 		t.Fatalf("error inserting: %v", err)
 	}
 
-	// Check that the value is present in the tree
-	node := root
-	for i := 0; i < 25; i++ {
-		n, ok := node.(*internalNode)
-		if !ok {
-			t.Fatalf("unexpected node type at level %d", i)
-		}
-		node = n.children[0]
-	}
-
-	child, ok := node.(*lastLevelNode)
+	leaf, ok := root.(*internalNode).children[0].(*leafNode)
 	if !ok {
-		t.Fatalf("unexpected node type at last level: %v", node)
-	}
-
-	leaf, ok := child.children[0].(leafNode)
-	if !ok {
-		t.Fatal("invalid leaf node type")
+		t.Fatalf("invalid leaf node type %v", root.(*internalNode).children[0])
 	}
 
 	if !bytes.Equal(leaf.value[:], testValue) {
@@ -76,52 +61,22 @@ func TestInsertTwoLeaves(t *testing.T) {
 	root.Insert(zeroKeyTest, testValue)
 	root.Insert(ffx32KeyTest, testValue)
 
-	// Check that the first value is present in the tree
-	node := root
-	for i := 0; i < 25; i++ {
-		n, ok := node.(*internalNode)
-		if !ok {
-			t.Fatalf("unexpected node type at level %d", i)
-		}
-		node = n.children[0]
-	}
-
-	child, ok := node.(*lastLevelNode)
+	leaf0, ok := root.(*internalNode).children[0].(*leafNode)
 	if !ok {
-		t.Fatalf("unexpected node type at last level: %v", node)
+		t.Fatalf("invalid leaf node type %v", root.(*internalNode).children[0])
 	}
 
-	leaf, ok := child.children[0].(leafNode)
+	leaff, ok := root.(*internalNode).children[1023].(*leafNode)
 	if !ok {
-		t.Fatal("invalid leaf node type")
+		t.Fatalf("invalid leaf node type %v", root.(*internalNode).children[1023])
 	}
 
-	if !bytes.Equal(leaf.value[:], testValue) {
-		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaf.value[:])
+	if !bytes.Equal(leaf0.value[:], testValue) {
+		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaf0.value[:])
 	}
 
-	// Check that the second value is present in the tree
-	node = root
-	for i := 0; i < 25; i++ {
-		n, ok := node.(*internalNode)
-		if !ok {
-			t.Fatalf("unexpected node type at level %d", i)
-		}
-		node = n.children[1023]
-	}
-
-	child, ok = node.(*lastLevelNode)
-	if !ok {
-		t.Fatalf("unexpected node type at last level: %v", node)
-	}
-
-	leaf, ok = child.children[63].(leafNode)
-	if !ok {
-		t.Fatal("invalid leaf node type")
-	}
-
-	if !bytes.Equal(leaf.value[:], testValue) {
-		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaf.value[:])
+	if !bytes.Equal(leaff.value[:], testValue) {
+		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaff.value[:])
 	}
 }
 
@@ -140,8 +95,8 @@ func TestGetTwoLeaves(t *testing.T) {
 	}
 
 	val, err = root.Get(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000001"))
-	if err != nil {
-		t.Fatal(err)
+	if err != errValueNotPresent {
+		t.Fatalf("wrong error type, expected %v, got %v", errValueNotPresent, err)
 	}
 
 	if val != nil {
