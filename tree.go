@@ -135,19 +135,13 @@ func init() {
 	// last level nodes.
 	var tmp bls.Fr
 	bls.CopyFr(&tmp, &bls.ONE)
-	for i := 0; i < LastLevelNodeNumChildren; i++ {
-		bls.CopyFr(&omegaLast[i], &tmp)
-		bls.MulModFr(&tmp, &tmp, &bls.Scale2RootOfUnity[6])
-	}
-	bls.CopyFr(&tmp, &bls.ONE)
 	for i := 0; i < InternalNodeNumChildren; i++ {
-		bls.CopyFr(&omegaInternal[i], &tmp)
+		bls.CopyFr(&omegaIs[i], &tmp)
 		bls.MulModFr(&tmp, &tmp, &bls.Scale2RootOfUnity[10])
 	}
 }
 
-var omegaLast [LastLevelNodeNumChildren]bls.Fr
-var omegaInternal [InternalNodeNumChildren]bls.Fr
+var omegaIs [InternalNodeNumChildren]bls.Fr
 
 func newInternalNode(depth uint) VerkleNode {
 	node := new(internalNode)
@@ -278,9 +272,9 @@ func (n *internalNode) EvalPathAt(key []byte, at *bls.Fr) []bls.Fr {
 	// Apply the barycenter formula to this level
 	for i := range n.children {
 		var fi, tmp, quotient bls.Fr
-		bls.SubModFr(&quotient, at, &omegaInternal[i])
+		bls.SubModFr(&quotient, at, &omegaIs[i])
 		bls.FrFrom32(&fi, n.children[i].Hash())
-		bls.MulModFr(&tmp, &fi, &omegaInternal[i])
+		bls.MulModFr(&tmp, &fi, &omegaIs[i])
 		bls.DivModFr(&fi, &tmp, &quotient)
 
 		// Add fᵢ x ret[depthIdx] to accumulator and iterate

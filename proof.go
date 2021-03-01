@@ -120,7 +120,7 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, s *bls.Fr) (commitments
 	for i, fi := range fis {
 		var tmp, denom bls.Fr
 		bls.CopyFr(&tmp, &t)
-		bls.SubModFr(&denom, &tmp, zis[i])
+		bls.SubModFr(&denom, &tmp, &omegaIs[i])
 		bls.MulModFr(&tmp, &powR, &fi)
 		bls.DivModFr(&h[i], &tmp, &denom)
 		bls.SubModFr(&tmp, &tmp, yis[i])
