@@ -35,8 +35,10 @@ import (
 var testValue = []byte("hello")
 
 var (
-	zeroKeyTest  = common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000000")
-	ffx32KeyTest = common.Hex2Bytes("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
+	zeroKeyTest   = common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000000")
+	oneKeyTest    = common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000001")
+	fourtyKeyTest = common.Hex2Bytes("4000000000000000000000000000000000000000000000000000000000000000")
+	ffx32KeyTest  = common.Hex2Bytes("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
 )
 
 var s1, lg1 []bls.G1Point
@@ -110,7 +112,7 @@ func TestGetTwoLeaves(t *testing.T) {
 		t.Fatalf("got a different value from the tree than expected %x != %x", val, testValue)
 	}
 
-	val, err = root.Get(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000001"))
+	val, err = root.Get(oneKeyTest)
 	if err != errValueNotPresent {
 		t.Fatalf("wrong error type, expected %v, got %v", errValueNotPresent, err)
 	}
@@ -127,6 +129,22 @@ func TestTreeHashing(t *testing.T) {
 
 	root.Hash()
 }
+func TestComputeRootCommitmentThreeLeaves(t *testing.T) {
+	root := New()
+	root.Insert(zeroKeyTest, testValue)
+	root.Insert(fourtyKeyTest, testValue)
+	root.Insert(ffx32KeyTest, testValue)
+
+	expected := []byte{137, 46, 141, 157, 55, 243, 191, 123, 197, 83, 9, 229, 155, 145, 185, 155, 171, 133, 195, 118, 100, 193, 107, 202, 170, 6, 51, 189, 99, 62, 244, 70, 199, 253, 80, 218, 171, 68, 89, 136, 222, 166, 5, 209, 92, 255, 140, 164}
+
+	comm := root.ComputeCommitment(ks, lg1)
+	got := compressG1Point(comm)
+
+	if !bytes.Equal(got, expected) {
+		t.Fatalf("incorrect root commitment %x != %x", got, expected)
+	}
+}
+
 func TestComputeRootCommitmentTwoLeaves(t *testing.T) {
 	root := New()
 	root.Insert(zeroKeyTest, testValue)
