@@ -46,7 +46,7 @@ type VerkleNode interface {
 	Hash() common.Hash
 
 	// ComputeCommitment computes the commitment of the node
-	ComputeCommitment(*kzg.KZGSettings) *bls.G1Point
+	ComputeCommitment(*kzg.KZGSettings, []bls.G1Point) *bls.G1Point
 
 	// GetCommitment retrieves the (previously computed)
 	// commitment of a node.
@@ -131,8 +131,7 @@ type (
 )
 
 func init() {
-	// Calculate the lagrangian basis for internal nodes and
-	// last level nodes.
+	// Calculate the lagrangian evaluation basis.
 	var tmp bls.Fr
 	bls.CopyFr(&tmp, &bls.ONE)
 	for i := 0; i < InternalNodeNumChildren; i++ {
@@ -233,7 +232,7 @@ func compressG1Point(p *bls.G1Point) []byte {
 	return compressed
 }
 
-func (n *internalNode) ComputeCommitment(ks *kzg.KZGSettings) *bls.G1Point {
+func (n *internalNode) ComputeCommitment(ks *kzg.KZGSettings, lg1 []bls.G1Point) *bls.G1Point {
 	var poly [InternalNodeNumChildren]bls.Fr
 	for idx, childC := range n.children {
 		switch child := childC.(type) {
@@ -241,13 +240,23 @@ func (n *internalNode) ComputeCommitment(ks *kzg.KZGSettings) *bls.G1Point {
 		case *leafNode:
 			bls.FrFrom32(&poly[idx], child.Hash())
 		default:
-			compressed := compressG1Point(childC.ComputeCommitment(ks))
+			compressed := compressG1Point(childC.ComputeCommitment(ks, lg1))
 			h := sha256.Sum256(compressed)
 			bls.FrFrom32(&poly[idx], h)
 		}
 	}
 
-	n.commitment = ks.CommitToPoly(poly[:])
+	var comm bls.G1Point
+	bls.CopyG1(&comm, &bls.ZERO_G1)
+	for i := range poly {
+		if !bls.EqualZero(&poly[i]) {
+			var tmpG1, eval bls.G1Point
+			bls.MulG1(&eval, &lg1[i], &poly[i])
+			bls.CopyG1(&tmpG1, &comm)
+			bls.AddG1(&comm, &tmpG1, &eval)
+		}
+	}
+	n.commitment = &comm
 	return n.commitment
 }
 
@@ -316,7 +325,7 @@ func (n *leafNode) Get(k []byte) ([]byte, error) {
 	return n.value, nil
 }
 
-func (n *leafNode) ComputeCommitment(*kzg.KZGSettings) *bls.G1Point {
+func (n *leafNode) ComputeCommitment(*kzg.KZGSettings, []bls.G1Point) *bls.G1Point {
 	panic("can't compute the commitment directly")
 }
 
@@ -354,7 +363,7 @@ func (n hashedNode) Hash() common.Hash {
 	return common.Hash(n)
 }
 
-func (n hashedNode) ComputeCommitment(*kzg.KZGSettings) *bls.G1Point {
+func (n hashedNode) ComputeCommitment(*kzg.KZGSettings, []bls.G1Point) *bls.G1Point {
 	panic("not implemented yet")
 }
 
@@ -385,7 +394,7 @@ func (e empty) Hash() common.Hash {
 	return zeroHash
 }
 
-func (e empty) ComputeCommitment(*kzg.KZGSettings) *bls.G1Point {
+func (e empty) ComputeCommitment(*kzg.KZGSettings, []bls.G1Point) *bls.G1Point {
 	return &bls.ZeroG1
 }
 

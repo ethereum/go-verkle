@@ -39,6 +39,22 @@ var (
 	ffx32KeyTest = common.Hex2Bytes("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
 )
 
+var s1, lg1 []bls.G1Point
+var s2 []bls.G2Point
+var ks *kzg.KZGSettings
+
+func init() {
+	s1, s2 = kzg.GenerateTestingSetup("1927409816240961209460912649124", 1024)
+	fftCfg := kzg.NewFFTSettings(10)
+	ks = kzg.NewKZGSettings(fftCfg, s1, s2)
+
+	var err error
+	lg1, err = fftCfg.FFTG1(s1, true)
+	if err != nil {
+		panic(err)
+	}
+}
+
 func TestInsertIntoRoot(t *testing.T) {
 	root := New()
 	err := root.Insert(zeroKeyTest, testValue)
@@ -110,4 +126,17 @@ func TestTreeHashing(t *testing.T) {
 	root.Insert(ffx32KeyTest, testValue)
 
 	root.Hash()
+}
+func TestComputeRootCommitmentTwoLeaves(t *testing.T) {
+	root := New()
+	root.Insert(zeroKeyTest, testValue)
+	root.Insert(ffx32KeyTest, testValue)
+	expected := []byte{178, 195, 197, 132, 158, 141, 115, 80, 222, 187, 37, 145, 15, 184, 242, 86, 101, 164, 144, 51, 239, 90, 232, 100, 78, 178, 253, 145, 36, 168, 30, 75, 100, 185, 100, 14, 198, 48, 14, 95, 3, 252, 185, 73, 183, 195, 153, 44}
+
+	comm := root.ComputeCommitment(ks, lg1)
+	got := compressG1Point(comm)
+
+	if !bytes.Equal(got, expected) {
+		t.Fatalf("incorrect root commitment %x != %x", got, expected)
+	}
 }
