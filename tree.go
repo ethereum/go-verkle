@@ -72,10 +72,6 @@ const (
 	// Number of children in an internal node
 	InternalNodeNumChildren = 1 << width
 
-	// Number of children in the last level node, which
-	// is not width-aligned.
-	LastLevelNodeNumChildren = 1 << (256 % width)
-
 	// Number of internal (i.e. width-sized) node levels
 	nInternalLevels = 256 / width
 )
@@ -99,19 +95,6 @@ type (
 
 		// node depth in the tree, in bits
 		depth uint
-
-		// Cache the hash of the current node
-		hash common.Hash
-
-		// Cache the commitment value
-		commitment *bls.G1Point
-	}
-
-	// Represents an internal node at the last level,
-	// with 64 children.
-	lastLevelNode struct {
-		// List of values in this last level node
-		children [LastLevelNodeNumChildren]VerkleNode
 
 		// Cache the hash of the current node
 		hash common.Hash
@@ -292,25 +275,6 @@ func (n *internalNode) EvalPathAt(key []byte, at *bls.Fr) []bls.Fr {
 	}
 	return ret
 }
-
-func (n *lastLevelNode) Insert(k []byte, value []byte) error {
-	// Child index is in the last 6 bits of the key
-	nChild := k[31] & 0x3F
-
-	// The child is either a value node, a hashed value
-	// or an empty node.
-	switch n.children[nChild].(type) {
-	case empty, *leafNode:
-		n.children[nChild] = &leafNode{key: k, value: value}
-	case hashedNode:
-		return errors.New("trying to update a hashed leaf node")
-	default:
-		return errors.New("inserting into an invalid node type at this level")
-	}
-
-	return nil
-}
-
 
 func (n *leafNode) Insert(k []byte, value []byte) error {
 	n.key = k
