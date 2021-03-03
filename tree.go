@@ -174,17 +174,19 @@ func (n *internalNode) Insert(key []byte, value []byte) error {
 		if bytes.Equal(child.key, key) {
 			child.value = value
 		} else {
+			// A new branch node has to be inserted. Depending
+			// on the next word in both keys, a recursion into
+			// the moved leaf node can occur.
+			nextWordInExistingKey := offset2Key(child.key, n.depth+width)
 			newBranch := newInternalNode(n.depth + width).(*internalNode)
 			n.children[nChild] = newBranch
-			newBranch.children[offset2Key(child.key, n.depth+width)] = child
-			// Check if the next key segment is the same
-			// for both the inserted and the child key,
-			// if so, then insert them both as children
-			// of this internal node, and recurse otherwise.
-			k1 := offset2Key(key, n.depth+width)
-			k2 := offset2Key(child.key, n.depth+width)
-			if k1 != k2 {
-				newBranch.children[offset2Key(key, n.depth+width)] = &leafNode{key: key, value: value}
+			newBranch.children[nextWordInExistingKey] = child
+
+			nextWordInInsertedKey := offset2Key(key, n.depth+width)
+			if nextWordInInsertedKey != nextWordInExistingKey {
+				// Next word differs, so this was the last level.
+				// Insert it directly into its final slot.
+				newBranch.children[nextWordInInsertedKey] = &leafNode{key: key, value: value}
 			} else {
 				newBranch.Insert(key, value)
 			}
