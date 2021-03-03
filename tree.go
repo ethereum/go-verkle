@@ -152,7 +152,11 @@ func offset2Key(key []byte, offset uint) uint {
 	firstBitShift := (8 - (offset % 8))
 	lastBitShift := (8 - nBitsInSecondByte) % 8
 	leftMask := (key[nFirstByte] >> firstBitShift) << firstBitShift
-	return (uint(key[nFirstByte]^leftMask) << ((nBitsInSecondByte-1)%8 + 1)) | uint(key[nFirstByte+1]>>lastBitShift)
+	ret := (uint(key[nFirstByte]^leftMask) << ((nBitsInSecondByte-1)%8 + 1))
+	if int(nFirstByte)+1 < len(key) {
+		ret |= uint(key[nFirstByte+1] >> lastBitShift)
+	}
+	return ret
 }
 
 func (n *internalNode) Insert(key []byte, value []byte) error {
@@ -170,10 +174,20 @@ func (n *internalNode) Insert(key []byte, value []byte) error {
 		if bytes.Equal(child.key, key) {
 			child.value = value
 		} else {
-			newBranch := newInternalNode(n.depth).(*internalNode)
-			newBranch.children[offset2Key(child.key, n.depth+width)] = child
-			newBranch.children[offset2Key(key, n.depth+width)] = &leafNode{key: key, value: value}
+			newBranch := newInternalNode(n.depth + width).(*internalNode)
 			n.children[nChild] = newBranch
+			newBranch.children[offset2Key(child.key, n.depth+width)] = child
+			// Check if the next key segment is the same
+			// for both the inserted and the child key,
+			// if so, then insert them both as children
+			// of this internal node, and recurse otherwise.
+			k1 := offset2Key(key, n.depth+width)
+			k2 := offset2Key(child.key, n.depth+width)
+			if k1 != k2 {
+				newBranch.children[offset2Key(key, n.depth+width)] = &leafNode{key: key, value: value}
+			} else {
+				newBranch.Insert(key, value)
+			}
 		}
 	default: // internalNode
 		return child.Insert(key, value)

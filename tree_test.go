@@ -30,6 +30,8 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/protolambda/go-kzg"
+	"github.com/protolambda/go-kzg/bls"
 )
 
 var testValue = []byte("hello")
@@ -136,6 +138,22 @@ func TestComputeRootCommitmentThreeLeaves(t *testing.T) {
 	root.Insert(ffx32KeyTest, testValue)
 
 	expected := []byte{137, 46, 141, 157, 55, 243, 191, 123, 197, 83, 9, 229, 155, 145, 185, 155, 171, 133, 195, 118, 100, 193, 107, 202, 170, 6, 51, 189, 99, 62, 244, 70, 199, 253, 80, 218, 171, 68, 89, 136, 222, 166, 5, 209, 92, 255, 140, 164}
+
+	comm := root.ComputeCommitment(ks, lg1)
+	got := compressG1Point(comm)
+
+	if !bytes.Equal(got, expected) {
+		t.Fatalf("incorrect root commitment %x != %x", got, expected)
+	}
+}
+
+func TestComputeRootCommitmentThreeLeavesDeep(t *testing.T) {
+	root := New()
+	root.Insert(zeroKeyTest, testValue)
+	root.Insert(oneKeyTest, testValue)
+	root.Insert(ffx32KeyTest, testValue)
+
+	expected := []byte{180, 224, 116, 69, 8, 16, 10, 46, 12, 87, 199, 139, 17, 157, 123, 95, 113, 9, 180, 227, 72, 13, 125, 20, 35, 52, 98, 119, 121, 181, 253, 151, 253, 0, 62, 206, 64, 49, 8, 93, 140, 128, 232, 208, 102, 248, 81, 206}
 
 	comm := root.ComputeCommitment(ks, lg1)
 	got := compressG1Point(comm)
