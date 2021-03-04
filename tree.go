@@ -39,6 +39,12 @@ type VerkleNode interface {
 	// Insert or Update value `v` at key `k`
 	Insert(k []byte, v []byte) error
 
+	// Insert "à la" Stacktrie. Same thing as insert, except that
+	// values are expected to be ordered, and the commitments and
+	// hashes for each subtrie are computed online, as soon as it
+	// is clear that no more values will be inserted in there.
+	InsertOrdered([]byte, []byte, *kzg.KZGSettings, []bls.G1Point) error
+
 	// Get value at key `k`
 	Get(k []byte) ([]byte, error)
 
@@ -200,6 +206,61 @@ func (n *internalNode) Insert(key []byte, value []byte) error {
 	return nil
 }
 
+func (n *internalNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettings, lg1 []bls.G1Point) error {
+	nChild := offset2Key(key, n.depth)
+
+	switch child := n.children[nChild].(type) {
+	case empty:
+		// Insert into a new subtrie, which means that the
+		// subtree directly preceding this new one, can
+		// savely be calculated.
+		for i := int(nChild) - 1; i >= 0; i-- {
+			if _, ok := n.children[i].(empty); !ok {
+				h := n.children[i].Hash()
+				comm := n.children[i].ComputeCommitment(ks, lg1)
+				n.children[i] = &hashedNode{hash: h, commitment: comm}
+				break
+			}
+		}
+
+		n.children[nChild] = &leafNode{key: key, value: value}
+	case *hashedNode:
+		return errInsertIntoHash
+	case *leafNode:
+		// Need to add a new branch node to differentiate
+		// between two keys, if the keys are different.
+		// Otherwise, just update the key.
+		if bytes.Equal(child.key, key) {
+			child.value = value
+		} else {
+			// A new branch node has to be inserted. Depending
+			// on the next word in both keys, a recursion into
+			// the moved leaf node can occur.
+			nextWordInExistingKey := offset2Key(child.key, n.depth+width)
+			newBranch := newInternalNode(n.depth + width).(*internalNode)
+			n.children[nChild] = newBranch
+
+			// Directly hash the (left) node that was already
+			// inserted.
+			h := child.Hash()
+			comm := child.ComputeCommitment(ks, lg1)
+			newBranch.children[nextWordInExistingKey] = &hashedNode{hash: h, commitment: comm}
+
+			nextWordInInsertedKey := offset2Key(key, n.depth+width)
+			if nextWordInInsertedKey != nextWordInExistingKey {
+				// Next word differs, so this was the last level.
+				// Insert it directly into its final slot.
+				newBranch.children[nextWordInInsertedKey] = &leafNode{key: key, value: value}
+			} else {
+				newBranch.Insert(key, value)
+			}
+		}
+	default: // internalNode
+		return child.Insert(key, value)
+	}
+	return nil
+}
+
 func (n *internalNode) Get(k []byte) ([]byte, error) {
 	nChild := offset2Key(k, n.depth)
 
@@ -223,11 +284,17 @@ func (n *internalNode) Hash() common.Hash {
 
 
 func (n *internalNode) ComputeCommitment(ks *kzg.KZGSettings, lg1 []bls.G1Point) *bls.G1Point {
+	if n.commitment != nil {
+		return n.commitment
+	}
+
 	var poly [InternalNodeNumChildren]bls.Fr
 	for idx, childC := range n.children {
 		switch child := childC.(type) {
 		case empty:
 		case *leafNode:
+			bls.FrFrom32(&poly[idx], child.Hash())
+		case *hashedNode:
 			bls.FrFrom32(&poly[idx], child.Hash())
 		default:
 			compressed := bls.ToCompressedG1(childC.ComputeCommitment(ks, lg1))
@@ -289,6 +356,10 @@ func (n *leafNode) Insert(k []byte, value []byte) error {
 	return nil
 }
 
+func (n *leafNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettings, lg1 []bls.G1Point) error {
+	return n.Insert(key, value)
+}
+
 func (n *leafNode) Get(k []byte) ([]byte, error) {
 	if !bytes.Equal(k, n.key) {
 		return nil, errValueNotPresent
@@ -327,6 +398,10 @@ func (n *hashedNode) Insert(k []byte, value []byte) error {
 	return errInsertIntoHash
 }
 
+func (n *hashedNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettings, lg1 []bls.G1Point) error {
+	return errInsertIntoHash
+}
+
 func (n *hashedNode) Get(k []byte) ([]byte, error) {
 	return nil, errors.New("can not read from a hash node")
 }
@@ -336,10 +411,12 @@ func (n *hashedNode) Hash() common.Hash {
 }
 
 func (n *hashedNode) ComputeCommitment(*kzg.KZGSettings, []bls.G1Point) *bls.G1Point {
-	var hashAsFr bls.Fr
-	bls.FrFrom32(&hashAsFr, n.hash)
-	n.commitment = new(bls.G1Point)
-	bls.MulG1(n.commitment, &bls.GenG1, &hashAsFr)
+	if n.commitment == nil {
+		var hashAsFr bls.Fr
+		bls.FrFrom32(&hashAsFr, n.hash)
+		n.commitment = new(bls.G1Point)
+		bls.MulG1(n.commitment, &bls.GenG1, &hashAsFr)
+	}
 	return n.commitment
 }
 
@@ -357,6 +434,10 @@ func (n *hashedNode) EvalPathAt([]byte, *bls.Fr) []bls.Fr {
 
 func (e empty) Insert(k []byte, value []byte) error {
 	return errors.New("hmmmm... a leaf node should not be inserted directly into")
+}
+
+func (e empty) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettings, lg1 []bls.G1Point) error {
+	return e.Insert(key, value)
 }
 
 func (e empty) Get(k []byte) ([]byte, error) {

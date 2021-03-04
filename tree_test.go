@@ -153,6 +153,7 @@ func TestTreeHashing(t *testing.T) {
 
 	root.Hash()
 }
+
 func TestComputeRootCommitmentThreeLeaves(t *testing.T) {
 	root := New()
 	root.Insert(zeroKeyTest, testValue)
@@ -162,6 +163,25 @@ func TestComputeRootCommitmentThreeLeaves(t *testing.T) {
 	expected := []byte{137, 46, 141, 157, 55, 243, 191, 123, 197, 83, 9, 229, 155, 145, 185, 155, 171, 133, 195, 118, 100, 193, 107, 202, 170, 6, 51, 189, 99, 62, 244, 70, 199, 253, 80, 218, 171, 68, 89, 136, 222, 166, 5, 209, 92, 255, 140, 164}
 
 	comm := root.ComputeCommitment(ks, lg1)
+	got := bls.ToCompressedG1(comm)
+
+	if !bytes.Equal(got, expected) {
+		t.Fatalf("incorrect root commitment %x != %x", got, expected)
+	}
+}
+
+func TestComputeRootCommitmentOnlineThreeLeaves(t *testing.T) {
+	root := New()
+	root.InsertOrdered(zeroKeyTest, testValue, ks, lg1)
+	root.InsertOrdered(fourtyKeyTest, testValue, ks, lg1)
+	root.InsertOrdered(ffx32KeyTest, testValue, ks, lg1)
+
+	// This still needs to be called, so that the root
+	// commitment is calculated.
+	comm := root.ComputeCommitment(ks, lg1)
+
+	expected := []byte{137, 46, 141, 157, 55, 243, 191, 123, 197, 83, 9, 229, 155, 145, 185, 155, 171, 133, 195, 118, 100, 193, 107, 202, 170, 6, 51, 189, 99, 62, 244, 70, 199, 253, 80, 218, 171, 68, 89, 136, 222, 166, 5, 209, 92, 255, 140, 164}
+
 	got := bls.ToCompressedG1(comm)
 
 	if !bytes.Equal(got, expected) {
