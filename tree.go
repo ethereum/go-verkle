@@ -103,7 +103,10 @@ type (
 		commitment *bls.G1Point
 	}
 
-	hashedNode common.Hash
+	hashedNode struct {
+		hash       common.Hash
+		commitment *bls.G1Point
+	}
 
 	leafNode struct {
 		key   []byte
@@ -165,7 +168,7 @@ func (n *internalNode) Insert(key []byte, value []byte) error {
 	switch child := n.children[nChild].(type) {
 	case empty:
 		n.children[nChild] = &leafNode{key: key, value: value}
-	case hashedNode:
+	case *hashedNode:
 		return errInsertIntoHash
 	case *leafNode:
 		// Need to add a new branch node to differentiate
@@ -201,7 +204,7 @@ func (n *internalNode) Get(k []byte) ([]byte, error) {
 	nChild := offset2Key(k, n.depth)
 
 	switch child := n.children[nChild].(type) {
-	case empty, hashedNode, nil:
+	case empty, *hashedNode, nil:
 		return nil, errors.New("trying to read from an invalid child")
 	default:
 		return child.Get(k)
@@ -319,34 +322,36 @@ func (n *leafNode) Hash() common.Hash {
 	digest.Write(n.value)
 	return common.BytesToHash(digest.Sum(nil))
 }
-func (n hashedNode) Insert(k []byte, value []byte) error {
+
+func (n *hashedNode) Insert(k []byte, value []byte) error {
 	return errInsertIntoHash
 }
 
-func (n hashedNode) Get(k []byte) ([]byte, error) {
+func (n *hashedNode) Get(k []byte) ([]byte, error) {
 	return nil, errors.New("can not read from a hash node")
 }
 
-func (n hashedNode) Hash() common.Hash {
-	return common.Hash(n)
+func (n *hashedNode) Hash() common.Hash {
+	return n.hash
 }
 
-func (n hashedNode) ComputeCommitment(*kzg.KZGSettings, []bls.G1Point) *bls.G1Point {
-	panic("not implemented yet")
+func (n *hashedNode) ComputeCommitment(*kzg.KZGSettings, []bls.G1Point) *bls.G1Point {
+	var hashAsFr bls.Fr
+	bls.FrFrom32(&hashAsFr, n.hash)
+	n.commitment = new(bls.G1Point)
+	bls.MulG1(n.commitment, &bls.GenG1, &hashAsFr)
+	return n.commitment
 }
 
-func (n hashedNode) GetCommitment() *bls.G1Point {
-	var tmp bls.Fr
-	var out bls.G1Point
-	bls.FrFrom32(&tmp, n)
-	bls.MulG1(&out, &bls.GenG1, &tmp)
-	return &out
+func (n *hashedNode) GetCommitment() *bls.G1Point {
+	return n.commitment
 }
-func (n hashedNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr) {
+
+func (n *hashedNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr) {
 	panic("can not get the full path, and there is no proof of absence")
 }
 
-func (n hashedNode) EvalPathAt([]byte, *bls.Fr) []bls.Fr {
+func (n *hashedNode) EvalPathAt([]byte, *bls.Fr) []bls.Fr {
 	panic("can not evaluate path through hash node")
 }
 
