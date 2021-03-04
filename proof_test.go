@@ -39,9 +39,16 @@ func TestProofGenerationTwoLeaves(t *testing.T) {
 
 	// Calculate all commitments
 	s1, s2 := kzg.GenerateTestingSetup("1927409816240961209460912649124", 1024)
-	ks := kzg.NewKZGSettings(kzg.NewFFTSettings(6), s1, s2)
-	_ = root.ComputeCommitment(ks)
+	fftCfg := kzg.NewFFTSettings(10)
+	ks := kzg.NewKZGSettings(fftCfg, s1, s2)
+	var err error
+	lg1, err = fftCfg.FFTG1(s1, true)
+	if err != nil {
+		panic(err)
+	}
+	_ = root.ComputeCommitment(ks, lg1)
+
 	var s bls.Fr
 	bls.SetFr(&s, "1927409816240961209460912649124")
-	_, _, _, d, pi, rho := MakeVerkleProofOneLeaf(root, zeroKeyTest, &s)
+	MakeVerkleProofOneLeaf(root, zeroKeyTest, &s)
 }

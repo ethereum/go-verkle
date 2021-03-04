@@ -47,16 +47,38 @@ var s1, lg1 []bls.G1Point
 var s2 []bls.G2Point
 var ks *kzg.KZGSettings
 
-func init() {
-	s1, s2 = kzg.GenerateTestingSetup("1927409816240961209460912649124", 1024)
-	fftCfg := kzg.NewFFTSettings(10)
-	ks = kzg.NewKZGSettings(fftCfg, s1, s2)
+// GenerateTestingSetupWithLagrange creates a setup of n values from the given secret,
+// along with the  **for testing purposes only**
+func GenerateTestingSetupWithLagrange(secret string, n uint64, fftCfg *kzg.FFTSettings) ([]bls.G1Point, []bls.G2Point, []bls.G1Point, error) {
+	var s bls.Fr
+	bls.SetFr(&s, secret)
 
+	var sPow bls.Fr
+	bls.CopyFr(&sPow, &bls.ONE)
+
+	s1Out := make([]bls.G1Point, n, n)
+	s2Out := make([]bls.G2Point, n, n)
+	for i := uint64(0); i < n; i++ {
+		bls.MulG1(&s1Out[i], &bls.GenG1, &sPow)
+		bls.MulG2(&s2Out[i], &bls.GenG2, &sPow)
+		var tmp bls.Fr
+		bls.CopyFr(&tmp, &sPow)
+		bls.MulModFr(&sPow, &tmp, &s)
+	}
+
+	s1Lagrange, err := fftCfg.FFTG1(s1Out, true)
+
+	return s1Out, s2Out, s1Lagrange, err
+}
+
+func init() {
 	var err error
-	lg1, err = fftCfg.FFTG1(s1, true)
+	fftCfg := kzg.NewFFTSettings(10)
+	s1, s2, lg1, err = GenerateTestingSetupWithLagrange("1927409816240961209460912649124", 1024, fftCfg)
 	if err != nil {
 		panic(err)
 	}
+	ks = kzg.NewKZGSettings(fftCfg, s1, s2)
 }
 
 func TestInsertIntoRoot(t *testing.T) {
@@ -140,7 +162,7 @@ func TestComputeRootCommitmentThreeLeaves(t *testing.T) {
 	expected := []byte{137, 46, 141, 157, 55, 243, 191, 123, 197, 83, 9, 229, 155, 145, 185, 155, 171, 133, 195, 118, 100, 193, 107, 202, 170, 6, 51, 189, 99, 62, 244, 70, 199, 253, 80, 218, 171, 68, 89, 136, 222, 166, 5, 209, 92, 255, 140, 164}
 
 	comm := root.ComputeCommitment(ks, lg1)
-	got := compressG1Point(comm)
+	got := bls.ToCompressedG1(comm)
 
 	if !bytes.Equal(got, expected) {
 		t.Fatalf("incorrect root commitment %x != %x", got, expected)
@@ -156,7 +178,7 @@ func TestComputeRootCommitmentThreeLeavesDeep(t *testing.T) {
 	expected := []byte{180, 224, 116, 69, 8, 16, 10, 46, 12, 87, 199, 139, 17, 157, 123, 95, 113, 9, 180, 227, 72, 13, 125, 20, 35, 52, 98, 119, 121, 181, 253, 151, 253, 0, 62, 206, 64, 49, 8, 93, 140, 128, 232, 208, 102, 248, 81, 206}
 
 	comm := root.ComputeCommitment(ks, lg1)
-	got := compressG1Point(comm)
+	got := bls.ToCompressedG1(comm)
 
 	if !bytes.Equal(got, expected) {
 		t.Fatalf("incorrect root commitment %x != %x", got, expected)
@@ -170,7 +192,7 @@ func TestComputeRootCommitmentTwoLeaves(t *testing.T) {
 	expected := []byte{178, 195, 197, 132, 158, 141, 115, 80, 222, 187, 37, 145, 15, 184, 242, 86, 101, 164, 144, 51, 239, 90, 232, 100, 78, 178, 253, 145, 36, 168, 30, 75, 100, 185, 100, 14, 198, 48, 14, 95, 3, 252, 185, 73, 183, 195, 153, 44}
 
 	comm := root.ComputeCommitment(ks, lg1)
-	got := compressG1Point(comm)
+	got := bls.ToCompressedG1(comm)
 
 	if !bytes.Equal(got, expected) {
 		t.Fatalf("incorrect root commitment %x != %x", got, expected)

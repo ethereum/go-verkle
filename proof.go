@@ -36,7 +36,7 @@ import (
 func calcR(cs []*bls.G1Point, indices []*bls.Fr, ys []*bls.Fr) bls.Fr {
 	digest := sha256.New()
 	for _, c := range cs {
-		digest.Write(compressG1Point(c))
+		digest.Write(bls.ToCompressedG1(c))
 	}
 	for _, idx := range indices {
 		tmp := bls.FrTo32(idx)
@@ -58,7 +58,7 @@ func calcT(r bls.Fr, d *bls.G1Point) bls.Fr {
 
 	tmpBytes := bls.FrTo32(&r)
 	digest.Write(tmpBytes[:])
-	digest.Write(compressG1Point(d))
+	digest.Write(bls.ToCompressedG1(d))
 
 	var tmp bls.Fr
 	bls.FrFrom32(&tmp, common.BytesToHash(digest.Sum(nil)))

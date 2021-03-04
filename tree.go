@@ -217,19 +217,7 @@ func (n *internalNode) Hash() common.Hash {
 	return common.BytesToHash(digest.Sum(nil))
 }
 
-func compressG1Point(p *bls.G1Point) []byte {
-	// Get the compressed form of the commitment as described in:
-	// https://docs.rs/bls12_381/0.4.0/bls12_381/notes/serialization/index.html
-	compressed := p.X.Serialize()
-	compressed[0] |= 0x80 // compressed form
-	if p.Z.IsZero() {
-		compressed[0] |= 0x40 // infinity
-	} else if !p.Y.IsNegative() {
-		compressed[0] |= 0x20 // largest Y coordinate
-	}
 
-	return compressed
-}
 
 func (n *internalNode) ComputeCommitment(ks *kzg.KZGSettings, lg1 []bls.G1Point) *bls.G1Point {
 	var poly [InternalNodeNumChildren]bls.Fr
@@ -239,7 +227,7 @@ func (n *internalNode) ComputeCommitment(ks *kzg.KZGSettings, lg1 []bls.G1Point)
 		case *leafNode:
 			bls.FrFrom32(&poly[idx], child.Hash())
 		default:
-			compressed := compressG1Point(childC.ComputeCommitment(ks, lg1))
+			compressed := bls.ToCompressedG1(childC.ComputeCommitment(ks, lg1))
 			h := sha256.Sum256(compressed)
 			bls.FrFrom32(&poly[idx], h)
 		}
