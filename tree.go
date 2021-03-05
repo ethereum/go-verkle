@@ -240,18 +240,22 @@ func (n *internalNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettin
 			newBranch := newInternalNode(n.depth + width).(*internalNode)
 			n.children[nChild] = newBranch
 
-			// Directly hash the (left) node that was already
-			// inserted.
-			h := child.Hash()
-			comm := child.ComputeCommitment(ks, lg1)
-			newBranch.children[nextWordInExistingKey] = &hashedNode{hash: h, commitment: comm}
-
 			nextWordInInsertedKey := offset2Key(key, n.depth+width)
 			if nextWordInInsertedKey != nextWordInExistingKey {
+				// Directly hash the (left) node that was already
+				// inserted.
+				h := child.Hash()
+				comm := new(bls.G1Point)
+				var tmp bls.Fr
+				bls.FrFrom32(&tmp, h)
+				bls.MulG1(comm, &bls.GenG1, &tmp)
+				newBranch.children[nextWordInExistingKey] = &hashedNode{hash: h, commitment: comm}
 				// Next word differs, so this was the last level.
 				// Insert it directly into its final slot.
 				newBranch.children[nextWordInInsertedKey] = &leafNode{key: key, value: value}
 			} else {
+				// Reinsert the leaf in order to recurse
+				newBranch.children[nextWordInExistingKey] = child
 				newBranch.Insert(key, value)
 			}
 		}

@@ -207,8 +207,8 @@ func TestComputeRootCommitmentThreeLeavesDeep(t *testing.T) {
 
 func TestComputeRootCommitmentOnlineThreeLeavesDeep(t *testing.T) {
 	root := New()
-	root.Insert(zeroKeyTest, testValue)
-	root.Insert(oneKeyTest, testValue)
+	root.InsertOrdered(zeroKeyTest, testValue, ks, lg1)
+	root.InsertOrdered(oneKeyTest, testValue, ks, lg1)
 	root.InsertOrdered(ffx32KeyTest, testValue, ks, lg1)
 
 	expected := []byte{180, 224, 116, 69, 8, 16, 10, 46, 12, 87, 199, 139, 17, 157, 123, 95, 113, 9, 180, 227, 72, 13, 125, 20, 35, 52, 98, 119, 121, 181, 253, 151, 253, 0, 62, 206, 64, 49, 8, 93, 140, 128, 232, 208, 102, 248, 81, 206}
