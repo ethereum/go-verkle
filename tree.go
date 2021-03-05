@@ -216,8 +216,8 @@ func (n *internalNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettin
 		// savely be calculated.
 		for i := int(nChild) - 1; i >= 0; i-- {
 			if _, ok := n.children[i].(empty); !ok {
-				h := n.children[i].Hash()
 				comm := n.children[i].ComputeCommitment(ks, lg1)
+				h := sha256.Sum256(bls.ToCompressedG1(comm))
 				n.children[i] = &hashedNode{hash: h, commitment: comm}
 				break
 			}
