@@ -380,10 +380,7 @@ func (n *leafNode) GetCommitment() *bls.G1Point {
 }
 
 func (n *leafNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr) {
-	h := n.Hash()
-	var hFr bls.Fr
-	bls.FrFrom32(&hFr, h)
-	return nil, nil, []*bls.Fr{&hFr}
+	return nil, nil, nil
 }
 
 func (n *leafNode) EvalPathAt([]byte, *bls.Fr) []bls.Fr {
