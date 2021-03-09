@@ -130,8 +130,6 @@ github.com/protolambda/go-kzg v0.0.0-20210220063554-7b02600fc0c8 h1:yoJqpOeSdJLZ
 github.com/protolambda/go-kzg v0.0.0-20210220063554-7b02600fc0c8/go.mod h1:MUbZK0xBdKQFtzxxLjIds3AfWw5ZYgB2iJv1u7+7yUU=
 github.com/protolambda/go-kzg v0.0.0-20210303133630-8ecf92125769 h1:jFx+JtpiK9L4Pm9DuBycLiEyeNcwKR1RexhZ7kMvl8Q=
 github.com/protolambda/go-kzg v0.0.0-20210303133630-8ecf92125769/go.mod h1:MUbZK0xBdKQFtzxxLjIds3AfWw5ZYgB2iJv1u7+7yUU=
-github.com/protolambda/go-kzg v0.0.0-20210305115624-1470ca953a64 h1:eYFjrwD1sGo2+k65DAwx/6h1jo5Am5TwHPqOEJvz++o=
-github.com/protolambda/go-kzg v0.0.0-20210305115624-1470ca953a64/go.mod h1:MUbZK0xBdKQFtzxxLjIds3AfWw5ZYgB2iJv1u7+7yUU=
 github.com/rjeczalik/notify v0.9.1/go.mod h1:rKwnCoCGeuQnwBtTSPL9Dad03Vh2n40ePRrjvIXnJho=
 github.com/rs/cors v0.0.0-20160617231935-a62a804a8a00/go.mod h1:gFx+x8UowdsKA9AchylcLynDq+nNFfI8FkUZdN/jGCU=
 github.com/rs/xhandler v0.0.0-20160618193221-ed27b6fd6521/go.mod h1:RvLn4FgxWubrpZHtQLnOf6EwhN2hEMusxZOhcW9H3UQ=
@@ -196,8 +194,6 @@ golang.org/x/sys v0.0.0-20210220050731-9a76102bfb43 h1:SgQ6LNaYJU0JIuEHv9+s6EbhS
 golang.org/x/sys v0.0.0-20210220050731-9a76102bfb43/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20210303074136-134d130e1a04 h1:cEhElsAv9LUt9ZUUocxzWe05oFLVd+AA2nstydTeI8g=
 golang.org/x/sys v0.0.0-20210303074136-134d130e1a04/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
-golang.org/x/sys v0.0.0-20210305034016-7844c3c200c3 h1:RdE7htvBru4I4VZQofQjCZk5W9+aLNlSF5n0zgVwm8s=
-golang.org/x/sys v0.0.0-20210305034016-7844c3c200c3/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
 golang.org/x/text v0.3.2/go.mod h1:bEr9sfX3Q8Zfm5fL9x+3itogRgK3+ptLWKqgva+5dAk=
 golang.org/x/text v0.3.3/go.mod h1:5Zoc/QRtKVWzQhOtBMvqHzDpF6irO9z98xDceosuGiQ=
