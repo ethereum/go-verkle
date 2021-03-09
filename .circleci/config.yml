@@ -1,0 +1,32 @@
+version: 2
+jobs:
+  build:
+    docker:
+      - image: circleci/golang:1.15.8
+    working_directory: /go/src/github.com/gballet/go-verkle
+
+    steps:
+      - checkout
+
+      - restore_cache:
+          keys:
+            - v1-pkg-cache
+
+      - run: go build -tags bignum_kilic
+
+        #- run: go get honnef.co/go/tools/cmd/staticcheck
+
+      - run:
+          name: Run unit tests
+          command: go test -tags bignum_kilic ./...
+
+      - run:
+          name: Run the static checkers
+          command: |
+            go vet
+            #   /go/bin/staticcheck
+
+      - save_cache: # Store cache in the /go/pkg directory
+          key: v1-pkg-cache
+          paths:
+            - "/go/pkg"
