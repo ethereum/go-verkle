@@ -215,7 +215,15 @@ func (n *internalNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettin
 		// subtree directly preceding this new one, can
 		// savely be calculated.
 		for i := int(nChild) - 1; i >= 0; i-- {
-			if _, ok := n.children[i].(empty); !ok {
+			switch n.children[i].(type) {
+			case empty:
+				continue
+			case *leafNode:
+				n.children[i] = &hashedNode{hash: n.children[i].Hash()}
+				break
+			case *hashedNode:
+				break
+			default:
 				comm := n.children[i].ComputeCommitment(ks, lg1)
 				h := sha256.Sum256(bls.ToCompressedG1(comm))
 				n.children[i] = &hashedNode{hash: h, commitment: comm}
