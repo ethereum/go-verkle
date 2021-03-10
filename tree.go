@@ -293,8 +293,6 @@ func (n *internalNode) Hash() common.Hash {
 	return common.BytesToHash(digest.Sum(nil))
 }
 
-
-
 func (n *internalNode) ComputeCommitment(ks *kzg.KZGSettings, lg1 []bls.G1Point) *bls.G1Point {
 	if n.commitment != nil {
 		return n.commitment
@@ -315,17 +313,7 @@ func (n *internalNode) ComputeCommitment(ks *kzg.KZGSettings, lg1 []bls.G1Point)
 		}
 	}
 
-	var comm bls.G1Point
-	bls.CopyG1(&comm, &bls.ZERO_G1)
-	for i := range poly {
-		if !bls.EqualZero(&poly[i]) {
-			var tmpG1, eval bls.G1Point
-			bls.MulG1(&eval, &lg1[i], &poly[i])
-			bls.CopyG1(&tmpG1, &comm)
-			bls.AddG1(&comm, &tmpG1, &eval)
-		}
-	}
-	n.commitment = &comm
+	n.commitment = bls.LinCombG1(lg1, poly[:])
 	return n.commitment
 }
 
