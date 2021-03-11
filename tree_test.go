@@ -234,3 +234,9 @@ func TestComputeRootCommitmentTwoLeaves(t *testing.T) {
 		t.Fatalf("incorrect root commitment %x != %x", got, expected)
 	}
 }
+
+func TestHashToFr(t *testing.T) {
+	h := common.HexToHash("90290022123445248259889182711334847537042463109509992341012313054930506670080")
+	var out bls.Fr
+	hashToFr(&out, h)
+}
