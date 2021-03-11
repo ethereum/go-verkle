@@ -235,8 +235,16 @@ func TestComputeRootCommitmentTwoLeaves(t *testing.T) {
 	}
 }
 
-func TestHashToFr(t *testing.T) {
-	h := common.HexToHash("90290022123445248259889182711334847537042463109509992341012313054930506670080")
+func TestHashToFrTrailingZeroBytes(t *testing.T) {
+	h := common.HexToHash("c79e576e0f534a5bbed66b32e5022a9d624b4415779b369a62b2e7a6c3d8e000")
 	var out bls.Fr
 	hashToFr(&out, h)
+
+	h2 := common.HexToHash("c79e576e0f534a5bbed66b32e5022a9d624b4415779b369a62b2e7a6c3d8e000")
+	var expected bls.Fr
+	bls.FrFrom32(&expected, h2)
+
+	if !bls.EqualFr(&out, &expected) {
+		t.Fatalf("incorrect value received, got %x != %x", out, expected)
+	}
 }
