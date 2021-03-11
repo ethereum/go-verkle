@@ -28,6 +28,8 @@ package verkle
 import (
 	"bytes"
 	"testing"
+    "math/rand"
+    "time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/protolambda/go-kzg"
@@ -233,4 +235,35 @@ func TestComputeRootCommitmentTwoLeaves(t *testing.T) {
 	if !bytes.Equal(got, expected) {
 		t.Fatalf("incorrect root commitment %x != %x", got, expected)
 	}
+}
+
+func BenchmarkCommit1kLeaves(b *testing.B) {
+    n := 50
+    keys := make([][]byte, n)
+    vals := make([][]byte, n)
+    rand.Seed(time.Now().UnixNano())
+    for i := 0; i < n; i++ {
+        key := make([]byte, 32)
+        val := make([]byte, 32)
+        rand.Read(key)
+        rand.Read(val)
+        keys[i] = key
+        vals[i] = val
+    }
+
+    b.Run("insert", func(b *testing.B) {
+        b.ResetTimer()
+        b.ReportAllocs()
+
+        for i := 0; i < b.N; i++ {
+            root := New()
+            for i, k := range keys {
+                err := root.Insert(k, vals[i])
+                if err != nil {
+                    b.Error(err)
+                }
+            }
+            root.ComputeCommitment(ks, lg1)
+        }
+    })
 }
