@@ -29,6 +29,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"errors"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/protolambda/go-kzg"
