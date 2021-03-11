@@ -11,7 +11,7 @@ A **very experimental** implementation of [Verkle trees](https://notes.ethereum.
 ### Running the tests
 
 ```
-$ go test -tags bignum_kilic .
+$ go test .
 ```
 
 The test called `TestProofVerifyTwoLeaves` is currently broken, all other tests should pass.
