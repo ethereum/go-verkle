@@ -122,6 +122,8 @@ type (
 	empty struct{}
 )
 
+var modulus *big.Int
+
 func init() {
 	// Calculate the lagrangian evaluation basis.
 	var tmp bls.Fr
@@ -129,6 +131,12 @@ func init() {
 	for i := 0; i < InternalNodeNumChildren; i++ {
 		bls.CopyFr(&omegaIs[i], &tmp)
 		bls.MulModFr(&tmp, &tmp, &bls.Scale2RootOfUnity[10])
+	}
+
+	var ok bool
+	modulus, ok = big.NewInt(0).SetString("52435875175126190479447740508185965837690552500527637822603658699938581184513", 10)
+	if !ok {
+		panic("could not get modulus")
 	}
 }
 
@@ -255,7 +263,7 @@ func (n *internalNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettin
 				h := child.Hash()
 				comm := new(bls.G1Point)
 				var tmp bls.Fr
-				bls.FrFrom32(&tmp, h)
+				hashToFr(&tmp, h)
 				bls.MulG1(comm, &bls.GenG1, &tmp)
 				newBranch.children[nextWordInExistingKey] = &hashedNode{hash: h, commitment: comm}
 				// Next word differs, so this was the last level.
@@ -293,6 +301,23 @@ func (n *internalNode) Hash() common.Hash {
 	return common.BytesToHash(digest.Sum(nil))
 }
 
+func hashToFr(out *bls.Fr, h [32]byte) {
+	var h2 [32]byte
+	for i := range h {
+		h2[i] = h[len(h)-i-1]
+	}
+	x := big.NewInt(0).SetBytes(h2[:])
+	x.Mod(x, modulus)
+	copy(h2[:], x.Bytes())
+	for i := range h2 {
+		h[i] = h2[len(h)-i-1]
+	}
+
+	if !bls.FrFrom32(out, h) {
+		panic("invalid Fr number")
+	}
+}
+
 func (n *internalNode) ComputeCommitment(ks *kzg.KZGSettings, lg1 []bls.G1Point) *bls.G1Point {
 	if n.commitment != nil {
 		return n.commitment
@@ -302,14 +327,11 @@ func (n *internalNode) ComputeCommitment(ks *kzg.KZGSettings, lg1 []bls.G1Point)
 	for idx, childC := range n.children {
 		switch child := childC.(type) {
 		case empty:
-		case *leafNode:
-			bls.FrFrom32(&poly[idx], child.Hash())
-		case *hashedNode:
-			bls.FrFrom32(&poly[idx], child.Hash())
+		case *leafNode, *hashedNode:
+			hashToFr(&poly[idx], child.Hash())
 		default:
 			compressed := bls.ToCompressedG1(childC.ComputeCommitment(ks, lg1))
-			h := sha256.Sum256(compressed)
-			bls.FrFrom32(&poly[idx], h)
+			hashToFr(&poly[idx], sha256.Sum256(compressed))
 		}
 	}
 
@@ -324,10 +346,9 @@ func (n *internalNode) GetCommitment() *bls.G1Point {
 func (n *internalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr) {
 	childIdx := offset2Key(key, n.depth)
 	comms, zis, yis := n.children[childIdx].GetCommitmentsAlongPath(key)
-	var zi bls.Fr
+	var zi, yi bls.Fr
 	bls.AsFr(&zi, uint64(childIdx))
-	var yi bls.Fr
-	bls.FrFrom32(&yi, n.children[childIdx].Hash())
+	hashToFr(&yi, n.children[childIdx].Hash())
 	return append(comms, n.GetCommitment()), append(zis, &zi), append(yis, &yi)
 }
 
@@ -339,7 +360,7 @@ func (n *internalNode) EvalPathAt(key []byte, at *bls.Fr) []bls.Fr {
 	for i := range n.children {
 		var fi, tmp, quotient bls.Fr
 		bls.SubModFr(&quotient, at, &omegaIs[i])
-		bls.FrFrom32(&fi, n.children[i].Hash())
+		hashToFr(&fi, n.children[i].Hash())
 		bls.MulModFr(&tmp, &fi, &omegaIs[i])
 		bls.DivModFr(&fi, &tmp, &quotient)
 
@@ -410,7 +431,7 @@ func (n *hashedNode) Hash() common.Hash {
 func (n *hashedNode) ComputeCommitment(*kzg.KZGSettings, []bls.G1Point) *bls.G1Point {
 	if n.commitment == nil {
 		var hashAsFr bls.Fr
-		bls.FrFrom32(&hashAsFr, n.hash)
+		hashToFr(&hashAsFr, n.hash)
 		n.commitment = new(bls.G1Point)
 		bls.MulG1(n.commitment, &bls.GenG1, &hashAsFr)
 	}
