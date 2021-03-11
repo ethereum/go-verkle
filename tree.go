@@ -29,6 +29,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"errors"
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -302,20 +303,34 @@ func (n *internalNode) Hash() common.Hash {
 	return common.BytesToHash(digest.Sum(nil))
 }
 
+// This function takes a hash and turns it into a bls.Fr integer, making
+// sure that this doesn't overflow the modulus.
+// This piece of code is really ugly, and probably a performance hog, it
+// needs to be rewritten more efficiently.
 func hashToFr(out *bls.Fr, h [32]byte) {
 	var h2 [32]byte
+	// reverse endianness
 	for i := range h {
 		h2[i] = h[len(h)-i-1]
 	}
+
+	// Apply modulus
 	x := big.NewInt(0).SetBytes(h2[:])
 	x.Mod(x, modulus)
-	copy(h2[:], x.Bytes())
+
+	// clear the buffer in case the trailing bytes were 0
+	for i := 0; i < 32; i++ {
+		h2[i] = 0
+	}
+	copy(h2[32-len(x.Bytes()):], x.Bytes())
+
+	// back to original endianness
 	for i := range h2 {
 		h[i] = h2[len(h)-i-1]
 	}
 
 	if !bls.FrFrom32(out, h) {
-		panic("invalid Fr number")
+		panic(fmt.Sprintf("invalid Fr number %x", h))
 	}
 }
 

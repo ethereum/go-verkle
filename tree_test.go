@@ -30,6 +30,7 @@ import (
 	"testing"
     "math/rand"
     "time"
+    "sort"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/protolambda/go-kzg"
@@ -237,19 +238,44 @@ func TestComputeRootCommitmentTwoLeaves(t *testing.T) {
 	}
 }
 
+func TestHashToFrTrailingZeroBytes(t *testing.T) {
+	h := common.HexToHash("c79e576e0f534a5bbed66b32e5022a9d624b4415779b369a62b2e7a6c3d8e000")
+	var out bls.Fr
+	hashToFr(&out, h)
+
+	h2 := common.HexToHash("c79e576e0f534a5bbed66b32e5022a9d624b4415779b369a62b2e7a6c3d8e000")
+	var expected bls.Fr
+	bls.FrFrom32(&expected, h2)
+
+	if !bls.EqualFr(&out, &expected) {
+		t.Fatalf("incorrect value received, got %x != %x", out, expected)
+	}
+}
+
 func BenchmarkCommit1kLeaves(b *testing.B) {
-    n := 50
-    keys := make([][]byte, n)
-    vals := make([][]byte, n)
+    n := 1000
+    type kv struct {
+        k []byte
+        v []byte
+    }
+    kvs := make([]kv, n)
+    sortedKVs := make([]kv, n)
+
     rand.Seed(time.Now().UnixNano())
     for i := 0; i < n; i++ {
         key := make([]byte, 32)
         val := make([]byte, 32)
         rand.Read(key)
         rand.Read(val)
-        keys[i] = key
-        vals[i] = val
+        kvs[i] = kv{k: key, v: val}
+        sortedKVs[i] = kv{k: key, v: val}
     }
+
+    // InsertOrder assumes keys are sorted
+    sortKVs := func (src []kv) {
+        sort.Slice(src, func(i, j int) bool { return bytes.Compare(src[i].k, src[j].k) < 0 })
+    }
+    sortKVs(sortedKVs)
 
     b.Run("insert", func(b *testing.B) {
         b.ResetTimer()
@@ -257,13 +283,28 @@ func BenchmarkCommit1kLeaves(b *testing.B) {
 
         for i := 0; i < b.N; i++ {
             root := New()
-            for i, k := range keys {
-                err := root.Insert(k, vals[i])
-                if err != nil {
+            for _, el := range kvs {
+                if err := root.Insert(el.k, el.v); err != nil {
                     b.Error(err)
                 }
             }
             root.ComputeCommitment(ks, lg1)
         }
     })
+
+    b.Run("insertOrdered", func(b *testing.B) {
+        b.ResetTimer()
+        b.ReportAllocs()
+
+        for i := 0; i < b.N; i++ {
+            root := New()
+            for _, el := range sortedKVs {
+                if err := root.InsertOrdered(el.k, el.v, ks, lg1); err != nil {
+                    b.Fatal(err)
+                }
+            }
+            root.ComputeCommitment(ks, lg1)
+        }
+    })
 }
+
