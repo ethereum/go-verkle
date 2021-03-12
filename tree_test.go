@@ -253,7 +253,14 @@ func TestHashToFrTrailingZeroBytes(t *testing.T) {
 }
 
 func BenchmarkCommit1kLeaves(b *testing.B) {
-	n := 1000
+    benchmarkCommitNLeaves(b, 1000)
+}
+
+func BenchmarkCommit10kLeaves(b *testing.B) {
+    benchmarkCommitNLeaves(b, 10000)
+}
+
+func benchmarkCommitNLeaves(b *testing.B, n int) {
 	type kv struct {
 		k []byte
 		v []byte
