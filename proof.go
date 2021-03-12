@@ -32,7 +32,6 @@ import (
 	"github.com/protolambda/go-kzg/bls"
 )
 
-
 func calcR(cs []*bls.G1Point, indices []*bls.Fr, ys []*bls.Fr) bls.Fr {
 	digest := sha256.New()
 	for _, c := range cs {
