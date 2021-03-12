@@ -66,7 +66,7 @@ type VerkleNode interface {
 	// level and f_0 = commitment to leaf.
 	// It returns the list of commitments, as well as the
 	// z_i.
-	GetCommitmentsAlongPath([]byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr)
+	GetCommitmentsAlongPath([]byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr)
 
 	// EvalPathAt evaluates the polynomial at each level along the
 	// path traced by `key`, and returns the list of evaluations.
@@ -359,13 +359,20 @@ func (n *internalNode) GetCommitment() *bls.G1Point {
 	return n.commitment
 }
 
-func (n *internalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr) {
+func (n *internalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr) {
 	childIdx := offset2Key(key, n.depth)
-	comms, zis, yis := n.children[childIdx].GetCommitmentsAlongPath(key)
+	comms, zis, yis, fis := n.children[childIdx].GetCommitmentsAlongPath(key)
 	var zi, yi bls.Fr
 	bls.AsFr(&zi, uint64(childIdx))
-	hashToFr(&yi, n.children[childIdx].Hash())
-	return append(comms, n.GetCommitment()), append(zis, &zi), append(yis, &yi)
+	var fi [InternalNodeNumChildren]bls.Fr
+	for i, child := range n.children {
+		hashToFr(&fi[i], child.Hash())
+		if i == childIdx {
+
+			hashToFr(&yi, child.Hash())
+		}
+	}
+	return append(comms, n.GetCommitment()), append(zis, &zi), append(yis, &yi), append(fis, fi[:])
 }
 
 func (n *internalNode) EvalPathAt(key []byte, at *bls.Fr) []bls.Fr {
@@ -412,7 +419,7 @@ func (n *leafNode) GetCommitment() *bls.G1Point {
 	panic("can't get the commitment directly")
 }
 
-func (n *leafNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr) {
+func (n *leafNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, [][]bls.Fr) {
 	return nil, nil, nil
 }
 
@@ -458,7 +465,7 @@ func (n *hashedNode) GetCommitment() *bls.G1Point {
 	return n.commitment
 }
 
-func (n *hashedNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr) {
+func (n *hashedNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, [][]bls.Fr) {
 	panic("can not get the full path, and there is no proof of absence")
 }
 
@@ -490,7 +497,7 @@ func (e empty) GetCommitment() *bls.G1Point {
 	return &bls.ZeroG1
 }
 
-func (e empty) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr) {
+func (e empty) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, [][]bls.Fr) {
 	panic("trying to produce a commitment for an empty subtree")
 }
 

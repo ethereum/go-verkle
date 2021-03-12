@@ -29,9 +29,9 @@ import (
 	"crypto/sha256"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/protolambda/go-kzg"
 	"github.com/protolambda/go-kzg/bls"
 )
-
 
 func calcR(cs []*bls.G1Point, indices []*bls.Fr, ys []*bls.Fr) bls.Fr {
 	digest := sha256.New()
@@ -65,92 +65,74 @@ func calcT(r bls.Fr, d *bls.G1Point) bls.Fr {
 	return tmp
 }
 
-func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, s *bls.Fr) (commitments []*bls.G1Point, y, w bls.Fr, d, pi, rho *bls.G1Point, zis, yis []*bls.Fr) {
-	commitments, zis, yis = root.GetCommitmentsAlongPath(key)
+func calcQ(e, d *bls.G1Point) bls.Fr {
 
+
+}
+
+func innerQuotients(f []bls.Fr, index int) []bls.Fr {
+
+func outerQuotients(f []bls.Fr, z, y bls.Fr) []bls.Fr {
+}
+
+func ComputeKZGProof(poly []bls.Fr, at bls.Fr) *bls.G1Point {
+}
+
+func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, lg1 []bls.G1Point) (d *bls.G1Point, y *bls.Fr, sigma *bls.G1Point) {
+	var fis [][]bls.Fr
+	commitments, zis, yis, fis := root.GetCommitmentsAlongPath(key)
+
+	// Construct g(x)
 	r := calcR(commitments, zis, yis)
 
-	// Compute D = g(s) and h(s)
-	var hS bls.G1Point
-	d = new(bls.G1Point)
-	bls.CopyG1(d, &bls.ZeroG1)
-	bls.CopyG1(&hS, &bls.ZeroG1)
+	var g []bls.Fr
 	var powR bls.Fr
 	bls.CopyFr(&powR, &bls.ONE)
-	for i := range commitments {
-		var gi, hi bls.G1Point
-		var yiPoint bls.G1Point
-		bls.MulG1(&yiPoint, &bls.GenG1, yis[i])
-
-		// gᵢ(s) = Cᵢ - yᵢ
-		// hᵢ(s) = Cᵢ
-		bls.SubG1(&gi, commitments[i], &yiPoint)
-		bls.CopyG1(&hi, commitments[i])
-
-		// gᵢ(s) = rⁱ * (Cᵢ - yᵢ)
-		// hᵢ(s) = rⁱ * Cᵢ
-		bls.MulG1(&gi, &gi, &powR)
-		bls.MulG1(&hi, &hi, &powR)
-
-		var quotient bls.Fr
-		bls.SubModFr(&quotient, s, zis[i])
-		bls.InvModFr(&quotient, &quotient)
-
-		// gᵢ(s) = rⁱ * (Cᵢ - yᵢ) / (s - zᵢ)
-		// hᵢ(s) = rⁱ * Cᵢ / (s - zᵢ)
-		bls.MulG1(&gi, &gi, &quotient)
-		bls.MulG1(&hi, &hi, &quotient)
-
-		bls.AddG1(d, d, &gi)
-		bls.AddG1(&hS, &hS, &hi)
+	for i, f := range fis {
+		quotients := innerQuotients(f, i)
+		for j := 0; j < InternalNodeNumChildren; j++ {
+			bls.AddModFr(&g[i], &powR, &quotients[i])
+		}
 
 		// rⁱ⁺¹ = r ⨯ rⁱ
 		bls.MulModFr(&powR, &powR, &r)
 	}
+	d = bls.LinCombG1(lg1, g)
 
+	// Compute h(x)
 	t := calcT(r, d)
 
-	// Compute w = g(t) and y = h(t); It requires using the
-	// barycentric formula in order to evaluate a function at
-	// ∀i zᵢ ≠ t,
-	g := make([]bls.Fr, 26)
-	h := make([]bls.Fr, 26)
-	fis := root.EvalPathAt(key, &t)
+	var h []bls.Fr
 	bls.CopyFr(&powR, &bls.ONE)
-	for i, fi := range fis {
-		var tmp, denom bls.Fr
-		bls.CopyFr(&tmp, &t)
-		bls.SubModFr(&denom, &tmp, &omegaIs[i])
-		bls.MulModFr(&tmp, &powR, &fi)
-		bls.DivModFr(&h[i], &tmp, &denom)
-		bls.SubModFr(&tmp, &tmp, yis[i])
-		bls.DivModFr(&g[i], &tmp, &denom)
+	for i, f := range fis {
+		var denom bls.Fr
+		bls.SubModFr(&denom, &t, &omegaIs[i])
+		bls.DivModFr(&denom, &powR, &denom)
+
+		for j := 0; j < InternalNodeNumChildren; j++ {
+			var tmp bls.Fr
+			bls.MulModFr(&tmp, &denom, &f[j])
+			bls.AddModFr(&h[i], &h[i], &tmp)
+		}
 
 		// rⁱ⁺¹ = r ⨯ rⁱ
 		bls.MulModFr(&powR, &powR, &r)
 	}
-	bls.EvalPolyAt(&w, g, &t)
-	bls.EvalPolyAt(&y, h, &t)
+	e := bls.LinCombG1(lg1, h)
 
-	// compute π
-	var sMinusT bls.Fr
-	bls.SubModFr(&sMinusT, s, &t)
-	var hSMinusY, yPoint bls.G1Point
-	bls.MulG1(&yPoint, &bls.GenG1, &y)
-	bls.SubG1(&hSMinusY, &hS, &yPoint)
-	var piMul bls.Fr
-	bls.InvModFr(&piMul, &sMinusT)
-	pi = new(bls.G1Point)
-	bls.MulG1(pi, &bls.GenG1, &piMul)
+	// compute π and ρ
+	pi := ComputeKZGProof(h, t)
+	rho := ComputeKZGProof(g, t)
 
-	// compute ρ
-	var dMinusW, wPoint bls.G1Point
-	bls.MulG1(&wPoint, &bls.GenG1, &w)
-	bls.SubG1(&dMinusW, d, &wPoint)
-	var rhoMul bls.Fr
-	bls.InvModFr(&rhoMul, &sMinusT)
-	rho = new(bls.G1Point)
-	bls.MulG1(rho, &bls.GenG1, &rhoMul)
+	// compute y
+	y = new(bls.Fr)
+	bls.EvalPolyAt(y, h, &t)
+
+	// compute σ
+	sigma = new(bls.G1Point)
+	q := calcQ(d, e)
+	bls.MulG1(sigma, rho, &q)
+	bls.AddG1(sigma, sigma, pi)
 
 	return
 }
