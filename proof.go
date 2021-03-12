@@ -65,9 +65,19 @@ func calcT(r bls.Fr, d *bls.G1Point) bls.Fr {
 	return tmp
 }
 
-func calcQ(e, d *bls.G1Point) bls.Fr {
+func calcQ(e, d *bls.G1Point, y, w *bls.Fr) bls.Fr {
+	digest := sha256.New()
 
+	digest.Write(bls.ToCompressedG1(d))
+	digest.Write(bls.ToCompressedG1(e))
+	tmpBytes := bls.FrTo32(y)
+	digest.Write(tmpBytes[:])
+	tmpBytes = bls.FrTo32(w)
+	digest.Write(tmpBytes[:])
 
+	var tmp bls.Fr
+	bls.FrFrom32(&tmp, common.BytesToHash(digest.Sum(nil)))
+	return tmp
 }
 
 func innerQuotients(f []bls.Fr, index int) []bls.Fr {
@@ -120,17 +130,19 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, lg1 []bls.G1Point) (d *
 	}
 	e := bls.LinCombG1(lg1, h)
 
-	// compute π and ρ
-	pi := ComputeKZGProof(h, t)
-	rho := ComputeKZGProof(g, t)
-
-	// compute y
+	// compute y and w
 	y = new(bls.Fr)
+	w := new(bls.Fr)
 	bls.EvalPolyAt(y, h, &t)
+	bls.EvalPolyAt(w, g, &t)
+
+	// compute π and ρ
+	pi := ComputeKZGProof(h, lg1)
+	rho := ComputeKZGProof(g, lg1)
 
 	// compute σ
 	sigma = new(bls.G1Point)
-	q := calcQ(d, e)
+	q := calcQ(d, e, y, w)
 	bls.MulG1(sigma, rho, &q)
 	bls.AddG1(sigma, sigma, pi)
 
