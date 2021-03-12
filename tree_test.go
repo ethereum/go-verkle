@@ -27,6 +27,7 @@ package verkle
 
 import (
 	"bytes"
+	"encoding/binary"
 	"math/rand"
 	"sort"
 	"testing"
@@ -253,11 +254,39 @@ func TestHashToFrTrailingZeroBytes(t *testing.T) {
 }
 
 func BenchmarkCommit1kLeaves(b *testing.B) {
-    benchmarkCommitNLeaves(b, 1000)
+	benchmarkCommitNLeaves(b, 1000)
 }
 
 func BenchmarkCommit10kLeaves(b *testing.B) {
-    benchmarkCommitNLeaves(b, 10000)
+	benchmarkCommitNLeaves(b, 10000)
+}
+
+func BenchmarkCommitFullNode(b *testing.B) {
+	n := InternalNodeNumChildren
+	keys := make([][]byte, n)
+	values := make([][]byte, n)
+	rand.Seed(time.Now().UnixNano())
+	for i := 0; i < n; i++ {
+		key := make([]byte, 32)
+		val := make([]byte, 32)
+		rand.Read(val)
+		binary.BigEndian.PutUint16(key[:2], uint16(i)<<6)
+		keys[i] = key
+		values[i] = val
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		root := New()
+		for j, k := range keys {
+			if err := root.Insert(k, values[j]); err != nil {
+				b.Fatal(err)
+			}
+		}
+		root.ComputeCommitment(ks, lg1)
+	}
 }
 
 func benchmarkCommitNLeaves(b *testing.B, n int) {
