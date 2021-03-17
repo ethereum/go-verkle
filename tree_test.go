@@ -263,16 +263,12 @@ func BenchmarkCommit10kLeaves(b *testing.B) {
 
 func BenchmarkCommitFullNode(b *testing.B) {
 	n := InternalNodeNumChildren
+	value := []byte("value")
 	keys := make([][]byte, n)
-	values := make([][]byte, n)
-	rand.Seed(time.Now().UnixNano())
 	for i := 0; i < n; i++ {
 		key := make([]byte, 32)
-		val := make([]byte, 32)
-		rand.Read(val)
 		binary.BigEndian.PutUint16(key[:2], uint16(i)<<6)
 		keys[i] = key
-		values[i] = val
 	}
 
 	b.ResetTimer()
@@ -280,8 +276,8 @@ func BenchmarkCommitFullNode(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		root := New()
-		for j, k := range keys {
-			if err := root.Insert(k, values[j]); err != nil {
+		for _, k := range keys {
+			if err := root.Insert(k, value); err != nil {
 				b.Fatal(err)
 			}
 		}
