@@ -82,6 +82,11 @@ const (
 
 	// Number of internal (i.e. width-sized) node levels
 	nInternalLevels = 256 / width
+
+	// Threshold for using multi exponentiation when
+	// computing commitment. Number refers to non-zero
+	// children in a node.
+	multiExpThreshold = 110
 )
 
 var (
@@ -339,10 +344,12 @@ func (n *internalNode) ComputeCommitment(ks *kzg.KZGSettings, lg1 []bls.G1Point)
 		return n.commitment
 	}
 
+	emptyChildren := 0
 	var poly [InternalNodeNumChildren]bls.Fr
 	for idx, childC := range n.children {
 		switch child := childC.(type) {
 		case empty:
+			emptyChildren++
 		case *leafNode, *hashedNode:
 			hashToFr(&poly[idx], child.Hash())
 		default:
@@ -351,7 +358,23 @@ func (n *internalNode) ComputeCommitment(ks *kzg.KZGSettings, lg1 []bls.G1Point)
 		}
 	}
 
-	n.commitment = bls.LinCombG1(lg1, poly[:])
+	var commP *bls.G1Point
+	if InternalNodeNumChildren-emptyChildren >= multiExpThreshold {
+		commP = bls.LinCombG1(lg1, poly[:])
+	} else {
+		var comm bls.G1Point
+		bls.CopyG1(&comm, &bls.ZERO_G1)
+		for i := range poly {
+			if !bls.EqualZero(&poly[i]) {
+				var tmpG1, eval bls.G1Point
+				bls.MulG1(&eval, &lg1[i], &poly[i])
+				bls.CopyG1(&tmpG1, &comm)
+				bls.AddG1(&comm, &tmpG1, &eval)
+			}
+		}
+		commP = &comm
+	}
+	n.commitment = commP
 	return n.commitment
 }
 
