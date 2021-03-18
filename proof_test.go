@@ -50,7 +50,7 @@ func TestProofGenerationTwoLeaves(t *testing.T) {
 
 	var s bls.Fr
 	bls.SetFr(&s, "1927409816240961209460912649124")
-	MakeVerkleProofOneLeaf(root, zeroKeyTest, &s)
+	MakeVerkleProofOneLeaf(root, zeroKeyTest, lg1)
 }
 
 func TestProofVerifyTwoLeaves(t *testing.T) {
@@ -67,11 +67,11 @@ func TestProofVerifyTwoLeaves(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	_ = root.ComputeCommitment(ks, lg1)
+	rc := root.ComputeCommitment(ks, lg1)
 
 	var s bls.Fr
 	bls.SetFr(&s, "1927409816240961209460912649124")
-	comms, y, _, d, pi, rho, zis, yis := MakeVerkleProofOneLeaf(root, zeroKeyTest, &s)
+	d, y, sigma := MakeVerkleProofOneLeaf(root, zeroKeyTest, lg1)
 
 	if !VerifyVerkleProof(d, pi, rho, &y, comms, zis, yis, &s2[1]) {
 		t.Fatal("proof verification failed")

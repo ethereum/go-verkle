@@ -81,11 +81,45 @@ func calcQ(e, d *bls.G1Point, y, w *bls.Fr) bls.Fr {
 }
 
 func innerQuotients(f []bls.Fr, index int) []bls.Fr {
+	var q [InternalNodeNumChildren]bls.Fr
 
-func outerQuotients(f []bls.Fr, z, y bls.Fr) []bls.Fr {
+	y := f[index]
+	for i := 0; i < InternalNodeNumChildren; i++ {
+		if i != index {
+			omegaIdx := (len(omegaIs) - i) % len(omegaIs)
+			invIdx := (index + InternalNodeNumChildren - i) % InternalNodeNumChildren
+			iMinIdx := (i - index) % InternalNodeNumChildren
+
+			// calculate q[i]
+			var tmp bls.Fr
+			bls.SubModFr(&tmp, &f[i], &y)
+			bls.MulModFr(&tmp, &tmp, &omegaIs[omegaIdx])
+			bls.MulModFr(&q[i], &tmp, &inverses[invIdx])
+
+			// calculate q[i]'s contribution to q[index]
+			bls.MulModFr(&tmp, &omegaIs[iMinIdx], &q[i])
+			bls.SubModFr(&tmp, &bls.ZERO, &tmp)
+			bls.AddModFr(&q[index], &q[index], &tmp)
+		}
+	}
+
+	return q[:]
 }
 
-func ComputeKZGProof(poly []bls.Fr, at bls.Fr) *bls.G1Point {
+func outerQuotients(f []bls.Fr, index int, z, y bls.Fr) []bls.Fr {
+	var q [InternalNodeNumChildren]bls.Fr
+
+	for i := 0; i < InternalNodeNumChildren; i++ {
+		var tmp bls.Fr
+		bls.AddModFr(&tmp, &f[i], &y)
+		bls.AddModFr(&q[i], &q[i], &omegaIs[(i-index)%InternalNodeNumChildren])
+	}
+
+	return q[:]
+}
+
+func ComputeKZGProof(poly []bls.Fr, lg1 []bls.G1Point) *bls.G1Point {
+	return kzg.CommitToEvalPoly(lg1, poly)
 }
 
 func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, lg1 []bls.G1Point) (d *bls.G1Point, y *bls.Fr, sigma *bls.G1Point) {
@@ -95,24 +129,24 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, lg1 []bls.G1Point) (d *
 	// Construct g(x)
 	r := calcR(commitments, zis, yis)
 
-	var g []bls.Fr
+	var g [InternalNodeNumChildren]bls.Fr
 	var powR bls.Fr
 	bls.CopyFr(&powR, &bls.ONE)
-	for i, f := range fis {
-		quotients := innerQuotients(f, i)
+	for index, f := range fis {
+		quotients := innerQuotients(f, index)
 		for j := 0; j < InternalNodeNumChildren; j++ {
-			bls.AddModFr(&g[i], &powR, &quotients[i])
+			bls.AddModFr(&g[j], &powR, &quotients[index])
 		}
 
 		// rⁱ⁺¹ = r ⨯ rⁱ
 		bls.MulModFr(&powR, &powR, &r)
 	}
-	d = bls.LinCombG1(lg1, g)
+	d = bls.LinCombG1(lg1, g[:])
 
 	// Compute h(x)
 	t := calcT(r, d)
 
-	var h []bls.Fr
+	var h [InternalNodeNumChildren]bls.Fr
 	bls.CopyFr(&powR, &bls.ONE)
 	for i, f := range fis {
 		var denom bls.Fr
@@ -128,17 +162,17 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, lg1 []bls.G1Point) (d *
 		// rⁱ⁺¹ = r ⨯ rⁱ
 		bls.MulModFr(&powR, &powR, &r)
 	}
-	e := bls.LinCombG1(lg1, h)
+	e := bls.LinCombG1(lg1, h[:])
 
 	// compute y and w
 	y = new(bls.Fr)
 	w := new(bls.Fr)
-	bls.EvalPolyAt(y, h, &t)
-	bls.EvalPolyAt(w, g, &t)
+	bls.EvalPolyAt(y, h[:], &t)
+	bls.EvalPolyAt(w, g[:], &t)
 
 	// compute π and ρ
-	pi := ComputeKZGProof(h, lg1)
-	rho := ComputeKZGProof(g, lg1)
+	pi := ComputeKZGProof(h[:], lg1)
+	rho := ComputeKZGProof(g[:], lg1)
 
 	// compute σ
 	sigma = new(bls.G1Point)
