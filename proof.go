@@ -48,7 +48,7 @@ func calcR(cs []*bls.G1Point, indices []*bls.Fr, ys []*bls.Fr) bls.Fr {
 	}
 
 	var tmp bls.Fr
-	bls.FrFrom32(&tmp, common.BytesToHash(digest.Sum(nil)))
+	hashToFr(&tmp, common.BytesToHash(digest.Sum(nil)))
 	return tmp
 
 }
@@ -134,8 +134,10 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, lg1 []bls.G1Point) (d *
 	bls.CopyFr(&powR, &bls.ONE)
 	for index, f := range fis {
 		quotients := innerQuotients(f, index)
-		for j := 0; j < InternalNodeNumChildren; j++ {
-			bls.AddModFr(&g[j], &powR, &quotients[index])
+		var tmp bls.Fr
+		for i := 0; i < InternalNodeNumChildren; i++ {
+			bls.MulModFr(&tmp, &powR, &quotients[i])
+			bls.AddModFr(&g[i], &g[i], &tmp)
 		}
 
 		// rⁱ⁺¹ = r ⨯ rⁱ

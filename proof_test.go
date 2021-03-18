@@ -26,8 +26,10 @@
 package verkle
 
 import (
+	"bytes"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/protolambda/go-kzg"
 	"github.com/protolambda/go-kzg/bls"
 )
@@ -67,13 +69,15 @@ func TestProofVerifyTwoLeaves(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	rc := root.ComputeCommitment(ks, lg1)
+	root.ComputeCommitment(ks, lg1)
 
 	var s bls.Fr
 	bls.SetFr(&s, "1927409816240961209460912649124")
-	d, y, sigma := MakeVerkleProofOneLeaf(root, zeroKeyTest, lg1)
+	d, _, _ := MakeVerkleProofOneLeaf(root, zeroKeyTest, lg1)
 
-	if !VerifyVerkleProof(d, pi, rho, &y, comms, zis, yis, &s2[1]) {
-		t.Fatal("proof verification failed")
+	expectedD := common.Hex2Bytes("af768e1ff778c322455f0c4159d99f516cb944c6e87da099fa8c402cfda53001bd6417a185a179f2012d2e3ba780ca1b")
+
+	if !bytes.Equal(expectedD, bls.ToCompressedG1(d)) {
+		t.Fatalf("invalid D commitment, expected %x, got %x", expectedD, bls.ToCompressedG1(d))
 	}
 }
