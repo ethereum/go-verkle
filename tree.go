@@ -66,7 +66,7 @@ type VerkleNode interface {
 	// level and f_0 = commitment to leaf.
 	// It returns the list of commitments, as well as the
 	// z_i.
-	GetCommitmentsAlongPath([]byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr)
+	GetCommitmentsAlongPath([]byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr)
 
 	// EvalPathAt evaluates the polynomial at each level along the
 	// path traced by `key`, and returns the list of evaluations.
@@ -90,13 +90,10 @@ const (
 )
 
 var (
-	errInsertIntoHash = errors.New("trying to insert into hashed node")
+	errInsertIntoHash  = errors.New("trying to insert into hashed node")
+	errValueNotPresent = errors.New("value not present in tree")
 
 	zeroHash = common.HexToHash("0000000000000000000000000000000000000000000000000000000000000000")
-)
-
-var (
-	errValueNotPresent = errors.New("value not present in tree")
 )
 
 type (
@@ -130,6 +127,8 @@ type (
 )
 
 var modulus *big.Int
+var omegaIs [InternalNodeNumChildren]bls.Fr
+var inverses [InternalNodeNumChildren]bls.Fr
 
 func init() {
 	// Calculate the lagrangian evaluation basis.
@@ -145,9 +144,15 @@ func init() {
 	if !ok {
 		panic("could not get modulus")
 	}
-}
 
-var omegaIs [InternalNodeNumChildren]bls.Fr
+	// Compute all 1 / (1 - ωⁱ)
+	bls.CopyFr(&inverses[0], &bls.ZERO)
+	for i := 1; i < InternalNodeNumChildren; i++ {
+		var tmp bls.Fr
+		bls.SubModFr(&tmp, &bls.ONE, &omegaIs[i])
+		bls.DivModFr(&inverses[i], &bls.ONE, &tmp)
+	}
+}
 
 func newInternalNode(depth uint) VerkleNode {
 	node := new(internalNode)
@@ -382,13 +387,19 @@ func (n *internalNode) GetCommitment() *bls.G1Point {
 	return n.commitment
 }
 
-func (n *internalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr) {
+func (n *internalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr) {
 	childIdx := offset2Key(key, n.depth)
-	comms, zis, yis := n.children[childIdx].GetCommitmentsAlongPath(key)
+	comms, zis, yis, fis := n.children[childIdx].GetCommitmentsAlongPath(key)
 	var zi, yi bls.Fr
 	bls.AsFr(&zi, uint64(childIdx))
-	hashToFr(&yi, n.children[childIdx].Hash())
-	return append(comms, n.GetCommitment()), append(zis, &zi), append(yis, &yi)
+	var fi [InternalNodeNumChildren]bls.Fr
+	for i, child := range n.children {
+		hashToFr(&fi[i], child.Hash())
+		if i == int(childIdx) {
+			bls.CopyFr(&yi, &fi[i])
+		}
+	}
+	return append(comms, n.GetCommitment()), append(zis, &zi), append(yis, &yi), append(fis, fi[:])
 }
 
 func (n *internalNode) EvalPathAt(key []byte, at *bls.Fr) []bls.Fr {
@@ -435,8 +446,8 @@ func (n *leafNode) GetCommitment() *bls.G1Point {
 	panic("can't get the commitment directly")
 }
 
-func (n *leafNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr) {
-	return nil, nil, nil
+func (n *leafNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr) {
+	return nil, nil, nil, nil
 }
 
 func (n *leafNode) EvalPathAt([]byte, *bls.Fr) []bls.Fr {
@@ -481,7 +492,7 @@ func (n *hashedNode) GetCommitment() *bls.G1Point {
 	return n.commitment
 }
 
-func (n *hashedNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr) {
+func (n *hashedNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr) {
 	panic("can not get the full path, and there is no proof of absence")
 }
 
@@ -513,7 +524,7 @@ func (e empty) GetCommitment() *bls.G1Point {
 	return &bls.ZeroG1
 }
 
-func (e empty) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr) {
+func (e empty) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr) {
 	panic("trying to produce a commitment for an empty subtree")
 }
 
