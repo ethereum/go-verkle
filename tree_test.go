@@ -339,3 +339,35 @@ func benchmarkCommitNLeaves(b *testing.B, n int) {
 		}
 	})
 }
+
+func BenchmarkModifyLeaves(b *testing.B) {
+	rand.Seed(time.Now().UnixNano())
+
+	n := 1000000
+	toEdit := 10000
+	val := []byte{0}
+	keys := make([][]byte, n)
+	root := New()
+	for i := 0; i < n; i++ {
+		key := make([]byte, 32)
+		rand.Read(key)
+		keys[i] = key
+		root.Insert(key, val)
+	}
+	root.ComputeCommitment(ks, lg1)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	val = make([]byte, 4)
+	for i := 0; i < b.N; i++ {
+		binary.BigEndian.PutUint32(val, uint32(i))
+		for j := 0; j < toEdit; j++ {
+			k := keys[rand.Intn(n)]
+			if err := root.Insert(k, val); err != nil {
+				b.Error(err)
+			}
+		}
+		root.ComputeCommitment(ks, lg1)
+	}
+}
