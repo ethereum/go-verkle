@@ -129,6 +129,7 @@ type (
 var modulus *big.Int
 var omegaIs [InternalNodeNumChildren]bls.Fr
 var inverses [InternalNodeNumChildren]bls.Fr
+var nodeWidthInversed bls.Fr
 
 func init() {
 	// Calculate the lagrangian evaluation basis.
@@ -152,6 +153,9 @@ func init() {
 		bls.SubModFr(&tmp, &bls.ONE, &omegaIs[i])
 		bls.DivModFr(&inverses[i], &bls.ONE, &tmp)
 	}
+
+	bls.AsFr(&nodeWidthInversed, InternalNodeNumChildren)
+	bls.InvModFr(&nodeWidthInversed, &nodeWidthInversed)
 }
 
 func newInternalNode(depth uint) VerkleNode {
