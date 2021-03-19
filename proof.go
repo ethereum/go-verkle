@@ -152,14 +152,14 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, lg1 []bls.G1Point) (d *
 
 	var h [InternalNodeNumChildren]bls.Fr
 	bls.CopyFr(&powR, &bls.ONE)
-	for i, f := range fis {
+	for index, f := range fis {
 		var denom bls.Fr
-		bls.SubModFr(&denom, &t, &omegaIs[i])
+		bls.SubModFr(&denom, &t, &omegaIs[index])
 		bls.DivModFr(&denom, &powR, &denom)
 
-		for j := 0; j < InternalNodeNumChildren; j++ {
+		for i := 0; i < InternalNodeNumChildren; i++ {
 			var tmp bls.Fr
-			bls.MulModFr(&tmp, &denom, &f[j])
+			bls.MulModFr(&tmp, &denom, &f[i])
 			bls.AddModFr(&h[i], &h[i], &tmp)
 		}
 
@@ -171,8 +171,27 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, lg1 []bls.G1Point) (d *
 	// compute y and w
 	y = new(bls.Fr)
 	w := new(bls.Fr)
-	bls.EvalPolyAt(y, h[:], &t)
-	bls.EvalPolyAt(w, g[:], &t)
+	for i := range g {
+		var factor, tmp bls.Fr
+		bls.SubModFr(&factor, &t, &omegaIs[i])
+		bls.DivModFr(&factor, &omegaIs[i], &factor)
+
+		bls.MulModFr(&tmp, &h[i], &factor)
+		bls.AddModFr(y, y, &tmp)
+		bls.MulModFr(&tmp, &g[i], &factor)
+		bls.AddModFr(w, w, &tmp)
+	}
+	// Compute t^width - 1
+	var tPowWidth bls.Fr
+	bls.CopyFr(&tPowWidth, &t)
+	for i := 0; i < width; i++ {
+		bls.MulModFr(&tPowWidth, &tPowWidth, &tPowWidth)
+	}
+	bls.SubModFr(&tPowWidth, &tPowWidth, &bls.ONE)
+	bls.MulModFr(w, w, &tPowWidth)
+	bls.MulModFr(w, w, &nodeWidthInversed)
+	bls.MulModFr(y, y, &tPowWidth)
+	bls.MulModFr(y, y, &nodeWidthInversed)
 
 	// compute π and ρ
 	pi := ComputeKZGProof(h[:], lg1)
