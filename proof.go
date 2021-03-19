@@ -54,15 +54,16 @@ func calcR(cs []*bls.G1Point, indices []*bls.Fr, ys []*bls.Fr) bls.Fr {
 
 }
 
-func calcT(r bls.Fr, d *bls.G1Point) bls.Fr {
+func calcT(r *bls.Fr, d *bls.G1Point) bls.Fr {
 	digest := sha256.New()
 
-	tmpBytes := bls.FrTo32(&r)
+	tmpBytes := bls.FrTo32(r)
 	digest.Write(tmpBytes[:])
-	digest.Write(bls.ToCompressedG1(d))
+	tmpBytes = sha256.Sum256(bls.ToCompressedG1(d))
+	digest.Write(tmpBytes[:])
 
 	var tmp bls.Fr
-	bls.FrFrom32(&tmp, common.BytesToHash(digest.Sum(nil)))
+	hashToFr(&tmp, common.BytesToHash(digest.Sum(nil)))
 	return tmp
 }
 
@@ -147,7 +148,7 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, lg1 []bls.G1Point) (d *
 	d = bls.LinCombG1(lg1, g[:])
 
 	// Compute h(x)
-	t := calcT(r, d)
+	t := calcT(&r, d)
 
 	var h [InternalNodeNumChildren]bls.Fr
 	bls.CopyFr(&powR, &bls.ONE)
@@ -188,7 +189,7 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, lg1 []bls.G1Point) (d *
 
 func VerifyVerkleProof(d, pi, rho *bls.G1Point, y *bls.Fr, commitments []*bls.G1Point, zis, yis []*bls.Fr, s2 *bls.G2Point) bool {
 	r := calcR(commitments, zis, yis)
-	t := calcT(r, d)
+	t := calcT(&r, d)
 
 	// Evaluate w = g₂(t) and E
 	g2 := make([]bls.Fr, len(commitments))
