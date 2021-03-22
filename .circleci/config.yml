@@ -12,13 +12,13 @@ jobs:
           keys:
             - v1-pkg-cache
 
-      - run: go build -tags bignum_kilic
+      - run: go build
 
         #- run: go get honnef.co/go/tools/cmd/staticcheck
 
       - run:
           name: Run unit tests
-          command: go test -tags bignum_kilic ./...
+          command: go test ./...
 
       - run:
           name: Run the static checkers
