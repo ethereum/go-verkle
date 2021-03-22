@@ -90,6 +90,10 @@ func TestProofVerifyTwoLeaves(t *testing.T) {
 
 	var s bls.Fr
 	bls.SetFr(&s, "1927409816240961209460912649124")
-	MakeVerkleProofOneLeaf(root, zeroKeyTest, lg1)
+	d, y, sigma := MakeVerkleProofOneLeaf(root, zeroKeyTest, lg1)
 
+	comms, zis, yis, _ := root.GetCommitmentsAlongPath(zeroKeyTest)
+	if !VerifyVerkleProof(d, sigma, y, comms, zis, yis) {
+		t.Fatal("could not verify verkle proof")
+	}
 }

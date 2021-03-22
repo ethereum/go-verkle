@@ -84,6 +84,7 @@ func calcQ(e, d *bls.G1Point, y, w *bls.Fr) bls.Fr {
 	return tmp
 }
 
+// Compute a function in eval form at one of the points in the domain
 func innerQuotients(f []bls.Fr, index int) []bls.Fr {
 	var q [InternalNodeNumChildren]bls.Fr
 
@@ -110,6 +111,7 @@ func innerQuotients(f []bls.Fr, index int) []bls.Fr {
 	return q[:]
 }
 
+// Compute a function in eval form at a point outside of the domain
 func outerQuotients(f []bls.Fr, z, y *bls.Fr) []bls.Fr {
 	var q [InternalNodeNumChildren]bls.Fr
 
@@ -212,7 +214,7 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, lg1 []bls.G1Point) (d *
 	return
 }
 
-func VerifyVerkleProof(d, pi, rho *bls.G1Point, y *bls.Fr, commitments []*bls.G1Point, zis, yis []*bls.Fr, s2 *bls.G2Point) bool {
+func VerifyVerkleProof(d, sigma *bls.G1Point, y *bls.Fr, commitments []*bls.G1Point, zis, yis []*bls.Fr) bool {
 	r := calcR(commitments, zis, yis)
 	t := calcT(&r, d)
 
@@ -223,7 +225,7 @@ func VerifyVerkleProof(d, pi, rho *bls.G1Point, y *bls.Fr, commitments []*bls.G1
 	bls.CopyFr(&powR, &bls.ONE)
 	for i := range g2 {
 		var tMinusZi, rDivZi bls.Fr
-		bls.SubModFr(&tMinusZi, &t, zis[i])
+		bls.SubModFr(&tMinusZi, &t, &omegaIs[i])
 		bls.DivModFr(&rDivZi, &powR, &tMinusZi)
 
 		// g₂(t)
@@ -231,7 +233,7 @@ func VerifyVerkleProof(d, pi, rho *bls.G1Point, y *bls.Fr, commitments []*bls.G1
 
 		// E
 		var eTmp bls.G1Point
-		bls.MulG1(&e, commitments[i], &rDivZi)
+		bls.MulG1(&eTmp, commitments[i], &rDivZi)
 		bls.AddG1(&e, &e, &eTmp)
 
 		// rⁱ⁺¹ = r ⨯ rⁱ
@@ -244,21 +246,18 @@ func VerifyVerkleProof(d, pi, rho *bls.G1Point, y *bls.Fr, commitments []*bls.G1
 	var w bls.Fr
 	bls.SubModFr(&w, y, &g2t)
 
-	// Calculate [s-t]₂
-	var s2MinusT, tPoint bls.G2Point
-	bls.MulG2(&tPoint, &bls.GenG2, &t)
-	bls.SubG2(&s2MinusT, s2, &tPoint)
+	// Calculate q
+	q := calcQ(&e, d, y, &w)
 
-	// D-[w]₁
-	var dMinusW, wPoint bls.G1Point
-	bls.MulG1(&wPoint, &bls.GenG1, &w)
-	bls.SubG1(&dMinusW, d, &wPoint)
+	// final=E+qD
+	var final bls.G1Point
+	bls.MulG1(&final, d, &q)
+	bls.AddG1(&final, &final, &e)
 
-	// E-[y]₁
-	var eMinusY, yPoint bls.G1Point
-	bls.MulG1(&yPoint, &bls.GenG1, y)
-	bls.SubG1(&eMinusY, &e, &yPoint)
+	// finalAt=y+w*q
+	var finalAt bls.Fr
+	bls.MulModFr(&finalAt, &q, &w)
+	bls.AddModFr(&finalAt, &finalAt, y)
 
-	//return checkPairing(E-[y]₁, [1]₂, pi, [s-t]₂) && checkPairing(D-[w]₁, [1]₂, ro, [s-t]₂)
-	return bls.PairingsVerify(&eMinusY, &bls.GenG2, pi, &s2MinusT) && bls.PairingsVerify(&dMinusW, &bls.GenG2, rho, &s2MinusT)
+	return ks.CheckProofSingle(&final, sigma, &t, &finalAt)
 }
