@@ -67,10 +67,6 @@ type VerkleNode interface {
 	// It returns the list of commitments, as well as the
 	// z_i.
 	GetCommitmentsAlongPath([]byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr)
-
-	// EvalPathAt evaluates the polynomial at each level along the
-	// path traced by `key`, and returns the list of evaluations.
-	EvalPathAt([]byte, *bls.Fr) []bls.Fr
 }
 
 const (
@@ -406,25 +402,6 @@ func (n *internalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*b
 	return append(comms, n.GetCommitment()), append(zis, &zi), append(yis, &yi), append(fis, fi[:])
 }
 
-func (n *internalNode) EvalPathAt(key []byte, at *bls.Fr) []bls.Fr {
-	childIdx := offset2Key(key, n.depth)
-	ret := append(n.children[childIdx].EvalPathAt(key, at), bls.Fr{})
-
-	// Apply the barycenter formula to this level
-	for i := range n.children {
-		var fi, tmp, quotient bls.Fr
-		bls.SubModFr(&quotient, at, &omegaIs[i])
-		hashToFr(&fi, n.children[i].Hash())
-		bls.MulModFr(&tmp, &fi, &omegaIs[i])
-		bls.DivModFr(&fi, &tmp, &quotient)
-
-		// Add fᵢ x ret[depthIdx] to accumulator and iterate
-		bls.AddModFr(&tmp, &ret[0], &fi)
-		bls.CopyFr(&ret[0], &tmp)
-	}
-	return ret
-}
-
 func (n *leafNode) Insert(k []byte, value []byte) error {
 	n.key = k
 	n.value = value
@@ -452,11 +429,6 @@ func (n *leafNode) GetCommitment() *bls.G1Point {
 
 func (n *leafNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr) {
 	return nil, nil, nil, nil
-}
-
-func (n *leafNode) EvalPathAt([]byte, *bls.Fr) []bls.Fr {
-	//return make([]bls.Fr, (256+width-1)/width)
-	return nil
 }
 
 func (n *leafNode) Hash() common.Hash {
@@ -500,10 +472,6 @@ func (n *hashedNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls
 	panic("can not get the full path, and there is no proof of absence")
 }
 
-func (n *hashedNode) EvalPathAt([]byte, *bls.Fr) []bls.Fr {
-	panic("can not evaluate path through hash node")
-}
-
 func (e empty) Insert(k []byte, value []byte) error {
 	return errors.New("hmmmm... a leaf node should not be inserted directly into")
 }
@@ -530,8 +498,4 @@ func (e empty) GetCommitment() *bls.G1Point {
 
 func (e empty) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr) {
 	panic("trying to produce a commitment for an empty subtree")
-}
-
-func (e empty) EvalPathAt(_ []byte, _ *bls.Fr) []bls.Fr {
-	panic("trying to evaluate the polynomial at an empty place")
 }
