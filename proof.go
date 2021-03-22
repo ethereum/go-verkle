@@ -69,16 +69,18 @@ func calcT(r *bls.Fr, d *bls.G1Point) bls.Fr {
 
 func calcQ(e, d *bls.G1Point, y, w *bls.Fr) bls.Fr {
 	digest := sha256.New()
+	hE := sha256.Sum256(bls.ToCompressedG1(e))
+	hD := sha256.Sum256(bls.ToCompressedG1(d))
 
-	digest.Write(bls.ToCompressedG1(d))
-	digest.Write(bls.ToCompressedG1(e))
+	digest.Write(hE[:])
+	digest.Write(hD[:])
 	tmpBytes := bls.FrTo32(y)
 	digest.Write(tmpBytes[:])
 	tmpBytes = bls.FrTo32(w)
 	digest.Write(tmpBytes[:])
 
 	var tmp bls.Fr
-	bls.FrFrom32(&tmp, common.BytesToHash(digest.Sum(nil)))
+	hashToFr(&tmp, common.BytesToHash(digest.Sum(nil)))
 	return tmp
 }
 
@@ -108,20 +110,22 @@ func innerQuotients(f []bls.Fr, index int) []bls.Fr {
 	return q[:]
 }
 
-func outerQuotients(f []bls.Fr, index int, z, y bls.Fr) []bls.Fr {
+func outerQuotients(f []bls.Fr, z, y *bls.Fr) []bls.Fr {
 	var q [InternalNodeNumChildren]bls.Fr
 
 	for i := 0; i < InternalNodeNumChildren; i++ {
-		var tmp bls.Fr
-		bls.AddModFr(&tmp, &f[i], &y)
-		bls.AddModFr(&q[i], &q[i], &omegaIs[(i-index)%InternalNodeNumChildren])
+		var tmp, quo bls.Fr
+		bls.SubModFr(&tmp, &f[i], y)
+		bls.SubModFr(&quo, &omegaIs[i], z)
+		bls.DivModFr(&q[i], &tmp, &quo)
 	}
 
 	return q[:]
 }
 
-func ComputeKZGProof(poly []bls.Fr, lg1 []bls.G1Point) *bls.G1Point {
-	return kzg.CommitToEvalPoly(lg1, poly)
+func ComputeKZGProof(poly []bls.Fr, z, y *bls.Fr, lg1 []bls.G1Point) *bls.G1Point {
+	oq := outerQuotients(poly, z, y)
+	return kzg.CommitToEvalPoly(lg1, oq)
 }
 
 func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, lg1 []bls.G1Point) (d *bls.G1Point, y *bls.Fr, sigma *bls.G1Point) {
@@ -166,7 +170,6 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, lg1 []bls.G1Point) (d *
 		// rⁱ⁺¹ = r ⨯ rⁱ
 		bls.MulModFr(&powR, &powR, &r)
 	}
-	e := bls.LinCombG1(lg1, h[:])
 
 	// compute y and w
 	y = new(bls.Fr)
@@ -194,12 +197,15 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, lg1 []bls.G1Point) (d *
 	bls.MulModFr(y, y, &nodeWidthInversed)
 
 	// compute π and ρ
-	pi := ComputeKZGProof(h[:], lg1)
-	rho := ComputeKZGProof(g[:], lg1)
+	pi := ComputeKZGProof(h[:], &t, y, lg1)
+	rho := ComputeKZGProof(g[:], &t, w, lg1)
+
+	// Compute E
+	e := bls.LinCombG1(lg1, h[:])
 
 	// compute σ
 	sigma = new(bls.G1Point)
-	q := calcQ(d, e, y, w)
+	q := calcQ(e, d, y, w)
 	bls.MulG1(sigma, rho, &q)
 	bls.AddG1(sigma, sigma, pi)
 
