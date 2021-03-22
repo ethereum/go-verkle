@@ -86,14 +86,14 @@ func calcQ(e, d *bls.G1Point, y, w *bls.Fr) bls.Fr {
 
 // Compute a function in eval form at one of the points in the domain
 func innerQuotients(f []bls.Fr, index int) []bls.Fr {
-	var q [InternalNodeNumChildren]bls.Fr
+	var q [nodeWidth]bls.Fr
 
 	y := f[index]
-	for i := 0; i < InternalNodeNumChildren; i++ {
+	for i := 0; i < nodeWidth; i++ {
 		if i != index {
 			omegaIdx := (len(omegaIs) - i) % len(omegaIs)
-			invIdx := (index + InternalNodeNumChildren - i) % InternalNodeNumChildren
-			iMinIdx := (i - index) % InternalNodeNumChildren
+			invIdx := (index + nodeWidth - i) % nodeWidth
+			iMinIdx := (i - index) % nodeWidth
 
 			// calculate q[i]
 			var tmp bls.Fr
@@ -113,9 +113,9 @@ func innerQuotients(f []bls.Fr, index int) []bls.Fr {
 
 // Compute a function in eval form at a point outside of the domain
 func outerQuotients(f []bls.Fr, z, y *bls.Fr) []bls.Fr {
-	var q [InternalNodeNumChildren]bls.Fr
+	var q [nodeWidth]bls.Fr
 
-	for i := 0; i < InternalNodeNumChildren; i++ {
+	for i := 0; i < nodeWidth; i++ {
 		var tmp, quo bls.Fr
 		bls.SubModFr(&tmp, &f[i], y)
 		bls.SubModFr(&quo, &omegaIs[i], z)
@@ -137,13 +137,13 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, lg1 []bls.G1Point) (d *
 	// Construct g(x)
 	r := calcR(commitments, zis, yis)
 
-	var g [InternalNodeNumChildren]bls.Fr
+	var g [nodeWidth]bls.Fr
 	var powR bls.Fr
 	bls.CopyFr(&powR, &bls.ONE)
 	for index, f := range fis {
 		quotients := innerQuotients(f, index)
 		var tmp bls.Fr
-		for i := 0; i < InternalNodeNumChildren; i++ {
+		for i := 0; i < nodeWidth; i++ {
 			bls.MulModFr(&tmp, &powR, &quotients[i])
 			bls.AddModFr(&g[i], &g[i], &tmp)
 		}
@@ -156,14 +156,14 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, lg1 []bls.G1Point) (d *
 	// Compute h(x)
 	t := calcT(&r, d)
 
-	var h [InternalNodeNumChildren]bls.Fr
+	var h [nodeWidth]bls.Fr
 	bls.CopyFr(&powR, &bls.ONE)
 	for index, f := range fis {
 		var denom bls.Fr
 		bls.SubModFr(&denom, &t, &omegaIs[index])
 		bls.DivModFr(&denom, &powR, &denom)
 
-		for i := 0; i < InternalNodeNumChildren; i++ {
+		for i := 0; i < nodeWidth; i++ {
 			var tmp bls.Fr
 			bls.MulModFr(&tmp, &denom, &f[i])
 			bls.AddModFr(&h[i], &h[i], &tmp)
@@ -193,17 +193,16 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, lg1 []bls.G1Point) (d *
 		bls.MulModFr(&tPowWidth, &tPowWidth, &tPowWidth)
 	}
 	bls.SubModFr(&tPowWidth, &tPowWidth, &bls.ONE)
+	bls.MulModFr(&tPowWidth, &tPowWidth, &nodeWidthInversed)
 	bls.MulModFr(w, w, &tPowWidth)
-	bls.MulModFr(w, w, &nodeWidthInversed)
 	bls.MulModFr(y, y, &tPowWidth)
-	bls.MulModFr(y, y, &nodeWidthInversed)
 
 	// compute π and ρ
 	pi := ComputeKZGProof(h[:], &t, y, lg1)
 	rho := ComputeKZGProof(g[:], &t, w, lg1)
 
 	// Compute E
-	e := bls.LinCombG1(lg1, h[:])
+	e := kzg.CommitToEvalPoly(lg1, h[:])
 
 	// compute σ
 	sigma = new(bls.G1Point)

@@ -60,24 +60,19 @@ type VerkleNode interface {
 	// commitment of a node.
 	GetCommitment() *bls.G1Point
 
-	// GetCommitmentAlongPath follows the path of one key,
-	// and collect the commitments along this path in
-	// reverse order, since f_{m-1} = commitment at root
-	// level and f_0 = commitment to leaf.
-	// It returns the list of commitments, as well as the
-	// z_i.
+	// GetCommitmentAlongPath follows the path that one key
+	// traces through the tree, and collects the various
+	// elements needed to build a proof. The order of elements
+	// is from the bottom of the tree, up to the root.
 	GetCommitmentsAlongPath([]byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr)
 }
 
 const (
-	// log of the number of children in an internal node
+	// number of key bits spanned by a node
 	width = 10
 
 	// Number of children in an internal node
-	InternalNodeNumChildren = 1 << width
-
-	// Number of internal (i.e. width-sized) node levels
-	nInternalLevels = 256 / width
+	nodeWidth = 1 << width
 
 	// Threshold for using multi exponentiation when
 	// computing commitment. Number refers to non-zero
@@ -97,7 +92,7 @@ type (
 	// the bottom one, with 1024 children.
 	internalNode struct {
 		// List of child nodes of this internal node.
-		children [InternalNodeNumChildren]VerkleNode
+		children [nodeWidth]VerkleNode
 
 		// node depth in the tree, in bits
 		depth uint
@@ -122,16 +117,16 @@ type (
 	empty struct{}
 )
 
-var modulus *big.Int
-var omegaIs [InternalNodeNumChildren]bls.Fr
-var inverses [InternalNodeNumChildren]bls.Fr
-var nodeWidthInversed bls.Fr
+var modulus *big.Int		// Field's modulus
+var omegaIs [nodeWidth]bls.Fr	// List of the root of unity
+var inverses [nodeWidth]bls.Fr	// List of all 1 / (1 - ωⁱ)
+var nodeWidthInversed bls.Fr	// Inverse of node witdh in prime field
 
 func init() {
 	// Calculate the lagrangian evaluation basis.
 	var tmp bls.Fr
 	bls.CopyFr(&tmp, &bls.ONE)
-	for i := 0; i < InternalNodeNumChildren; i++ {
+	for i := 0; i < nodeWidth; i++ {
 		bls.CopyFr(&omegaIs[i], &tmp)
 		bls.MulModFr(&tmp, &tmp, &bls.Scale2RootOfUnity[10])
 	}
@@ -144,13 +139,13 @@ func init() {
 
 	// Compute all 1 / (1 - ωⁱ)
 	bls.CopyFr(&inverses[0], &bls.ZERO)
-	for i := 1; i < InternalNodeNumChildren; i++ {
+	for i := 1; i < nodeWidth; i++ {
 		var tmp bls.Fr
 		bls.SubModFr(&tmp, &bls.ONE, &omegaIs[i])
 		bls.DivModFr(&inverses[i], &bls.ONE, &tmp)
 	}
 
-	bls.AsFr(&nodeWidthInversed, InternalNodeNumChildren)
+	bls.AsFr(&nodeWidthInversed, nodeWidth)
 	bls.InvModFr(&nodeWidthInversed, &nodeWidthInversed)
 }
 
@@ -350,7 +345,7 @@ func (n *internalNode) ComputeCommitment(ks *kzg.KZGSettings, lg1 []bls.G1Point)
 	}
 
 	emptyChildren := 0
-	var poly [InternalNodeNumChildren]bls.Fr
+	var poly [nodeWidth]bls.Fr
 	for idx, childC := range n.children {
 		switch child := childC.(type) {
 		case empty:
@@ -364,7 +359,7 @@ func (n *internalNode) ComputeCommitment(ks *kzg.KZGSettings, lg1 []bls.G1Point)
 	}
 
 	var commP *bls.G1Point
-	if InternalNodeNumChildren-emptyChildren >= multiExpThreshold {
+	if nodeWidth-emptyChildren >= multiExpThreshold {
 		commP = bls.LinCombG1(lg1, poly[:])
 	} else {
 		var comm bls.G1Point
@@ -392,7 +387,7 @@ func (n *internalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*b
 	comms, zis, yis, fis := n.children[childIdx].GetCommitmentsAlongPath(key)
 	var zi, yi bls.Fr
 	bls.AsFr(&zi, uint64(childIdx))
-	var fi [InternalNodeNumChildren]bls.Fr
+	var fi [nodeWidth]bls.Fr
 	for i, child := range n.children {
 		hashToFr(&fi[i], child.Hash())
 		if i == int(childIdx) {

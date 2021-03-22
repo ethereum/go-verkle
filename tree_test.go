@@ -262,10 +262,9 @@ func BenchmarkCommit10kLeaves(b *testing.B) {
 }
 
 func BenchmarkCommitFullNode(b *testing.B) {
-	n := InternalNodeNumChildren
 	value := []byte("value")
-	keys := make([][]byte, n)
-	for i := 0; i < n; i++ {
+	keys := make([][]byte, nodeWidth)
+	for i := 0; i < nodeWidth; i++ {
 		key := make([]byte, 32)
 		binary.BigEndian.PutUint16(key[:2], uint16(i)<<6)
 		keys[i] = key
