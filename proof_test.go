@@ -52,7 +52,24 @@ func TestProofGenerationTwoLeaves(t *testing.T) {
 
 	var s bls.Fr
 	bls.SetFr(&s, "1927409816240961209460912649124")
-	MakeVerkleProofOneLeaf(root, zeroKeyTest, lg1)
+	d, y, sigma := MakeVerkleProofOneLeaf(root, zeroKeyTest, lg1)
+
+	expectedD := common.Hex2Bytes("af768e1ff778c322455f0c4159d99f516cb944c6e87da099fa8c402cfda53001bd6417a185a179f2012d2e3ba780ca1b")
+
+	if !bytes.Equal(expectedD, bls.ToCompressedG1(d)) {
+		t.Fatalf("invalid D commitment, expected %x, got %x", expectedD, bls.ToCompressedG1(d))
+	}
+
+	expectedY := "29538444433028619980967897141357016680422322190427848339183478815792394204807"
+	gotY := bls.FrStr(y)
+	if expectedY != gotY {
+		t.Fatalf("invalid y, expected %s != %s", expectedY, gotY)
+	}
+
+	expectedSigma := common.Hex2Bytes("a28c6ff3c7856e5fd2cdf32630935bcfceacd80e00f2e49633839bfa9e2f20057215efc6391a8006ef9f699eb8b18a1a")
+	if !bytes.Equal(expectedSigma, bls.ToCompressedG1(sigma)) {
+		t.Fatalf("invalid sigma, expected %x, got %x", expectedSigma, bls.ToCompressedG1(sigma))
+	}
 }
 
 func TestProofVerifyTwoLeaves(t *testing.T) {
@@ -73,17 +90,6 @@ func TestProofVerifyTwoLeaves(t *testing.T) {
 
 	var s bls.Fr
 	bls.SetFr(&s, "1927409816240961209460912649124")
-	d, y, _ := MakeVerkleProofOneLeaf(root, zeroKeyTest, lg1)
+	MakeVerkleProofOneLeaf(root, zeroKeyTest, lg1)
 
-	expectedD := common.Hex2Bytes("af768e1ff778c322455f0c4159d99f516cb944c6e87da099fa8c402cfda53001bd6417a185a179f2012d2e3ba780ca1b")
-
-	if !bytes.Equal(expectedD, bls.ToCompressedG1(d)) {
-		t.Fatalf("invalid D commitment, expected %x, got %x", expectedD, bls.ToCompressedG1(d))
-	}
-
-	expectedY := "29538444433028619980967897141357016680422322190427848339183478815792394204807"
-	gotY := bls.FrStr(y)
-	if expectedY != gotY {
-		t.Fatalf("invalid y, expected %s != %s", expectedY, gotY)
-	}
 }
