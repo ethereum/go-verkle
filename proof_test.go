@@ -93,7 +93,7 @@ func TestProofVerifyTwoLeaves(t *testing.T) {
 	d, y, sigma := MakeVerkleProofOneLeaf(root, zeroKeyTest, lg1)
 
 	comms, zis, yis, _ := root.GetCommitmentsAlongPath(zeroKeyTest)
-	if !VerifyVerkleProof(d, sigma, y, comms, zis, yis) {
+	if !VerifyVerkleProof(ks, d, sigma, y, comms, zis, yis) {
 		t.Fatal("could not verify verkle proof")
 	}
 }

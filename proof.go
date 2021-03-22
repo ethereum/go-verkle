@@ -214,7 +214,7 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, lg1 []bls.G1Point) (d *
 	return
 }
 
-func VerifyVerkleProof(d, sigma *bls.G1Point, y *bls.Fr, commitments []*bls.G1Point, zis, yis []*bls.Fr) bool {
+func VerifyVerkleProof(ks *kzg.KZGSettings, d, sigma *bls.G1Point, y *bls.Fr, commitments []*bls.G1Point, zis, yis []*bls.Fr) bool {
 	r := calcR(commitments, zis, yis)
 	t := calcT(&r, d)
 
