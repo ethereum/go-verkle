@@ -228,7 +228,7 @@ func (n *internalNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettin
 	case empty:
 		// Insert into a new subtrie, which means that the
 		// subtree directly preceding this new one, can
-		// savely be calculated.
+		// safely be calculated.
 		for i := int(nChild) - 1; i >= 0; i-- {
 			switch n.children[i].(type) {
 			case empty:
