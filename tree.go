@@ -279,11 +279,11 @@ func (n *internalNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettin
 			} else {
 				// Reinsert the leaf in order to recurse
 				newBranch.children[nextWordInExistingKey] = child
-				newBranch.Insert(key, value)
+				newBranch.InsertOrdered(key, value, ks, lg1)
 			}
 		}
 	default: // internalNode
-		return child.Insert(key, value)
+		return child.InsertOrdered(key, value, ks, lg1)
 	}
 	return nil
 }
