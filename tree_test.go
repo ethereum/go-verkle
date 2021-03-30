@@ -176,9 +176,9 @@ func TestComputeRootCommitmentThreeLeaves(t *testing.T) {
 
 func TestComputeRootCommitmentOnlineThreeLeaves(t *testing.T) {
 	root := New()
-	root.InsertOrdered(zeroKeyTest, testValue, ks, lg1)
-	root.InsertOrdered(fourtyKeyTest, testValue, ks, lg1)
-	root.InsertOrdered(ffx32KeyTest, testValue, ks, lg1)
+	root.InsertOrdered(zeroKeyTest, testValue, ks, lg1, nil)
+	root.InsertOrdered(fourtyKeyTest, testValue, ks, lg1, nil)
+	root.InsertOrdered(ffx32KeyTest, testValue, ks, lg1, nil)
 
 	// This still needs to be called, so that the root
 	// commitment is calculated.
@@ -211,9 +211,9 @@ func TestComputeRootCommitmentThreeLeavesDeep(t *testing.T) {
 
 func TestComputeRootCommitmentOnlineThreeLeavesDeep(t *testing.T) {
 	root := New()
-	root.InsertOrdered(zeroKeyTest, testValue, ks, lg1)
-	root.InsertOrdered(oneKeyTest, testValue, ks, lg1)
-	root.InsertOrdered(ffx32KeyTest, testValue, ks, lg1)
+	root.InsertOrdered(zeroKeyTest, testValue, ks, lg1, nil)
+	root.InsertOrdered(oneKeyTest, testValue, ks, lg1, nil)
+	root.InsertOrdered(ffx32KeyTest, testValue, ks, lg1, nil)
 
 	expected := []byte{180, 224, 116, 69, 8, 16, 10, 46, 12, 87, 199, 139, 17, 157, 123, 95, 113, 9, 180, 227, 72, 13, 125, 20, 35, 52, 98, 119, 121, 181, 253, 151, 253, 0, 62, 206, 64, 49, 8, 93, 140, 128, 232, 208, 102, 248, 81, 206}
 
@@ -222,6 +222,29 @@ func TestComputeRootCommitmentOnlineThreeLeavesDeep(t *testing.T) {
 
 	if !bytes.Equal(got, expected) {
 		t.Fatalf("incorrect root commitment %x != %x", got, expected)
+	}
+}
+
+func TestComputeRootCommitmentOnlineThreeLeavesFlush(t *testing.T) {
+	flush := make(chan FlushableNode)
+	go func() {
+		root := New()
+		root.InsertOrdered(zeroKeyTest, testValue, ks, lg1, flush)
+		root.InsertOrdered(fourtyKeyTest, testValue, ks, lg1, flush)
+		root.InsertOrdered(ffx32KeyTest, testValue, ks, lg1, flush)
+		close(flush)
+	}()
+
+	count := 0
+	for f := range flush {
+		if _, ok := f.Node.(*leafNode); !ok {
+			t.Fatal("invalid node type received, expected leaf")
+		}
+		count++
+	}
+
+	if count != 2 {
+		t.Fatalf("incorrect number of flushed leaves 2 != %d", count)
 	}
 }
 
@@ -353,7 +376,7 @@ func benchmarkCommitNLeaves(b *testing.B, n int) {
 		for i := 0; i < b.N; i++ {
 			root := New()
 			for _, el := range sortedKVs {
-				if err := root.InsertOrdered(el.k, el.v, ks, lg1); err != nil {
+				if err := root.InsertOrdered(el.k, el.v, ks, lg1, nil); err != nil {
 					b.Fatal(err)
 				}
 			}

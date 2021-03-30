@@ -37,6 +37,14 @@ import (
 	"github.com/protolambda/go-kzg/bls"
 )
 
+// FlushableNode is a tuple of a node and its hash, to be passed
+// to a consumer (e.g. the routine responsible for saving it to
+// the db) once the node is no longer used by the tree.
+type FlushableNode struct {
+	Hash [32]byte
+	Node VerkleNode
+}
+
 type VerkleNode interface {
 	// Insert or Update value `v` at key `k`
 	Insert(k []byte, v []byte) error
@@ -45,7 +53,7 @@ type VerkleNode interface {
 	// values are expected to be ordered, and the commitments and
 	// hashes for each subtrie are computed online, as soon as it
 	// is clear that no more values will be inserted in there.
-	InsertOrdered([]byte, []byte, *kzg.KZGSettings, []bls.G1Point) error
+	InsertOrdered([]byte, []byte, *kzg.KZGSettings, []bls.G1Point, chan FlushableNode) error
 
 	// Get value at key `k`
 	Get(k []byte) ([]byte, error)
@@ -235,7 +243,7 @@ func (n *internalNode) Insert(key []byte, value []byte) error {
 	return nil
 }
 
-func (n *internalNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettings, lg1 []bls.G1Point) error {
+func (n *internalNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettings, lg1 []bls.G1Point, flush chan FlushableNode) error {
 	nChild := offset2Key(key, n.depth, width)
 
 	switch child := n.children[nChild].(type) {
@@ -248,13 +256,20 @@ func (n *internalNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettin
 			case empty:
 				continue
 			case *leafNode:
-				n.children[i] = &hashedNode{hash: n.children[i].Hash()}
+				childHash := n.children[i].Hash()
+				if flush != nil {
+					flush <- FlushableNode{childHash, n.children[i]}
+				}
+				n.children[i] = &hashedNode{hash: childHash}
 				break
 			case *hashedNode:
 				break
 			default:
 				comm := n.children[i].ComputeCommitment(ks, lg1)
 				h := sha256.Sum256(bls.ToCompressedG1(comm))
+				if flush != nil {
+					flush <- FlushableNode{h, n.children[i]}
+				}
 				n.children[i] = &hashedNode{hash: h, commitment: comm}
 				break
 			}
@@ -293,11 +308,11 @@ func (n *internalNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettin
 			} else {
 				// Reinsert the leaf in order to recurse
 				newBranch.children[nextWordInExistingKey] = child
-				newBranch.InsertOrdered(key, value, ks, lg1)
+				newBranch.InsertOrdered(key, value, ks, lg1, flush)
 			}
 		}
 	default: // internalNode
-		return child.InsertOrdered(key, value, ks, lg1)
+		return child.InsertOrdered(key, value, ks, lg1, flush)
 	}
 	return nil
 }
@@ -417,8 +432,12 @@ func (n *leafNode) Insert(k []byte, value []byte) error {
 	return nil
 }
 
-func (n *leafNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettings, lg1 []bls.G1Point) error {
-	return n.Insert(key, value)
+func (n *leafNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettings, lg1 []bls.G1Point, flush chan FlushableNode) error {
+	err := n.Insert(key, value)
+	if err != nil && flush != nil {
+		flush <- FlushableNode{n.Hash(), n}
+	}
+	return err
 }
 
 func (n *leafNode) Get(k []byte) ([]byte, error) {
@@ -451,7 +470,7 @@ func (n *hashedNode) Insert(k []byte, value []byte) error {
 	return errInsertIntoHash
 }
 
-func (n *hashedNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettings, lg1 []bls.G1Point) error {
+func (n *hashedNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettings, lg1 []bls.G1Point, _ chan FlushableNode) error {
 	return errInsertIntoHash
 }
 
@@ -482,10 +501,10 @@ func (n *hashedNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls
 }
 
 func (e empty) Insert(k []byte, value []byte) error {
-	return errors.New("hmmmm... a leaf node should not be inserted directly into")
+	return errors.New("an empty node should not be inserted directly into")
 }
 
-func (e empty) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettings, lg1 []bls.G1Point) error {
+func (e empty) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettings, lg1 []bls.G1Point, _ chan FlushableNode) error {
 	return e.Insert(key, value)
 }
 
