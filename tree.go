@@ -443,13 +443,15 @@ func (n *internalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*b
 }
 
 func (n *internalNode) Serialize() ([]byte, error) {
-	raw := make([][]byte, nodeWidth)
+	var bitlist [128]uint8
+	children := make([]byte, 0, nodeWidth*32)
 	for i, c := range n.children {
 		if _, ok := c.(empty); !ok {
-			raw[i] = c.Hash().Bytes()
+			setBit(bitlist[:], i)
+			children = append(children, c.Hash().Bytes()...)
 		}
 	}
-	return rlp.EncodeToBytes(raw)
+	return rlp.EncodeToBytes([]interface{}{bitlist, children})
 }
 
 func (n *leafNode) Insert(k []byte, value []byte) error {
@@ -564,4 +566,10 @@ func (e empty) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, [
 
 func (e empty) Serialize() ([]byte, error) {
 	return nil, errors.New("can't encode empty node to RLP")
+}
+
+func setBit(bitlist []uint8, index int) {
+	byt := index / 8
+	bit := index % 8
+	bitlist[byt] |= (uint8(1) << bit)
 }
