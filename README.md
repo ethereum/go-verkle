@@ -6,14 +6,27 @@ A **very experimental** implementation of [Verkle trees](https://notes.ethereum.
 
 Supported node widths are 8 and 10 bits.
 
-### Notes
-
- * [X] Proofs are given in pi and rho form, not sigma form
- * [X] Generated proofs are currently incorrect.
- * [X] Nodes have 1024 children. More sizes should be supported, but it hasn't been tested.
-
 ### Running the tests
 
 ```
 $ go test .
 ```
+
+### Benchmarks
+
+```
+$ go test . -bench Bench
+```
+
+## Performance measurements
+
+This table measures the time it takes to calculate the root commitment of the current state of an Ethereum network:
+
+|Network|Node size|Parallel?|Storage?|BLS library|Time|# accounts|#slots|
+|-------|---------|---------|--------|-----------|----|----------|------|
+|Mainnet|1024|No|No|Herumi|3h30m24.663s|114215117|0|
+|Mainnet|1024|No|Yes|Herumi||114215117|400223042|
+|Mainnet|1024|Yes|Yes|Herumi|10h1m34.056s|114215117|400223042|
+|Mainnet|256|No|No|Herumi||114215117|0|
+|Mainnet|256|No|No|Herumi||114215117|400223042|
+|Goerli|1024|No|No|Herumi|~30min|1104810|35900044|
