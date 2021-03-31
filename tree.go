@@ -33,6 +33,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/protolambda/go-kzg"
 	"github.com/protolambda/go-kzg/bls"
 )
@@ -73,6 +74,9 @@ type VerkleNode interface {
 	// elements needed to build a proof. The order of elements
 	// is from the bottom of the tree, up to the root.
 	GetCommitmentsAlongPath([]byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr)
+
+	// Serialize encodes the node to RLP.
+	Serialize() ([]byte, error)
 }
 
 const (
@@ -438,6 +442,16 @@ func (n *internalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*b
 	return append(comms, n.GetCommitment()), append(zis, &zi), append(yis, &yi), append(fis, fi[:])
 }
 
+func (n *internalNode) Serialize() ([]byte, error) {
+	raw := make([][]byte, nodeWidth)
+	for i, c := range n.children {
+		if _, ok := c.(empty); !ok {
+			raw[i] = c.Hash().Bytes()
+		}
+	}
+	return rlp.EncodeToBytes(raw)
+}
+
 func (n *leafNode) Insert(k []byte, value []byte) error {
 	n.key = k
 	n.value = value
@@ -478,6 +492,10 @@ func (n *leafNode) Hash() common.Hash {
 	return common.BytesToHash(digest.Sum(nil))
 }
 
+func (n *leafNode) Serialize() ([]byte, error) {
+	return rlp.EncodeToBytes([][]byte{n.key, n.value})
+}
+
 func (n *hashedNode) Insert(k []byte, value []byte) error {
 	return errInsertIntoHash
 }
@@ -512,6 +530,10 @@ func (n *hashedNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls
 	panic("can not get the full path, and there is no proof of absence")
 }
 
+func (n *hashedNode) Serialize() ([]byte, error) {
+	return rlp.EncodeToBytes([][]byte{n.hash[:]})
+}
+
 func (e empty) Insert(k []byte, value []byte) error {
 	return errors.New("an empty node should not be inserted directly into")
 }
@@ -538,4 +560,8 @@ func (e empty) GetCommitment() *bls.G1Point {
 
 func (e empty) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr) {
 	panic("trying to produce a commitment for an empty subtree")
+}
+
+func (e empty) Serialize() ([]byte, error) {
+	return nil, errors.New("can't encode empty node to RLP")
 }
