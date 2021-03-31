@@ -317,6 +317,18 @@ func (n *internalNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettin
 	return nil
 }
 
+// Flush hashes the children of an internal node and replaces them
+// with hashedNode. It also sends the current node on the flush channel.
+func (n *internalNode) Flush(flush chan FlushableNode) {
+	for i, child := range n.children {
+		if c, ok := child.(*internalNode); ok {
+			c.Flush(flush)
+			n.children[i] = &hashedNode{c.Hash(), c.commitment}
+		}
+	}
+	flush <- FlushableNode{n.Hash(), n}
+}
+
 func (n *internalNode) Get(k []byte) ([]byte, error) {
 	nChild := offset2Key(k, n.depth, width)
 
