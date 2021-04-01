@@ -25,7 +25,7 @@ This table measures the time it takes to calculate the root commitment of the cu
 |Network|Node size|Parallel?|Storage?|BLS library|Time|# accounts|#slots|
 |-------|---------|---------|--------|-----------|----|----------|------|
 |Mainnet|1024|No|No|Herumi|3h30m24.663s|114215117|0|
-|Mainnet|1024|No|Yes|Herumi||114215117|400223042|
+|Mainnet|1024|No|Yes|Herumi|16h36m7.043s|114215117|400223042|
 |Mainnet|1024|Yes|Yes|Herumi|10h1m34.056s|114215117|400223042|
 |Mainnet|256|No|No|Herumi||114215117|0|
 |Mainnet|256|No|No|Herumi||114215117|400223042|
