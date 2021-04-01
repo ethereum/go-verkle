@@ -75,6 +75,8 @@ type VerkleNode interface {
 	// is from the bottom of the tree, up to the root.
 	GetCommitmentsAlongPath([]byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr)
 
+	Flush(chan FlushableNode)
+
 	// Serialize encodes the node to RLP.
 	Serialize() ([]byte, error)
 }
@@ -494,6 +496,9 @@ func (n *leafNode) Hash() common.Hash {
 	return common.BytesToHash(digest.Sum(nil))
 }
 
+func (n *leafNode) Flush(chan FlushableNode) {
+}
+
 func (n *leafNode) Serialize() ([]byte, error) {
 	return rlp.EncodeToBytes([][]byte{n.key, n.value})
 }
@@ -532,6 +537,9 @@ func (n *hashedNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls
 	panic("can not get the full path, and there is no proof of absence")
 }
 
+func (n *hashedNode) Flush(chan FlushableNode) {
+}
+
 func (n *hashedNode) Serialize() ([]byte, error) {
 	return rlp.EncodeToBytes([][]byte{n.hash[:]})
 }
@@ -562,6 +570,9 @@ func (e empty) GetCommitment() *bls.G1Point {
 
 func (e empty) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr) {
 	panic("trying to produce a commitment for an empty subtree")
+}
+
+func (e empty) Flush(chan FlushableNode) {
 }
 
 func (e empty) Serialize() ([]byte, error) {
