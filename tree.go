@@ -75,8 +75,6 @@ type VerkleNode interface {
 	// is from the bottom of the tree, up to the root.
 	GetCommitmentsAlongPath([]byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr)
 
-	Flush(chan FlushableNode)
-
 	// Serialize encodes the node to RLP.
 	Serialize() ([]byte, error)
 }
@@ -103,7 +101,7 @@ var (
 
 type (
 	// Represents an internal node at any level
-	internalNode struct {
+	InternalNode struct {
 		// List of child nodes of this internal node.
 		children [nodeWidth]VerkleNode
 
@@ -163,7 +161,7 @@ func init() {
 }
 
 func newInternalNode(depth uint) VerkleNode {
-	node := new(internalNode)
+	node := new(InternalNode)
 	for idx := range node.children {
 		node.children[idx] = empty(struct{}{})
 	}
@@ -211,7 +209,7 @@ func offset2KeyTenBits(key []byte, offset uint) uint {
 	return ret
 }
 
-func (n *internalNode) Insert(key []byte, value []byte) error {
+func (n *InternalNode) Insert(key []byte, value []byte) error {
 	nChild := offset2Key(key, n.depth, width)
 
 	switch child := n.children[nChild].(type) {
@@ -230,7 +228,7 @@ func (n *internalNode) Insert(key []byte, value []byte) error {
 			// on the next word in both keys, a recursion into
 			// the moved leaf node can occur.
 			nextWordInExistingKey := offset2Key(child.key, n.depth+width, width)
-			newBranch := newInternalNode(n.depth + width).(*internalNode)
+			newBranch := newInternalNode(n.depth + width).(*InternalNode)
 			n.children[nChild] = newBranch
 			newBranch.children[nextWordInExistingKey] = child
 
@@ -243,13 +241,13 @@ func (n *internalNode) Insert(key []byte, value []byte) error {
 				newBranch.Insert(key, value)
 			}
 		}
-	default: // internalNode
+	default: // InternalNode
 		return child.Insert(key, value)
 	}
 	return nil
 }
 
-func (n *internalNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettings, lg1 []bls.G1Point, flush chan FlushableNode) error {
+func (n *InternalNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettings, lg1 []bls.G1Point, flush chan FlushableNode) error {
 	nChild := offset2Key(key, n.depth, width)
 
 	switch child := n.children[nChild].(type) {
@@ -295,7 +293,7 @@ func (n *internalNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettin
 			// on the next word in both keys, a recursion into
 			// the moved leaf node can occur.
 			nextWordInExistingKey := offset2Key(child.key, n.depth+width, width)
-			newBranch := newInternalNode(n.depth + width).(*internalNode)
+			newBranch := newInternalNode(n.depth + width).(*InternalNode)
 			n.children[nChild] = newBranch
 
 			nextWordInInsertedKey := offset2Key(key, n.depth+width, width)
@@ -317,7 +315,7 @@ func (n *internalNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettin
 				newBranch.InsertOrdered(key, value, ks, lg1, flush)
 			}
 		}
-	default: // internalNode
+	default: // InternalNode
 		return child.InsertOrdered(key, value, ks, lg1, flush)
 	}
 	return nil
@@ -325,17 +323,21 @@ func (n *internalNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettin
 
 // Flush hashes the children of an internal node and replaces them
 // with hashedNode. It also sends the current node on the flush channel.
-func (n *internalNode) Flush(flush chan FlushableNode) {
+func (n *InternalNode) Flush(flush chan FlushableNode) {
 	for i, child := range n.children {
-		if c, ok := child.(*internalNode); ok {
+		if c, ok := child.(*InternalNode); ok {
 			c.Flush(flush)
 			n.children[i] = &hashedNode{c.Hash(), c.commitment}
+		} else if c, ok := child.(*leafNode); ok {
+			childHash := c.Hash()
+			flush <- FlushableNode{childHash, c}
+			n.children[i] = &hashedNode{hash: childHash}
 		}
 	}
 	flush <- FlushableNode{n.Hash(), n}
 }
 
-func (n *internalNode) Get(k []byte) ([]byte, error) {
+func (n *InternalNode) Get(k []byte) ([]byte, error) {
 	nChild := offset2Key(k, n.depth, width)
 
 	switch child := n.children[nChild].(type) {
@@ -346,7 +348,7 @@ func (n *internalNode) Get(k []byte) ([]byte, error) {
 	}
 }
 
-func (n *internalNode) Hash() common.Hash {
+func (n *InternalNode) Hash() common.Hash {
 	digest := sha256.New()
 	for _, child := range n.children {
 		digest.Write(child.Hash().Bytes())
@@ -386,7 +388,7 @@ func hashToFr(out *bls.Fr, h [32]byte) {
 	}
 }
 
-func (n *internalNode) ComputeCommitment(ks *kzg.KZGSettings, lg1 []bls.G1Point) *bls.G1Point {
+func (n *InternalNode) ComputeCommitment(ks *kzg.KZGSettings, lg1 []bls.G1Point) *bls.G1Point {
 	if n.commitment != nil {
 		return n.commitment
 	}
@@ -425,11 +427,11 @@ func (n *internalNode) ComputeCommitment(ks *kzg.KZGSettings, lg1 []bls.G1Point)
 	return n.commitment
 }
 
-func (n *internalNode) GetCommitment() *bls.G1Point {
+func (n *InternalNode) GetCommitment() *bls.G1Point {
 	return n.commitment
 }
 
-func (n *internalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr) {
+func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr) {
 	childIdx := offset2Key(key, n.depth, width)
 	comms, zis, yis, fis := n.children[childIdx].GetCommitmentsAlongPath(key)
 	var zi, yi bls.Fr
@@ -444,7 +446,7 @@ func (n *internalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*b
 	return append(comms, n.GetCommitment()), append(zis, &zi), append(yis, &yi), append(fis, fi[:])
 }
 
-func (n *internalNode) Serialize() ([]byte, error) {
+func (n *InternalNode) Serialize() ([]byte, error) {
 	var bitlist [128]uint8
 	children := make([]byte, 0, nodeWidth*32)
 	for i, c := range n.children {
@@ -496,9 +498,6 @@ func (n *leafNode) Hash() common.Hash {
 	return common.BytesToHash(digest.Sum(nil))
 }
 
-func (n *leafNode) Flush(chan FlushableNode) {
-}
-
 func (n *leafNode) Serialize() ([]byte, error) {
 	return rlp.EncodeToBytes([][]byte{n.key, n.value})
 }
@@ -537,9 +536,6 @@ func (n *hashedNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls
 	panic("can not get the full path, and there is no proof of absence")
 }
 
-func (n *hashedNode) Flush(chan FlushableNode) {
-}
-
 func (n *hashedNode) Serialize() ([]byte, error) {
 	return rlp.EncodeToBytes([][]byte{n.hash[:]})
 }
@@ -570,9 +566,6 @@ func (e empty) GetCommitment() *bls.G1Point {
 
 func (e empty) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr) {
 	panic("trying to produce a commitment for an empty subtree")
-}
-
-func (e empty) Flush(chan FlushableNode) {
 }
 
 func (e empty) Serialize() ([]byte, error) {
