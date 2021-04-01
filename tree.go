@@ -108,6 +108,10 @@ type (
 		// node depth in the tree, in bits
 		depth uint
 
+		// number of bits needed to represent the number
+		// of bits in a node.
+		width uint
+
 		// Cache the hash of the current node
 		hash common.Hash
 
@@ -139,7 +143,7 @@ func init() {
 	bls.CopyFr(&tmp, &bls.ONE)
 	for i := 0; i < nodeWidth; i++ {
 		bls.CopyFr(&omegaIs[i], &tmp)
-		bls.MulModFr(&tmp, &tmp, &bls.Scale2RootOfUnity[10])
+		bls.MulModFr(&tmp, &tmp, &bls.Scale2RootOfUnity[width])
 	}
 
 	var ok bool
@@ -166,6 +170,7 @@ func newInternalNode(depth uint) VerkleNode {
 		node.children[idx] = empty(struct{}{})
 	}
 	node.depth = depth
+	node.width = width
 	return node
 }
 
@@ -210,7 +215,7 @@ func offset2KeyTenBits(key []byte, offset uint) uint {
 }
 
 func (n *InternalNode) Insert(key []byte, value []byte) error {
-	nChild := offset2Key(key, n.depth, width)
+	nChild := offset2Key(key, n.depth, n.width)
 
 	switch child := n.children[nChild].(type) {
 	case empty:
@@ -227,12 +232,12 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 			// A new branch node has to be inserted. Depending
 			// on the next word in both keys, a recursion into
 			// the moved leaf node can occur.
-			nextWordInExistingKey := offset2Key(child.key, n.depth+width, width)
-			newBranch := newInternalNode(n.depth + width).(*InternalNode)
+			nextWordInExistingKey := offset2Key(child.key, n.depth+n.width, n.width)
+			newBranch := newInternalNode(n.depth + n.width).(*InternalNode)
 			n.children[nChild] = newBranch
 			newBranch.children[nextWordInExistingKey] = child
 
-			nextWordInInsertedKey := offset2Key(key, n.depth+width, width)
+			nextWordInInsertedKey := offset2Key(key, n.depth+n.width, n.width)
 			if nextWordInInsertedKey != nextWordInExistingKey {
 				// Next word differs, so this was the last level.
 				// Insert it directly into its final slot.
@@ -248,7 +253,7 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 }
 
 func (n *InternalNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettings, lg1 []bls.G1Point, flush chan FlushableNode) error {
-	nChild := offset2Key(key, n.depth, width)
+	nChild := offset2Key(key, n.depth, n.width)
 
 	switch child := n.children[nChild].(type) {
 	case empty:
@@ -292,11 +297,11 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettin
 			// A new branch node has to be inserted. Depending
 			// on the next word in both keys, a recursion into
 			// the moved leaf node can occur.
-			nextWordInExistingKey := offset2Key(child.key, n.depth+width, width)
-			newBranch := newInternalNode(n.depth + width).(*InternalNode)
+			nextWordInExistingKey := offset2Key(child.key, n.depth+n.width, n.width)
+			newBranch := newInternalNode(n.depth + n.width).(*InternalNode)
 			n.children[nChild] = newBranch
 
-			nextWordInInsertedKey := offset2Key(key, n.depth+width, width)
+			nextWordInInsertedKey := offset2Key(key, n.depth+n.width, n.width)
 			if nextWordInInsertedKey != nextWordInExistingKey {
 				// Directly hash the (left) node that was already
 				// inserted.
@@ -338,7 +343,7 @@ func (n *InternalNode) Flush(flush chan FlushableNode) {
 }
 
 func (n *InternalNode) Get(k []byte) ([]byte, error) {
-	nChild := offset2Key(k, n.depth, width)
+	nChild := offset2Key(k, n.depth, n.width)
 
 	switch child := n.children[nChild].(type) {
 	case empty, *hashedNode, nil:
@@ -432,7 +437,7 @@ func (n *InternalNode) GetCommitment() *bls.G1Point {
 }
 
 func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr) {
-	childIdx := offset2Key(key, n.depth, width)
+	childIdx := offset2Key(key, n.depth, n.width)
 	comms, zis, yis, fis := n.children[childIdx].GetCommitmentsAlongPath(key)
 	var zi, yi bls.Fr
 	bls.AsFr(&zi, uint64(childIdx))
