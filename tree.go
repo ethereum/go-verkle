@@ -80,12 +80,6 @@ type VerkleNode interface {
 }
 
 const (
-	// number of key bits spanned by a node
-	width = 10
-
-	// Number of children in an internal node
-	nodeWidth = 1 << width
-
 	// Threshold for using multi exponentiation when
 	// computing commitment. Number refers to non-zero
 	// children in a node.
@@ -103,16 +97,18 @@ type (
 	// Represents an internal node at any level
 	InternalNode struct {
 		// List of child nodes of this internal node.
-		children [nodeWidth]VerkleNode
+		children []VerkleNode
 
 		// node depth in the tree, in bits
-		depth uint
+		depth int
 
 		// Cache the hash of the current node
 		hash common.Hash
 
 		// Cache the commitment value
 		commitment *bls.G1Point
+
+		treeConfig *TreeConfig
 	}
 
 	hashedNode struct {
@@ -128,55 +124,24 @@ type (
 	empty struct{}
 )
 
-var modulus *big.Int           // Field's modulus
-var omegaIs [nodeWidth]bls.Fr  // List of the root of unity
-var inverses [nodeWidth]bls.Fr // List of all 1 / (1 - ωⁱ)
-var nodeWidthInversed bls.Fr   // Inverse of node witdh in prime field
-
-func init() {
-	// Calculate the lagrangian evaluation basis.
-	var tmp bls.Fr
-	bls.CopyFr(&tmp, &bls.ONE)
-	for i := 0; i < nodeWidth; i++ {
-		bls.CopyFr(&omegaIs[i], &tmp)
-		bls.MulModFr(&tmp, &tmp, &bls.Scale2RootOfUnity[10])
-	}
-
-	var ok bool
-	modulus, ok = big.NewInt(0).SetString("52435875175126190479447740508185965837690552500527637822603658699938581184513", 10)
-	if !ok {
-		panic("could not get modulus")
-	}
-
-	// Compute all 1 / (1 - ωⁱ)
-	bls.CopyFr(&inverses[0], &bls.ZERO)
-	for i := 1; i < nodeWidth; i++ {
-		var tmp bls.Fr
-		bls.SubModFr(&tmp, &bls.ONE, &omegaIs[i])
-		bls.DivModFr(&inverses[i], &bls.ONE, &tmp)
-	}
-
-	bls.AsFr(&nodeWidthInversed, nodeWidth)
-	bls.InvModFr(&nodeWidthInversed, &nodeWidthInversed)
-}
-
-func newInternalNode(depth uint) VerkleNode {
+func newInternalNode(depth int, tc *TreeConfig) VerkleNode {
 	node := new(InternalNode)
 	for idx := range node.children {
 		node.children[idx] = empty(struct{}{})
 	}
 	node.depth = depth
+	node.treeConfig = tc
 	return node
 }
 
 // New creates a new tree root
-func New() VerkleNode {
-	return newInternalNode(0)
+func New(width int, lg1 []bls.G1Point) VerkleNode {
+	return newInternalNode(0, InitTreeConfig(width, lg1))
 }
 
 // offset2Key extracts the n bits of a key that correspond to the
 // index of a child node.
-func offset2Key(key []byte, offset, width uint) uint {
+func offset2Key(key []byte, offset, width int) uint {
 	switch width {
 	case 10:
 		return offset2KeyTenBits(key, offset)
@@ -189,7 +154,7 @@ func offset2Key(key []byte, offset, width uint) uint {
 	}
 }
 
-func offset2KeyTenBits(key []byte, offset uint) uint {
+func offset2KeyTenBits(key []byte, offset int) uint {
 	// The node has 1024 children, i.e. 10 bits. Extract it
 	// from the key to figure out which child to recurse into.
 	// The number is necessarily spread across 2 bytes because
@@ -210,7 +175,7 @@ func offset2KeyTenBits(key []byte, offset uint) uint {
 }
 
 func (n *InternalNode) Insert(key []byte, value []byte) error {
-	nChild := offset2Key(key, n.depth, width)
+	nChild := offset2Key(key, n.depth, n.treeConfig.width)
 
 	switch child := n.children[nChild].(type) {
 	case empty:
@@ -224,11 +189,13 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 		if bytes.Equal(child.key, key) {
 			child.value = value
 		} else {
+			width := n.treeConfig.width
+
 			// A new branch node has to be inserted. Depending
 			// on the next word in both keys, a recursion into
 			// the moved leaf node can occur.
-			nextWordInExistingKey := offset2Key(child.key, n.depth+width, width)
-			newBranch := newInternalNode(n.depth + width).(*InternalNode)
+			nextWordInExistingKey := offset2Key(child.key, n.depth+n.treeConfig.width, n.treeConfig.width)
+			newBranch := newInternalNode(n.depth+width, n.treeConfig).(*InternalNode)
 			n.children[nChild] = newBranch
 			newBranch.children[nextWordInExistingKey] = child
 
@@ -248,7 +215,7 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 }
 
 func (n *InternalNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettings, lg1 []bls.G1Point, flush chan FlushableNode) error {
-	nChild := offset2Key(key, n.depth, width)
+	nChild := offset2Key(key, n.depth, n.treeConfig.width)
 
 	switch child := n.children[nChild].(type) {
 	case empty:
@@ -289,11 +256,13 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettin
 		if bytes.Equal(child.key, key) {
 			child.value = value
 		} else {
+			width := n.treeConfig.width
+
 			// A new branch node has to be inserted. Depending
 			// on the next word in both keys, a recursion into
 			// the moved leaf node can occur.
 			nextWordInExistingKey := offset2Key(child.key, n.depth+width, width)
-			newBranch := newInternalNode(n.depth + width).(*InternalNode)
+			newBranch := newInternalNode(n.depth+width, n.treeConfig).(*InternalNode)
 			n.children[nChild] = newBranch
 
 			nextWordInInsertedKey := offset2Key(key, n.depth+width, width)
@@ -303,7 +272,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettin
 				h := child.Hash()
 				comm := new(bls.G1Point)
 				var tmp bls.Fr
-				hashToFr(&tmp, h)
+				hashToFr(&tmp, h, n.treeConfig.modulus)
 				bls.MulG1(comm, &bls.GenG1, &tmp)
 				newBranch.children[nextWordInExistingKey] = &hashedNode{hash: h, commitment: comm}
 				// Next word differs, so this was the last level.
@@ -338,7 +307,7 @@ func (n *InternalNode) Flush(flush chan FlushableNode) {
 }
 
 func (n *InternalNode) Get(k []byte) ([]byte, error) {
-	nChild := offset2Key(k, n.depth, width)
+	nChild := offset2Key(k, n.depth, n.treeConfig.width)
 
 	switch child := n.children[nChild].(type) {
 	case empty, *hashedNode, nil:
@@ -361,7 +330,7 @@ func (n *InternalNode) Hash() common.Hash {
 // sure that this doesn't overflow the modulus.
 // This piece of code is really ugly, and probably a performance hog, it
 // needs to be rewritten more efficiently.
-func hashToFr(out *bls.Fr, h [32]byte) {
+func hashToFr(out *bls.Fr, h [32]byte, modulus *big.Int) {
 	var h2 [32]byte
 	// reverse endianness
 	for i := range h {
@@ -394,21 +363,21 @@ func (n *InternalNode) ComputeCommitment(ks *kzg.KZGSettings, lg1 []bls.G1Point)
 	}
 
 	emptyChildren := 0
-	var poly [nodeWidth]bls.Fr
+	poly := make([]bls.Fr, n.treeConfig.nodeWidth)
 	for idx, childC := range n.children {
 		switch child := childC.(type) {
 		case empty:
 			emptyChildren++
 		case *leafNode, *hashedNode:
-			hashToFr(&poly[idx], child.Hash())
+			hashToFr(&poly[idx], child.Hash(), n.treeConfig.modulus)
 		default:
 			compressed := bls.ToCompressedG1(childC.ComputeCommitment(ks, lg1))
-			hashToFr(&poly[idx], sha256.Sum256(compressed))
+			hashToFr(&poly[idx], sha256.Sum256(compressed), n.treeConfig.modulus)
 		}
 	}
 
 	var commP *bls.G1Point
-	if nodeWidth-emptyChildren >= multiExpThreshold {
+	if n.treeConfig.nodeWidth-emptyChildren >= multiExpThreshold {
 		commP = bls.LinCombG1(lg1, poly[:])
 	} else {
 		var comm bls.G1Point
@@ -432,13 +401,13 @@ func (n *InternalNode) GetCommitment() *bls.G1Point {
 }
 
 func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr) {
-	childIdx := offset2Key(key, n.depth, width)
+	childIdx := offset2Key(key, n.depth, n.treeConfig.width)
 	comms, zis, yis, fis := n.children[childIdx].GetCommitmentsAlongPath(key)
 	var zi, yi bls.Fr
 	bls.AsFr(&zi, uint64(childIdx))
-	var fi [nodeWidth]bls.Fr
+	fi := make([]bls.Fr, n.treeConfig.nodeWidth)
 	for i, child := range n.children {
-		hashToFr(&fi[i], child.Hash())
+		hashToFr(&fi[i], child.Hash(), n.treeConfig.modulus)
 		if i == int(childIdx) {
 			bls.CopyFr(&yi, &fi[i])
 		}
@@ -448,7 +417,7 @@ func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*b
 
 func (n *InternalNode) Serialize() ([]byte, error) {
 	var bitlist [128]uint8
-	children := make([]byte, 0, nodeWidth*32)
+	children := make([]byte, 0, n.treeConfig.nodeWidth*32)
 	for i, c := range n.children {
 		if _, ok := c.(empty); !ok {
 			setBit(bitlist[:], i)
@@ -521,7 +490,7 @@ func (n *hashedNode) Hash() common.Hash {
 func (n *hashedNode) ComputeCommitment(*kzg.KZGSettings, []bls.G1Point) *bls.G1Point {
 	if n.commitment == nil {
 		var hashAsFr bls.Fr
-		hashToFr(&hashAsFr, n.hash)
+		hashToFr(&hashAsFr, n.hash, big.NewInt(0))
 		n.commitment = new(bls.G1Point)
 		bls.MulG1(n.commitment, &bls.GenG1, &hashAsFr)
 	}

@@ -37,11 +37,6 @@ import (
 )
 
 func TestProofGenerationTwoLeaves(t *testing.T) {
-	root := New()
-	root.Insert(zeroKeyTest, testValue)
-	root.Insert(ffx32KeyTest, testValue)
-
-	// Calculate all commitments
 	s1, s2 := kzg.GenerateTestingSetup("1927409816240961209460912649124", 1024)
 	fftCfg := kzg.NewFFTSettings(10)
 	ks := kzg.NewKZGSettings(fftCfg, s1, s2)
@@ -50,11 +45,17 @@ func TestProofGenerationTwoLeaves(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
+
+	root := New(10, lg1)
+	root.Insert(zeroKeyTest, testValue)
+	root.Insert(ffx32KeyTest, testValue)
+
+	// Calculate all commitments
 	_ = root.ComputeCommitment(ks, lg1)
 
 	var s bls.Fr
 	bls.SetFr(&s, "1927409816240961209460912649124")
-	d, y, sigma := MakeVerkleProofOneLeaf(root, zeroKeyTest, lg1)
+	d, y, sigma := MakeVerkleProofOneLeaf(root, zeroKeyTest)
 
 	expectedD := common.Hex2Bytes("af768e1ff778c322455f0c4159d99f516cb944c6e87da099fa8c402cfda53001bd6417a185a179f2012d2e3ba780ca1b")
 
@@ -75,11 +76,6 @@ func TestProofGenerationTwoLeaves(t *testing.T) {
 }
 
 func TestProofVerifyTwoLeaves(t *testing.T) {
-	root := New()
-	root.Insert(zeroKeyTest, testValue)
-	root.Insert(ffx32KeyTest, testValue)
-
-	// Calculate all commitments
 	s1, s2 := kzg.GenerateTestingSetup("1927409816240961209460912649124", 1024)
 	fftCfg := kzg.NewFFTSettings(10)
 	ks := kzg.NewKZGSettings(fftCfg, s1, s2)
@@ -88,14 +84,26 @@ func TestProofVerifyTwoLeaves(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
+
+	var tc *TreeConfig
+	root := New(10, lg1)
+	if root, ok := root.(*InternalNode); !ok {
+		t.Fatal("root node isn't an *InternalNode")
+	} else {
+		tc = root.treeConfig
+	}
+	root.Insert(zeroKeyTest, testValue)
+	root.Insert(ffx32KeyTest, testValue)
+
+	// Calculate all commitments
 	root.ComputeCommitment(ks, lg1)
 
 	var s bls.Fr
 	bls.SetFr(&s, "1927409816240961209460912649124")
-	d, y, sigma := MakeVerkleProofOneLeaf(root, zeroKeyTest, lg1)
+	d, y, sigma := MakeVerkleProofOneLeaf(root, zeroKeyTest)
 
 	comms, zis, yis, _ := root.GetCommitmentsAlongPath(zeroKeyTest)
-	if !VerifyVerkleProof(ks, d, sigma, y, comms, zis, yis) {
+	if !VerifyVerkleProof(ks, d, sigma, y, comms, zis, yis, tc) {
 		t.Fatal("could not verify verkle proof")
 	}
 }

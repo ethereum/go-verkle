@@ -27,13 +27,14 @@ package verkle
 
 import (
 	"crypto/sha256"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/protolambda/go-kzg"
 	"github.com/protolambda/go-kzg/bls"
 )
 
-func calcR(cs []*bls.G1Point, indices []*bls.Fr, ys []*bls.Fr) bls.Fr {
+func calcR(cs []*bls.G1Point, indices []*bls.Fr, ys []*bls.Fr, modulus *big.Int) bls.Fr {
 	digest := sha256.New()
 	for _, c := range cs {
 		h := sha256.Sum256(bls.ToCompressedG1(c))
@@ -49,12 +50,12 @@ func calcR(cs []*bls.G1Point, indices []*bls.Fr, ys []*bls.Fr) bls.Fr {
 	}
 
 	var tmp bls.Fr
-	hashToFr(&tmp, common.BytesToHash(digest.Sum(nil)))
+	hashToFr(&tmp, common.BytesToHash(digest.Sum(nil)), modulus)
 	return tmp
 
 }
 
-func calcT(r *bls.Fr, d *bls.G1Point) bls.Fr {
+func calcT(r *bls.Fr, d *bls.G1Point, modulus *big.Int) bls.Fr {
 	digest := sha256.New()
 
 	tmpBytes := bls.FrTo32(r)
@@ -63,11 +64,11 @@ func calcT(r *bls.Fr, d *bls.G1Point) bls.Fr {
 	digest.Write(tmpBytes[:])
 
 	var tmp bls.Fr
-	hashToFr(&tmp, common.BytesToHash(digest.Sum(nil)))
+	hashToFr(&tmp, common.BytesToHash(digest.Sum(nil)), modulus)
 	return tmp
 }
 
-func calcQ(e, d *bls.G1Point, y, w *bls.Fr) bls.Fr {
+func calcQ(e, d *bls.G1Point, y, w *bls.Fr, modulus *big.Int) bls.Fr {
 	digest := sha256.New()
 	hE := sha256.Sum256(bls.ToCompressedG1(e))
 	hD := sha256.Sum256(bls.ToCompressedG1(d))
@@ -80,70 +81,36 @@ func calcQ(e, d *bls.G1Point, y, w *bls.Fr) bls.Fr {
 	digest.Write(tmpBytes[:])
 
 	var tmp bls.Fr
-	hashToFr(&tmp, common.BytesToHash(digest.Sum(nil)))
+	hashToFr(&tmp, common.BytesToHash(digest.Sum(nil)), modulus)
 	return tmp
 }
 
-// Compute a function in eval form at one of the points in the domain
-func innerQuotients(f []bls.Fr, index int) []bls.Fr {
-	var q [nodeWidth]bls.Fr
+func ComputeKZGProof(tc *TreeConfig, poly []bls.Fr, z, y *bls.Fr) *bls.G1Point {
+	oq := tc.outerQuotients(poly, z, y)
+	return kzg.CommitToEvalPoly(tc.lg1, oq)
+}
 
-	y := f[index]
-	for i := 0; i < nodeWidth; i++ {
-		if i != index {
-			omegaIdx := (len(omegaIs) - i) % len(omegaIs)
-			invIdx := (index + nodeWidth - i) % nodeWidth
-			iMinIdx := (i - index + nodeWidth) % nodeWidth
-
-			// calculate q[i]
-			var tmp bls.Fr
-			bls.SubModFr(&tmp, &f[i], &y)
-			bls.MulModFr(&tmp, &tmp, &omegaIs[omegaIdx])
-			bls.MulModFr(&q[i], &tmp, &inverses[invIdx])
-
-			// calculate q[i]'s contribution to q[index]
-			bls.MulModFr(&tmp, &omegaIs[iMinIdx], &q[i])
-			bls.SubModFr(&tmp, &bls.ZERO, &tmp)
-			bls.AddModFr(&q[index], &q[index], &tmp)
-		}
+func MakeVerkleProofOneLeaf(root VerkleNode, key []byte) (d *bls.G1Point, y *bls.Fr, sigma *bls.G1Point) {
+	var tc *TreeConfig
+	if root, ok := root.(*InternalNode); !ok {
+		panic("no tree config")
+	} else {
+		tc = root.treeConfig
 	}
 
-	return q[:]
-}
-
-// Compute a function in eval form at a point outside of the domain
-func outerQuotients(f []bls.Fr, z, y *bls.Fr) []bls.Fr {
-	var q [nodeWidth]bls.Fr
-
-	for i := 0; i < nodeWidth; i++ {
-		var tmp, quo bls.Fr
-		bls.SubModFr(&tmp, &f[i], y)
-		bls.SubModFr(&quo, &omegaIs[i], z)
-		bls.DivModFr(&q[i], &tmp, &quo)
-	}
-
-	return q[:]
-}
-
-func ComputeKZGProof(poly []bls.Fr, z, y *bls.Fr, lg1 []bls.G1Point) *bls.G1Point {
-	oq := outerQuotients(poly, z, y)
-	return kzg.CommitToEvalPoly(lg1, oq)
-}
-
-func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, lg1 []bls.G1Point) (d *bls.G1Point, y *bls.Fr, sigma *bls.G1Point) {
 	var fis [][]bls.Fr
 	commitments, zis, yis, fis := root.GetCommitmentsAlongPath(key)
 
 	// Construct g(x)
-	r := calcR(commitments, zis, yis)
+	r := calcR(commitments, zis, yis, tc.modulus)
 
-	var g [nodeWidth]bls.Fr
+	g := make([]bls.Fr, tc.nodeWidth)
 	var powR bls.Fr
 	bls.CopyFr(&powR, &bls.ONE)
 	for index, f := range fis {
-		quotients := innerQuotients(f, index)
+		quotients := tc.innerQuotients(f, index)
 		var tmp bls.Fr
-		for i := 0; i < nodeWidth; i++ {
+		for i := 0; i < tc.nodeWidth; i++ {
 			bls.MulModFr(&tmp, &powR, &quotients[i])
 			bls.AddModFr(&g[i], &g[i], &tmp)
 		}
@@ -151,19 +118,19 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, lg1 []bls.G1Point) (d *
 		// rⁱ⁺¹ = r ⨯ rⁱ
 		bls.MulModFr(&powR, &powR, &r)
 	}
-	d = bls.LinCombG1(lg1, g[:])
+	d = bls.LinCombG1(tc.lg1, g[:])
 
 	// Compute h(x)
-	t := calcT(&r, d)
+	t := calcT(&r, d, tc.modulus)
 
-	var h [nodeWidth]bls.Fr
+	h := make([]bls.Fr, tc.nodeWidth)
 	bls.CopyFr(&powR, &bls.ONE)
 	for index, f := range fis {
 		var denom bls.Fr
-		bls.SubModFr(&denom, &t, &omegaIs[index])
+		bls.SubModFr(&denom, &t, &tc.omegaIs[index])
 		bls.DivModFr(&denom, &powR, &denom)
 
-		for i := 0; i < nodeWidth; i++ {
+		for i := 0; i < tc.nodeWidth; i++ {
 			var tmp bls.Fr
 			bls.MulModFr(&tmp, &denom, &f[i])
 			bls.AddModFr(&h[i], &h[i], &tmp)
@@ -178,8 +145,8 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, lg1 []bls.G1Point) (d *
 	w := new(bls.Fr)
 	for i := range g {
 		var factor, tmp bls.Fr
-		bls.SubModFr(&factor, &t, &omegaIs[i])
-		bls.DivModFr(&factor, &omegaIs[i], &factor)
+		bls.SubModFr(&factor, &t, &tc.omegaIs[i])
+		bls.DivModFr(&factor, &tc.omegaIs[i], &factor)
 
 		bls.MulModFr(&tmp, &h[i], &factor)
 		bls.AddModFr(y, y, &tmp)
@@ -189,33 +156,33 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte, lg1 []bls.G1Point) (d *
 	// Compute t^width - 1
 	var tPowWidth bls.Fr
 	bls.CopyFr(&tPowWidth, &t)
-	for i := 0; i < width; i++ {
+	for i := 0; i < tc.width; i++ {
 		bls.MulModFr(&tPowWidth, &tPowWidth, &tPowWidth)
 	}
 	bls.SubModFr(&tPowWidth, &tPowWidth, &bls.ONE)
-	bls.MulModFr(&tPowWidth, &tPowWidth, &nodeWidthInversed)
+	bls.MulModFr(&tPowWidth, &tPowWidth, &tc.nodeWidthInversed)
 	bls.MulModFr(w, w, &tPowWidth)
 	bls.MulModFr(y, y, &tPowWidth)
 
 	// compute π and ρ
-	pi := ComputeKZGProof(h[:], &t, y, lg1)
-	rho := ComputeKZGProof(g[:], &t, w, lg1)
+	pi := ComputeKZGProof(tc, h, &t, y)
+	rho := ComputeKZGProof(tc, g, &t, w)
 
 	// Compute E
-	e := kzg.CommitToEvalPoly(lg1, h[:])
+	e := kzg.CommitToEvalPoly(tc.lg1, h[:])
 
 	// compute σ
 	sigma = new(bls.G1Point)
-	q := calcQ(e, d, y, w)
+	q := calcQ(e, d, y, w, tc.modulus)
 	bls.MulG1(sigma, rho, &q)
 	bls.AddG1(sigma, sigma, pi)
 
 	return
 }
 
-func VerifyVerkleProof(ks *kzg.KZGSettings, d, sigma *bls.G1Point, y *bls.Fr, commitments []*bls.G1Point, zis, yis []*bls.Fr) bool {
-	r := calcR(commitments, zis, yis)
-	t := calcT(&r, d)
+func VerifyVerkleProof(ks *kzg.KZGSettings, d, sigma *bls.G1Point, y *bls.Fr, commitments []*bls.G1Point, zis, yis []*bls.Fr, tc *TreeConfig) bool {
+	r := calcR(commitments, zis, yis, tc.modulus)
+	t := calcT(&r, d, tc.modulus)
 
 	// Evaluate w = g₂(t) and E
 	g2 := make([]bls.Fr, len(commitments))
@@ -224,7 +191,7 @@ func VerifyVerkleProof(ks *kzg.KZGSettings, d, sigma *bls.G1Point, y *bls.Fr, co
 	bls.CopyFr(&powR, &bls.ONE)
 	for i := range g2 {
 		var tMinusZi, rDivZi bls.Fr
-		bls.SubModFr(&tMinusZi, &t, &omegaIs[i])
+		bls.SubModFr(&tMinusZi, &t, &tc.omegaIs[i])
 		bls.DivModFr(&rDivZi, &powR, &tMinusZi)
 
 		// g₂(t)
@@ -246,7 +213,7 @@ func VerifyVerkleProof(ks *kzg.KZGSettings, d, sigma *bls.G1Point, y *bls.Fr, co
 	bls.SubModFr(&w, y, &g2t)
 
 	// Calculate q
-	q := calcQ(&e, d, y, &w)
+	q := calcQ(&e, d, y, &w, tc.modulus)
 
 	// final=E+qD
 	var final bls.G1Point
