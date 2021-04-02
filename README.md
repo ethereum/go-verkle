@@ -22,11 +22,21 @@ $ go test . -bench Bench
 
 This table measures the time it takes to calculate the root commitment of the current state of an Ethereum network:
 
-|Network|Node size|Parallel?|Storage?|BLS library|Time|# accounts|#slots|
-|-------|---------|---------|--------|-----------|----|----------|------|
-|Mainnet|1024|No|No|Herumi|3h30m24.663s|114215117|0|
-|Mainnet|1024|No|Yes|Herumi|16h36m7.043s|114215117|400223042|
-|Mainnet|1024|Yes|Yes|Herumi|10h1m34.056s|114215117|400223042|
-|Mainnet|256|No|No|Herumi||114215117|0|
-|Mainnet|256|No|No|Herumi||114215117|400223042|
-|Goerli|1024|No|No|Herumi|~30min|1104810|35900044|
+|Network|Node size|Parallel?|Storage?|DB?|BLS library|Time|# accounts|#slots|
+|-------|---------|---------|--------|---|-----------|----|----------|------|
+|Mainnet|1024|No|No|No|Herumi|3h30m24.663s|114215117|0|
+|Mainnet|1024|No|Yes|No|Herumi|16h36m7.043s|114215117|400223042|
+|Mainnet|1024|Yes|Yes|No|Herumi|10h1m34.056s|114215117|400223042|
+|Mainnet|1024|Yes|Yes|Yes|Herumi|14h37m6.533s|114215117|400223042|
+|Mainnet|256|No|No|No|Herumi||114215117|0|
+|Mainnet|256|No|No|No|Herumi||114215117|400223042|
+|Görli|1024|No|No|No|Herumi|~30min|1104810|35900044|
+
+## Size measurements
+
+Values with experimental encoding
+
+|Network|Node size|Verkle tree size in DB|
+|-------|---------|----------------------|
+|Mainnet|1024|55G|
+|Görli|1024|3.6G|
