@@ -93,7 +93,7 @@ func innerQuotients(f []bls.Fr, index int) []bls.Fr {
 		if i != index {
 			omegaIdx := (len(omegaIs) - i) % len(omegaIs)
 			invIdx := (index + nodeWidth - i) % nodeWidth
-			iMinIdx := (i - index) % nodeWidth
+			iMinIdx := (i - index + nodeWidth) % nodeWidth
 
 			// calculate q[i]
 			var tmp bls.Fr
