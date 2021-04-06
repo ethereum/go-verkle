@@ -126,6 +126,7 @@ type (
 
 func newInternalNode(depth int, tc *TreeConfig) VerkleNode {
 	node := new(InternalNode)
+	node.children = make([]VerkleNode, tc.nodeWidth)
 	for idx := range node.children {
 		node.children[idx] = empty(struct{}{})
 	}
