@@ -294,6 +294,7 @@ func TestOffset2Key8BitsWide(t *testing.T) {
 		}
 	}
 }
+
 func TestOffset2Key10BitsWide(t *testing.T) {
 	key := common.Hex2Bytes("00001008030100501807020090280b0300d0380f040110481305015058170601")
 	for i := 0; i < 25; i++ {
@@ -305,6 +306,20 @@ func TestOffset2Key10BitsWide(t *testing.T) {
 
 	if childIdx := offset2Key(key, 250, 10); childIdx != 16 {
 		t.Fatalf("error getting last child number in key %d != %d", childIdx, 16)
+	}
+}
+
+func TestComputeRootCommitmentTwoLeaves256(t *testing.T) {
+	root := New(8, lg1)
+	root.Insert(zeroKeyTest, testValue)
+	root.Insert(ffx32KeyTest, testValue)
+	expected := []byte{172, 200, 249, 78, 103, 164, 197, 58, 186, 184, 184, 29, 119, 156, 10, 208, 76, 97, 227, 180, 156, 86, 37, 19, 13, 133, 10, 37, 51, 57, 110, 14, 49, 24, 89, 163, 164, 88, 162, 55, 72, 19, 234, 219, 139, 132, 81, 199}
+
+	comm := root.ComputeCommitment(ks, lg1)
+	got := bls.ToCompressedG1(comm)
+
+	if !bytes.Equal(got, expected) {
+		t.Fatalf("incorrect root commitment %x != %x", got, expected)
 	}
 }
 
