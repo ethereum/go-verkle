@@ -40,3 +40,11 @@ Values with experimental encoding
 |-------|---------|----------------------|
 |Mainnet|1024|55G|
 |Görli|1024|3.6G|
+
+
+## Insertion/update benchmarks
+
+|Initial tree size|Modified size|Action|Width|Average time|
+|-----------------|-------------|------|-----|------------|
+|1M|10K|Insert|1024|25ms|
+|1M|10K|Update|1024|7ms|
