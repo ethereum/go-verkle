@@ -87,7 +87,7 @@ func (tc *TreeConfig) innerQuotients(f []bls.Fr, index int) []bls.Fr {
 		if i != index {
 			omegaIdx := (len(tc.omegaIs) - i) % len(tc.omegaIs)
 			invIdx := (index + tc.nodeWidth - i) % tc.nodeWidth
-			iMinIdx := (i - index) % tc.nodeWidth
+			iMinIdx := (i - index + tc.nodeWidth) % tc.nodeWidth
 
 			// calculate q[i]
 			var tmp bls.Fr
