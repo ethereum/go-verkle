@@ -30,7 +30,7 @@ This table measures the time it takes to calculate the root commitment of the cu
 |Mainnet|1024|Yes|Yes|Yes|Herumi|14h37m6.533s|114215117|400223042|
 |Mainnet|256|No|No|No|Herumi||114215117|0|
 |Mainnet|256|No|No|No|Herumi||114215117|400223042|
-|Görli|1024|No|No|No|Herumi|~30min|1104810|35900044|
+|Görli|1024|No|Yes|No|Herumi|~30min|1104810|35900044|
 
 ## Size measurements
 
