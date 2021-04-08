@@ -59,43 +59,43 @@ func benchmarkInsertInExisting() {
 	toInsert := 10000
 	total := n + toInsert
 
-    keys := make([][]byte, n)
-    toInsertKeys := make([][]byte, toInsert)
-    value := []byte("value")
+	keys := make([][]byte, n)
+	toInsertKeys := make([][]byte, toInsert)
+	value := []byte("value")
 
-    for i := 0; i < 4; i++ {
-        // Generate set of keys once
+	for i := 0; i < 4; i++ {
+		// Generate set of keys once
 		for i := 0; i < total; i++ {
 			key := make([]byte, 32)
 			rand.Read(key)
 			if i < n {
-                keys[i] = key
+				keys[i] = key
 			} else {
-                toInsertKeys[i-n] = key
+				toInsertKeys[i-n] = key
 			}
 		}
-        fmt.Printf("Generated key set %d\n", i)
+		fmt.Printf("Generated key set %d\n", i)
 
-        // Create tree from same keys multiple times
-        for i := 0; i < 5; i++ {
-            root := verkle.New()
-            for _, k := range keys {
-                if err := root.Insert(k, value); err != nil {
-                    panic(err)
-                }
-            }
-            root.ComputeCommitment(ks, lg1)
+		// Create tree from same keys multiple times
+		for i := 0; i < 5; i++ {
+			root := verkle.New(10, lg1)
+			for _, k := range keys {
+				if err := root.Insert(k, value); err != nil {
+					panic(err)
+				}
+			}
+			root.ComputeCommitment(ks, lg1)
 
-            // Now insert the 10k leaves and measure time
-            start := time.Now()
-            for _, k := range toInsertKeys {
-                if err := root.Insert(k, value); err != nil {
-                    panic(err)
-                }
-            }
-            root.ComputeCommitment(ks, lg1)
-            elapsed := time.Since(start)
-            fmt.Printf("Took %v to insert and commit %d leaves\n", elapsed, toInsert)
-        }
-    }
+			// Now insert the 10k leaves and measure time
+			start := time.Now()
+			for _, k := range toInsertKeys {
+				if err := root.Insert(k, value); err != nil {
+					panic(err)
+				}
+			}
+			root.ComputeCommitment(ks, lg1)
+			elapsed := time.Since(start)
+			fmt.Printf("Took %v to insert and commit %d leaves\n", elapsed, toInsert)
+		}
+	}
 }

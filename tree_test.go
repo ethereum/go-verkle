@@ -28,6 +28,7 @@ package verkle
 import (
 	"bytes"
 	"encoding/binary"
+	"math/big"
 	"math/rand"
 	"sort"
 	"testing"
@@ -86,7 +87,7 @@ func init() {
 }
 
 func TestInsertIntoRoot(t *testing.T) {
-	root := New()
+	root := New(10, lg1)
 	err := root.Insert(zeroKeyTest, testValue)
 	if err != nil {
 		t.Fatalf("error inserting: %v", err)
@@ -103,7 +104,7 @@ func TestInsertIntoRoot(t *testing.T) {
 }
 
 func TestInsertTwoLeaves(t *testing.T) {
-	root := New()
+	root := New(10, lg1)
 	root.Insert(zeroKeyTest, testValue)
 	root.Insert(ffx32KeyTest, testValue)
 
@@ -127,7 +128,7 @@ func TestInsertTwoLeaves(t *testing.T) {
 }
 
 func TestGetTwoLeaves(t *testing.T) {
-	root := New()
+	root := New(10, lg1)
 	root.Insert(zeroKeyTest, testValue)
 	root.Insert(ffx32KeyTest, testValue)
 
@@ -151,7 +152,7 @@ func TestGetTwoLeaves(t *testing.T) {
 }
 
 func TestTreeHashing(t *testing.T) {
-	root := New()
+	root := New(10, lg1)
 	root.Insert(zeroKeyTest, testValue)
 	root.Insert(ffx32KeyTest, testValue)
 
@@ -159,7 +160,7 @@ func TestTreeHashing(t *testing.T) {
 }
 
 func TestComputeRootCommitmentThreeLeaves(t *testing.T) {
-	root := New()
+	root := New(10, lg1)
 	root.Insert(zeroKeyTest, testValue)
 	root.Insert(fourtyKeyTest, testValue)
 	root.Insert(ffx32KeyTest, testValue)
@@ -175,7 +176,7 @@ func TestComputeRootCommitmentThreeLeaves(t *testing.T) {
 }
 
 func TestComputeRootCommitmentOnlineThreeLeaves(t *testing.T) {
-	root := New()
+	root := New(10, lg1)
 	root.InsertOrdered(zeroKeyTest, testValue, ks, lg1, nil)
 	root.InsertOrdered(fourtyKeyTest, testValue, ks, lg1, nil)
 	root.InsertOrdered(ffx32KeyTest, testValue, ks, lg1, nil)
@@ -194,7 +195,7 @@ func TestComputeRootCommitmentOnlineThreeLeaves(t *testing.T) {
 }
 
 func TestComputeRootCommitmentThreeLeavesDeep(t *testing.T) {
-	root := New()
+	root := New(10, lg1)
 	root.Insert(zeroKeyTest, testValue)
 	root.Insert(oneKeyTest, testValue)
 	root.Insert(ffx32KeyTest, testValue)
@@ -210,7 +211,7 @@ func TestComputeRootCommitmentThreeLeavesDeep(t *testing.T) {
 }
 
 func TestComputeRootCommitmentOnlineThreeLeavesDeep(t *testing.T) {
-	root := New()
+	root := New(10, lg1)
 	root.InsertOrdered(zeroKeyTest, testValue, ks, lg1, nil)
 	root.InsertOrdered(oneKeyTest, testValue, ks, lg1, nil)
 	root.InsertOrdered(ffx32KeyTest, testValue, ks, lg1, nil)
@@ -228,7 +229,7 @@ func TestComputeRootCommitmentOnlineThreeLeavesDeep(t *testing.T) {
 func TestComputeRootCommitmentOnlineThreeLeavesFlush(t *testing.T) {
 	flush := make(chan FlushableNode)
 	go func() {
-		root := New()
+		root := New(10, lg1)
 		root.InsertOrdered(zeroKeyTest, testValue, ks, lg1, flush)
 		root.InsertOrdered(fourtyKeyTest, testValue, ks, lg1, flush)
 		root.InsertOrdered(ffx32KeyTest, testValue, ks, lg1, flush)
@@ -252,7 +253,7 @@ func TestComputeRootCommitmentOnlineThreeLeavesFlush(t *testing.T) {
 }
 
 func TestComputeRootCommitmentTwoLeaves(t *testing.T) {
-	root := New()
+	root := New(10, lg1)
 	root.Insert(zeroKeyTest, testValue)
 	root.Insert(ffx32KeyTest, testValue)
 	expected := []byte{178, 195, 197, 132, 158, 141, 115, 80, 222, 187, 37, 145, 15, 184, 242, 86, 101, 164, 144, 51, 239, 90, 232, 100, 78, 178, 253, 145, 36, 168, 30, 75, 100, 185, 100, 14, 198, 48, 14, 95, 3, 252, 185, 73, 183, 195, 153, 44}
@@ -266,9 +267,14 @@ func TestComputeRootCommitmentTwoLeaves(t *testing.T) {
 }
 
 func TestHashToFrTrailingZeroBytes(t *testing.T) {
+	modulus, ok := big.NewInt(0).SetString("52435875175126190479447740508185965837690552500527637822603658699938581184513", 10)
+	if !ok {
+		panic("could not get modulus")
+	}
+
 	h := common.HexToHash("c79e576e0f534a5bbed66b32e5022a9d624b4415779b369a62b2e7a6c3d8e000")
 	var out bls.Fr
-	hashToFr(&out, h)
+	hashToFr(&out, h, modulus)
 
 	h2 := common.HexToHash("c79e576e0f534a5bbed66b32e5022a9d624b4415779b369a62b2e7a6c3d8e000")
 	var expected bls.Fr
@@ -282,16 +288,17 @@ func TestHashToFrTrailingZeroBytes(t *testing.T) {
 func TestOffset2Key8BitsWide(t *testing.T) {
 	key := common.Hex2Bytes("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
 	for i := 0; i < 32; i++ {
-		childId := offset2Key(key, uint(i)*8, 8)
+		childId := offset2Key(key, i*8, 8)
 		if childId != uint(i) {
 			t.Fatalf("error getting child number in key %d != %d", childId, i)
 		}
 	}
 }
+
 func TestOffset2Key10BitsWide(t *testing.T) {
 	key := common.Hex2Bytes("00001008030100501807020090280b0300d0380f040110481305015058170601")
 	for i := 0; i < 25; i++ {
-		childId := offset2Key(key, uint(i)*10, 10)
+		childId := offset2Key(key, i*10, 10)
 		if childId != uint(i) {
 			t.Fatalf("error getting child number in key %d != %d", childId, i)
 		}
@@ -299,6 +306,20 @@ func TestOffset2Key10BitsWide(t *testing.T) {
 
 	if childIdx := offset2Key(key, 250, 10); childIdx != 16 {
 		t.Fatalf("error getting last child number in key %d != %d", childIdx, 16)
+	}
+}
+
+func TestComputeRootCommitmentTwoLeaves256(t *testing.T) {
+	root := New(8, lg1)
+	root.Insert(zeroKeyTest, testValue)
+	root.Insert(ffx32KeyTest, testValue)
+	expected := []byte{172, 200, 249, 78, 103, 164, 197, 58, 186, 184, 184, 29, 119, 156, 10, 208, 76, 97, 227, 180, 156, 86, 37, 19, 13, 133, 10, 37, 51, 57, 110, 14, 49, 24, 89, 163, 164, 88, 162, 55, 72, 19, 234, 219, 139, 132, 81, 199}
+
+	comm := root.ComputeCommitment(ks, lg1)
+	got := bls.ToCompressedG1(comm)
+
+	if !bytes.Equal(got, expected) {
+		t.Fatalf("incorrect root commitment %x != %x", got, expected)
 	}
 }
 
@@ -312,8 +333,8 @@ func BenchmarkCommit10kLeaves(b *testing.B) {
 
 func BenchmarkCommitFullNode(b *testing.B) {
 	value := []byte("value")
-	keys := make([][]byte, nodeWidth)
-	for i := 0; i < nodeWidth; i++ {
+	keys := make([][]byte, 1024)
+	for i := 0; i < 1024; i++ {
 		key := make([]byte, 32)
 		binary.BigEndian.PutUint16(key[:2], uint16(i)<<6)
 		keys[i] = key
@@ -323,7 +344,7 @@ func BenchmarkCommitFullNode(b *testing.B) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		root := New()
+		root := New(10, lg1)
 		for _, k := range keys {
 			if err := root.Insert(k, value); err != nil {
 				b.Fatal(err)
@@ -362,7 +383,7 @@ func benchmarkCommitNLeaves(b *testing.B, n int) {
 		b.ReportAllocs()
 
 		for i := 0; i < b.N; i++ {
-			root := New()
+			root := New(10, lg1)
 			for _, el := range kvs {
 				if err := root.Insert(el.k, el.v); err != nil {
 					b.Error(err)
@@ -377,7 +398,7 @@ func benchmarkCommitNLeaves(b *testing.B, n int) {
 		b.ReportAllocs()
 
 		for i := 0; i < b.N; i++ {
-			root := New()
+			root := New(10, lg1)
 			for _, el := range sortedKVs {
 				if err := root.InsertOrdered(el.k, el.v, ks, lg1, nil); err != nil {
 					b.Fatal(err)
@@ -395,7 +416,7 @@ func BenchmarkModifyLeaves(b *testing.B) {
 	toEdit := 10000
 	val := []byte{0}
 	keys := make([][]byte, n)
-	root := New()
+	root := New(10, lg1)
 	for i := 0; i < n; i++ {
 		key := make([]byte, 32)
 		rand.Read(key)
