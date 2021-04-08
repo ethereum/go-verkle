@@ -111,17 +111,6 @@ func TestProofVerifyTwoLeaves(t *testing.T) {
 func BenchmarkProofCalculation(b *testing.B) {
 	rand.Seed(time.Now().UnixNano())
 
-	value := []byte("value")
-	keys := make([][]byte, 100000)
-	root := New()
-	for i := 0; i < 100000; i++ {
-		key := make([]byte, 32)
-		rand.Read(key)
-		keys[i] = key
-		root.Insert(key, value)
-	}
-
-	// Calculate all commitments
 	s1, s2 := kzg.GenerateTestingSetup("1927409816240961209460912649124", 1024)
 	fftCfg := kzg.NewFFTSettings(10)
 	ks := kzg.NewKZGSettings(fftCfg, s1, s2)
@@ -130,30 +119,31 @@ func BenchmarkProofCalculation(b *testing.B) {
 	if err != nil {
 		panic(err)
 	}
+
+	value := []byte("value")
+	keys := make([][]byte, 100000)
+	root := New(10, lg1)
+	for i := 0; i < 100000; i++ {
+		key := make([]byte, 32)
+		rand.Read(key)
+		keys[i] = key
+		root.Insert(key, value)
+	}
+
+	// Calculate all commitments
 	root.ComputeCommitment(ks, lg1)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		MakeVerkleProofOneLeaf(root, keys[len(keys)/2], lg1)
+		MakeVerkleProofOneLeaf(root, keys[len(keys)/2])
 	}
 }
 
 func BenchmarkProofVerification(b *testing.B) {
 	rand.Seed(time.Now().UnixNano())
 
-	value := []byte("value")
-	keys := make([][]byte, 100000)
-	root := New()
-	for i := 0; i < 100000; i++ {
-		key := make([]byte, 32)
-		rand.Read(key)
-		keys[i] = key
-		root.Insert(key, value)
-	}
-
-	// Calculate all commitments
 	s1, s2 := kzg.GenerateTestingSetup("1927409816240961209460912649124", 1024)
 	fftCfg := kzg.NewFFTSettings(10)
 	ks := kzg.NewKZGSettings(fftCfg, s1, s2)
@@ -162,15 +152,33 @@ func BenchmarkProofVerification(b *testing.B) {
 	if err != nil {
 		panic(err)
 	}
+
+	value := []byte("value")
+	keys := make([][]byte, 100000)
+	root := New(10, lg1)
+	var tc *TreeConfig
+	if root, ok := root.(*InternalNode); !ok {
+		b.Fatal("root node isn't an *InternalNode")
+	} else {
+		tc = root.treeConfig
+	}
+	for i := 0; i < 100000; i++ {
+		key := make([]byte, 32)
+		rand.Read(key)
+		keys[i] = key
+		root.Insert(key, value)
+	}
+
+	// Calculate all commitments
 	root.ComputeCommitment(ks, lg1)
 
 	comms, zis, yis, _ := root.GetCommitmentsAlongPath(keys[len(keys)/2])
-	d, y, sigma := MakeVerkleProofOneLeaf(root, keys[len(keys)/2], lg1)
+	d, y, sigma := MakeVerkleProofOneLeaf(root, keys[len(keys)/2])
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		VerifyVerkleProof(ks, d, sigma, y, comms, zis, yis)
+		VerifyVerkleProof(ks, d, sigma, y, comms, zis, yis, tc)
 	}
 }
