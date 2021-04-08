@@ -120,6 +120,20 @@ type (
 		commitment *bls.G1Point
 	}
 
+	// Represents an internal node at account-level
+	// in the tree, which needs to be handled differently.
+	accountNode struct {
+		extLen      uint
+		key         []byte
+		nonce       uint64
+		depth       uint
+		balance     *big.Int
+		storageRoot VerkleNode
+		codeRoot    VerkleNode
+		code        []byte
+		codeHash    common.Hash
+	}
+
 	leafNode struct {
 		key   []byte
 		value []byte
@@ -456,6 +470,48 @@ func (n *InternalNode) Serialize() ([]byte, error) {
 		}
 	}
 	return rlp.EncodeToBytes([]interface{}{bitlist, children})
+}
+
+func (n *accountNode) Insert(k []byte, value []byte) error {
+	n.key = k
+	n.value = value
+	return nil
+}
+
+func (n *accountNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettings, lg1 []bls.G1Point, flush chan FlushableNode) error {
+	err := n.Insert(key, value)
+	if err != nil && flush != nil {
+		flush <- FlushableNode{n.Hash(), n}
+	}
+	return err
+}
+
+func (n *accountNode) Get(k []byte) ([]byte, error) {
+	switch k[32] {
+	}
+}
+
+func (n *accountNode) ComputeCommitment(*kzg.KZGSettings, []bls.G1Point) *bls.G1Point {
+	panic("can't compute the commitment directly")
+}
+
+func (n *accountNode) GetCommitment() *bls.G1Point {
+	panic("can't get the commitment directly")
+}
+
+func (n *accountNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr) {
+	return nil, nil, nil, nil
+}
+
+func (n *accountNode) Hash() common.Hash {
+	digest := sha256.New()
+	digest.Write(n.key)
+	digest.Write(n.value)
+	return common.BytesToHash(digest.Sum(nil))
+}
+
+func (n *accountNode) Serialize() ([]byte, error) {
+	return rlp.EncodeToBytes([][]byte{n.key, n.nonce, n.balance.Bytes(), n.storageRoot.Hash(), n.code, n.extLen})
 }
 
 func (n *leafNode) Insert(k []byte, value []byte) error {
