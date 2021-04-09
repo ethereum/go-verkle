@@ -577,3 +577,57 @@ func randomKeysSorted(n int) [][]byte {
 	sort.Slice(keys, func(i, j int) bool { return bytes.Compare(keys[i], keys[j]) < 0 })
 	return keys
 }
+
+func TestNodeSerde(t *testing.T) {
+	tree := New(10)
+	tree.Insert(zeroKeyTest, testValue)
+	tree.Insert(fourtyKeyTest, testValue)
+
+	root := tree.(*InternalNode)
+	tc := root.treeConfig
+	rs, err := root.Serialize()
+	if err != nil {
+		t.Error(err)
+	}
+	res, err := ParseNode(rs, tc)
+	if err != nil {
+		t.Error(err)
+	}
+	resRoot := res.(*InternalNode)
+	isInternalEqual(root, resRoot, t)
+
+	leaf := (root.children[0]).(*LeafNode)
+	ls, err := leaf.Serialize()
+	if err != nil {
+		t.Error(err)
+	}
+
+	res, err = ParseNode(ls, tc)
+	if err != nil {
+		t.Error(err)
+	}
+	resLeaf := res.(*LeafNode)
+	if !bytes.Equal(leaf.key, resLeaf.key) {
+		t.Errorf("deserialized leaf has incorrect key. Expected %x, got %x\n", leaf.key, resLeaf.key)
+	}
+	if !bytes.Equal(leaf.value, resLeaf.value) {
+		t.Errorf("deserialized leaf has incorrect value. Expected %x, got %x\n", leaf.value, resLeaf.value)
+	}
+}
+
+func isInternalEqual(a, b *InternalNode, t *testing.T) bool {
+	if a.treeConfig.nodeWidth != b.treeConfig.nodeWidth {
+		return false
+	}
+
+	for i := 0; i < a.treeConfig.nodeWidth; i++ {
+		_, acEmpty := a.children[i].(Empty)
+		_, bcEmpty := b.children[i].(Empty)
+		// TODO: Check child's value
+		if acEmpty != bcEmpty {
+			return false
+		}
+	}
+
+	return true
+}
