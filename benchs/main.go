@@ -84,7 +84,7 @@ func benchmarkInsertInExisting() {
 					panic(err)
 				}
 			}
-			root.ComputeCommitment(ks, lg1)
+			root.ComputeCommitment(ks)
 
 			// Now insert the 10k leaves and measure time
 			start := time.Now()
@@ -93,7 +93,7 @@ func benchmarkInsertInExisting() {
 					panic(err)
 				}
 			}
-			root.ComputeCommitment(ks, lg1)
+			root.ComputeCommitment(ks)
 			elapsed := time.Since(start)
 			fmt.Printf("Took %v to insert and commit %d leaves\n", elapsed, toInsert)
 		}

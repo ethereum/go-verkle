@@ -51,7 +51,7 @@ func TestProofGenerationTwoLeaves(t *testing.T) {
 	root.Insert(ffx32KeyTest, testValue)
 
 	// Calculate all commitments
-	_ = root.ComputeCommitment(ks, lg1)
+	_ = root.ComputeCommitment(ks)
 
 	var s bls.Fr
 	bls.SetFr(&s, "1927409816240961209460912649124")
@@ -96,7 +96,7 @@ func TestProofVerifyTwoLeaves(t *testing.T) {
 	root.Insert(ffx32KeyTest, testValue)
 
 	// Calculate all commitments
-	root.ComputeCommitment(ks, lg1)
+	root.ComputeCommitment(ks)
 
 	var s bls.Fr
 	bls.SetFr(&s, "1927409816240961209460912649124")
@@ -131,7 +131,7 @@ func BenchmarkProofCalculation(b *testing.B) {
 	}
 
 	// Calculate all commitments
-	root.ComputeCommitment(ks, lg1)
+	root.ComputeCommitment(ks)
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -170,7 +170,7 @@ func BenchmarkProofVerification(b *testing.B) {
 	}
 
 	// Calculate all commitments
-	root.ComputeCommitment(ks, lg1)
+	root.ComputeCommitment(ks)
 
 	comms, zis, yis, _ := root.GetCommitmentsAlongPath(keys[len(keys)/2])
 	d, y, sigma := MakeVerkleProofOneLeaf(root, keys[len(keys)/2])

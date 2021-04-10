@@ -167,7 +167,7 @@ func TestComputeRootCommitmentThreeLeaves(t *testing.T) {
 
 	expected := []byte{137, 46, 141, 157, 55, 243, 191, 123, 197, 83, 9, 229, 155, 145, 185, 155, 171, 133, 195, 118, 100, 193, 107, 202, 170, 6, 51, 189, 99, 62, 244, 70, 199, 253, 80, 218, 171, 68, 89, 136, 222, 166, 5, 209, 92, 255, 140, 164}
 
-	comm := root.ComputeCommitment(ks, lg1)
+	comm := root.ComputeCommitment(ks)
 	got := bls.ToCompressedG1(comm)
 
 	if !bytes.Equal(got, expected) {
@@ -177,13 +177,13 @@ func TestComputeRootCommitmentThreeLeaves(t *testing.T) {
 
 func TestComputeRootCommitmentOnlineThreeLeaves(t *testing.T) {
 	root := New(10, lg1)
-	root.InsertOrdered(zeroKeyTest, testValue, ks, lg1, nil)
-	root.InsertOrdered(fourtyKeyTest, testValue, ks, lg1, nil)
-	root.InsertOrdered(ffx32KeyTest, testValue, ks, lg1, nil)
+	root.InsertOrdered(zeroKeyTest, testValue, ks, nil)
+	root.InsertOrdered(fourtyKeyTest, testValue, ks, nil)
+	root.InsertOrdered(ffx32KeyTest, testValue, ks, nil)
 
 	// This still needs to be called, so that the root
 	// commitment is calculated.
-	comm := root.ComputeCommitment(ks, lg1)
+	comm := root.ComputeCommitment(ks)
 
 	expected := []byte{137, 46, 141, 157, 55, 243, 191, 123, 197, 83, 9, 229, 155, 145, 185, 155, 171, 133, 195, 118, 100, 193, 107, 202, 170, 6, 51, 189, 99, 62, 244, 70, 199, 253, 80, 218, 171, 68, 89, 136, 222, 166, 5, 209, 92, 255, 140, 164}
 
@@ -202,7 +202,7 @@ func TestComputeRootCommitmentThreeLeavesDeep(t *testing.T) {
 
 	expected := []byte{180, 224, 116, 69, 8, 16, 10, 46, 12, 87, 199, 139, 17, 157, 123, 95, 113, 9, 180, 227, 72, 13, 125, 20, 35, 52, 98, 119, 121, 181, 253, 151, 253, 0, 62, 206, 64, 49, 8, 93, 140, 128, 232, 208, 102, 248, 81, 206}
 
-	comm := root.ComputeCommitment(ks, lg1)
+	comm := root.ComputeCommitment(ks)
 	got := bls.ToCompressedG1(comm)
 
 	if !bytes.Equal(got, expected) {
@@ -212,13 +212,13 @@ func TestComputeRootCommitmentThreeLeavesDeep(t *testing.T) {
 
 func TestComputeRootCommitmentOnlineThreeLeavesDeep(t *testing.T) {
 	root := New(10, lg1)
-	root.InsertOrdered(zeroKeyTest, testValue, ks, lg1, nil)
-	root.InsertOrdered(oneKeyTest, testValue, ks, lg1, nil)
-	root.InsertOrdered(ffx32KeyTest, testValue, ks, lg1, nil)
+	root.InsertOrdered(zeroKeyTest, testValue, ks, nil)
+	root.InsertOrdered(oneKeyTest, testValue, ks, nil)
+	root.InsertOrdered(ffx32KeyTest, testValue, ks, nil)
 
 	expected := []byte{180, 224, 116, 69, 8, 16, 10, 46, 12, 87, 199, 139, 17, 157, 123, 95, 113, 9, 180, 227, 72, 13, 125, 20, 35, 52, 98, 119, 121, 181, 253, 151, 253, 0, 62, 206, 64, 49, 8, 93, 140, 128, 232, 208, 102, 248, 81, 206}
 
-	comm := root.ComputeCommitment(ks, lg1)
+	comm := root.ComputeCommitment(ks)
 	got := bls.ToCompressedG1(comm)
 
 	if !bytes.Equal(got, expected) {
@@ -230,9 +230,9 @@ func TestComputeRootCommitmentOnlineThreeLeavesFlush(t *testing.T) {
 	flush := make(chan FlushableNode)
 	go func() {
 		root := New(10, lg1)
-		root.InsertOrdered(zeroKeyTest, testValue, ks, lg1, flush)
-		root.InsertOrdered(fourtyKeyTest, testValue, ks, lg1, flush)
-		root.InsertOrdered(ffx32KeyTest, testValue, ks, lg1, flush)
+		root.InsertOrdered(zeroKeyTest, testValue, ks, flush)
+		root.InsertOrdered(fourtyKeyTest, testValue, ks, flush)
+		root.InsertOrdered(ffx32KeyTest, testValue, ks, flush)
 		root.(*InternalNode).Flush(flush)
 		close(flush)
 	}()
@@ -258,7 +258,7 @@ func TestComputeRootCommitmentTwoLeaves(t *testing.T) {
 	root.Insert(ffx32KeyTest, testValue)
 	expected := []byte{178, 195, 197, 132, 158, 141, 115, 80, 222, 187, 37, 145, 15, 184, 242, 86, 101, 164, 144, 51, 239, 90, 232, 100, 78, 178, 253, 145, 36, 168, 30, 75, 100, 185, 100, 14, 198, 48, 14, 95, 3, 252, 185, 73, 183, 195, 153, 44}
 
-	comm := root.ComputeCommitment(ks, lg1)
+	comm := root.ComputeCommitment(ks)
 	got := bls.ToCompressedG1(comm)
 
 	if !bytes.Equal(got, expected) {
@@ -315,7 +315,7 @@ func TestComputeRootCommitmentTwoLeaves256(t *testing.T) {
 	root.Insert(ffx32KeyTest, testValue)
 	expected := []byte{172, 200, 249, 78, 103, 164, 197, 58, 186, 184, 184, 29, 119, 156, 10, 208, 76, 97, 227, 180, 156, 86, 37, 19, 13, 133, 10, 37, 51, 57, 110, 14, 49, 24, 89, 163, 164, 88, 162, 55, 72, 19, 234, 219, 139, 132, 81, 199}
 
-	comm := root.ComputeCommitment(ks, lg1)
+	comm := root.ComputeCommitment(ks)
 	got := bls.ToCompressedG1(comm)
 
 	if !bytes.Equal(got, expected) {
@@ -350,7 +350,7 @@ func BenchmarkCommitFullNode(b *testing.B) {
 				b.Fatal(err)
 			}
 		}
-		root.ComputeCommitment(ks, lg1)
+		root.ComputeCommitment(ks)
 	}
 }
 
@@ -389,7 +389,7 @@ func benchmarkCommitNLeaves(b *testing.B, n int) {
 					b.Error(err)
 				}
 			}
-			root.ComputeCommitment(ks, lg1)
+			root.ComputeCommitment(ks)
 		}
 	})
 
@@ -400,11 +400,11 @@ func benchmarkCommitNLeaves(b *testing.B, n int) {
 		for i := 0; i < b.N; i++ {
 			root := New(10, lg1)
 			for _, el := range sortedKVs {
-				if err := root.InsertOrdered(el.k, el.v, ks, lg1, nil); err != nil {
+				if err := root.InsertOrdered(el.k, el.v, ks, nil); err != nil {
 					b.Fatal(err)
 				}
 			}
-			root.ComputeCommitment(ks, lg1)
+			root.ComputeCommitment(ks)
 		}
 	})
 }
@@ -423,7 +423,7 @@ func BenchmarkModifyLeaves(b *testing.B) {
 		keys[i] = key
 		root.Insert(key, val)
 	}
-	root.ComputeCommitment(ks, lg1)
+	root.ComputeCommitment(ks)
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -437,6 +437,6 @@ func BenchmarkModifyLeaves(b *testing.B) {
 				b.Error(err)
 			}
 		}
-		root.ComputeCommitment(ks, lg1)
+		root.ComputeCommitment(ks)
 	}
 }
