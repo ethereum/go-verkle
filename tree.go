@@ -459,6 +459,13 @@ func (n *InternalNode) Serialize() ([]byte, error) {
 }
 
 func (n *leafNode) Insert(k []byte, value []byte) error {
+	// The parent insert is expected to ensure that this
+	// situation doesn't occur. This check will catch an
+	// invalid situation while the library stabilizes.
+	if !bytes.Equal(k, n.key) {
+		return errors.New("inserting invalid key into key")
+	}
+
 	n.key = k
 	n.value = value
 	return nil
