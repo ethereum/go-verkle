@@ -57,7 +57,7 @@ func TestInsertIntoRoot(t *testing.T) {
 		t.Fatalf("error inserting: %v", err)
 	}
 
-	leaf, ok := root.(*InternalNode).children[0].(*leafNode)
+	leaf, ok := root.(*InternalNode).children[0].(*LeafNode)
 	if !ok {
 		t.Fatalf("invalid leaf node type %v", root.(*InternalNode).children[0])
 	}
@@ -72,12 +72,12 @@ func TestInsertTwoLeaves(t *testing.T) {
 	root.Insert(zeroKeyTest, testValue)
 	root.Insert(ffx32KeyTest, testValue)
 
-	leaf0, ok := root.(*InternalNode).children[0].(*leafNode)
+	leaf0, ok := root.(*InternalNode).children[0].(*LeafNode)
 	if !ok {
 		t.Fatalf("invalid leaf node type %v", root.(*InternalNode).children[0])
 	}
 
-	leaff, ok := root.(*InternalNode).children[1023].(*leafNode)
+	leaff, ok := root.(*InternalNode).children[1023].(*LeafNode)
 	if !ok {
 		t.Fatalf("invalid leaf node type %v", root.(*InternalNode).children[1023])
 	}
@@ -203,7 +203,7 @@ func TestComputeRootCommitmentOnlineThreeLeavesFlush(t *testing.T) {
 
 	count := 0
 	for f := range flush {
-		_, isLeaf := f.Node.(*leafNode)
+		_, isLeaf := f.Node.(*LeafNode)
 		_, isInternal := f.Node.(*InternalNode)
 		if !isLeaf && !isInternal {
 			t.Fatal("invalid node type received, expected leaf")
@@ -332,7 +332,7 @@ func TestFlush1kLeaves(t *testing.T) {
 	count := 0
 	leaves := 0
 	for f := range flush {
-		_, isLeaf := f.Node.(*leafNode)
+		_, isLeaf := f.Node.(*LeafNode)
 		_, isInternal := f.Node.(*InternalNode)
 		if !isLeaf && !isInternal {
 			t.Fatal("invalid node type received, expected leaf")
