@@ -26,77 +26,83 @@
 package verkle
 
 import (
-	"math/big"
-
 	"github.com/protolambda/go-kzg/bls"
 )
 
+// Configuration needed for the VerkleTrie
 type TreeConfig struct {
-	width             int      // number of key bits spanned by a node
-	nodeWidth         int      // Number of children in an internal node
-	modulus           *big.Int // Field's modulus
+	width     int // number of key bits spanned by a node
+	nodeWidth int // Number of children in an internal node
+}
+
+// Configuration needed for KZG10
+type KZGConfig struct {
+	width             int
 	omegaIs           []bls.Fr // List of the root of unity
 	inverses          []bls.Fr // List of all 1 / (1 - ωⁱ)
-	nodeWidthInversed bls.Fr   // Inverse of node witdh in prime field
+	nodeWidthInversed bls.Fr   // Inverse of node width in prime field
 	lg1               []bls.G1Point
 }
 
-func InitTreeConfig(width int, lg1 []bls.G1Point) *TreeConfig {
+func InitTreeConfig(width int) *TreeConfig {
 	tc := &TreeConfig{
 		width:     width,
 		nodeWidth: 1 << width,
 	}
-	tc.omegaIs = make([]bls.Fr, tc.nodeWidth)
-	tc.inverses = make([]bls.Fr, tc.nodeWidth)
-	tc.lg1 = lg1
-
-	// Calculate the lagrangian evaluation basis.
-	var tmp bls.Fr
-	bls.CopyFr(&tmp, &bls.ONE)
-	for i := 0; i < tc.nodeWidth; i++ {
-		bls.CopyFr(&tc.omegaIs[i], &tmp)
-		bls.MulModFr(&tmp, &tmp, &bls.Scale2RootOfUnity[10])
-	}
-
-	var ok bool
-	tc.modulus, ok = big.NewInt(0).SetString("52435875175126190479447740508185965837690552500527637822603658699938581184513", 10)
-	if !ok {
-		panic("could not get modulus")
-	}
-
-	// Compute all 1 / (1 - ωⁱ)
-	bls.CopyFr(&tc.inverses[0], &bls.ZERO)
-	for i := 1; i < tc.nodeWidth; i++ {
-		var tmp bls.Fr
-		bls.SubModFr(&tmp, &bls.ONE, &tc.omegaIs[i])
-		bls.DivModFr(&tc.inverses[i], &bls.ONE, &tmp)
-	}
-
-	bls.AsFr(&tc.nodeWidthInversed, uint64(tc.nodeWidth))
-	bls.InvModFr(&tc.nodeWidthInversed, &tc.nodeWidthInversed)
 
 	return tc
 }
 
+func InitKZGConfig(width int, lg1 []bls.G1Point) *KZGConfig {
+	nodeWidth := 1 << width
+	kz := &KZGConfig{}
+	kz.omegaIs = make([]bls.Fr, nodeWidth)
+	kz.inverses = make([]bls.Fr, nodeWidth)
+	kz.lg1 = lg1
+	kz.width = width
+
+	// Calculate the lagrangian evaluation basis.
+	var tmp bls.Fr
+	bls.CopyFr(&tmp, &bls.ONE)
+	for i := 0; i < nodeWidth; i++ {
+		bls.CopyFr(&kz.omegaIs[i], &tmp)
+		bls.MulModFr(&tmp, &tmp, &bls.Scale2RootOfUnity[10])
+	}
+
+	// Compute all 1 / (1 - ωⁱ)
+	bls.CopyFr(&kz.inverses[0], &bls.ZERO)
+	for i := 1; i < nodeWidth; i++ {
+		var tmp bls.Fr
+		bls.SubModFr(&tmp, &bls.ONE, &kz.omegaIs[i])
+		bls.DivModFr(&kz.inverses[i], &bls.ONE, &tmp)
+	}
+
+	bls.AsFr(&kz.nodeWidthInversed, uint64(nodeWidth))
+	bls.InvModFr(&kz.nodeWidthInversed, &kz.nodeWidthInversed)
+
+	return kz
+}
+
 // Compute a function in eval form at one of the points in the domain
-func (tc *TreeConfig) innerQuotients(f []bls.Fr, index int) []bls.Fr {
-	q := make([]bls.Fr, tc.nodeWidth)
+func (kz *KZGConfig) innerQuotients(f []bls.Fr, index int) []bls.Fr {
+	nodeWidth := 1 << kz.width
+	q := make([]bls.Fr, nodeWidth)
 
 	y := f[index]
-	for i := 0; i < tc.nodeWidth; i++ {
+	for i := 0; i < nodeWidth; i++ {
 		if i != index {
-			omegaIdx := (len(tc.omegaIs) - i) % len(tc.omegaIs)
-			invIdx := (index + tc.nodeWidth - i) % tc.nodeWidth
-			iMinIdx := (i - index + tc.nodeWidth) % tc.nodeWidth
+			omegaIdx := (len(kz.omegaIs) - i) % len(kz.omegaIs)
+			invIdx := (index + nodeWidth - i) % nodeWidth
+			iMinIdx := (i - index + nodeWidth) % nodeWidth
 
 			// calculate q[i]
 			var tmp bls.Fr
 			bls.SubModFr(&tmp, &f[i], &y)
-			bls.MulModFr(&tmp, &tmp, &tc.omegaIs[omegaIdx])
-			bls.MulModFr(&q[i], &tmp, &tc.inverses[invIdx])
+			bls.MulModFr(&tmp, &tmp, &kz.omegaIs[omegaIdx])
+			bls.MulModFr(&q[i], &tmp, &kz.inverses[invIdx])
 
 			// calculate q[i]'s contribution to q[index]
-			bls.MulModFr(&tmp, &tc.omegaIs[iMinIdx], &q[i])
+			bls.MulModFr(&tmp, &kz.omegaIs[iMinIdx], &q[i])
 			bls.SubModFr(&tmp, &bls.ZERO, &tmp)
 			bls.AddModFr(&q[index], &q[index], &tmp)
 		}
@@ -106,13 +112,14 @@ func (tc *TreeConfig) innerQuotients(f []bls.Fr, index int) []bls.Fr {
 }
 
 // Compute a function in eval form at a point outside of the domain
-func (tc *TreeConfig) outerQuotients(f []bls.Fr, z, y *bls.Fr) []bls.Fr {
-	q := make([]bls.Fr, tc.nodeWidth)
+func (kz *KZGConfig) outerQuotients(f []bls.Fr, z, y *bls.Fr) []bls.Fr {
+	nodeWidth := 1 << kz.width
+	q := make([]bls.Fr, nodeWidth)
 
-	for i := 0; i < tc.nodeWidth; i++ {
+	for i := 0; i < nodeWidth; i++ {
 		var tmp, quo bls.Fr
 		bls.SubModFr(&tmp, &f[i], y)
-		bls.SubModFr(&quo, &tc.omegaIs[i], z)
+		bls.SubModFr(&quo, &kz.omegaIs[i], z)
 		bls.DivModFr(&q[i], &tmp, &quo)
 	}
 
