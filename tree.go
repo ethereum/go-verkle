@@ -166,7 +166,7 @@ func offset2KeyTenBits(key []byte, offset int) uint {
 	firstBitShift := (8 - (offset % 8))
 	lastBitShift := (8 - nBitsInSecondByte) % 8
 	leftMask := (key[nFirstByte] >> firstBitShift) << firstBitShift
-	ret := (uint(key[nFirstByte]^leftMask) << ((nBitsInSecondByte-1)%8 + 1))
+	ret := (uint(key[nFirstByte]^leftMask) << ((uint(nBitsInSecondByte)-1)%8 + 1))
 	if int(nFirstByte)+1 < len(key) {
 		// Note that, at the last level, the last 4 bits are
 		// zeroed-out so children are 16 bits apart.
