@@ -34,7 +34,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/protolambda/go-kzg"
 	"github.com/protolambda/go-kzg/bls"
 )
 
@@ -54,7 +53,7 @@ type VerkleNode interface {
 	// values are expected to be ordered, and the commitments and
 	// hashes for each subtrie are computed online, as soon as it
 	// is clear that no more values will be inserted in there.
-	InsertOrdered([]byte, []byte, *kzg.KZGSettings, chan FlushableNode) error
+	InsertOrdered([]byte, []byte, []bls.G1Point, chan FlushableNode) error
 
 	// Get value at key `k`
 	Get(k []byte) ([]byte, error)
@@ -63,7 +62,7 @@ type VerkleNode interface {
 	Hash() common.Hash
 
 	// ComputeCommitment computes the commitment of the node
-	ComputeCommitment(*kzg.KZGSettings) *bls.G1Point
+	ComputeCommitment(lg1 []bls.G1Point) *bls.G1Point
 
 	// GetCommitment retrieves the (previously computed)
 	// commitment of a node.
@@ -136,8 +135,8 @@ func newInternalNode(depth int, tc *TreeConfig) VerkleNode {
 }
 
 // New creates a new tree root
-func New(width int, lg1 []bls.G1Point) VerkleNode {
-	return newInternalNode(0, InitTreeConfig(width, lg1))
+func New(width int) VerkleNode {
+	return newInternalNode(0, InitTreeConfig(width))
 }
 
 // offset2Key extracts the n bits of a key that correspond to the
@@ -215,7 +214,7 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 	return nil
 }
 
-func (n *InternalNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettings, flush chan FlushableNode) error {
+func (n *InternalNode) InsertOrdered(key []byte, value []byte, lg1 []bls.G1Point, flush chan FlushableNode) error {
 	nChild := offset2Key(key, n.depth, n.treeConfig.width)
 
 	switch child := n.children[nChild].(type) {
@@ -237,7 +236,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettin
 			case *hashedNode:
 				break
 			default:
-				comm := n.children[i].ComputeCommitment(ks)
+				comm := n.children[i].ComputeCommitment(lg1)
 				h := sha256.Sum256(bls.ToCompressedG1(comm))
 				if flush != nil {
 					flush <- FlushableNode{h, n.children[i]}
@@ -273,7 +272,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettin
 				h := child.Hash()
 				comm := new(bls.G1Point)
 				var tmp bls.Fr
-				hashToFr(&tmp, h, n.treeConfig.modulus)
+				hashToFr(&tmp, h)
 				bls.MulG1(comm, &bls.GenG1, &tmp)
 				newBranch.children[nextWordInExistingKey] = &hashedNode{hash: h, commitment: comm}
 				// Next word differs, so this was the last level.
@@ -282,11 +281,11 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettin
 			} else {
 				// Reinsert the leaf in order to recurse
 				newBranch.children[nextWordInExistingKey] = child
-				newBranch.InsertOrdered(key, value, ks, flush)
+				newBranch.InsertOrdered(key, value, lg1, flush)
 			}
 		}
 	default: // InternalNode
-		return child.InsertOrdered(key, value, ks, flush)
+		return child.InsertOrdered(key, value, lg1, flush)
 	}
 	return nil
 }
@@ -331,7 +330,18 @@ func (n *InternalNode) Hash() common.Hash {
 // sure that this doesn't overflow the modulus.
 // This piece of code is really ugly, and probably a performance hog, it
 // needs to be rewritten more efficiently.
-func hashToFr(out *bls.Fr, h [32]byte, modulus *big.Int) {
+// XXX: We compute the modulus in this method instead, as this should be provided by the underlying field library
+// This will make the implementation slower
+// XXX: double check if we need to actually take 64 bytes for this to be secure, due to bias for elements
+// which have two representations
+func hashToFr(out *bls.Fr, h [32]byte) {
+
+	var ok bool
+	modulus, ok := big.NewInt(0).SetString("52435875175126190479447740508185965837690552500527637822603658699938581184513", 10)
+	if !ok {
+		panic("could not get modulus")
+	}
+
 	var h2 [32]byte
 	// reverse endianness
 	for i := range h {
@@ -358,7 +368,7 @@ func hashToFr(out *bls.Fr, h [32]byte, modulus *big.Int) {
 	}
 }
 
-func (n *InternalNode) ComputeCommitment(ks *kzg.KZGSettings) *bls.G1Point {
+func (n *InternalNode) ComputeCommitment(lg1 []bls.G1Point) *bls.G1Point {
 	if n.commitment != nil {
 		return n.commitment
 	}
@@ -370,23 +380,23 @@ func (n *InternalNode) ComputeCommitment(ks *kzg.KZGSettings) *bls.G1Point {
 		case empty:
 			emptyChildren++
 		case *leafNode, *hashedNode:
-			hashToFr(&poly[idx], child.Hash(), n.treeConfig.modulus)
+			hashToFr(&poly[idx], child.Hash())
 		default:
-			compressed := bls.ToCompressedG1(childC.ComputeCommitment(ks))
-			hashToFr(&poly[idx], sha256.Sum256(compressed), n.treeConfig.modulus)
+			compressed := bls.ToCompressedG1(childC.ComputeCommitment(lg1))
+			hashToFr(&poly[idx], sha256.Sum256(compressed))
 		}
 	}
 
 	var commP *bls.G1Point
 	if n.treeConfig.nodeWidth-emptyChildren >= multiExpThreshold {
-		commP = bls.LinCombG1(n.treeConfig.lg1, poly[:])
+		commP = bls.LinCombG1(lg1, poly[:])
 	} else {
 		var comm bls.G1Point
 		bls.CopyG1(&comm, &bls.ZERO_G1)
 		for i := range poly {
 			if !bls.EqualZero(&poly[i]) {
 				var tmpG1, eval bls.G1Point
-				bls.MulG1(&eval, &n.treeConfig.lg1[i], &poly[i])
+				bls.MulG1(&eval, &lg1[i], &poly[i])
 				bls.CopyG1(&tmpG1, &comm)
 				bls.AddG1(&comm, &tmpG1, &eval)
 			}
@@ -408,7 +418,7 @@ func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*b
 	bls.AsFr(&zi, uint64(childIdx))
 	fi := make([]bls.Fr, n.treeConfig.nodeWidth)
 	for i, child := range n.children {
-		hashToFr(&fi[i], child.Hash(), n.treeConfig.modulus)
+		hashToFr(&fi[i], child.Hash())
 		if i == int(childIdx) {
 			bls.CopyFr(&yi, &fi[i])
 		}
@@ -434,7 +444,7 @@ func (n *leafNode) Insert(k []byte, value []byte) error {
 	return nil
 }
 
-func (n *leafNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettings, flush chan FlushableNode) error {
+func (n *leafNode) InsertOrdered(key []byte, value []byte, lg1 []bls.G1Point, flush chan FlushableNode) error {
 	err := n.Insert(key, value)
 	if err != nil && flush != nil {
 		flush <- FlushableNode{n.Hash(), n}
@@ -449,7 +459,7 @@ func (n *leafNode) Get(k []byte) ([]byte, error) {
 	return n.value, nil
 }
 
-func (n *leafNode) ComputeCommitment(*kzg.KZGSettings) *bls.G1Point {
+func (n *leafNode) ComputeCommitment(lg1 []bls.G1Point) *bls.G1Point {
 	panic("can't compute the commitment directly")
 }
 
@@ -476,7 +486,7 @@ func (n *hashedNode) Insert(k []byte, value []byte) error {
 	return errInsertIntoHash
 }
 
-func (n *hashedNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettings, _ chan FlushableNode) error {
+func (n *hashedNode) InsertOrdered(key []byte, value []byte, lg1 []bls.G1Point, _ chan FlushableNode) error {
 	return errInsertIntoHash
 }
 
@@ -488,10 +498,12 @@ func (n *hashedNode) Hash() common.Hash {
 	return n.hash
 }
 
-func (n *hashedNode) ComputeCommitment(*kzg.KZGSettings) *bls.G1Point {
+func (n *hashedNode) ComputeCommitment(lg1 []bls.G1Point) *bls.G1Point {
 	if n.commitment == nil {
 		var hashAsFr bls.Fr
-		hashToFr(&hashAsFr, n.hash, big.NewInt(0))
+		hashAsFr = bls.Fr{}
+		// XXX: here the modulus is zero, is this okay?
+		// hashToFr(&hashAsFr, n.hash, big.NewInt(0))
 		n.commitment = new(bls.G1Point)
 		bls.MulG1(n.commitment, &bls.GenG1, &hashAsFr)
 	}
@@ -514,7 +526,7 @@ func (e empty) Insert(k []byte, value []byte) error {
 	return errors.New("an empty node should not be inserted directly into")
 }
 
-func (e empty) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettings, _ chan FlushableNode) error {
+func (e empty) InsertOrdered(key []byte, value []byte, lg1 []bls.G1Point, _ chan FlushableNode) error {
 	return e.Insert(key, value)
 }
 
@@ -526,7 +538,7 @@ func (e empty) Hash() common.Hash {
 	return zeroHash
 }
 
-func (e empty) ComputeCommitment(*kzg.KZGSettings) *bls.G1Point {
+func (e empty) ComputeCommitment(lg1 []bls.G1Point) *bls.G1Point {
 	return &bls.ZeroG1
 }
 
