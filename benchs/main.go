@@ -78,13 +78,13 @@ func benchmarkInsertInExisting() {
 
 		// Create tree from same keys multiple times
 		for i := 0; i < 5; i++ {
-			root := verkle.New(10, lg1)
+			root := verkle.New(10)
 			for _, k := range keys {
 				if err := root.Insert(k, value); err != nil {
 					panic(err)
 				}
 			}
-			root.ComputeCommitment(ks)
+			root.ComputeCommitment(lg1)
 
 			// Now insert the 10k leaves and measure time
 			start := time.Now()
@@ -93,7 +93,7 @@ func benchmarkInsertInExisting() {
 					panic(err)
 				}
 			}
-			root.ComputeCommitment(ks)
+			root.ComputeCommitment(lg1)
 			elapsed := time.Since(start)
 			fmt.Printf("Took %v to insert and commit %d leaves\n", elapsed, toInsert)
 		}

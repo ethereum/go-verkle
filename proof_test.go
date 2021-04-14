@@ -37,41 +37,48 @@ import (
 )
 
 func TestProofGenerationTwoLeaves(t *testing.T) {
-	s1, s2 := kzg.GenerateTestingSetup("1927409816240961209460912649124", 1024)
+	s1, _ := kzg.GenerateTestingSetup("1927409816240961209460912649124", 1024)
 	fftCfg := kzg.NewFFTSettings(10)
-	ks := kzg.NewKZGSettings(fftCfg, s1, s2)
+
 	var err error
 	lg1, err = fftCfg.FFTG1(s1, true)
 	if err != nil {
 		panic(err)
 	}
 
-	root := New(10, lg1)
+	root := New(10)
 	root.Insert(zeroKeyTest, testValue)
 	root.Insert(ffx32KeyTest, testValue)
 
 	// Calculate all commitments
-	_ = root.ComputeCommitment(ks)
+	_ = root.ComputeCommitment(lg1)
 
 	var s bls.Fr
 	bls.SetFr(&s, "1927409816240961209460912649124")
-	d, y, sigma := MakeVerkleProofOneLeaf(root, zeroKeyTest)
+
+	kzgConfig := InitKZGConfig(10, lg1)
+
+	prover := VerkleProver{
+		root: root,
+		kz:   *kzgConfig,
+	}
+	proof := prover.MakeVerkleProofOneLeaf(zeroKeyTest)
 
 	expectedD := common.Hex2Bytes("af768e1ff778c322455f0c4159d99f516cb944c6e87da099fa8c402cfda53001bd6417a185a179f2012d2e3ba780ca1b")
 
-	if !bytes.Equal(expectedD, bls.ToCompressedG1(d)) {
-		t.Fatalf("invalid D commitment, expected %x, got %x", expectedD, bls.ToCompressedG1(d))
+	if !bytes.Equal(expectedD, bls.ToCompressedG1(proof.d)) {
+		t.Fatalf("invalid D commitment, expected %x, got %x", expectedD, bls.ToCompressedG1(proof.d))
 	}
 
 	expectedY := "29538444433028619980967897141357016680422322190427848339183478815792394204807"
-	gotY := bls.FrStr(y)
+	gotY := bls.FrStr(proof.y)
 	if expectedY != gotY {
 		t.Fatalf("invalid y, expected %s != %s", expectedY, gotY)
 	}
 
 	expectedSigma := common.Hex2Bytes("a28c6ff3c7856e5fd2cdf32630935bcfceacd80e00f2e49633839bfa9e2f20057215efc6391a8006ef9f699eb8b18a1a")
-	if !bytes.Equal(expectedSigma, bls.ToCompressedG1(sigma)) {
-		t.Fatalf("invalid sigma, expected %x, got %x", expectedSigma, bls.ToCompressedG1(sigma))
+	if !bytes.Equal(expectedSigma, bls.ToCompressedG1(proof.sigma)) {
+		t.Fatalf("invalid sigma, expected %x, got %x", expectedSigma, bls.ToCompressedG1(proof.sigma))
 	}
 }
 
@@ -85,25 +92,26 @@ func TestProofVerifyTwoLeaves(t *testing.T) {
 		panic(err)
 	}
 
-	var tc *TreeConfig
-	root := New(10, lg1)
-	if root, ok := root.(*InternalNode); !ok {
-		t.Fatal("root node isn't an *InternalNode")
-	} else {
-		tc = root.treeConfig
-	}
+	root := New(10)
+
 	root.Insert(zeroKeyTest, testValue)
 	root.Insert(ffx32KeyTest, testValue)
 
 	// Calculate all commitments
-	root.ComputeCommitment(ks)
+	root.ComputeCommitment(lg1)
 
-	var s bls.Fr
-	bls.SetFr(&s, "1927409816240961209460912649124")
-	d, y, sigma := MakeVerkleProofOneLeaf(root, zeroKeyTest)
+	kzgConfig := InitKZGConfig(10, lg1)
+
+	prover := VerkleProver{
+		root: root,
+		kz:   *kzgConfig,
+	}
+
+	proof := prover.MakeVerkleProofOneLeaf(zeroKeyTest)
 
 	comms, zis, yis, _ := root.GetCommitmentsAlongPath(zeroKeyTest)
-	if !VerifyVerkleProof(ks, d, sigma, y, comms, zis, yis, tc) {
+
+	if !proof.Verify(ks, kzgConfig, comms, zis, yis) {
 		t.Fatal("could not verify verkle proof")
 	}
 }
@@ -111,9 +119,9 @@ func TestProofVerifyTwoLeaves(t *testing.T) {
 func BenchmarkProofCalculation(b *testing.B) {
 	rand.Seed(time.Now().UnixNano())
 
-	s1, s2 := kzg.GenerateTestingSetup("1927409816240961209460912649124", 1024)
+	s1, _ := kzg.GenerateTestingSetup("1927409816240961209460912649124", 1024)
 	fftCfg := kzg.NewFFTSettings(10)
-	ks := kzg.NewKZGSettings(fftCfg, s1, s2)
+
 	var err error
 	lg1, err = fftCfg.FFTG1(s1, true)
 	if err != nil {
@@ -122,7 +130,7 @@ func BenchmarkProofCalculation(b *testing.B) {
 
 	value := []byte("value")
 	keys := make([][]byte, 100000)
-	root := New(10, lg1)
+	root := New(10)
 	for i := 0; i < 100000; i++ {
 		key := make([]byte, 32)
 		rand.Read(key)
@@ -131,13 +139,19 @@ func BenchmarkProofCalculation(b *testing.B) {
 	}
 
 	// Calculate all commitments
-	root.ComputeCommitment(ks)
+	root.ComputeCommitment(lg1)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
+	kzgConfig := InitKZGConfig(10, lg1)
+	prover := VerkleProver{
+		root: root,
+		kz:   *kzgConfig,
+	}
+
 	for i := 0; i < b.N; i++ {
-		MakeVerkleProofOneLeaf(root, keys[len(keys)/2])
+		prover.MakeVerkleProofOneLeaf(keys[len(keys)/2])
 	}
 }
 
@@ -155,13 +169,8 @@ func BenchmarkProofVerification(b *testing.B) {
 
 	value := []byte("value")
 	keys := make([][]byte, 100000)
-	root := New(10, lg1)
-	var tc *TreeConfig
-	if root, ok := root.(*InternalNode); !ok {
-		b.Fatal("root node isn't an *InternalNode")
-	} else {
-		tc = root.treeConfig
-	}
+	root := New(10)
+
 	for i := 0; i < 100000; i++ {
 		key := make([]byte, 32)
 		rand.Read(key)
@@ -170,15 +179,22 @@ func BenchmarkProofVerification(b *testing.B) {
 	}
 
 	// Calculate all commitments
-	root.ComputeCommitment(ks)
+	root.ComputeCommitment(lg1)
 
 	comms, zis, yis, _ := root.GetCommitmentsAlongPath(keys[len(keys)/2])
-	d, y, sigma := MakeVerkleProofOneLeaf(root, keys[len(keys)/2])
+
+	kzgConfig := InitKZGConfig(10, lg1)
+	prover := VerkleProver{
+		root: root,
+		kz:   *kzgConfig,
+	}
+
+	proof := prover.MakeVerkleProofOneLeaf(keys[len(keys)/2])
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		VerifyVerkleProof(ks, d, sigma, y, comms, zis, yis, tc)
+		proof.Verify(ks, kzgConfig, comms, zis, yis)
 	}
 }
