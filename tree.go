@@ -34,7 +34,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/protolambda/go-kzg"
 	"github.com/protolambda/go-kzg/bls"
 )
 
@@ -54,7 +53,7 @@ type VerkleNode interface {
 	// values are expected to be ordered, and the commitments and
 	// hashes for each subtrie are computed online, as soon as it
 	// is clear that no more values will be inserted in there.
-	InsertOrdered([]byte, []byte, *kzg.KZGSettings, chan FlushableNode) error
+	InsertOrdered([]byte, []byte, chan FlushableNode) error
 
 	// Get value at key `k`
 	Get(k []byte) ([]byte, error)
@@ -63,7 +62,7 @@ type VerkleNode interface {
 	Hash() common.Hash
 
 	// ComputeCommitment computes the commitment of the node
-	ComputeCommitment(*kzg.KZGSettings) *bls.G1Point
+	ComputeCommitment() *bls.G1Point
 
 	// GetCommitment retrieves the (previously computed)
 	// commitment of a node.
@@ -215,7 +214,7 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 	return nil
 }
 
-func (n *InternalNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettings, flush chan FlushableNode) error {
+func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush chan FlushableNode) error {
 	nChild := offset2Key(key, n.depth, n.treeConfig.width)
 
 	switch child := n.children[nChild].(type) {
@@ -237,7 +236,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettin
 			case *hashedNode:
 				break
 			default:
-				comm := n.children[i].ComputeCommitment(ks)
+				comm := n.children[i].ComputeCommitment()
 				h := sha256.Sum256(bls.ToCompressedG1(comm))
 				if flush != nil {
 					flush <- FlushableNode{h, n.children[i]}
@@ -282,11 +281,11 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettin
 			} else {
 				// Reinsert the leaf in order to recurse
 				newBranch.children[nextWordInExistingKey] = child
-				newBranch.InsertOrdered(key, value, ks, flush)
+				newBranch.InsertOrdered(key, value, flush)
 			}
 		}
 	default: // InternalNode
-		return child.InsertOrdered(key, value, ks, flush)
+		return child.InsertOrdered(key, value, flush)
 	}
 	return nil
 }
@@ -358,7 +357,7 @@ func hashToFr(out *bls.Fr, h [32]byte, modulus *big.Int) {
 	}
 }
 
-func (n *InternalNode) ComputeCommitment(ks *kzg.KZGSettings) *bls.G1Point {
+func (n *InternalNode) ComputeCommitment() *bls.G1Point {
 	if n.commitment != nil {
 		return n.commitment
 	}
@@ -372,7 +371,7 @@ func (n *InternalNode) ComputeCommitment(ks *kzg.KZGSettings) *bls.G1Point {
 		case *leafNode, *hashedNode:
 			hashToFr(&poly[idx], child.Hash(), n.treeConfig.modulus)
 		default:
-			compressed := bls.ToCompressedG1(childC.ComputeCommitment(ks))
+			compressed := bls.ToCompressedG1(childC.ComputeCommitment())
 			hashToFr(&poly[idx], sha256.Sum256(compressed), n.treeConfig.modulus)
 		}
 	}
@@ -434,7 +433,7 @@ func (n *leafNode) Insert(k []byte, value []byte) error {
 	return nil
 }
 
-func (n *leafNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettings, flush chan FlushableNode) error {
+func (n *leafNode) InsertOrdered(key []byte, value []byte, flush chan FlushableNode) error {
 	err := n.Insert(key, value)
 	if err != nil && flush != nil {
 		flush <- FlushableNode{n.Hash(), n}
@@ -449,7 +448,7 @@ func (n *leafNode) Get(k []byte) ([]byte, error) {
 	return n.value, nil
 }
 
-func (n *leafNode) ComputeCommitment(*kzg.KZGSettings) *bls.G1Point {
+func (n *leafNode) ComputeCommitment() *bls.G1Point {
 	panic("can't compute the commitment directly")
 }
 
@@ -476,7 +475,7 @@ func (n *hashedNode) Insert(k []byte, value []byte) error {
 	return errInsertIntoHash
 }
 
-func (n *hashedNode) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettings, _ chan FlushableNode) error {
+func (n *hashedNode) InsertOrdered(key []byte, value []byte, _ chan FlushableNode) error {
 	return errInsertIntoHash
 }
 
@@ -488,7 +487,7 @@ func (n *hashedNode) Hash() common.Hash {
 	return n.hash
 }
 
-func (n *hashedNode) ComputeCommitment(*kzg.KZGSettings) *bls.G1Point {
+func (n *hashedNode) ComputeCommitment() *bls.G1Point {
 	if n.commitment == nil {
 		var hashAsFr bls.Fr
 		hashToFr(&hashAsFr, n.hash, big.NewInt(0))
@@ -514,7 +513,7 @@ func (e empty) Insert(k []byte, value []byte) error {
 	return errors.New("an empty node should not be inserted directly into")
 }
 
-func (e empty) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettings, _ chan FlushableNode) error {
+func (e empty) InsertOrdered(key []byte, value []byte, _ chan FlushableNode) error {
 	return e.Insert(key, value)
 }
 
@@ -526,7 +525,7 @@ func (e empty) Hash() common.Hash {
 	return zeroHash
 }
 
-func (e empty) ComputeCommitment(*kzg.KZGSettings) *bls.G1Point {
+func (e empty) ComputeCommitment() *bls.G1Point {
 	return &bls.ZeroG1
 }
 

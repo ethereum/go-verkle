@@ -37,9 +37,8 @@ import (
 )
 
 func TestProofGenerationTwoLeaves(t *testing.T) {
-	s1, s2 := kzg.GenerateTestingSetup("1927409816240961209460912649124", 1024)
+	s1, _ := kzg.GenerateTestingSetup("1927409816240961209460912649124", 1024)
 	fftCfg := kzg.NewFFTSettings(10)
-	ks := kzg.NewKZGSettings(fftCfg, s1, s2)
 	var err error
 	lg1, err = fftCfg.FFTG1(s1, true)
 	if err != nil {
@@ -51,7 +50,7 @@ func TestProofGenerationTwoLeaves(t *testing.T) {
 	root.Insert(ffx32KeyTest, testValue)
 
 	// Calculate all commitments
-	_ = root.ComputeCommitment(ks)
+	_ = root.ComputeCommitment()
 
 	var s bls.Fr
 	bls.SetFr(&s, "1927409816240961209460912649124")
@@ -96,7 +95,7 @@ func TestProofVerifyTwoLeaves(t *testing.T) {
 	root.Insert(ffx32KeyTest, testValue)
 
 	// Calculate all commitments
-	root.ComputeCommitment(ks)
+	root.ComputeCommitment()
 
 	var s bls.Fr
 	bls.SetFr(&s, "1927409816240961209460912649124")
@@ -111,9 +110,8 @@ func TestProofVerifyTwoLeaves(t *testing.T) {
 func BenchmarkProofCalculation(b *testing.B) {
 	rand.Seed(time.Now().UnixNano())
 
-	s1, s2 := kzg.GenerateTestingSetup("1927409816240961209460912649124", 1024)
+	s1, _ := kzg.GenerateTestingSetup("1927409816240961209460912649124", 1024)
 	fftCfg := kzg.NewFFTSettings(10)
-	ks := kzg.NewKZGSettings(fftCfg, s1, s2)
 	var err error
 	lg1, err = fftCfg.FFTG1(s1, true)
 	if err != nil {
@@ -131,7 +129,7 @@ func BenchmarkProofCalculation(b *testing.B) {
 	}
 
 	// Calculate all commitments
-	root.ComputeCommitment(ks)
+	root.ComputeCommitment()
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -170,7 +168,7 @@ func BenchmarkProofVerification(b *testing.B) {
 	}
 
 	// Calculate all commitments
-	root.ComputeCommitment(ks)
+	root.ComputeCommitment()
 
 	comms, zis, yis, _ := root.GetCommitmentsAlongPath(keys[len(keys)/2])
 	d, y, sigma := MakeVerkleProofOneLeaf(root, keys[len(keys)/2])

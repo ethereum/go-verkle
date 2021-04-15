@@ -45,10 +45,10 @@ func InitTreeConfig(width int, lg1 []bls.G1Point) *TreeConfig {
 	tc := &TreeConfig{
 		width:     width,
 		nodeWidth: 1 << width,
+		lg1:       lg1,
 	}
 	tc.omegaIs = make([]bls.Fr, tc.nodeWidth)
 	tc.inverses = make([]bls.Fr, tc.nodeWidth)
-	tc.lg1 = lg1
 
 	// Calculate the lagrangian evaluation basis.
 	var tmp bls.Fr

@@ -11,8 +11,6 @@ import (
 )
 
 var s1, lg1 []bls.G1Point
-var s2 []bls.G2Point
-var ks *kzg.KZGSettings
 
 // GenerateTestingSetupWithLagrange creates a setup of n values from the given secret,
 // along with the  **for testing purposes only**
@@ -41,11 +39,10 @@ func GenerateTestingSetupWithLagrange(secret string, n uint64, fftCfg *kzg.FFTSe
 func main() {
 	var err error
 	fftCfg := kzg.NewFFTSettings(10)
-	s1, s2, lg1, err = GenerateTestingSetupWithLagrange("1927409816240961209460912649124", 1024, fftCfg)
+	s1, _, lg1, err = GenerateTestingSetupWithLagrange("1927409816240961209460912649124", 1024, fftCfg)
 	if err != nil {
 		panic(err)
 	}
-	ks = kzg.NewKZGSettings(fftCfg, s1, s2)
 
 	benchmarkInsertInExisting()
 }
@@ -84,7 +81,7 @@ func benchmarkInsertInExisting() {
 					panic(err)
 				}
 			}
-			root.ComputeCommitment(ks)
+			root.ComputeCommitment()
 
 			// Now insert the 10k leaves and measure time
 			start := time.Now()
@@ -93,7 +90,7 @@ func benchmarkInsertInExisting() {
 					panic(err)
 				}
 			}
-			root.ComputeCommitment(ks)
+			root.ComputeCommitment()
 			elapsed := time.Since(start)
 			fmt.Printf("Took %v to insert and commit %d leaves\n", elapsed, toInsert)
 		}
