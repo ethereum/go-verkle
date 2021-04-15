@@ -237,7 +237,8 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush chan Flusha
 				break
 			default:
 				comm := n.children[i].ComputeCommitment()
-				h := sha256.Sum256(bls.ToCompressedG1(comm))
+				// Doesn't re-compute commitment as it's cached
+				h := n.children[i].Hash()
 				if flush != nil {
 					flush <- FlushableNode{h, n.children[i]}
 				}
@@ -318,12 +319,9 @@ func (n *InternalNode) Get(k []byte) ([]byte, error) {
 }
 
 func (n *InternalNode) Hash() common.Hash {
-	digest := sha256.New()
-	for _, child := range n.children {
-		digest.Write(child.Hash().Bytes())
-	}
-
-	return common.BytesToHash(digest.Sum(nil))
+	comm := n.ComputeCommitment()
+	h := sha256.Sum256(bls.ToCompressedG1(comm))
+	return common.BytesToHash(h[:])
 }
 
 // This function takes a hash and turns it into a bls.Fr integer, making
