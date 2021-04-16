@@ -275,6 +275,9 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush chan Flusha
 				var tmp bls.Fr
 				hashToFr(&tmp, h, n.treeConfig.modulus)
 				bls.MulG1(comm, &bls.GenG1, &tmp)
+				if flush != nil {
+					flush <- FlushableNode{h, child}
+				}
 				newBranch.children[nextWordInExistingKey] = &hashedNode{hash: h, commitment: comm}
 				// Next word differs, so this was the last level.
 				// Insert it directly into its final slot.
