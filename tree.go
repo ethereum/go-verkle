@@ -240,7 +240,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush chan Flusha
 				// Doesn't re-compute commitment as it's cached
 				h := n.children[i].Hash()
 				if flush != nil {
-					flush <- FlushableNode{h, n.children[i]}
+					n.children[i].(*InternalNode).Flush(flush)
 				}
 				n.children[i] = &hashedNode{hash: h, commitment: comm}
 				break
