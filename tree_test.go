@@ -321,6 +321,70 @@ func TestComputeRootCommitmentTwoLeaves256(t *testing.T) {
 	}
 }
 
+func TestInsertVsOrdered(t *testing.T) {
+	n := 10000
+	rand.Seed(time.Now().UnixNano())
+	value := []byte("value")
+	keys := randomKeys(n)
+	sortedKeys := make([][]byte, n)
+	copy(sortedKeys[:], keys[:])
+	sort.Slice(sortedKeys, func(i, j int) bool { return bytes.Compare(sortedKeys[i], sortedKeys[j]) < 0 })
+
+	root1 := New(10, lg1)
+	for _, k := range keys {
+		root1.Insert(k, value)
+	}
+	root2 := New(10, lg1)
+	for _, k := range sortedKeys {
+		root2.InsertOrdered(k, value, nil)
+	}
+
+	h1 := root1.Hash().Bytes()
+	h2 := root2.Hash().Bytes()
+
+	if !bytes.Equal(h1, h2) {
+		t.Error("Insert and InsertOrdered produce different trees")
+	}
+}
+
+func TestFlush1kLeaves(t *testing.T) {
+	n := 1000
+	rand.Seed(time.Now().UnixNano())
+	keys := randomKeysSorted(n)
+	value := []byte("value")
+
+	flush := make(chan FlushableNode)
+	go func() {
+		root := New(10, lg1)
+		for _, k := range keys {
+			root.InsertOrdered(k, value, flush)
+		}
+		root.(*InternalNode).Flush(flush)
+		close(flush)
+	}()
+
+	count := 0
+	leaves := 0
+	for f := range flush {
+		_, isLeaf := f.Node.(*leafNode)
+		_, isInternal := f.Node.(*InternalNode)
+		if !isLeaf && !isInternal {
+			t.Fatal("invalid node type received, expected leaf")
+		}
+		if isLeaf {
+			leaves++
+		}
+		count++
+	}
+
+	if leaves != n {
+		t.Errorf("number of flushed leaves incorrect. Expected %d got %d\n", n, leaves)
+	}
+	if count <= n {
+		t.Errorf("number of flushed nodes incorrect. Expected %d got %d\n", n, leaves)
+	}
+}
+
 func BenchmarkCommit1kLeaves(b *testing.B) {
 	benchmarkCommitNLeaves(b, 1000)
 }
@@ -437,4 +501,20 @@ func BenchmarkModifyLeaves(b *testing.B) {
 		}
 		root.ComputeCommitment()
 	}
+}
+
+func randomKeys(n int) [][]byte {
+	keys := make([][]byte, n)
+	for i := 0; i < n; i++ {
+		key := make([]byte, 32)
+		rand.Read(key)
+		keys[i] = key
+	}
+	return keys
+}
+
+func randomKeysSorted(n int) [][]byte {
+	keys := randomKeys(n)
+	sort.Slice(keys, func(i, j int) bool { return bytes.Compare(keys[i], keys[j]) < 0 })
+	return keys
 }
