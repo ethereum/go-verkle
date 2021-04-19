@@ -28,6 +28,7 @@ package verkle
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"math/big"
@@ -112,6 +113,18 @@ type (
 
 	hashedNode struct {
 		hash       common.Hash
+		commitment *bls.G1Point
+	}
+
+	accountLeaf struct {
+		leafNode
+
+		Version  uint64
+		Balance  big.Int
+		Nonce    uint64
+		CodeSize uint64
+		CodeHash common.Hash
+
 		commitment *bls.G1Point
 	}
 
@@ -436,6 +449,113 @@ func (n *InternalNode) Serialize() ([]byte, error) {
 		}
 	}
 	return rlp.EncodeToBytes([]interface{}{bitlist, children})
+}
+
+func (n *accountLeaf) Insert(k []byte, value []byte) error {
+	// The parent insert is expected to ensure that this
+	// situation doesn't occur. This check will catch an
+	// invalid situation while the library stabilizes.
+	if !bytes.Equal(k[:31], n.key[:31]) {
+		return errors.New("inserting invalid key into key")
+	}
+
+	switch k[31] {
+	case 1:
+		n.Balance.SetBytes(value)
+		n.commitment = nil // invalidate commitment
+	case 2:
+		n.Nonce = binary.BigEndian.Uint64(value)
+		n.commitment = nil // invalidate commitment
+	default:
+		return errors.New("writing to read-only location")
+	}
+	return nil
+}
+
+func (n *accountLeaf) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettings, lg1 []bls.G1Point, flush chan FlushableNode) error {
+	err := n.Insert(key, value)
+	if err != nil && flush != nil {
+		flush <- FlushableNode{n.Hash(), n}
+	}
+	return err
+}
+
+func (n *accountLeaf) Get(k []byte) ([]byte, error) {
+	if !bytes.Equal(k, n.key) {
+		return nil, errValueNotPresent
+	}
+
+	switch k[31] {
+	case 0:
+		var ret [8]byte
+		binary.BigEndian.PutUint64(ret[:], n.Version)
+		return ret[:], nil
+	case 1:
+		return n.Balance.Bytes(), nil
+	case 2:
+		var ret [8]byte
+		binary.BigEndian.PutUint64(ret[:], n.Nonce)
+		return ret[:], nil
+	case 3:
+		return n.CodeHash[:], nil
+	case 4:
+		var ret [8]byte
+		binary.BigEndian.PutUint64(ret[:], n.CodeSize)
+		return ret[:], nil
+	default:
+		return nil, errValueNotPresent
+	}
+}
+
+func (n *accountLeaf) ComputeCommitment(ks *kzg.KZGSettings, lg1 []bls.G1Point) *bls.G1Point {
+	// TODO only allocate if the thing isn't already
+	// allocated. Otherwise, just overwrite it.
+	n.commitment = new(bls.G1Point)
+	bls.CopyG1(n.commitment, &bls.ZERO_G1)
+
+	// Build the polynomial based on the account information
+	var poly [5]bls.Fr
+	bls.AsFr(&poly[0], n.Version)
+	var data [32]byte
+	n.Balance.FillBytes(data[:])
+	hashToFr(&poly[1], data)
+	bls.AsFr(&poly[2], n.Nonce)
+	hashToFr(&poly[3], n.CodeHash)
+	bls.AsFr(&poly[4], n.CodeSize)
+
+	for i := range poly {
+		if !bls.EqualZero(&poly[i]) {
+			var eval bls.G1Point
+			bls.MulG1(&eval, &lg1[i], &poly[i])
+			bls.AddG1(n.commitment, n.commitment, &eval)
+		}
+	}
+
+	return n.commitment
+}
+
+func (n *accountLeaf) GetCommitment() *bls.G1Point {
+	return n.commitment
+}
+
+func (n *accountLeaf) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr) {
+	return nil, nil, nil, nil
+}
+
+func (n *accountLeaf) Hash() common.Hash {
+	h := sha256.Sum256(bls.ToCompressedG1(n.ComputeCommitment()))
+	return common.BytesToHash(h[:])
+}
+
+func (n *accountLeaf) Serialize() ([]byte, error) {
+	return rlp.EncodeToBytes(struct {
+		k []byte
+		v uint64
+		b big.Int
+		m uint64
+		h []byte
+		s uint64
+	}{n.key, n.Version, n.Balance, n.Nonce, n.CodeHash[:], n.CodeSize})
 }
 
 func (n *leafNode) Insert(k []byte, value []byte) error {
