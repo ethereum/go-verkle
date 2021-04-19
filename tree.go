@@ -56,6 +56,9 @@ type VerkleNode interface {
 	// is clear that no more values will be inserted in there.
 	InsertOrdered([]byte, []byte, chan FlushableNode) error
 
+	// Adds an account to the tree
+	CreateAccount([]byte, uint64, uint64, uint64, *big.Int, common.Hash) error
+
 	// Get value at key `k`
 	Get(k []byte) ([]byte, error)
 
@@ -120,12 +123,14 @@ type (
 		leafNode
 
 		Version  uint64
-		Balance  big.Int
+		Balance  *big.Int
 		Nonce    uint64
 		CodeSize uint64
 		CodeHash common.Hash
 
 		commitment *bls.G1Point
+
+		treeConfig *TreeConfig
 	}
 
 	leafNode struct {
@@ -317,6 +322,41 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush chan Flusha
 	return nil
 }
 
+func (n *InternalNode) CreateAccount(key []byte, version, nonce, codeSize uint64, balance *big.Int, codeHash common.Hash) error {
+	nChild := offset2Key(key, n.depth, n.treeConfig.width)
+
+	switch child := n.children[nChild].(type) {
+	case *leafNode, *hashedNode, nil:
+		return errors.New("trying to create an account in an invalid subtree")
+	case empty:
+		n.children[nChild] = new(accountLeaf)
+		return n.children[nChild].CreateAccount(key, version, nonce, codeSize, balance, codeHash)
+	case *accountLeaf:
+		// Insert an intermediate node
+		newBranch := newInternalNode(n.depth+n.treeConfig.width, n.treeConfig).(*InternalNode)
+
+		nExisting := offset2Key(child.key, n.depth+1, n.treeConfig.width)
+		nNew := offset2Key(key, n.depth+1, n.treeConfig.width)
+
+		newBranch.children[nExisting] = child
+
+		if nExisting != nNew {
+			// Both the current account node and the inserted
+			// one share the same key segment. Introduce an
+			// intermediate node and recurse.
+			n.children[nChild] = newBranch
+			return newBranch.CreateAccount(key, version, nonce, codeSize, balance, codeHash)
+		}
+
+		// The new branch is the first differing branch, set both of them
+		// in their own slot.
+		n.children[nNew] = new(accountLeaf)
+		return n.children[nNew].CreateAccount(key, version, nonce, codeSize, balance, codeHash)
+	default:
+		return child.CreateAccount(key, version, nonce, codeSize, balance, codeHash)
+	}
+}
+
 // Flush hashes the children of an internal node and replaces them
 // with hashedNode. It also sends the current node on the flush channel.
 func (n *InternalNode) Flush(flush chan FlushableNode) {
@@ -472,7 +512,25 @@ func (n *accountLeaf) Insert(k []byte, value []byte) error {
 	return nil
 }
 
-func (n *accountLeaf) InsertOrdered(key []byte, value []byte, ks *kzg.KZGSettings, lg1 []bls.G1Point, flush chan FlushableNode) error {
+func (n *accountLeaf) CreateAccount(k []byte, version, nonce, codeSize uint64, balance *big.Int, codeHash common.Hash) error {
+	// The parent insert is expected to ensure that this
+	// situation doesn't occur. This check will catch an
+	// invalid situation while the library stabilizes.
+	if !bytes.Equal(k[:31], n.key[:31]) {
+		return errors.New("inserting invalid key into key")
+	}
+
+	n.key = k
+	n.Version = version
+	n.Balance = balance
+	n.Nonce = nonce
+	n.CodeSize = codeSize
+	n.CodeHash = codeHash
+
+	return nil
+}
+
+func (n *accountLeaf) InsertOrdered(key []byte, value []byte, flush chan FlushableNode) error {
 	err := n.Insert(key, value)
 	if err != nil && flush != nil {
 		flush <- FlushableNode{n.Hash(), n}
@@ -507,7 +565,7 @@ func (n *accountLeaf) Get(k []byte) ([]byte, error) {
 	}
 }
 
-func (n *accountLeaf) ComputeCommitment(ks *kzg.KZGSettings, lg1 []bls.G1Point) *bls.G1Point {
+func (n *accountLeaf) ComputeCommitment() *bls.G1Point {
 	// TODO only allocate if the thing isn't already
 	// allocated. Otherwise, just overwrite it.
 	n.commitment = new(bls.G1Point)
@@ -518,15 +576,15 @@ func (n *accountLeaf) ComputeCommitment(ks *kzg.KZGSettings, lg1 []bls.G1Point) 
 	bls.AsFr(&poly[0], n.Version)
 	var data [32]byte
 	n.Balance.FillBytes(data[:])
-	hashToFr(&poly[1], data)
+	hashToFr(&poly[1], data, n.treeConfig.modulus)
 	bls.AsFr(&poly[2], n.Nonce)
-	hashToFr(&poly[3], n.CodeHash)
+	hashToFr(&poly[3], n.CodeHash, n.treeConfig.modulus)
 	bls.AsFr(&poly[4], n.CodeSize)
 
 	for i := range poly {
 		if !bls.EqualZero(&poly[i]) {
 			var eval bls.G1Point
-			bls.MulG1(&eval, &lg1[i], &poly[i])
+			bls.MulG1(&eval, &n.treeConfig.lg1[i], &poly[i])
 			bls.AddG1(n.commitment, n.commitment, &eval)
 		}
 	}
@@ -551,7 +609,7 @@ func (n *accountLeaf) Serialize() ([]byte, error) {
 	return rlp.EncodeToBytes(struct {
 		k []byte
 		v uint64
-		b big.Int
+		b *big.Int
 		m uint64
 		h []byte
 		s uint64
@@ -577,6 +635,10 @@ func (n *leafNode) InsertOrdered(key []byte, value []byte, flush chan FlushableN
 		flush <- FlushableNode{n.Hash(), n}
 	}
 	return err
+}
+
+func (n *leafNode) CreateAccount(key []byte, version, nonce, codeSize uint64, balance *big.Int, codeHash common.Hash) error {
+	return errors.New("inserting an account node in a storage leaf")
 }
 
 func (n *leafNode) Get(k []byte) ([]byte, error) {
@@ -617,6 +679,10 @@ func (n *hashedNode) InsertOrdered(key []byte, value []byte, _ chan FlushableNod
 	return errInsertIntoHash
 }
 
+func (n *hashedNode) CreateAccount(key []byte, version, nonce, codeSize uint64, balance *big.Int, codeHash common.Hash) error {
+	return errors.New("inserting an account node in a hash node")
+}
+
 func (n *hashedNode) Get(k []byte) ([]byte, error) {
 	return nil, errors.New("can not read from a hash node")
 }
@@ -653,6 +719,10 @@ func (e empty) Insert(k []byte, value []byte) error {
 
 func (e empty) InsertOrdered(key []byte, value []byte, _ chan FlushableNode) error {
 	return e.Insert(key, value)
+}
+
+func (e empty) CreateAccount(key []byte, version, nonce, codeSize uint64, balance *big.Int, codeHash common.Hash) error {
+	return errors.New("inserting an account node directly into an empty node")
 }
 
 func (e empty) Get(k []byte) ([]byte, error) {
