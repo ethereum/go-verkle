@@ -322,9 +322,12 @@ func (n *InternalNode) Get(k []byte) ([]byte, error) {
 }
 
 func (n *InternalNode) Hash() common.Hash {
-	comm := n.ComputeCommitment()
-	h := sha256.Sum256(bls.ToCompressedG1(comm))
-	return common.BytesToHash(h[:])
+	digest := sha256.New()
+	for _, child := range n.children {
+		digest.Write(child.Hash().Bytes())
+	}
+
+	return common.BytesToHash(digest.Sum(nil))
 }
 
 // This function takes a hash and turns it into a bls.Fr integer, making
