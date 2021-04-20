@@ -388,6 +388,14 @@ func BenchmarkCommit10kLeaves(b *testing.B) {
 	benchmarkCommitNLeaves(b, 10000)
 }
 
+func BenchmarkCommitLeaves(b *testing.B) {
+	benchmarkCommitNLeaves(b, 1000, 10)
+	benchmarkCommitNLeaves(b, 10000, 10)
+	// TODO rebase in order to get the fix
+	//benchmarkCommitNLeaves(b, 1000, 8)
+	//benchmarkCommitNLeaves(b, 10000, 8)
+}
+
 func BenchmarkCommitFullNode(b *testing.B) {
 	value := []byte("value")
 	keys := make([][]byte, 1024)
