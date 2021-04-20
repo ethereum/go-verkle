@@ -37,15 +37,7 @@ import (
 )
 
 func TestProofGenerationTwoLeaves(t *testing.T) {
-	s1, _ := kzg.GenerateTestingSetup("1927409816240961209460912649124", 1024)
-	fftCfg := kzg.NewFFTSettings(10)
-	var err error
-	lg1, err = fftCfg.FFTG1(s1, true)
-	if err != nil {
-		panic(err)
-	}
-
-	root := New(10, lg1)
+	root := New(10)
 	root.Insert(zeroKeyTest, testValue)
 	root.Insert(ffx32KeyTest, testValue)
 
@@ -85,7 +77,7 @@ func TestProofVerifyTwoLeaves(t *testing.T) {
 	}
 
 	var tc *TreeConfig
-	root := New(10, lg1)
+	root := New(10)
 	if root, ok := root.(*InternalNode); !ok {
 		t.Fatal("root node isn't an *InternalNode")
 	} else {
@@ -97,8 +89,6 @@ func TestProofVerifyTwoLeaves(t *testing.T) {
 	// Calculate all commitments
 	root.ComputeCommitment()
 
-	var s bls.Fr
-	bls.SetFr(&s, "1927409816240961209460912649124")
 	d, y, sigma := MakeVerkleProofOneLeaf(root, zeroKeyTest)
 
 	comms, zis, yis, _ := root.GetCommitmentsAlongPath(zeroKeyTest)
@@ -120,7 +110,7 @@ func BenchmarkProofCalculation(b *testing.B) {
 
 	value := []byte("value")
 	keys := make([][]byte, 100000)
-	root := New(10, lg1)
+	root := New(10)
 	for i := 0; i < 100000; i++ {
 		key := make([]byte, 32)
 		rand.Read(key)
@@ -153,7 +143,7 @@ func BenchmarkProofVerification(b *testing.B) {
 
 	value := []byte("value")
 	keys := make([][]byte, 100000)
-	root := New(10, lg1)
+	root := New(10)
 	var tc *TreeConfig
 	if root, ok := root.(*InternalNode); !ok {
 		b.Fatal("root node isn't an *InternalNode")

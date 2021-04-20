@@ -28,6 +28,7 @@ package verkle
 import (
 	"math/big"
 
+	"github.com/protolambda/go-kzg"
 	"github.com/protolambda/go-kzg/bls"
 )
 
@@ -41,7 +42,47 @@ type TreeConfig struct {
 	lg1               []bls.G1Point
 }
 
-func InitTreeConfig(width int, lg1 []bls.G1Point) *TreeConfig {
+var configs map[int]*TreeConfig
+
+func init() {
+	configs = make(map[int]*TreeConfig)
+}
+
+func GetTreeConfig(width int) *TreeConfig {
+	if cfg, ok := configs[width]; ok {
+		return cfg
+	}
+
+	// Hardcode the secret to simplify the API for the
+	// moment.
+	var s bls.Fr
+	bls.SetFr(&s, "1927409816240961209460912649124")
+
+	var sPow bls.Fr
+	bls.CopyFr(&sPow, &bls.ONE)
+
+	nChildren := 1 << width
+	s1Out := make([]bls.G1Point, nChildren, nChildren)
+	s2Out := make([]bls.G2Point, nChildren, nChildren)
+	for i := 0; i < nChildren; i++ {
+		bls.MulG1(&s1Out[i], &bls.GenG1, &sPow)
+		bls.MulG2(&s2Out[i], &bls.GenG2, &sPow)
+		var tmp bls.Fr
+		bls.CopyFr(&tmp, &sPow)
+		bls.MulModFr(&sPow, &tmp, &s)
+	}
+
+	fftCfg := kzg.NewFFTSettings(uint8(width))
+	lg1, err := fftCfg.FFTG1(s1Out, true)
+	if err != nil {
+		panic(err)
+	}
+
+	configs[width] = initTreeConfig(width, lg1)
+	return configs[width]
+}
+
+func initTreeConfig(width int, lg1 []bls.G1Point) *TreeConfig {
 	tc := &TreeConfig{
 		width:     width,
 		nodeWidth: 1 << width,
@@ -55,7 +96,7 @@ func InitTreeConfig(width int, lg1 []bls.G1Point) *TreeConfig {
 	bls.CopyFr(&tmp, &bls.ONE)
 	for i := 0; i < tc.nodeWidth; i++ {
 		bls.CopyFr(&tc.omegaIs[i], &tmp)
-		bls.MulModFr(&tmp, &tmp, &bls.Scale2RootOfUnity[10])
+		bls.MulModFr(&tmp, &tmp, &bls.Scale2RootOfUnity[width])
 	}
 
 	var ok bool
