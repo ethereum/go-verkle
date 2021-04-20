@@ -40,12 +40,6 @@ func main() {
 }
 
 func benchmarkInsertInExisting(width uint8) {
-	fftCfg := kzg.NewFFTSettings(width)
-	_, _, lg1, err := GenerateTestingSetupWithLagrange("1927409816240961209460912649124", 1024, fftCfg)
-	if err != nil {
-		panic(err)
-	}
-
 	rand.Seed(time.Now().UnixNano())
 
 	// Number of existing leaves in tree
@@ -73,7 +67,7 @@ func benchmarkInsertInExisting(width uint8) {
 
 		// Create tree from same keys multiple times
 		for i := 0; i < 5; i++ {
-			root := verkle.New(int(width), lg1)
+			root := verkle.New(int(width))
 			for _, k := range keys {
 				if err := root.Insert(k, value); err != nil {
 					panic(err)
