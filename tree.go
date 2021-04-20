@@ -135,8 +135,8 @@ func newInternalNode(depth int, tc *TreeConfig) VerkleNode {
 }
 
 // New creates a new tree root
-func New(width int, lg1 []bls.G1Point) VerkleNode {
-	return newInternalNode(0, InitTreeConfig(width, lg1))
+func New(width int) VerkleNode {
+	return newInternalNode(0, GetTreeConfig(width))
 }
 
 // offset2Key extracts the n bits of a key that correspond to the
