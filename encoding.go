@@ -56,7 +56,6 @@ func ParseNode(serialized []byte, tc *TreeConfig) (VerkleNode, error) {
 	} else {
 		return nil, errors.New(ErrInvalidNodeEncoding)
 	}
-	panic("unreachable")
 }
 
 func createInternalNode(bitlist []byte, raw []byte, tc *TreeConfig) (*InternalNode, error) {
