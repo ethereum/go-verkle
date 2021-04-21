@@ -175,6 +175,11 @@ func offset2KeyTenBits(key []byte, offset int) uint {
 }
 
 func (n *InternalNode) Insert(key []byte, value []byte) error {
+	// Clear cached commitment on modification
+	if n.commitment != nil {
+		n.commitment = nil
+	}
+
 	nChild := offset2Key(key, n.depth, n.treeConfig.width)
 
 	switch child := n.children[nChild].(type) {
@@ -215,6 +220,11 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 }
 
 func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush chan FlushableNode) error {
+	// Clear cached commitment on modification
+	if n.commitment != nil {
+		n.commitment = nil
+	}
+
 	nChild := offset2Key(key, n.depth, n.treeConfig.width)
 
 	switch child := n.children[nChild].(type) {
