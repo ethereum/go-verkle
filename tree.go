@@ -420,7 +420,16 @@ func (n *InternalNode) Serialize() ([]byte, error) {
 	var bitlist [128]uint8
 	children := make([]byte, 0, n.treeConfig.nodeWidth*32)
 	for i, c := range n.children {
-		if _, ok := c.(empty); !ok {
+		switch c.(type) {
+		case empty:
+		case *leafNode:
+			setBit(bitlist[:], i)
+			serialized, err := c.Serialize()
+			if err != nil {
+				return nil, err
+			}
+			children = append(children, serialized...)
+		default:
 			setBit(bitlist[:], i)
 			children = append(children, c.Hash().Bytes()...)
 		}
