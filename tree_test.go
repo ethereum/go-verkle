@@ -399,7 +399,11 @@ func benchmarkCommitFullNode(b *testing.B, width int) {
 		keys := make([][]byte, nChildren)
 		for i := 0; i < nChildren; i++ {
 			key := make([]byte, 32)
-			binary.BigEndian.PutUint16(key[:2], uint16(i)<<6)
+			if width == 10 {
+				binary.BigEndian.PutUint16(key[:2], uint16(i)<<6)
+			} else {
+				key[0] = uint8(i)
+			}
 			keys[i] = key
 		}
 
