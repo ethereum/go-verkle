@@ -329,8 +329,15 @@ func (n *InternalNode) CreateAccount(key []byte, version, nonce, codeSize uint64
 	case *leafNode, *hashedNode, nil:
 		return errors.New("trying to create an account in an invalid subtree")
 	case empty:
-		n.children[nChild] = new(accountLeaf)
-		return n.children[nChild].CreateAccount(key, version, nonce, codeSize, balance, codeHash)
+		n.children[nChild] = &accountLeaf{
+			leafNode: leafNode{key: key},
+			Version:  version,
+			Balance:  balance,
+			Nonce:    nonce,
+			CodeSize: codeSize,
+			CodeHash: codeHash,
+		}
+		return nil
 	case *accountLeaf:
 		// Insert an intermediate node
 		newBranch := newInternalNode(n.depth+n.treeConfig.width, n.treeConfig).(*InternalNode)
@@ -491,6 +498,14 @@ func (n *InternalNode) Serialize() ([]byte, error) {
 	return rlp.EncodeToBytes([]interface{}{bitlist, children})
 }
 
+const (
+	accountLeafVersion = iota
+	accountLeafBalance
+	accountLeafNonce
+	accountLeafCodeHash
+	accountLeafCodeSize
+)
+
 func (n *accountLeaf) Insert(k []byte, value []byte) error {
 	// The parent insert is expected to ensure that this
 	// situation doesn't occur. This check will catch an
@@ -500,10 +515,10 @@ func (n *accountLeaf) Insert(k []byte, value []byte) error {
 	}
 
 	switch k[31] {
-	case 1:
+	case accountLeafBalance:
 		n.Balance.SetBytes(value)
 		n.commitment = nil // invalidate commitment
-	case 2:
+	case accountLeafNonce:
 		n.Nonce = binary.BigEndian.Uint64(value)
 		n.commitment = nil // invalidate commitment
 	default:
@@ -513,21 +528,7 @@ func (n *accountLeaf) Insert(k []byte, value []byte) error {
 }
 
 func (n *accountLeaf) CreateAccount(k []byte, version, nonce, codeSize uint64, balance *big.Int, codeHash common.Hash) error {
-	// The parent insert is expected to ensure that this
-	// situation doesn't occur. This check will catch an
-	// invalid situation while the library stabilizes.
-	if !bytes.Equal(k[:31], n.key[:31]) {
-		return errors.New("inserting invalid key into key")
-	}
-
-	n.key = k
-	n.Version = version
-	n.Balance = balance
-	n.Nonce = nonce
-	n.CodeSize = codeSize
-	n.CodeHash = codeHash
-
-	return nil
+	return errors.New("creating over an already exisiting account")
 }
 
 func (n *accountLeaf) InsertOrdered(key []byte, value []byte, flush chan FlushableNode) error {
@@ -544,19 +545,19 @@ func (n *accountLeaf) Get(k []byte) ([]byte, error) {
 	}
 
 	switch k[31] {
-	case 0:
+	case accountLeafVersion:
 		var ret [8]byte
 		binary.BigEndian.PutUint64(ret[:], n.Version)
 		return ret[:], nil
-	case 1:
+	case accountLeafBalance:
 		return n.Balance.Bytes(), nil
-	case 2:
+	case accountLeafNonce:
 		var ret [8]byte
 		binary.BigEndian.PutUint64(ret[:], n.Nonce)
 		return ret[:], nil
-	case 3:
+	case accountLeafCodeHash:
 		return n.CodeHash[:], nil
-	case 4:
+	case accountLeafCodeSize:
 		var ret [8]byte
 		binary.BigEndian.PutUint64(ret[:], n.CodeSize)
 		return ret[:], nil
