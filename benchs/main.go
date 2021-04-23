@@ -10,8 +10,6 @@ import (
 	"github.com/protolambda/go-kzg/bls"
 )
 
-var s1, lg1 []bls.G1Point
-
 // GenerateTestingSetupWithLagrange creates a setup of n values from the given secret,
 // along with the  **for testing purposes only**
 func GenerateTestingSetupWithLagrange(secret string, n uint64, fftCfg *kzg.FFTSettings) ([]bls.G1Point, []bls.G2Point, []bls.G1Point, error) {
@@ -37,17 +35,11 @@ func GenerateTestingSetupWithLagrange(secret string, n uint64, fftCfg *kzg.FFTSe
 }
 
 func main() {
-	var err error
-	fftCfg := kzg.NewFFTSettings(10)
-	s1, _, lg1, err = GenerateTestingSetupWithLagrange("1927409816240961209460912649124", 1024, fftCfg)
-	if err != nil {
-		panic(err)
-	}
-
-	benchmarkInsertInExisting()
+	benchmarkInsertInExisting(10)
+	benchmarkInsertInExisting(8)
 }
 
-func benchmarkInsertInExisting() {
+func benchmarkInsertInExisting(width uint8) {
 	rand.Seed(time.Now().UnixNano())
 
 	// Number of existing leaves in tree
@@ -75,7 +67,7 @@ func benchmarkInsertInExisting() {
 
 		// Create tree from same keys multiple times
 		for i := 0; i < 5; i++ {
-			root := verkle.New(10)
+			root := verkle.New(int(width))
 			for _, k := range keys {
 				if err := root.Insert(k, value); err != nil {
 					panic(err)

@@ -28,6 +28,7 @@ package verkle
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"math/big"
 	"math/rand"
 	"sort"
@@ -380,38 +381,48 @@ func TestCachedCommitment(t *testing.T) {
 	}
 }
 
-func BenchmarkCommit1kLeaves(b *testing.B) {
-	benchmarkCommitNLeaves(b, 1000)
-}
-
-func BenchmarkCommit10kLeaves(b *testing.B) {
-	benchmarkCommitNLeaves(b, 10000)
+func BenchmarkCommitLeaves(b *testing.B) {
+	benchmarkCommitNLeaves(b, 1000, 10)
+	benchmarkCommitNLeaves(b, 10000, 10)
+	benchmarkCommitNLeaves(b, 1000, 8)
+	benchmarkCommitNLeaves(b, 10000, 8)
 }
 
 func BenchmarkCommitFullNode(b *testing.B) {
-	value := []byte("value")
-	keys := make([][]byte, 1024)
-	for i := 0; i < 1024; i++ {
-		key := make([]byte, 32)
-		binary.BigEndian.PutUint16(key[:2], uint16(i)<<6)
-		keys[i] = key
-	}
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for i := 0; i < b.N; i++ {
-		root := New(10)
-		for _, k := range keys {
-			if err := root.Insert(k, value); err != nil {
-				b.Fatal(err)
+	benchmarkCommitFullNode(b, 10)
+	benchmarkCommitFullNode(b, 8)
+}
+func benchmarkCommitFullNode(b *testing.B, width int) {
+	b.Run(fmt.Sprintf("width/%d", width), func(b *testing.B) {
+		nChildren := 1 << width
+		value := []byte("value")
+		keys := make([][]byte, nChildren)
+		for i := 0; i < nChildren; i++ {
+			key := make([]byte, 32)
+			if width == 10 {
+				binary.BigEndian.PutUint16(key[:2], uint16(i)<<6)
+			} else {
+				key[0] = uint8(i)
 			}
+			keys[i] = key
 		}
-		root.ComputeCommitment()
-	}
+
+		b.ResetTimer()
+		b.ReportAllocs()
+
+		for i := 0; i < b.N; i++ {
+			root := New(width)
+			for _, k := range keys {
+				if err := root.Insert(k, value); err != nil {
+					b.Fatal(err)
+				}
+			}
+			root.ComputeCommitment()
+		}
+	})
 }
 
-func benchmarkCommitNLeaves(b *testing.B, n int) {
+func benchmarkCommitNLeaves(b *testing.B, n, width int) {
 	type kv struct {
 		k []byte
 		v []byte
@@ -435,12 +446,12 @@ func benchmarkCommitNLeaves(b *testing.B, n int) {
 	}
 	sortKVs(sortedKVs)
 
-	b.Run("insert", func(b *testing.B) {
+	b.Run(fmt.Sprintf("insert/leaves/%d/width/%d", n, width), func(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
 		for i := 0; i < b.N; i++ {
-			root := New(10)
+			root := New(width)
 			for _, el := range kvs {
 				if err := root.Insert(el.k, el.v); err != nil {
 					b.Error(err)
@@ -450,12 +461,12 @@ func benchmarkCommitNLeaves(b *testing.B, n int) {
 		}
 	})
 
-	b.Run("insertOrdered", func(b *testing.B) {
+	b.Run(fmt.Sprintf("insertOrdered/leaves/%d/width/%d", n, width), func(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 
 		for i := 0; i < b.N; i++ {
-			root := New(10)
+			root := New(width)
 			for _, el := range sortedKVs {
 				if err := root.InsertOrdered(el.k, el.v, nil); err != nil {
 					b.Fatal(err)
