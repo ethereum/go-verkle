@@ -381,6 +381,34 @@ func TestCachedCommitment(t *testing.T) {
 	}
 }
 
+func TestGetCommitmentAlongPathS(t *testing.T) {
+	value := []byte("value")
+	key1 := common.Hex2Bytes("0105000000000000000000000000000000000000000000000000000000000000")
+	key2 := common.Hex2Bytes("0107000000000000000000000000000000000000000000000000000000000000")
+	key3 := common.Hex2Bytes("0405000000000000000000000000000000000000000000000000000000000000")
+	key4 := common.Hex2Bytes("0407000000000000000000000000000000000000000000000000000000000000")
+	tree := New(8)
+	tree.Insert(key1, value)
+	tree.Insert(key2, value)
+	tree.Insert(key3, value)
+	tree.Insert(key4, value)
+	tree.ComputeCommitment()
+
+	cs, zs, ys, fs := tree.GetCommitmentsAlongPaths([][]byte{key3, key4})
+	if len(cs) != 2 {
+		t.Fatalf("invalid number of commitments 2 != %d", len(cs))
+	}
+	if len(zs) != 4 {
+		t.Fatalf("invalid number of zis 4 != %d", len(zs))
+	}
+	if len(ys) != 4 {
+		t.Fatalf("invalid number of yis 4 != %d", len(ys))
+	}
+	if len(fs) != 4 {
+		t.Fatalf("invalid number of fis 4 != %d", len(fs))
+	}
+}
+
 func BenchmarkCommitLeaves(b *testing.B) {
 	benchmarkCommitNLeaves(b, 1000, 10)
 	benchmarkCommitNLeaves(b, 10000, 10)
