@@ -76,6 +76,9 @@ type VerkleNode interface {
 
 	// Serialize encodes the node to RLP.
 	Serialize() ([]byte, error)
+
+	// Copy a node and its children
+	Copy() VerkleNode
 }
 
 const (
@@ -566,6 +569,16 @@ func (n *HashedNode) Serialize() ([]byte, error) {
 	return rlp.EncodeToBytes([][]byte{n.hash[:]})
 }
 
+func (n *hashedNode) Copy() VerkleNode {
+	h := &hashedNode{
+		commitment: new(bls.G1Point),
+	}
+	copy(h.hash[:], n.hash[:])
+	bls.CopyG1(h.commitment, n.commitment)
+
+	return h
+}
+
 func (e Empty) Insert(k []byte, value []byte) error {
 	return errors.New("an empty node should not be inserted directly into")
 }
@@ -596,6 +609,10 @@ func (e Empty) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, [
 
 func (e Empty) Serialize() ([]byte, error) {
 	return nil, errors.New("can't encode empty node to RLP")
+}
+
+func (e Empty) Copy() VerkleNode {
+	return empty(struct{}{})
 }
 
 func setBit(bitlist []uint8, index int) {
