@@ -139,12 +139,12 @@ func New(width int) VerkleNode {
 	return newInternalNode(0, GetTreeConfig(width))
 }
 
-// offset2Key extracts the n bits of a key that correspond to the
+// Offset2Key extracts the n bits of a key that correspond to the
 // index of a child node.
-func offset2Key(key []byte, offset, width int) uint {
+func Offset2Key(key []byte, offset, width int) uint {
 	switch width {
 	case 10:
-		return offset2KeyTenBits(key, offset)
+		return Offset2KeyTenBits(key, offset)
 	case 8:
 		return uint(key[offset/8])
 	default:
@@ -154,7 +154,7 @@ func offset2Key(key []byte, offset, width int) uint {
 	}
 }
 
-func offset2KeyTenBits(key []byte, offset int) uint {
+func Offset2KeyTenBits(key []byte, offset int) uint {
 	// The node has 1024 children, i.e. 10 bits. Extract it
 	// from the key to figure out which child to recurse into.
 	// The number is necessarily spread across 2 bytes because
@@ -172,6 +172,14 @@ func offset2KeyTenBits(key []byte, offset int) uint {
 		ret |= uint(key[nFirstByte+1] >> lastBitShift)
 	}
 	return ret
+}
+
+func (n *InternalNode) Depth() int {
+	return n.depth
+}
+
+func (n *InternalNode) Width() int {
+	return n.treeConfig.width
 }
 
 func (n *InternalNode) Children() []VerkleNode {
@@ -192,7 +200,7 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 		n.commitment = nil
 	}
 
-	nChild := offset2Key(key, n.depth, n.treeConfig.width)
+	nChild := Offset2Key(key, n.depth, n.treeConfig.width)
 
 	switch child := n.children[nChild].(type) {
 	case Empty:
@@ -211,12 +219,12 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 			// A new branch node has to be inserted. Depending
 			// on the next word in both keys, a recursion into
 			// the moved leaf node can occur.
-			nextWordInExistingKey := offset2Key(child.key, n.depth+width, width)
+			nextWordInExistingKey := Offset2Key(child.key, n.depth+width, width)
 			newBranch := newInternalNode(n.depth+width, n.treeConfig).(*InternalNode)
 			n.children[nChild] = newBranch
 			newBranch.children[nextWordInExistingKey] = child
 
-			nextWordInInsertedKey := offset2Key(key, n.depth+width, width)
+			nextWordInInsertedKey := Offset2Key(key, n.depth+width, width)
 			if nextWordInInsertedKey != nextWordInExistingKey {
 				// Next word differs, so this was the last level.
 				// Insert it directly into its final slot.
@@ -237,7 +245,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush chan Flusha
 		n.commitment = nil
 	}
 
-	nChild := offset2Key(key, n.depth, n.treeConfig.width)
+	nChild := Offset2Key(key, n.depth, n.treeConfig.width)
 
 	switch child := n.children[nChild].(type) {
 	case Empty:
@@ -284,11 +292,11 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush chan Flusha
 			// A new branch node has to be inserted. Depending
 			// on the next word in both keys, a recursion into
 			// the moved leaf node can occur.
-			nextWordInExistingKey := offset2Key(child.key, n.depth+width, width)
+			nextWordInExistingKey := Offset2Key(child.key, n.depth+width, width)
 			newBranch := newInternalNode(n.depth+width, n.treeConfig).(*InternalNode)
 			n.children[nChild] = newBranch
 
-			nextWordInInsertedKey := offset2Key(key, n.depth+width, width)
+			nextWordInInsertedKey := Offset2Key(key, n.depth+width, width)
 			if nextWordInInsertedKey != nextWordInExistingKey {
 				// Directly hash the (left) node that was already
 				// inserted.
@@ -333,7 +341,7 @@ func (n *InternalNode) Flush(flush chan FlushableNode) {
 }
 
 func (n *InternalNode) Get(k []byte) ([]byte, error) {
-	nChild := offset2Key(k, n.depth, n.treeConfig.width)
+	nChild := Offset2Key(k, n.depth, n.treeConfig.width)
 
 	switch child := n.children[nChild].(type) {
 	case Empty, *HashedNode, nil:
@@ -424,7 +432,7 @@ func (n *InternalNode) GetCommitment() *bls.G1Point {
 }
 
 func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr) {
-	childIdx := offset2Key(key, n.depth, n.treeConfig.width)
+	childIdx := Offset2Key(key, n.depth, n.treeConfig.width)
 	comms, zis, yis, fis := n.children[childIdx].GetCommitmentsAlongPath(key)
 	var zi, yi bls.Fr
 	bls.AsFr(&zi, uint64(childIdx))

@@ -253,7 +253,7 @@ func TestHashToFrTrailingZeroBytes(t *testing.T) {
 func TestOffset2Key8BitsWide(t *testing.T) {
 	key := common.Hex2Bytes("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
 	for i := 0; i < 32; i++ {
-		childId := offset2Key(key, i*8, 8)
+		childId := Offset2Key(key, i*8, 8)
 		if childId != uint(i) {
 			t.Fatalf("error getting child number in key %d != %d", childId, i)
 		}
@@ -263,13 +263,13 @@ func TestOffset2Key8BitsWide(t *testing.T) {
 func TestOffset2Key10BitsWide(t *testing.T) {
 	key := common.Hex2Bytes("00001008030100501807020090280b0300d0380f040110481305015058170601")
 	for i := 0; i < 25; i++ {
-		childId := offset2Key(key, i*10, 10)
+		childId := Offset2Key(key, i*10, 10)
 		if childId != uint(i) {
 			t.Fatalf("error getting child number in key %d != %d", childId, i)
 		}
 	}
 
-	if childIdx := offset2Key(key, 250, 10); childIdx != 16 {
+	if childIdx := Offset2Key(key, 250, 10); childIdx != 16 {
 		t.Fatalf("error getting last child number in key %d != %d", childIdx, 16)
 	}
 }
