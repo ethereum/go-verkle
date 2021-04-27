@@ -199,7 +199,7 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 			// A new branch node has to be inserted. Depending
 			// on the next word in both keys, a recursion into
 			// the moved leaf node can occur.
-			nextWordInExistingKey := offset2Key(child.key, n.depth+n.treeConfig.width, n.treeConfig.width)
+			nextWordInExistingKey := offset2Key(child.key, n.depth+width, width)
 			newBranch := newInternalNode(n.depth+width, n.treeConfig).(*InternalNode)
 			n.children[nChild] = newBranch
 			newBranch.children[nextWordInExistingKey] = child
