@@ -178,6 +178,10 @@ func (n *InternalNode) Depth() int {
 	return n.depth
 }
 
+func (n *InternalNode) SetDepth(depth int) {
+	n.depth = depth
+}
+
 func (n *InternalNode) Width() int {
 	return n.treeConfig.width
 }
