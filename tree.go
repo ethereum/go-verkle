@@ -45,6 +45,8 @@ type FlushableNode struct {
 	Node VerkleNode
 }
 
+type NodeResolverFn func([]byte) ([]byte, error)
+
 type VerkleNode interface {
 	// Insert or Update value `v` at key `k`
 	Insert(k []byte, v []byte) error
@@ -58,8 +60,8 @@ type VerkleNode interface {
 	// Delete a leaf with the given key
 	Delete([]byte) error
 
-	// Get value at key `k`
-	Get(k []byte) ([]byte, error)
+	// Get value at a given key
+	Get([]byte, NodeResolverFn) ([]byte, error)
 
 	// Hash of the current node
 	Hash() common.Hash
@@ -100,6 +102,7 @@ var (
 	errInsertIntoHash    = errors.New("trying to insert into hashed node")
 	errValueNotPresent   = errors.New("value not present in tree")
 	errDeleteNonExistent = errors.New("trying to delete non-existent leaf")
+	errReadFromInvalid   = errors.New("trying to read from an invalid child")
 
 	zeroHash = common.HexToHash("0000000000000000000000000000000000000000000000000000000000000000")
 )
@@ -401,19 +404,37 @@ func (n *InternalNode) Flush(flush chan FlushableNode) {
 	flush <- FlushableNode{n.Hash(), n}
 }
 
-func (n *InternalNode) Get(k []byte) ([]byte, error) {
+func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 	nChild := Offset2Key(k, n.depth, n.treeConfig.width)
 
 	switch child := n.children[nChild].(type) {
-	case Empty:
+	case Empty, nil:
 		// Return nil as a signal that the value isn't
 		// present in the tree. This matches the behavior
 		// of SecureTrie in Geth.
 		return nil, nil
-	case *HashedNode, nil:
-		return nil, errors.New("trying to read from an invalid child")
-	default:
-		return child.Get(k)
+	case *HashedNode:
+		// if a resolution function is set, resolve the
+		// current hash node.
+		if getter == nil {
+			return nil, errReadFromInvalid
+		}
+
+		payload, err := getter(child.hash[:])
+		if err != nil {
+			return nil, err
+		}
+
+		// deserialize the payload and set it as the child
+		c, err := ParseNode(payload, n.depth, n.treeConfig.width)
+		if err != nil {
+			return nil, err
+		}
+		n.children[nChild] = c
+
+		return c.Get(k, getter)
+	default: // InternalNode
+		return child.Get(k, getter)
 	}
 }
 
@@ -573,7 +594,7 @@ func (n *LeafNode) Delete(k []byte) error {
 	return errors.New("cant delete a leaf in-place")
 }
 
-func (n *LeafNode) Get(k []byte) ([]byte, error) {
+func (n *LeafNode) Get(k []byte, _ NodeResolverFn) ([]byte, error) {
 	if !bytes.Equal(k, n.key) {
 		// If keys differ, return nil in order to
 		// signal that the key isn't present in the
@@ -637,7 +658,7 @@ func (n *HashedNode) Delete(k []byte) error {
 	return errors.New("cant delete a hashed node in-place")
 }
 
-func (n *HashedNode) Get(k []byte) ([]byte, error) {
+func (n *HashedNode) Get(k []byte, _ NodeResolverFn) ([]byte, error) {
 	return nil, errors.New("can not read from a hash node")
 }
 
@@ -689,7 +710,7 @@ func (e Empty) Delete(k []byte) error {
 	return errors.New("cant delete an empty node")
 }
 
-func (e Empty) Get(k []byte) ([]byte, error) {
+func (e Empty) Get(k []byte, _ NodeResolverFn) ([]byte, error) {
 	return nil, nil
 }
 

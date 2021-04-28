@@ -97,7 +97,7 @@ func TestGetTwoLeaves(t *testing.T) {
 	root.Insert(zeroKeyTest, testValue)
 	root.Insert(ffx32KeyTest, testValue)
 
-	val, err := root.Get(zeroKeyTest)
+	val, err := root.Get(zeroKeyTest, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +106,7 @@ func TestGetTwoLeaves(t *testing.T) {
 		t.Fatalf("got a different value from the tree than expected %x != %x", val, testValue)
 	}
 
-	val, err = root.Get(oneKeyTest)
+	val, err = root.Get(oneKeyTest, nil)
 	if err != nil {
 		t.Fatalf("wrong error type, expected %v, got %v", nil, err)
 	}
@@ -454,7 +454,7 @@ func TestDelLeaf(t *testing.T) {
 		t.Error("deleting leaf resulted in unexpected tree")
 	}
 
-	res, err := tree.Get(key3)
+	res, err := tree.Get(key3, nil)
 	if err != nil {
 		t.Error(err)
 	}
