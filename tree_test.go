@@ -477,6 +477,56 @@ func benchmarkCommitNLeaves(b *testing.B, n, width int) {
 	})
 }
 
+func BenchmarkIterativeVSRecursive(b *testing.B) {
+	n := 10000
+	type kv struct {
+		k []byte
+		v []byte
+	}
+	kvs := make([]kv, n)
+	sortedKVs := make([]kv, n)
+
+	rand.Seed(time.Now().UnixNano())
+	for i := 0; i < n; i++ {
+		key := make([]byte, 32)
+		val := make([]byte, 32)
+		rand.Read(key)
+		rand.Read(val)
+		kvs[i] = kv{k: key, v: val}
+		sortedKVs[i] = kv{k: key, v: val}
+	}
+
+	// InsertOrder assumes keys are sorted
+	sortKVs := func(src []kv) {
+		sort.Slice(src, func(i, j int) bool { return bytes.Compare(src[i].k, src[j].k) < 0 })
+	}
+	sortKVs(sortedKVs)
+	b.Run("iterative", func(b *testing.B) {
+		root := New(10).(*InternalNode)
+		b.ResetTimer()
+		b.ReportAllocs()
+
+		for i := 0; i < b.N; i++ {
+			root = New(10).(*InternalNode)
+			for _, el := range sortedKVs {
+				root.InsertOrderedIterative(el.k, el.v, nil)
+			}
+		}
+	})
+	b.Run("recursive", func(b *testing.B) {
+		root := New(10).(*InternalNode)
+		b.ResetTimer()
+		b.ReportAllocs()
+
+		for i := 0; i < b.N; i++ {
+			root = New(10).(*InternalNode)
+			for _, el := range sortedKVs {
+				root.InsertOrdered(el.k, el.v, nil)
+			}
+		}
+	})
+}
+
 func BenchmarkModifyLeaves(b *testing.B) {
 	rand.Seed(time.Now().UnixNano())
 

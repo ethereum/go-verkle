@@ -328,6 +328,96 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush chan Flusha
 	return nil
 }
 
+func (n *InternalNode) InsertOrderedIterative(key []byte, value []byte, flush chan FlushableNode) error {
+	currentNode := n
+
+	for {
+		// Clear cached commitment on modification
+		if currentNode.commitment != nil {
+			currentNode.commitment = nil
+		}
+
+		nChild := Offset2Key(key, currentNode.depth, n.treeConfig.width)
+
+		switch child := currentNode.children[nChild].(type) {
+		case Empty:
+			// Insert into a new subtrie, which means that the
+			// subtree directly preceding this new one, can
+			// safely be calculated.
+			for i := int(nChild) - 1; i >= 0; i-- {
+				switch currentNode.children[i].(type) {
+				case Empty:
+					continue
+				case *LeafNode:
+					childHash := currentNode.children[i].Hash()
+					if flush != nil {
+						flush <- FlushableNode{childHash, currentNode.children[i]}
+					}
+					currentNode.children[i] = &HashedNode{hash: childHash}
+					break
+				case *HashedNode:
+					break
+				default:
+					comm := currentNode.children[i].ComputeCommitment()
+					// Doesn't re-compute commitment as it's cached
+					h := currentNode.children[i].Hash()
+					if flush != nil {
+						currentNode.children[i].(*InternalNode).Flush(flush)
+					}
+					currentNode.children[i] = &HashedNode{hash: h, commitment: comm}
+					break
+				}
+			}
+
+			currentNode.children[nChild] = &LeafNode{key: key, value: value}
+			return nil
+		case *HashedNode:
+			return errInsertIntoHash
+		case *LeafNode:
+			// Need to add a new branch node to differentiate
+			// between two keys, if the keys are different.
+			// Otherwise, just update the key.
+			if bytes.Equal(child.key, key) {
+				child.value = value
+			} else {
+				width := n.treeConfig.width
+
+				// A new branch node has to be inserted. Depending
+				// on the next word in both keys, a recursion into
+				// the moved leaf node can occur.
+				nextWordInExistingKey := Offset2Key(child.key, currentNode.depth+width, width)
+				newBranch := newInternalNode(currentNode.depth+width, n.treeConfig).(*InternalNode)
+				currentNode.children[nChild] = newBranch
+
+				nextWordInInsertedKey := Offset2Key(key, currentNode.depth+width, width)
+				if nextWordInInsertedKey != nextWordInExistingKey {
+					// Directly hash the (left) node that was already
+					// inserted.
+					h := child.Hash()
+					comm := new(bls.G1Point)
+					var tmp bls.Fr
+					hashToFr(&tmp, h, n.treeConfig.modulus)
+					bls.MulG1(comm, &bls.GenG1, &tmp)
+					if flush != nil {
+						flush <- FlushableNode{h, child}
+					}
+					newBranch.children[nextWordInExistingKey] = &HashedNode{hash: h, commitment: comm}
+					// Next word differs, so this was the last level.
+					// Insert it directly into its final slot.
+					newBranch.children[nextWordInInsertedKey] = &LeafNode{key: key, value: value}
+				} else {
+					// Reinsert the leaf in order to recurse
+					newBranch.children[nextWordInExistingKey] = child
+					newBranch.InsertOrdered(key, value, flush)
+				}
+			}
+			return nil
+		case *InternalNode: // InternalNode
+			currentNode = child
+		}
+	}
+}
+
 // Flush hashes the children of an internal node and replaces them
 // with HashedNode. It also sends the current node on the flush channel.
 func (n *InternalNode) Flush(flush chan FlushableNode) {
