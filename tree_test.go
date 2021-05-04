@@ -107,8 +107,11 @@ func TestGetTwoLeaves(t *testing.T) {
 	}
 
 	val, err = root.Get(oneKeyTest)
-	if err != errValueNotPresent {
-		t.Fatalf("wrong error type, expected %v, got %v", errValueNotPresent, err)
+	if err != nil {
+		t.Fatalf("wrong error type, expected %v, got %v", nil, err)
+	}
+	if val != nil {
+		t.Fatalf("Get returned value %x for a non-existing key", val)
 	}
 
 	if val != nil {

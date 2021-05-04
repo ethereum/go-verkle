@@ -348,7 +348,12 @@ func (n *InternalNode) Get(k []byte) ([]byte, error) {
 	nChild := Offset2Key(k, n.depth, n.treeConfig.width)
 
 	switch child := n.children[nChild].(type) {
-	case Empty, *HashedNode, nil:
+	case Empty:
+		// Return nil as a signal that the value isn't
+		// present in the tree. This matches the behavior
+		// of SecureTrie in Geth.
+		return nil, nil
+	case *HashedNode, nil:
 		return nil, errors.New("trying to read from an invalid child")
 	default:
 		return child.Get(k)
@@ -478,7 +483,11 @@ func (n *LeafNode) InsertOrdered(key []byte, value []byte, flush chan FlushableN
 
 func (n *LeafNode) Get(k []byte) ([]byte, error) {
 	if !bytes.Equal(k, n.key) {
-		return nil, errValueNotPresent
+		// If keys differ, return nil in order to
+		// signal that the key isn't present in the
+		// tree. Do not return an error, thus matching
+		// the behavior of Geth's SecureTrie.
+		return nil, nil
 	}
 	return n.value, nil
 }
