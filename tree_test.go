@@ -449,8 +449,8 @@ func TestGetCommitmentAlongPathS(t *testing.T) {
 	tree.ComputeCommitment()
 
 	cs, zs, ys, fs := tree.GetCommitmentsAlongPaths([][]byte{key3, key4})
-	if len(cs) != 2 {
-		t.Fatalf("invalid number of commitments 2 != %d", len(cs))
+	if len(cs) != 4 {
+		t.Fatalf("invalid number of commitments 4 != %d", len(cs))
 	}
 	if len(zs) != 4 {
 		t.Fatalf("invalid number of zis 4 != %d", len(zs))
