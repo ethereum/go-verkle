@@ -501,6 +501,16 @@ func (n *InternalNode) clearCache() {
 	n.commitment = nil
 }
 
+func (n *InternalNode) nonEmptyIndices() []int {
+	indices := make([]int, 0)
+	for i, c := range n.children {
+		if _, ok := c.(Empty); !ok {
+			indices = append(indices, i)
+		}
+	}
+	return indices
+}
+
 func (n *LeafNode) Insert(k []byte, value []byte) error {
 	n.key = k
 	n.value = value
