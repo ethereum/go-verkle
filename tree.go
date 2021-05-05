@@ -76,6 +76,9 @@ type VerkleNode interface {
 
 	// Serialize encodes the node to RLP.
 	Serialize() ([]byte, error)
+
+	// Copy a node and its children
+	Copy() VerkleNode
 }
 
 const (
@@ -467,6 +470,24 @@ func (n *InternalNode) Serialize() ([]byte, error) {
 	return rlp.EncodeToBytes([]interface{}{bitlist, children})
 }
 
+func (n *InternalNode) Copy() VerkleNode {
+	ret := &InternalNode{
+		children:   make([]VerkleNode, len(n.children)),
+		commitment: new(bls.G1Point),
+		depth:      n.depth,
+		treeConfig: n.treeConfig,
+	}
+
+	for i, child := range n.children {
+		ret.children[i] = child.Copy()
+	}
+
+	copy(ret.hash[:], n.hash[:])
+	bls.CopyG1(ret.commitment, n.commitment)
+
+	return ret
+}
+
 // clearCache sets the commitment field of node
 // and all of its children (recursively) to nil.
 func (n *InternalNode) clearCache() {
@@ -528,6 +549,16 @@ func (n *LeafNode) Serialize() ([]byte, error) {
 	return rlp.EncodeToBytes([][]byte{n.key, n.value})
 }
 
+func (n *LeafNode) Copy() VerkleNode {
+	l := &LeafNode{}
+	l.key = make([]byte, len(n.key))
+	l.value = make([]byte, len(n.value))
+	copy(l.key, n.key)
+	copy(l.value, n.value)
+
+	return l
+}
+
 func (n *HashedNode) Insert(k []byte, value []byte) error {
 	return errInsertIntoHash
 }
@@ -566,6 +597,16 @@ func (n *HashedNode) Serialize() ([]byte, error) {
 	return rlp.EncodeToBytes([][]byte{n.hash[:]})
 }
 
+func (n *HashedNode) Copy() VerkleNode {
+	h := &HashedNode{
+		commitment: new(bls.G1Point),
+	}
+	copy(h.hash[:], n.hash[:])
+	bls.CopyG1(h.commitment, n.commitment)
+
+	return h
+}
+
 func (e Empty) Insert(k []byte, value []byte) error {
 	return errors.New("an empty node should not be inserted directly into")
 }
@@ -596,6 +637,10 @@ func (e Empty) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, [
 
 func (e Empty) Serialize() ([]byte, error) {
 	return nil, errors.New("can't encode empty node to RLP")
+}
+
+func (e Empty) Copy() VerkleNode {
+	return Empty(struct{}{})
 }
 
 func setBit(bitlist []uint8, index int) {

@@ -355,6 +355,33 @@ func TestFlush1kLeaves(t *testing.T) {
 	}
 }
 
+func TestCopy(t *testing.T) {
+	value := []byte("value")
+	key1 := common.Hex2Bytes("0105000000000000000000000000000000000000000000000000000000000000")
+	key2 := common.Hex2Bytes("0107000000000000000000000000000000000000000000000000000000000000")
+	key3 := common.Hex2Bytes("0405000000000000000000000000000000000000000000000000000000000000")
+	tree := New(8)
+	tree.Insert(key1, value)
+	tree.Insert(key2, value)
+	tree.Insert(key3, value)
+	tree.ComputeCommitment()
+
+	copied := tree.Copy()
+	copied.(*InternalNode).clearCache()
+
+	if !bytes.Equal(bls.ToCompressedG1(copied.ComputeCommitment()), bls.ToCompressedG1(tree.ComputeCommitment())) {
+		t.Fatal("error copying commitments")
+	}
+	if copied.Hash() != tree.Hash() {
+		t.Fatal("error copying commitments")
+	}
+	tree.Insert(key2, []byte("changed"))
+	tree.ComputeCommitment()
+	if bytes.Equal(bls.ToCompressedG1(copied.GetCommitment()), bls.ToCompressedG1(tree.GetCommitment())) {
+		t.Fatal("error tree and its copy should have a different commitment after the update")
+	}
+}
+
 func TestCachedCommitment(t *testing.T) {
 	value := []byte("value")
 	key1 := common.Hex2Bytes("0105000000000000000000000000000000000000000000000000000000000000")
