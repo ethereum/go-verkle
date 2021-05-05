@@ -70,7 +70,7 @@ func createInternalNode(bitlist []byte, raw []byte, tc *TreeConfig) (*InternalNo
 func indicesFromBitlist(bitlist []byte) []int {
 	indices := make([]int, 0)
 	for i, b := range bitlist {
-		if b&0xff == 0x00 {
+		if b == 0 {
 			continue
 		}
 		for j := 0; j < 8; j++ {
