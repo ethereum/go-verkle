@@ -19,37 +19,36 @@ func ParseNode(serialized []byte, tc *TreeConfig) (VerkleNode, error) {
 		return nil, err
 	}
 
-	if c == 1 {
-		// HashedNode
-		panic("parsing hashed node is unsupported")
-	} else if c == 2 {
-		// either leaf or internal
-		kind, first, rest, err := rlp.Split(elems)
+	if c != 2 {
+		// hashed node decoding not supported
+		return nil, errors.New(ErrInvalidNodeEncoding)
+	}
+
+	// either leaf or internal
+	kind, first, rest, err := rlp.Split(elems)
+	if err != nil {
+		return nil, err
+	}
+	if kind != rlp.String {
+		return nil, errors.New(ErrInvalidNodeEncoding)
+	}
+
+	switch len(first) {
+	case 32:
+		// leaf
+		value, _, err := rlp.SplitString(rest)
 		if err != nil {
 			return nil, err
 		}
-		if kind != rlp.String {
-			return nil, errors.New(ErrInvalidNodeEncoding)
+		return &LeafNode{key: first, value: value}, nil
+	case 128:
+		// internal
+		children, _, err := rlp.SplitString(rest)
+		if err != nil {
+			return nil, err
 		}
-
-		if len(first) == 32 {
-			// leaf
-			value, _, err := rlp.SplitString(rest)
-			if err != nil {
-				return nil, err
-			}
-			return &LeafNode{key: first, value: value}, nil
-		} else if len(first) == 128 {
-			// internal
-			children, _, err := rlp.SplitString(rest)
-			if err != nil {
-				return nil, err
-			}
-			return createInternalNode(first, children, tc)
-		} else {
-			return nil, errors.New(ErrInvalidNodeEncoding)
-		}
-	} else {
+		return createInternalNode(first, children, tc)
+	default:
 		return nil, errors.New(ErrInvalidNodeEncoding)
 	}
 }
