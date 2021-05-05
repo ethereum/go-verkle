@@ -467,6 +467,19 @@ func (n *InternalNode) Serialize() ([]byte, error) {
 	return rlp.EncodeToBytes([]interface{}{bitlist, children})
 }
 
+// clearCache sets the commitment field of node
+// and all of its children (recursively) to nil.
+func (n *InternalNode) clearCache() {
+	for _, c := range n.children {
+		in, ok := c.(*InternalNode)
+		if !ok {
+			continue
+		}
+		in.clearCache()
+	}
+	n.commitment = nil
+}
+
 func (n *LeafNode) Insert(k []byte, value []byte) error {
 	n.key = k
 	n.value = value

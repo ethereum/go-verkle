@@ -384,6 +384,29 @@ func TestCachedCommitment(t *testing.T) {
 	}
 }
 
+func TestClearCache(t *testing.T) {
+	value := []byte("value")
+	key1 := common.Hex2Bytes("0105000000000000000000000000000000000000000000000000000000000000")
+	key2 := common.Hex2Bytes("0107000000000000000000000000000000000000000000000000000000000000")
+	key3 := common.Hex2Bytes("0405000000000000000000000000000000000000000000000000000000000000")
+	tree := New(8)
+	tree.Insert(key1, value)
+	tree.Insert(key2, value)
+	tree.Insert(key3, value)
+	tree.ComputeCommitment()
+
+	root := tree.(*InternalNode)
+	root.clearCache()
+
+	if root.commitment != nil {
+		t.Error("root cached commitment should have been cleared")
+	}
+
+	if root.children[1].(*InternalNode).commitment != nil {
+		t.Error("internal child's cached commitment should have been cleared")
+	}
+}
+
 func BenchmarkCommitLeaves(b *testing.B) {
 	benchmarkCommitNLeaves(b, 1000, 10)
 	benchmarkCommitNLeaves(b, 10000, 10)
