@@ -21,11 +21,7 @@ func ParseNode(serialized []byte, tc *TreeConfig) (VerkleNode, error) {
 
 	if c == 1 {
 		// HashedNode
-		hash, _, err := rlp.SplitString(elems)
-		if err != nil {
-			return nil, err
-		}
-		return &HashedNode{hash: common.BytesToHash(hash)}, nil
+		panic("parsing hashed node is unsupported")
 	} else if c == 2 {
 		// either leaf or internal
 		kind, first, rest, err := rlp.Split(elems)
