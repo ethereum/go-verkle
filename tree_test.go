@@ -434,7 +434,7 @@ func TestClearCache(t *testing.T) {
 		t.Error("internal child's cached commitment should have been cleared")
 	}
 }
-  
+
 func TestGetCommitmentAlongPathS(t *testing.T) {
 	value := []byte("value")
 	key1 := common.Hex2Bytes("0105000000000000000000000000000000000000000000000000000000000000")
