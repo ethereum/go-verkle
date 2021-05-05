@@ -367,8 +367,9 @@ func TestCopy(t *testing.T) {
 	tree.ComputeCommitment()
 
 	copied := tree.Copy()
+	copied.(*InternalNode).clearCache()
 
-	if !bytes.Equal(bls.ToCompressedG1(copied.GetCommitment()), bls.ToCompressedG1(tree.GetCommitment())) {
+	if !bytes.Equal(bls.ToCompressedG1(copied.ComputeCommitment()), bls.ToCompressedG1(tree.ComputeCommitment())) {
 		t.Fatal("error copying commitments")
 	}
 	if copied.Hash() != tree.Hash() {
