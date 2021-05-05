@@ -582,52 +582,96 @@ func TestNodeSerde(t *testing.T) {
 	tree := New(10)
 	tree.Insert(zeroKeyTest, testValue)
 	tree.Insert(fourtyKeyTest, testValue)
-
 	root := tree.(*InternalNode)
 	tc := root.treeConfig
+
+	// Serialize all the nodes
+	leaf0 := (root.children[0]).(*LeafNode)
+	ls0, err := leaf0.Serialize()
+	if err != nil {
+		t.Error(err)
+	}
+
+	leaf256 := (root.children[256]).(*LeafNode)
+	ls256, err := leaf256.Serialize()
+	if err != nil {
+		t.Error(err)
+	}
+
 	rs, err := root.Serialize()
 	if err != nil {
 		t.Error(err)
 	}
-	res, err := ParseNode(rs, 0, tc)
+
+	// Now deserialize and re-construct tree
+	res, err := ParseNode(ls0, 1, tc)
+	if err != nil {
+		t.Error(err)
+	}
+	resLeaf0 := res.(*LeafNode)
+
+	res, err = ParseNode(ls256, 1, tc)
+	if err != nil {
+		t.Error(err)
+	}
+	resLeaf256 := res.(*LeafNode)
+
+	res, err = ParseNode(rs, 0, tc)
 	if err != nil {
 		t.Error(err)
 	}
 	resRoot := res.(*InternalNode)
-	isInternalEqual(root, resRoot, t)
 
-	leaf := (root.children[0]).(*LeafNode)
-	ls, err := leaf.Serialize()
-	if err != nil {
-		t.Error(err)
-	}
+	resRoot.children[0] = resLeaf0
+	resRoot.children[256] = resLeaf256
 
-	res, err = ParseNode(ls, 1, tc)
-	if err != nil {
-		t.Error(err)
-	}
-	resLeaf := res.(*LeafNode)
-	if !bytes.Equal(leaf.key, resLeaf.key) {
-		t.Errorf("deserialized leaf has incorrect key. Expected %x, got %x\n", leaf.key, resLeaf.key)
-	}
-	if !bytes.Equal(leaf.value, resLeaf.value) {
-		t.Errorf("deserialized leaf has incorrect value. Expected %x, got %x\n", leaf.value, resLeaf.value)
+	if !isInternalEqual(root, resRoot) {
+		t.Error("parsed node not equal")
 	}
 }
 
-func isInternalEqual(a, b *InternalNode, t *testing.T) bool {
+func isInternalEqual(a, b *InternalNode) bool {
 	if a.treeConfig.nodeWidth != b.treeConfig.nodeWidth {
 		return false
 	}
 
 	for i := 0; i < a.treeConfig.nodeWidth; i++ {
-		_, acEmpty := a.children[i].(Empty)
-		_, bcEmpty := b.children[i].(Empty)
-		// TODO: Check child's value
-		if acEmpty != bcEmpty {
-			return false
+		c := a.children[i]
+		switch c.(type) {
+		case Empty:
+			if _, ok := b.children[i].(Empty); !ok {
+				return false
+			}
+		case *HashedNode:
+			hn, ok := b.children[i].(*HashedNode)
+			if !ok {
+				return false
+			}
+			if !bytes.Equal(c.(*HashedNode).hash.Bytes(), hn.hash.Bytes()) {
+				return false
+			}
+		case *LeafNode:
+			ln, ok := b.children[i].(*LeafNode)
+			if !ok {
+				return false
+			}
+			if !isLeafEqual(c.(*LeafNode), ln) {
+				return false
+			}
+		case *InternalNode:
+			in, ok := b.children[i].(*InternalNode)
+			if !ok {
+				return false
+			}
+			if !isInternalEqual(c.(*InternalNode), in) {
+				return false
+			}
 		}
 	}
 
 	return true
+}
+
+func isLeafEqual(a, b *LeafNode) bool {
+	return bytes.Equal(a.key, b.key) && bytes.Equal(a.value, b.value)
 }
