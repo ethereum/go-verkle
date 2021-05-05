@@ -58,7 +58,7 @@ func TestInsertIntoRoot(t *testing.T) {
 		t.Fatalf("error inserting: %v", err)
 	}
 
-	leaf, ok := root.(*InternalNode).children[0].(*leafNode)
+	leaf, ok := root.(*InternalNode).children[0].(*LeafNode)
 	if !ok {
 		t.Fatalf("invalid leaf node type %v", root.(*InternalNode).children[0])
 	}
@@ -73,12 +73,12 @@ func TestInsertTwoLeaves(t *testing.T) {
 	root.Insert(zeroKeyTest, testValue)
 	root.Insert(ffx32KeyTest, testValue)
 
-	leaf0, ok := root.(*InternalNode).children[0].(*leafNode)
+	leaf0, ok := root.(*InternalNode).children[0].(*LeafNode)
 	if !ok {
 		t.Fatalf("invalid leaf node type %v", root.(*InternalNode).children[0])
 	}
 
-	leaff, ok := root.(*InternalNode).children[1023].(*leafNode)
+	leaff, ok := root.(*InternalNode).children[1023].(*LeafNode)
 	if !ok {
 		t.Fatalf("invalid leaf node type %v", root.(*InternalNode).children[1023])
 	}
@@ -107,8 +107,11 @@ func TestGetTwoLeaves(t *testing.T) {
 	}
 
 	val, err = root.Get(oneKeyTest)
-	if err != errValueNotPresent {
-		t.Fatalf("wrong error type, expected %v, got %v", errValueNotPresent, err)
+	if err != nil {
+		t.Fatalf("wrong error type, expected %v, got %v", nil, err)
+	}
+	if val != nil {
+		t.Fatalf("Get returned value %x for a non-existing key", val)
 	}
 
 	if val != nil {
@@ -204,7 +207,7 @@ func TestComputeRootCommitmentOnlineThreeLeavesFlush(t *testing.T) {
 
 	count := 0
 	for f := range flush {
-		_, isLeaf := f.Node.(*leafNode)
+		_, isLeaf := f.Node.(*LeafNode)
 		_, isInternal := f.Node.(*InternalNode)
 		if !isLeaf && !isInternal {
 			t.Fatal("invalid node type received, expected leaf")
@@ -253,7 +256,7 @@ func TestHashToFrTrailingZeroBytes(t *testing.T) {
 func TestOffset2Key8BitsWide(t *testing.T) {
 	key := common.Hex2Bytes("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
 	for i := 0; i < 32; i++ {
-		childId := offset2Key(key, i*8, 8)
+		childId := Offset2Key(key, i*8, 8)
 		if childId != uint(i) {
 			t.Fatalf("error getting child number in key %d != %d", childId, i)
 		}
@@ -263,13 +266,13 @@ func TestOffset2Key8BitsWide(t *testing.T) {
 func TestOffset2Key10BitsWide(t *testing.T) {
 	key := common.Hex2Bytes("00001008030100501807020090280b0300d0380f040110481305015058170601")
 	for i := 0; i < 25; i++ {
-		childId := offset2Key(key, i*10, 10)
+		childId := Offset2Key(key, i*10, 10)
 		if childId != uint(i) {
 			t.Fatalf("error getting child number in key %d != %d", childId, i)
 		}
 	}
 
-	if childIdx := offset2Key(key, 250, 10); childIdx != 16 {
+	if childIdx := Offset2Key(key, 250, 10); childIdx != 16 {
 		t.Fatalf("error getting last child number in key %d != %d", childIdx, 16)
 	}
 }
@@ -333,7 +336,7 @@ func TestFlush1kLeaves(t *testing.T) {
 	count := 0
 	leaves := 0
 	for f := range flush {
-		_, isLeaf := f.Node.(*leafNode)
+		_, isLeaf := f.Node.(*LeafNode)
 		_, isInternal := f.Node.(*InternalNode)
 		if !isLeaf && !isInternal {
 			t.Fatal("invalid node type received, expected leaf")
@@ -349,6 +352,33 @@ func TestFlush1kLeaves(t *testing.T) {
 	}
 	if count <= n {
 		t.Errorf("number of flushed nodes incorrect. Expected %d got %d\n", n, leaves)
+	}
+}
+
+func TestCopy(t *testing.T) {
+	value := []byte("value")
+	key1 := common.Hex2Bytes("0105000000000000000000000000000000000000000000000000000000000000")
+	key2 := common.Hex2Bytes("0107000000000000000000000000000000000000000000000000000000000000")
+	key3 := common.Hex2Bytes("0405000000000000000000000000000000000000000000000000000000000000")
+	tree := New(8)
+	tree.Insert(key1, value)
+	tree.Insert(key2, value)
+	tree.Insert(key3, value)
+	tree.ComputeCommitment()
+
+	copied := tree.Copy()
+	copied.(*InternalNode).clearCache()
+
+	if !bytes.Equal(bls.ToCompressedG1(copied.ComputeCommitment()), bls.ToCompressedG1(tree.ComputeCommitment())) {
+		t.Fatal("error copying commitments")
+	}
+	if copied.Hash() != tree.Hash() {
+		t.Fatal("error copying commitments")
+	}
+	tree.Insert(key2, []byte("changed"))
+	tree.ComputeCommitment()
+	if bytes.Equal(bls.ToCompressedG1(copied.GetCommitment()), bls.ToCompressedG1(tree.GetCommitment())) {
+		t.Fatal("error tree and its copy should have a different commitment after the update")
 	}
 }
 
@@ -381,6 +411,30 @@ func TestCachedCommitment(t *testing.T) {
 	}
 }
 
+func TestClearCache(t *testing.T) {
+	value := []byte("value")
+	key1 := common.Hex2Bytes("0105000000000000000000000000000000000000000000000000000000000000")
+	key2 := common.Hex2Bytes("0107000000000000000000000000000000000000000000000000000000000000")
+	key3 := common.Hex2Bytes("0405000000000000000000000000000000000000000000000000000000000000")
+
+	tree := New(8)
+	tree.Insert(key1, value)
+	tree.Insert(key2, value)
+	tree.Insert(key3, value)
+	tree.ComputeCommitment()
+
+	root := tree.(*InternalNode)
+	root.clearCache()
+
+	if root.commitment != nil {
+		t.Error("root cached commitment should have been cleared")
+	}
+
+	if root.children[1].(*InternalNode).commitment != nil {
+		t.Error("internal child's cached commitment should have been cleared")
+	}
+}
+  
 func TestGetCommitmentAlongPathS(t *testing.T) {
 	value := []byte("value")
 	key1 := common.Hex2Bytes("0105000000000000000000000000000000000000000000000000000000000000")
