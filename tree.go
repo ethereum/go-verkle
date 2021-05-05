@@ -551,6 +551,8 @@ func (n *LeafNode) Serialize() ([]byte, error) {
 
 func (n *LeafNode) Copy() VerkleNode {
 	l := &LeafNode{}
+	l.key = make([]byte, len(n.key))
+	l.value = make([]byte, len(n.value))
 	copy(l.key, n.key)
 	copy(l.value, n.value)
 
