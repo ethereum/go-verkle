@@ -589,7 +589,7 @@ func TestNodeSerde(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	res, err := ParseNode(rs, tc)
+	res, err := ParseNode(rs, 0, tc)
 	if err != nil {
 		t.Error(err)
 	}
@@ -602,7 +602,7 @@ func TestNodeSerde(t *testing.T) {
 		t.Error(err)
 	}
 
-	res, err = ParseNode(ls, tc)
+	res, err = ParseNode(ls, 1, tc)
 	if err != nil {
 		t.Error(err)
 	}

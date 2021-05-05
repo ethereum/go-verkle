@@ -9,7 +9,7 @@ import (
 
 const ErrInvalidNodeEncoding = "invalid node encoding"
 
-func ParseNode(serialized []byte, tc *TreeConfig) (VerkleNode, error) {
+func ParseNode(serialized []byte, depth int, tc *TreeConfig) (VerkleNode, error) {
 	elems, _, err := rlp.SplitList(serialized)
 	if err != nil {
 		return nil, err
@@ -47,15 +47,14 @@ func ParseNode(serialized []byte, tc *TreeConfig) (VerkleNode, error) {
 		if err != nil {
 			return nil, err
 		}
-		return createInternalNode(first, children, tc)
+		return createInternalNode(first, children, depth, tc)
 	default:
 		return nil, errors.New(ErrInvalidNodeEncoding)
 	}
 }
 
-func createInternalNode(bitlist []byte, raw []byte, tc *TreeConfig) (*InternalNode, error) {
-	// TODO: fix depth
-	n := (newInternalNode(0, tc)).(*InternalNode)
+func createInternalNode(bitlist []byte, raw []byte, depth int, tc *TreeConfig) (*InternalNode, error) {
+	n := (newInternalNode(depth, tc)).(*InternalNode)
 	indices := indicesFromBitlist(bitlist)
 	if len(raw)/32 != len(indices) {
 		return nil, errors.New(ErrInvalidNodeEncoding)
@@ -72,6 +71,7 @@ func indicesFromBitlist(bitlist []byte) []int {
 		if b == 0 {
 			continue
 		}
+		// the bitmap is little-endian, inside a big-endian byte list
 		for j := 0; j < 8; j++ {
 			mask := byte(1 << j)
 			if b&mask == mask {
