@@ -86,6 +86,11 @@ const (
 	// computing commitment. Number refers to non-zero
 	// children in a node.
 	multiExpThreshold = 110
+
+	// These types will distinguish internal
+	// and leaf nodes when decoding from RLP.
+	internalRLPType byte = 1
+	leafRLPType     byte = 2
 )
 
 var (
@@ -467,7 +472,7 @@ func (n *InternalNode) Serialize() ([]byte, error) {
 			children = append(children, c.Hash().Bytes()...)
 		}
 	}
-	return rlp.EncodeToBytes([]interface{}{bitlist, children})
+	return rlp.EncodeToBytes([]interface{}{internalRLPType, bitlist, children})
 }
 
 func (n *InternalNode) Copy() VerkleNode {
@@ -556,7 +561,7 @@ func (n *LeafNode) Hash() common.Hash {
 }
 
 func (n *LeafNode) Serialize() ([]byte, error) {
-	return rlp.EncodeToBytes([][]byte{n.key, n.value})
+	return rlp.EncodeToBytes([]interface{}{leafRLPType, n.key, n.value})
 }
 
 func (n *LeafNode) Copy() VerkleNode {

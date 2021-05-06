@@ -579,11 +579,11 @@ func randomKeysSorted(n int) [][]byte {
 }
 
 func TestNodeSerde(t *testing.T) {
-	tree := New(10)
+	width := 10
+	tree := New(width)
 	tree.Insert(zeroKeyTest, testValue)
 	tree.Insert(fourtyKeyTest, testValue)
 	root := tree.(*InternalNode)
-	tc := root.treeConfig
 
 	// Serialize all the nodes
 	leaf0 := (root.children[0]).(*LeafNode)
@@ -604,19 +604,19 @@ func TestNodeSerde(t *testing.T) {
 	}
 
 	// Now deserialize and re-construct tree
-	res, err := ParseNode(ls0, 1, tc)
+	res, err := ParseNode(ls0, 1, width)
 	if err != nil {
 		t.Error(err)
 	}
 	resLeaf0 := res.(*LeafNode)
 
-	res, err = ParseNode(ls256, 1, tc)
+	res, err = ParseNode(ls256, 1, width)
 	if err != nil {
 		t.Error(err)
 	}
 	resLeaf256 := res.(*LeafNode)
 
-	res, err = ParseNode(rs, 0, tc)
+	res, err = ParseNode(rs, 0, width)
 	if err != nil {
 		t.Error(err)
 	}
