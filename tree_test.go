@@ -434,6 +434,35 @@ func TestClearCache(t *testing.T) {
 	}
 }
 
+func TestDelLeaf(t *testing.T) {
+	value := []byte("value")
+	key1 := common.Hex2Bytes("0105000000000000000000000000000000000000000000000000000000000000")
+	key2 := common.Hex2Bytes("0107000000000000000000000000000000000000000000000000000000000000")
+	key3 := common.Hex2Bytes("0405000000000000000000000000000000000000000000000000000000000000")
+	tree := New(8)
+	tree.Insert(key1, value)
+	tree.Insert(key2, value)
+	hash := tree.Hash()
+
+	tree.Insert(key3, value)
+	if err := tree.Delete(key3); err != nil {
+		t.Error(err)
+	}
+
+	postHash := tree.Hash()
+	if !bytes.Equal(hash.Bytes(), postHash.Bytes()) {
+		t.Error("deleting leaf resulted in unexpected tree")
+	}
+
+	res, err := tree.Get(key3)
+	if err != nil {
+		t.Error(err)
+	}
+	if res != nil {
+		t.Error("leaf hasnt been deleted")
+	}
+}
+
 func BenchmarkCommitLeaves(b *testing.B) {
 	benchmarkCommitNLeaves(b, 1000, 10)
 	benchmarkCommitNLeaves(b, 10000, 10)

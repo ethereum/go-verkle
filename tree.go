@@ -55,6 +55,9 @@ type VerkleNode interface {
 	// is clear that no more values will be inserted in there.
 	InsertOrdered([]byte, []byte, chan FlushableNode) error
 
+	// Delete a leaf with the given key
+	Delete([]byte) error
+
 	// Get value at key `k`
 	Get(k []byte) ([]byte, error)
 
@@ -331,6 +334,32 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush chan Flusha
 	return nil
 }
 
+func (n *InternalNode) Delete(key []byte) error {
+	// Clear cached commitment on modification
+	if n.commitment != nil {
+		n.commitment = nil
+	}
+
+	nChild := Offset2Key(key, n.depth, n.treeConfig.width)
+	switch child := n.children[nChild].(type) {
+	case Empty:
+		// TODO: should return error?
+		return nil
+	case *HashedNode:
+		return errors.New("trying to delete from a hashed subtree")
+	case *LeafNode:
+		if !bytes.Equal(child.key, key) {
+			// TODO: should return error for non-existent key?
+			return nil
+		}
+		n.children[nChild] = Empty{}
+		return nil
+	default:
+		child.Delete(key)
+	}
+	return nil
+}
+
 // Flush hashes the children of an internal node and replaces them
 // with HashedNode. It also sends the current node on the flush channel.
 func (n *InternalNode) Flush(flush chan FlushableNode) {
@@ -525,6 +554,10 @@ func (n *LeafNode) InsertOrdered(key []byte, value []byte, flush chan FlushableN
 	return err
 }
 
+func (n *LeafNode) Delete(k []byte) error {
+	return errors.New("cant delete a leaf in-place")
+}
+
 func (n *LeafNode) Get(k []byte) ([]byte, error) {
 	if !bytes.Equal(k, n.key) {
 		// If keys differ, return nil in order to
@@ -577,6 +610,10 @@ func (n *HashedNode) InsertOrdered(key []byte, value []byte, _ chan FlushableNod
 	return errInsertIntoHash
 }
 
+func (n *HashedNode) Delete(k []byte) error {
+	return errors.New("cant delete a hashed node in-place")
+}
+
 func (n *HashedNode) Get(k []byte) ([]byte, error) {
 	return nil, errors.New("can not read from a hash node")
 }
@@ -623,6 +660,10 @@ func (e Empty) Insert(k []byte, value []byte) error {
 
 func (e Empty) InsertOrdered(key []byte, value []byte, _ chan FlushableNode) error {
 	return e.Insert(key, value)
+}
+
+func (e Empty) Delete(k []byte) error {
+	return errors.New("cant delete an empty node")
 }
 
 func (e Empty) Get(k []byte) ([]byte, error) {
