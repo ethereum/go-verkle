@@ -19,35 +19,41 @@ func ParseNode(serialized []byte, depth, width int) (VerkleNode, error) {
 		return nil, err
 	}
 
-	if c != 2 {
+	if c != 3 {
 		// hashed node decoding not supported
 		return nil, errors.New(ErrInvalidNodeEncoding)
 	}
 
 	// either leaf or internal
-	kind, first, rest, err := rlp.Split(elems)
+	kind, typ, rest, err := rlp.Split(elems)
 	if err != nil {
 		return nil, err
 	}
-	if kind != rlp.String {
+	if kind != rlp.Byte || len(typ) != 1 {
 		return nil, errors.New(ErrInvalidNodeEncoding)
 	}
 
-	switch len(first) {
-	case 32:
-		// leaf
+	switch typ[0] {
+	case leafRLPType:
+		key, rest, err := rlp.SplitString(rest)
+		if err != nil {
+			return nil, err
+		}
 		value, _, err := rlp.SplitString(rest)
 		if err != nil {
 			return nil, err
 		}
-		return &LeafNode{key: first, value: value}, nil
-	case 128:
-		// internal
+		return &LeafNode{key: key, value: value}, nil
+	case internalRLPType:
+		bitlist, rest, err := rlp.SplitString(rest)
+		if err != nil {
+			return nil, err
+		}
 		children, _, err := rlp.SplitString(rest)
 		if err != nil {
 			return nil, err
 		}
-		return createInternalNode(first, children, depth, width)
+		return createInternalNode(bitlist, children, depth, width)
 	default:
 		return nil, errors.New(ErrInvalidNodeEncoding)
 	}
