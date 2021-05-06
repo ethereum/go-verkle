@@ -463,6 +463,19 @@ func TestDelLeaf(t *testing.T) {
 	}
 }
 
+func TestDeleteNonExistent(t *testing.T) {
+	value := []byte("value")
+	key1 := common.Hex2Bytes("0105000000000000000000000000000000000000000000000000000000000000")
+	key2 := common.Hex2Bytes("0107000000000000000000000000000000000000000000000000000000000000")
+	key3 := common.Hex2Bytes("0405000000000000000000000000000000000000000000000000000000000000")
+	tree := New(8)
+	tree.Insert(key1, value)
+	tree.Insert(key2, value)
+	if err := tree.Delete(key3); err != errDeleteNonExistent {
+		t.Error("should fail to delete non-existent key")
+	}
+}
+
 func BenchmarkCommitLeaves(b *testing.B) {
 	benchmarkCommitNLeaves(b, 1000, 10)
 	benchmarkCommitNLeaves(b, 10000, 10)

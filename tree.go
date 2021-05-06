@@ -92,8 +92,9 @@ const (
 )
 
 var (
-	errInsertIntoHash  = errors.New("trying to insert into hashed node")
-	errValueNotPresent = errors.New("value not present in tree")
+	errInsertIntoHash    = errors.New("trying to insert into hashed node")
+	errValueNotPresent   = errors.New("value not present in tree")
+	errDeleteNonExistent = errors.New("trying to delete non-existent leaf")
 
 	zeroHash = common.HexToHash("0000000000000000000000000000000000000000000000000000000000000000")
 )
@@ -343,14 +344,12 @@ func (n *InternalNode) Delete(key []byte) error {
 	nChild := Offset2Key(key, n.depth, n.treeConfig.width)
 	switch child := n.children[nChild].(type) {
 	case Empty:
-		// TODO: should return error?
-		return nil
+		return errDeleteNonExistent
 	case *HashedNode:
 		return errors.New("trying to delete from a hashed subtree")
 	case *LeafNode:
 		if !bytes.Equal(child.key, key) {
-			// TODO: should return error for non-existent key?
-			return nil
+			return errDeleteNonExistent
 		}
 		n.children[nChild] = Empty{}
 		return nil
