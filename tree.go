@@ -606,6 +606,14 @@ func (n *LeafNode) Copy() VerkleNode {
 	return l
 }
 
+func (n *LeafNode) Key() []byte {
+	return n.key
+}
+
+func (n *LeafNode) Value() []byte {
+	return n.value
+}
+
 func (n *HashedNode) Insert(k []byte, value []byte) error {
 	return errInsertIntoHash
 }
