@@ -360,6 +360,9 @@ func (n *InternalNode) Delete(key []byte) error {
 		return nil
 	default:
 		child.Delete(key)
+		if len(child.(*InternalNode).nonEmptyIndices()) == 0 {
+			n.children[nChild] = Empty{}
+		}
 	}
 	return nil
 }
