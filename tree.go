@@ -360,8 +360,14 @@ func (n *InternalNode) Delete(key []byte) error {
 		return nil
 	default:
 		child.Delete(key)
-		if len(child.(*InternalNode).nonEmptyIndices()) == 0 {
+		// Prune child if necessary
+		nonEmpty := child.(*InternalNode).nonEmptyIndices()
+		switch len(nonEmpty) {
+		case 0:
 			n.children[nChild] = Empty{}
+		case 1:
+			n.children[nChild] = child.(*InternalNode).children[nonEmpty[0]]
+		default:
 		}
 	}
 	return nil

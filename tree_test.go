@@ -485,19 +485,25 @@ func TestDeletePrune(t *testing.T) {
 	tree := New(8)
 	tree.Insert(key1, value)
 	tree.Insert(key2, value)
-	hash := tree.Hash()
 
+	hash1 := tree.Hash()
 	tree.Insert(key3, value)
+	hash2 := tree.Hash()
 	tree.Insert(key4, value)
-	if err := tree.Delete(key3); err != nil {
-		t.Error(err)
-	}
+
 	if err := tree.Delete(key4); err != nil {
 		t.Error(err)
 	}
-
 	postHash := tree.Hash()
-	if !bytes.Equal(hash.Bytes(), postHash.Bytes()) {
+	if !bytes.Equal(hash2.Bytes(), postHash.Bytes()) {
+		t.Error("deleting leaf resulted in unexpected tree")
+	}
+
+	if err := tree.Delete(key3); err != nil {
+		t.Error(err)
+	}
+	postHash = tree.Hash()
+	if !bytes.Equal(hash1.Bytes(), postHash.Bytes()) {
 		t.Error("deleting leaf resulted in unexpected tree")
 	}
 }
