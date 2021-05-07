@@ -426,7 +426,7 @@ func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 		}
 
 		// deserialize the payload and set it as the child
-		c, err := ParseNode(payload, n.depth, n.Width())
+		c, err := ParseNode(payload, n.depth+n.Width(), n.Width())
 		if err != nil {
 			return nil, err
 		}
