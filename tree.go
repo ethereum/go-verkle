@@ -359,7 +359,28 @@ func (n *InternalNode) Delete(key []byte) error {
 		n.children[nChild] = Empty{}
 		return nil
 	default:
-		child.Delete(key)
+		if err := child.Delete(key); err != nil {
+			return err
+		}
+		// Prune child if necessary
+		emptyCount := 0
+		lastNonEmpty := -1
+		for i, c := range child.(*InternalNode).children {
+			if _, ok := c.(Empty); !ok {
+				emptyCount++
+				lastNonEmpty = i
+				if emptyCount >= 2 {
+					return nil
+				}
+			}
+		}
+		switch emptyCount {
+		case 0:
+			n.children[nChild] = Empty{}
+		case 1:
+			n.children[nChild] = child.(*InternalNode).children[lastNonEmpty]
+		default:
+		}
 	}
 	return nil
 }
@@ -532,16 +553,6 @@ func (n *InternalNode) clearCache() {
 		in.clearCache()
 	}
 	n.commitment = nil
-}
-
-func (n *InternalNode) nonEmptyIndices() []int {
-	indices := make([]int, 0)
-	for i, c := range n.children {
-		if _, ok := c.(Empty); !ok {
-			indices = append(indices, i)
-		}
-	}
-	return indices
 }
 
 func (n *LeafNode) Insert(k []byte, value []byte) error {

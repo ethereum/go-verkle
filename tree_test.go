@@ -476,6 +476,38 @@ func TestDeleteNonExistent(t *testing.T) {
 	}
 }
 
+func TestDeletePrune(t *testing.T) {
+	value := []byte("value")
+	key1 := common.Hex2Bytes("0105000000000000000000000000000000000000000000000000000000000000")
+	key2 := common.Hex2Bytes("0107000000000000000000000000000000000000000000000000000000000000")
+	key3 := common.Hex2Bytes("0405000000000000000000000000000000000000000000000000000000000000")
+	key4 := common.Hex2Bytes("0407000000000000000000000000000000000000000000000000000000000000")
+	tree := New(8)
+	tree.Insert(key1, value)
+	tree.Insert(key2, value)
+
+	hash1 := tree.Hash()
+	tree.Insert(key3, value)
+	hash2 := tree.Hash()
+	tree.Insert(key4, value)
+
+	if err := tree.Delete(key4); err != nil {
+		t.Error(err)
+	}
+	postHash := tree.Hash()
+	if !bytes.Equal(hash2.Bytes(), postHash.Bytes()) {
+		t.Error("deleting leaf resulted in unexpected tree")
+	}
+
+	if err := tree.Delete(key3); err != nil {
+		t.Error(err)
+	}
+	postHash = tree.Hash()
+	if !bytes.Equal(hash1.Bytes(), postHash.Bytes()) {
+		t.Error("deleting leaf resulted in unexpected tree")
+	}
+}
+
 func BenchmarkCommitLeaves(b *testing.B) {
 	benchmarkCommitNLeaves(b, 1000, 10)
 	benchmarkCommitNLeaves(b, 10000, 10)
