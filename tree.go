@@ -537,7 +537,9 @@ func (n *InternalNode) Copy() VerkleNode {
 	}
 
 	copy(ret.hash[:], n.hash[:])
-	bls.CopyG1(ret.commitment, n.commitment)
+	if n.commitment != nil {
+		bls.CopyG1(ret.commitment, n.commitment)
+	}
 
 	return ret
 }
@@ -672,7 +674,9 @@ func (n *HashedNode) Copy() VerkleNode {
 		commitment: new(bls.G1Point),
 	}
 	copy(h.hash[:], n.hash[:])
-	bls.CopyG1(h.commitment, n.commitment)
+	if n.commitment != nil {
+		bls.CopyG1(h.commitment, n.commitment)
+	}
 
 	return h
 }
