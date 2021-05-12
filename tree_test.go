@@ -36,6 +36,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/protolambda/go-kzg/bls"
 )
 
@@ -505,6 +506,68 @@ func TestDeletePrune(t *testing.T) {
 	postHash = tree.Hash()
 	if !bytes.Equal(hash1.Bytes(), postHash.Bytes()) {
 		t.Error("deleting leaf resulted in unexpected tree")
+	}
+}
+
+var (
+	emptyCodeHash = common.Hex2Bytes("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
+	emptyRootHash = common.HexToHash("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
+)
+
+type Account struct {
+	Nonce    uint64
+	Balance  *big.Int
+	Root     common.Hash // merkle root of the storage trie
+	CodeHash []byte
+}
+
+func TestDevnet0PostMortem(t *testing.T) {
+	addr1 := common.Hex2Bytes("3e47cd08ea12b4dfcf5210e3ef3827471994d49b")
+	addr2 := common.Hex2Bytes("617661d148a52bef51a268c728b3a21b58f94306")
+	balance1, _ := big.NewInt(0).SetString("100000000000000000000", 10)
+	balance2, _ := big.NewInt(0).SetString("1000003506000000000000000000", 10)
+	account1 := Account{
+		Nonce:    0,
+		Balance:  balance1,
+		Root:     emptyRootHash,
+		CodeHash: emptyCodeHash,
+	}
+	account2 := Account{
+		Nonce:    1,
+		Balance:  balance2,
+		Root:     emptyRootHash,
+		CodeHash: emptyCodeHash,
+	}
+
+	var buf1, buf2 bytes.Buffer
+	tree := New(8)
+	rlp.Encode(&buf1, &account1)
+	tree.Insert(addr1, buf1.Bytes())
+	rlp.Encode(&buf2, &account2)
+	tree.Insert(addr2, buf2.Bytes())
+
+	tree.ComputeCommitment()
+
+	block1803Hash := tree.Hash()
+	if !bytes.Equal(block1803Hash[:], common.Hex2Bytes("74eb37a063c4c8806716d59816487c32315861d32f5f7697a9aaef5cfe964b9c")) {
+		t.Fatalf("error, got %x != 74eb37a063c4c8806716d59816487c32315861d32f5f7697a9aaef5cfe964b9c", block1803Hash)
+	}
+
+	buf1.Reset()
+	account1.Balance.SetString("199000000000000000000", 10)
+	rlp.Encode(&buf1, &account1)
+	tree.Insert(addr1, buf1.Bytes())
+	buf2.Reset()
+	account2.Nonce = 4
+	account2.Balance.SetString("1000003587000000000000000000", 10)
+	rlp.Encode(&buf2, &account2)
+	tree.Insert(addr2, buf2.Bytes())
+
+	tree.ComputeCommitment()
+
+	block1893Hash := tree.Hash()
+	if !bytes.Equal(block1893Hash[:], common.Hex2Bytes("55938f57d4211b306eb3a1404d4784b2e0a8fdb254f284834b3ccf74791e54ee")) {
+		t.Fatalf("error, got %x != 55938f57d4211b306eb3a1404d4784b2e0a8fdb254f284834b3ccf74791e54ee", block1803Hash)
 	}
 }
 
