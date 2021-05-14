@@ -46,10 +46,11 @@ Values with experimental encoding
 
 ## Insertion/update benchmarks
 
-|Initial tree size|Action|Width|Average time|
-|-----------------|------|-----|------------|
+|Initial tree size|Action|Width|Average time per insert|
+|-----------------|------|-----|-----------------------|
 |1M leaves|Insert 10K leaves|1024|25ms|
 |1M leaves|Update 10K leaves|1024|7ms|
+|1M leaves|Insert 10K leaves|256|1.5ms|
 
 ## Proof generation/verification benchmarks
 
