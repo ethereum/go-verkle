@@ -715,6 +715,48 @@ func randomKeysSorted(n int) [][]byte {
 	return keys
 }
 
+func TestMainnetStart(t *testing.T) {
+	tree := New(10)
+	type KV struct{
+		key string
+		value string
+	}
+
+	kvs := []KV{
+		{
+			"00000013653234c2d78dcdc645c5141e358ef2e590fe5278778ba729ff5ffd95",
+			"f84b01871c2decb3cd3400a056e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421a0c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+		},
+		{
+			"0000008c38d769d75c1ad1de6660da51edc10394c11c50ff9a0ca9e8b8b35dc2",
+			"f84a0986825807966613a056e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421a0c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+		},
+		{
+			"000000a55a3faa6b402bf3ac46a382c003ca1f9d21177dc31008bab92bdf1529",
+			"f8440180a056e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421a01d93f60f105899172f7255c030301c3af4564edd4a48577dbdc448aec7ddb0ac",
+		},
+		{
+			"000000cd919b672081922775cc5884e4e1cd795a2bbbd9473f16c7a44ad98b40",
+			"f84c808802069e3c5b1d6800a056e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421a0c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+		},
+		{
+			"000000d88546b028daa8674473bb11f665ee45f3962d4887bbce611f5d9f2edf", "f84b0387023a8ff9da7800a056e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421a0c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+		},
+	}
+
+	for _, kv := range kvs {
+		key := common.Hex2Bytes(kv.key)
+		value := common.Hex2Bytes(kv.value)
+		tree.InsertOrdered(key, value, nil)
+	}
+
+	h := tree.Hash()
+
+	if !bytes.Equal(h[:], common.Hex2Bytes("83fd7664ae16de3d3deb70897ecacfcbcd851bde2e6d4aad98b6c9c2ba903568")) {
+		t.Fatalf("invalid hash: %x", h)
+	}
+}
+
 func TestNodeSerde(t *testing.T) {
 	width := 10
 	tree := New(width)
