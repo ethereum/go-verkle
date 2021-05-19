@@ -90,7 +90,7 @@ const (
 	// Threshold for using multi exponentiation when
 	// computing commitment. Number refers to non-zero
 	// children in a node.
-	multiExpThreshold = 110
+	multiExpThreshold8 = 25
 
 	// These types will distinguish internal
 	// and leaf nodes when decoding from RLP.
@@ -495,7 +495,8 @@ func (n *InternalNode) ComputeCommitment() *bls.G1Point {
 	}
 
 	var commP *bls.G1Point
-	if n.treeConfig.nodeWidth-emptyChildren >= multiExpThreshold {
+	if (n.treeConfig.width == 10 && n.treeConfig.nodeWidth-emptyChildren >= multiExpThreshold10) ||
+		(n.treeConfig.width == 8 && n.treeConfig.nodeWidth-emptyChildren >= multiExpThreshold8) {
 		commP = bls.LinCombG1(n.treeConfig.lg1, poly[:])
 	} else {
 		var comm bls.G1Point
