@@ -1,4 +1,4 @@
-// +build !bignum_pure,!bignum_hol256,!bignum_kilic
+// +build !bignum_kilic
 
 package verkle
 
