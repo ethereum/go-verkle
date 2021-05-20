@@ -27,6 +27,7 @@ package verkle
 
 import (
 	"math/big"
+	"sync"
 
 	"github.com/protolambda/go-kzg"
 	"github.com/protolambda/go-kzg/bls"
@@ -48,13 +49,19 @@ type TreeConfig struct {
 	multiExpThreshold int
 }
 
-var configs map[int]*TreeConfig
+var (
+	configs   map[int]*TreeConfig
+	configMtx sync.Mutex
+)
 
 func init() {
 	configs = make(map[int]*TreeConfig)
 }
 
 func GetTreeConfig(width int) *TreeConfig {
+	configMtx.Lock()
+	defer configMtx.Unlock()
+
 	if cfg, ok := configs[width]; ok {
 		return cfg
 	}
