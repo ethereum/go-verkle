@@ -32,6 +32,8 @@ import (
 	"github.com/protolambda/go-kzg/bls"
 )
 
+const multiExpThreshold8 = 25
+
 type TreeConfig struct {
 	width             int      // number of key bits spanned by a node
 	nodeWidth         int      // Number of children in an internal node
@@ -40,6 +42,10 @@ type TreeConfig struct {
 	inverses          []bls.Fr // List of all 1 / (1 - ωⁱ)
 	nodeWidthInversed bls.Fr   // Inverse of node witdh in prime field
 	lg1               []bls.G1Point
+	// Threshold for using multi exponentiation when
+	// computing commitment. Number refers to non-zero
+	// children in a node.
+	multiExpThreshold int
 }
 
 var configs map[int]*TreeConfig
@@ -84,9 +90,13 @@ func GetTreeConfig(width int) *TreeConfig {
 
 func initTreeConfig(width int, lg1 []bls.G1Point) *TreeConfig {
 	tc := &TreeConfig{
-		width:     width,
-		nodeWidth: 1 << width,
-		lg1:       lg1,
+		width:             width,
+		nodeWidth:         1 << width,
+		lg1:               lg1,
+		multiExpThreshold: multiExpThreshold8,
+	}
+	if width == 10 {
+		tc.multiExpThreshold = multiExpThreshold10
 	}
 	tc.omegaIs = make([]bls.Fr, tc.nodeWidth)
 	tc.inverses = make([]bls.Fr, tc.nodeWidth)

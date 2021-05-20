@@ -87,11 +87,6 @@ type VerkleNode interface {
 }
 
 const (
-	// Threshold for using multi exponentiation when
-	// computing commitment. Number refers to non-zero
-	// children in a node.
-	multiExpThreshold = 110
-
 	// These types will distinguish internal
 	// and leaf nodes when decoding from RLP.
 	internalRLPType byte = 1
@@ -495,7 +490,7 @@ func (n *InternalNode) ComputeCommitment() *bls.G1Point {
 	}
 
 	var commP *bls.G1Point
-	if n.treeConfig.nodeWidth-emptyChildren >= multiExpThreshold {
+	if n.treeConfig.nodeWidth-emptyChildren >= n.treeConfig.multiExpThreshold {
 		commP = bls.LinCombG1(n.treeConfig.lg1, poly[:])
 	} else {
 		var comm bls.G1Point
