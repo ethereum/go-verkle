@@ -21,6 +21,10 @@ jobs:
           command: go test ./...
 
       - run:
+          name: Run unit tests with kilic
+          command: go test -tags bignum_kilic ./...
+
+      - run:
           name: Run the static checkers
           command: |
             go vet
