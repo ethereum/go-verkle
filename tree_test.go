@@ -571,6 +571,60 @@ func TestDevnet0PostMortem(t *testing.T) {
 	}
 }
 
+func TestConcurrentTrees(t *testing.T) {
+	value := []byte("value")
+	tree := New(10)
+	tree.Insert(zeroKeyTest, value)
+	expected := tree.Hash()
+
+	threads := 2
+	ch := make(chan common.Hash)
+	builder := func() {
+		tree := New(10)
+		tree.Insert(zeroKeyTest, value)
+		ch <- tree.Hash()
+	}
+
+	for i := 0; i < threads; i++ {
+		go builder()
+	}
+
+	for i := 0; i < threads; i++ {
+		root := <-ch
+		if !bytes.Equal(root.Bytes(), expected.Bytes()) {
+			t.Error("Incorrect root")
+		}
+	}
+}
+
+func TestConcurrentMulG1(t *testing.T) {
+	var fr bls.Fr
+	bls.AsFr(&fr, 2)
+	expected := new(bls.G1Point)
+	bls.MulG1(expected, &bls.GenG1, &fr)
+
+	threads := 10
+	ch := make(chan *bls.G1Point)
+	builder := func() {
+		var fr bls.Fr
+		bls.AsFr(&fr, 2)
+		dst := new(bls.G1Point)
+		bls.MulG1(dst, &bls.GenG1, &fr)
+		ch <- dst
+	}
+
+	for i := 0; i < threads; i++ {
+		go builder()
+	}
+
+	for i := 0; i < threads; i++ {
+		res := <-ch
+		if res.String() != expected.String() {
+			t.Error("Incorrect fr")
+		}
+	}
+}
+
 func BenchmarkCommitLeaves(b *testing.B) {
 	benchmarkCommitNLeaves(b, 1000, 10)
 	benchmarkCommitNLeaves(b, 10000, 10)
@@ -717,8 +771,8 @@ func randomKeysSorted(n int) [][]byte {
 
 func TestMainnetStart(t *testing.T) {
 	tree := New(10)
-	type KV struct{
-		key string
+	type KV struct {
+		key   string
 		value string
 	}
 
