@@ -446,7 +446,7 @@ func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 		n.children[nChild] = c
 
 		return c.Get(k, getter)
-	default: // InternalNode
+	default: // InternalNode, [Account]Leaf
 		return child.Get(k, getter)
 	}
 }
@@ -676,7 +676,7 @@ func (n *AccountLeaf) InsertOrdered(key []byte, value []byte, flush chan Flushab
 }
 
 func (n *AccountLeaf) Get(k []byte, resolver NodeResolverFn) ([]byte, error) {
-	if !bytes.Equal(k, n.key) {
+	if !bytes.Equal(k[:31], n.key[:31]) {
 		return nil, errValueNotPresent
 	}
 
