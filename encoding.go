@@ -64,11 +64,17 @@ func ParseNode(serialized []byte, depth, width int) (VerkleNode, error) {
 		if err != nil {
 			return nil, err
 		}
-		value, _, err := rlp.SplitString(rest)
-		if err != nil {
+		var values [][]byte
+		if err := rlp.DecodeBytes(rest, values); err != nil {
 			return nil, err
 		}
-		return &LeafNode{key: key, value: value}, nil
+		tc := GetTreeConfig(width)
+		ln := &LeafNode{
+			key:        key,
+			values:     values,
+			treeConfig: tc,
+		}
+		return ln, nil
 	case internalRLPType:
 		bitlist, rest, err := rlp.SplitString(rest)
 		if err != nil {

@@ -64,8 +64,8 @@ func TestInsertIntoRoot(t *testing.T) {
 		t.Fatalf("invalid leaf node type %v", root.(*InternalNode).children[0])
 	}
 
-	if !bytes.Equal(leaf.value[:], testValue) {
-		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaf.value[:])
+	if !bytes.Equal(leaf.values[zeroKeyTest[31]][:], testValue) {
+		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaf.values[zeroKeyTest[31]][:])
 	}
 }
 
@@ -84,12 +84,12 @@ func TestInsertTwoLeaves(t *testing.T) {
 		t.Fatalf("invalid leaf node type %v", root.(*InternalNode).children[1023])
 	}
 
-	if !bytes.Equal(leaf0.value[:], testValue) {
-		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaf0.value[:])
+	if !bytes.Equal(leaf0.values[zeroKeyTest[31]][:], testValue) {
+		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaf0.values[zeroKeyTest[31]][:])
 	}
 
-	if !bytes.Equal(leaff.value[:], testValue) {
-		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaff.value[:])
+	if !bytes.Equal(leaff.values[ffx32KeyTest[31]][:], testValue) {
+		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaff.values[ffx32KeyTest[31]][:])
 	}
 }
 
@@ -906,5 +906,15 @@ func isInternalEqual(a, b *InternalNode) bool {
 }
 
 func isLeafEqual(a, b *LeafNode) bool {
-	return bytes.Equal(a.key, b.key) && bytes.Equal(a.value, b.value)
+	if !bytes.Equal(a.key, b.key) {
+		return false
+	}
+
+	for i, v := range a.values {
+		if !bytes.Equal(v, b.values[i]) {
+			return false
+		}
+	}
+
+	return true
 }
