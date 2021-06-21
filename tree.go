@@ -439,36 +439,10 @@ func (n *InternalNode) Hash() common.Hash {
 	return common.BytesToHash(h[:])
 }
 
-// This function takes a hash and turns it into a bls.Fr integer, making
-// sure that this doesn't overflow the modulus.
-// This piece of code is really ugly, and probably a performance hog, it
-// needs to be rewritten more efficiently.
+// This function takes a hash and turns it into a bls.Fr integer
 func hashToFr(out *bls.Fr, h [32]byte, modulus *big.Int) {
-	// reverse endianness
-	for i := 0; i < len(h)/2; i++ {
-		t := h[i]
-		h[i] = h[len(h)-i-1]
-		h[len(h)-i-1] = t
-	}
-
-	// Apply modulus
-	x := big.NewInt(0).SetBytes(h[:])
-	x.Mod(x, modulus)
-
-	// clear the buffer in case the trailing bytes were 0
-	for i := 0; i < 32; i++ {
-		h[i] = 0
-	}
-
-	// back to original endianness
-	converted := x.Bytes()
-	for i := 0; i < len(converted); i++ {
-		h[i] = converted[len(converted)-i-1]
-	}
-
-	if !bls.FrFrom32(out, h) {
-		panic(fmt.Sprintf("invalid Fr number %x", h))
-	}
+	h[31] ^= 1 // % 2**255
+	bls.FrFrom32(out, h)
 }
 
 func (n *InternalNode) ComputeCommitment() *bls.G1Point {
