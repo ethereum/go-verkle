@@ -33,7 +33,7 @@ import "github.com/protolambda/go-kzg/bls"
 func hashToFr(out *bls.Fr, h [32]byte) {
 	// herumi expects a big endian input
 
-	h[31] ^= 1 // % 2**255
+	h[31] &= 0xFE // % 2**255
 	for i := 0; i < 16; i++ {
 		h[31-i], h[i] = h[i], h[31-i]
 	}

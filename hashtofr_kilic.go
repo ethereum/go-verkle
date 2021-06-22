@@ -27,10 +27,16 @@
 
 package verkle
 
-import "github.com/protolambda/go-kzg/bls"
+import (
+	"fmt"
+
+	"github.com/protolambda/go-kzg/bls"
+)
 
 // This function takes a hash and turns it into a bls.Fr integer
 func hashToFr(out *bls.Fr, h [32]byte) {
-	h[31] ^= 1 // % 2**255
-	bls.FrFrom32(out, h)
+	h[31] &= 0x7F // % 2**255
+	if !bls.FrFrom32(out, h) {
+		panic(fmt.Sprintf("invalid conversion for %x", h))
+	}
 }
