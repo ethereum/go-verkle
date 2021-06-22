@@ -27,14 +27,13 @@ package verkle
 
 import (
 	"crypto/sha256"
-	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/protolambda/go-kzg"
 	"github.com/protolambda/go-kzg/bls"
 )
 
-func calcR(cs []*bls.G1Point, indices []*bls.Fr, ys []*bls.Fr, modulus *big.Int) bls.Fr {
+func calcR(cs []*bls.G1Point, indices []*bls.Fr, ys []*bls.Fr) bls.Fr {
 	digest := sha256.New()
 	for _, c := range cs {
 		h := sha256.Sum256(bls.ToCompressedG1(c))
@@ -50,12 +49,12 @@ func calcR(cs []*bls.G1Point, indices []*bls.Fr, ys []*bls.Fr, modulus *big.Int)
 	}
 
 	var tmp bls.Fr
-	hashToFr(&tmp, common.BytesToHash(digest.Sum(nil)), modulus)
+	hashToFr(&tmp, common.BytesToHash(digest.Sum(nil)))
 	return tmp
 
 }
 
-func calcT(r *bls.Fr, d *bls.G1Point, modulus *big.Int) bls.Fr {
+func calcT(r *bls.Fr, d *bls.G1Point) bls.Fr {
 	digest := sha256.New()
 
 	tmpBytes := bls.FrTo32(r)
@@ -64,11 +63,11 @@ func calcT(r *bls.Fr, d *bls.G1Point, modulus *big.Int) bls.Fr {
 	digest.Write(tmpBytes[:])
 
 	var tmp bls.Fr
-	hashToFr(&tmp, common.BytesToHash(digest.Sum(nil)), modulus)
+	hashToFr(&tmp, common.BytesToHash(digest.Sum(nil)))
 	return tmp
 }
 
-func calcQ(e, d *bls.G1Point, y, w *bls.Fr, modulus *big.Int) bls.Fr {
+func calcQ(e, d *bls.G1Point, y, w *bls.Fr) bls.Fr {
 	digest := sha256.New()
 	hE := sha256.Sum256(bls.ToCompressedG1(e))
 	hD := sha256.Sum256(bls.ToCompressedG1(d))
@@ -81,7 +80,7 @@ func calcQ(e, d *bls.G1Point, y, w *bls.Fr, modulus *big.Int) bls.Fr {
 	digest.Write(tmpBytes[:])
 
 	var tmp bls.Fr
-	hashToFr(&tmp, common.BytesToHash(digest.Sum(nil)), modulus)
+	hashToFr(&tmp, common.BytesToHash(digest.Sum(nil)))
 	return tmp
 }
 
@@ -102,7 +101,7 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte) (d *bls.G1Point, y *bls
 	commitments, zis, yis, fis := root.GetCommitmentsAlongPath(key)
 
 	// Construct g(x)
-	r := calcR(commitments, zis, yis, tc.modulus)
+	r := calcR(commitments, zis, yis)
 
 	g := make([]bls.Fr, tc.nodeWidth)
 	var powR bls.Fr
@@ -121,7 +120,7 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte) (d *bls.G1Point, y *bls
 	d = bls.LinCombG1(tc.lg1, g[:])
 
 	// Compute h(x)
-	t := calcT(&r, d, tc.modulus)
+	t := calcT(&r, d)
 
 	h := make([]bls.Fr, tc.nodeWidth)
 	bls.CopyFr(&powR, &bls.ONE)
@@ -173,7 +172,7 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte) (d *bls.G1Point, y *bls
 
 	// compute σ
 	sigma = new(bls.G1Point)
-	q := calcQ(e, d, y, w, tc.modulus)
+	q := calcQ(e, d, y, w)
 	bls.MulG1(sigma, rho, &q)
 	bls.AddG1(sigma, sigma, pi)
 
@@ -181,8 +180,8 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte) (d *bls.G1Point, y *bls
 }
 
 func VerifyVerkleProof(ks *kzg.KZGSettings, d, sigma *bls.G1Point, y *bls.Fr, commitments []*bls.G1Point, zis, yis []*bls.Fr, tc *TreeConfig) bool {
-	r := calcR(commitments, zis, yis, tc.modulus)
-	t := calcT(&r, d, tc.modulus)
+	r := calcR(commitments, zis, yis)
+	t := calcT(&r, d)
 
 	// Evaluate w = g₂(t) and E
 	g2 := make([]bls.Fr, len(commitments))
@@ -213,7 +212,7 @@ func VerifyVerkleProof(ks *kzg.KZGSettings, d, sigma *bls.G1Point, y *bls.Fr, co
 	bls.SubModFr(&w, y, &g2t)
 
 	// Calculate q
-	q := calcQ(&e, d, y, &w, tc.modulus)
+	q := calcQ(&e, d, y, &w)
 
 	// final=E+qD
 	var final bls.G1Point

@@ -29,8 +29,6 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"errors"
-	"fmt"
-	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -317,7 +315,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush chan Flusha
 				h := child.Hash()
 				comm := new(bls.G1Point)
 				var tmp bls.Fr
-				hashToFr(&tmp, h, n.treeConfig.modulus)
+				hashToFr(&tmp, h)
 				bls.MulG1(comm, &bls.GenG1, &tmp)
 				if flush != nil {
 					flush <- FlushableNode{h, child}
@@ -439,12 +437,6 @@ func (n *InternalNode) Hash() common.Hash {
 	return common.BytesToHash(h[:])
 }
 
-// This function takes a hash and turns it into a bls.Fr integer
-func hashToFr(out *bls.Fr, h [32]byte, modulus *big.Int) {
-	h[31] ^= 1 // % 2**255
-	bls.FrFrom32(out, h)
-}
-
 func (n *InternalNode) ComputeCommitment() *bls.G1Point {
 	if n.commitment != nil {
 		return n.commitment
@@ -457,10 +449,10 @@ func (n *InternalNode) ComputeCommitment() *bls.G1Point {
 		case Empty:
 			emptyChildren++
 		case *LeafNode, *HashedNode:
-			hashToFr(&poly[idx], child.Hash(), n.treeConfig.modulus)
+			hashToFr(&poly[idx], child.Hash())
 		default:
 			compressed := bls.ToCompressedG1(childC.ComputeCommitment())
-			hashToFr(&poly[idx], sha256.Sum256(compressed), n.treeConfig.modulus)
+			hashToFr(&poly[idx], sha256.Sum256(compressed))
 		}
 	}
 
@@ -495,7 +487,7 @@ func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*b
 	bls.AsFr(&zi, uint64(childIdx))
 	fi := make([]bls.Fr, n.treeConfig.nodeWidth)
 	for i, child := range n.children {
-		hashToFr(&fi[i], child.Hash(), n.treeConfig.modulus)
+		hashToFr(&fi[i], child.Hash())
 		if i == int(childIdx) {
 			bls.CopyFr(&yi, &fi[i])
 		}
@@ -641,7 +633,7 @@ func (n *HashedNode) Hash() common.Hash {
 func (n *HashedNode) ComputeCommitment() *bls.G1Point {
 	if n.commitment == nil {
 		var hashAsFr bls.Fr
-		hashToFr(&hashAsFr, n.hash, big.NewInt(0))
+		hashToFr(&hashAsFr, n.hash)
 		n.commitment = new(bls.G1Point)
 		bls.MulG1(n.commitment, &bls.GenG1, &hashAsFr)
 	}

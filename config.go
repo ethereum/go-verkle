@@ -26,7 +26,6 @@
 package verkle
 
 import (
-	"math/big"
 	"sync"
 
 	"github.com/protolambda/go-kzg"
@@ -38,7 +37,6 @@ const multiExpThreshold8 = 25
 type TreeConfig struct {
 	width             int      // number of key bits spanned by a node
 	nodeWidth         int      // Number of children in an internal node
-	modulus           *big.Int // Field's modulus
 	omegaIs           []bls.Fr // List of the root of unity
 	inverses          []bls.Fr // List of all 1 / (1 - ωⁱ)
 	nodeWidthInversed bls.Fr   // Inverse of node witdh in prime field
@@ -114,12 +112,6 @@ func initTreeConfig(width int, lg1 []bls.G1Point) *TreeConfig {
 	for i := 0; i < tc.nodeWidth; i++ {
 		bls.CopyFr(&tc.omegaIs[i], &tmp)
 		bls.MulModFr(&tmp, &tmp, &bls.Scale2RootOfUnity[width])
-	}
-
-	var ok bool
-	tc.modulus, ok = big.NewInt(0).SetString("52435875175126190479447740508185965837690552500527637822603658699938581184513", 10)
-	if !ok {
-		panic("could not get modulus")
 	}
 
 	// Compute all 1 / (1 - ωⁱ)
