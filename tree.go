@@ -296,7 +296,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush chan Flusha
 				break
 			default:
 				comm := n.children[i].ComputeCommitment()
-				// Doesn't re-compute commitment as it's cached
+				// Don't re-compute commitment as it's cached
 				h := n.children[i].Hash()
 				if flush != nil {
 					n.children[i].(*InternalNode).Flush(flush)
@@ -306,6 +306,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush chan Flusha
 			}
 		}
 
+		// NOTE: these allocations are inducing a noticeable slowdown
 		lastNode := &LeafNode{
 			key:        key,
 			values:     make([][]byte, n.treeConfig.nodeWidth),
@@ -378,9 +379,10 @@ func (n *InternalNode) Delete(key []byte) error {
 	case *HashedNode:
 		return errors.New("trying to delete from a hashed subtree")
 	case *LeafNode:
-		if !bytes.Equal(child.key, key) {
+		if !bytes.Equal(child.key[:31], key[:31]) {
 			return errDeleteNonExistent
 		}
+		// overwrite empty if the last level node exists
 		n.children[nChild] = Empty{}
 		return nil
 	default:
@@ -649,13 +651,9 @@ func (n *LeafNode) ComputeCommitment() *bls.G1Point {
 	for idx, val := range n.values {
 		if val == nil {
 			emptyChildren++
+			continue
 		}
-		hasher := sha256.New()
-		hasher.Write(n.key[:31])
-		hasher.Write([]byte{byte(idx)})
-		hasher.Write(val)
-		var h [32]byte
-		copy(h[:], hasher.Sum(nil))
+		h := sha256.Sum256(val)
 		hashToFr(&poly[idx], h, n.treeConfig.modulus)
 	}
 
