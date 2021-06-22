@@ -444,7 +444,9 @@ func (n *InternalNode) Hash() common.Hash {
 // This piece of code is really ugly, and probably a performance hog, it
 // needs to be rewritten more efficiently.
 func hashToFr(out *bls.Fr, h [32]byte, modulus *big.Int) {
-	// reverse endianness
+	h[31] &= 0x7F // mod 2^255
+
+	// reverse endianness (little -> big)
 	for i := 0; i < len(h)/2; i++ {
 		t := h[i]
 		h[i] = h[len(h)-i-1]

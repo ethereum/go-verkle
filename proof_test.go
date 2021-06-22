@@ -54,13 +54,13 @@ func TestProofGenerationTwoLeaves(t *testing.T) {
 		t.Fatalf("invalid D commitment, expected %x, got %x", expectedD, bls.ToCompressedG1(d))
 	}
 
-	expectedY := "29538444433028619980967897141357016680422322190427848339183478815792394204807"
+	expectedY := "21306146820571925953472288604371653231632928908819047628407230609299841830732"
 	gotY := bls.FrStr(y)
 	if expectedY != gotY {
 		t.Fatalf("invalid y, expected %s != %s", expectedY, gotY)
 	}
 
-	expectedSigma := common.Hex2Bytes("a28c6ff3c7856e5fd2cdf32630935bcfceacd80e00f2e49633839bfa9e2f20057215efc6391a8006ef9f699eb8b18a1a")
+	expectedSigma := common.Hex2Bytes("a28912f8d55541111654f42a0bde30833ff7e4e795a5f79146f92600369d43540f52c19e6ca33dce80101d8f59c4cb29")
 	if !bytes.Equal(expectedSigma, bls.ToCompressedG1(sigma)) {
 		t.Fatalf("invalid sigma, expected %x, got %x", expectedSigma, bls.ToCompressedG1(sigma))
 	}
