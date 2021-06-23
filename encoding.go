@@ -65,7 +65,7 @@ func ParseNode(serialized []byte, depth, width int) (VerkleNode, error) {
 			return nil, err
 		}
 		var values [][]byte
-		if err := rlp.DecodeBytes(rest, values); err != nil {
+		if err := rlp.DecodeBytes(rest, &values); err != nil {
 			return nil, err
 		}
 		tc := GetTreeConfig(width)

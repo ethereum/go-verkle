@@ -609,6 +609,7 @@ func (n *LeafNode) Insert(k []byte, value []byte) error {
 		return errors.New("split should not happen here")
 	}
 	n.values[k[31]] = value
+	n.commitment = nil
 	return nil
 }
 
@@ -704,6 +705,9 @@ func (n *LeafNode) Copy() VerkleNode {
 	for i, v := range n.values {
 		l.values[i] = make([]byte, len(v))
 		copy(l.values[i], v)
+	}
+	if n.commitment != nil {
+		l.commitment = n.commitment
 	}
 
 	return l

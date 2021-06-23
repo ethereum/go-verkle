@@ -36,7 +36,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/protolambda/go-kzg/bls"
 )
 
@@ -134,7 +133,7 @@ func TestComputeRootCommitmentThreeLeaves(t *testing.T) {
 	root.Insert(fourtyKeyTest, testValue)
 	root.Insert(ffx32KeyTest, testValue)
 
-	expected := []byte{137, 46, 141, 157, 55, 243, 191, 123, 197, 83, 9, 229, 155, 145, 185, 155, 171, 133, 195, 118, 100, 193, 107, 202, 170, 6, 51, 189, 99, 62, 244, 70, 199, 253, 80, 218, 171, 68, 89, 136, 222, 166, 5, 209, 92, 255, 140, 164}
+	expected := common.Hex2Bytes("9574a0859c26e8fd5e0d605869ebf78b3c5071ec76970ebc888b686bb17eab6d5b2ef73abc85169918403e17fcd1e975")
 
 	comm := root.ComputeCommitment()
 	got := bls.ToCompressedG1(comm)
@@ -154,7 +153,7 @@ func TestComputeRootCommitmentOnlineThreeLeaves(t *testing.T) {
 	// commitment is calculated.
 	comm := root.ComputeCommitment()
 
-	expected := []byte{137, 46, 141, 157, 55, 243, 191, 123, 197, 83, 9, 229, 155, 145, 185, 155, 171, 133, 195, 118, 100, 193, 107, 202, 170, 6, 51, 189, 99, 62, 244, 70, 199, 253, 80, 218, 171, 68, 89, 136, 222, 166, 5, 209, 92, 255, 140, 164}
+	expected := common.Hex2Bytes("9574a0859c26e8fd5e0d605869ebf78b3c5071ec76970ebc888b686bb17eab6d5b2ef73abc85169918403e17fcd1e975")
 
 	got := bls.ToCompressedG1(comm)
 
@@ -169,7 +168,7 @@ func TestComputeRootCommitmentThreeLeavesDeep(t *testing.T) {
 	root.Insert(oneKeyTest, testValue)
 	root.Insert(ffx32KeyTest, testValue)
 
-	expected := []byte{180, 224, 116, 69, 8, 16, 10, 46, 12, 87, 199, 139, 17, 157, 123, 95, 113, 9, 180, 227, 72, 13, 125, 20, 35, 52, 98, 119, 121, 181, 253, 151, 253, 0, 62, 206, 64, 49, 8, 93, 140, 128, 232, 208, 102, 248, 81, 206}
+	expected := common.Hex2Bytes("8e369e78ab97ae134748557d932514ed590eaab88472575289bb5787566b39288b0749d55c6ae9bcf9f4a30d693b1961")
 
 	comm := root.ComputeCommitment()
 	got := bls.ToCompressedG1(comm)
@@ -185,7 +184,7 @@ func TestComputeRootCommitmentOnlineThreeLeavesDeep(t *testing.T) {
 	root.InsertOrdered(oneKeyTest, testValue, nil)
 	root.InsertOrdered(ffx32KeyTest, testValue, nil)
 
-	expected := []byte{180, 224, 116, 69, 8, 16, 10, 46, 12, 87, 199, 139, 17, 157, 123, 95, 113, 9, 180, 227, 72, 13, 125, 20, 35, 52, 98, 119, 121, 181, 253, 151, 253, 0, 62, 206, 64, 49, 8, 93, 140, 128, 232, 208, 102, 248, 81, 206}
+	expected := common.Hex2Bytes("8e369e78ab97ae134748557d932514ed590eaab88472575289bb5787566b39288b0749d55c6ae9bcf9f4a30d693b1961")
 
 	comm := root.ComputeCommitment()
 	got := bls.ToCompressedG1(comm)
@@ -225,7 +224,7 @@ func TestComputeRootCommitmentTwoLeaves(t *testing.T) {
 	root := New(10)
 	root.Insert(zeroKeyTest, testValue)
 	root.Insert(ffx32KeyTest, testValue)
-	expected := []byte{178, 195, 197, 132, 158, 141, 115, 80, 222, 187, 37, 145, 15, 184, 242, 86, 101, 164, 144, 51, 239, 90, 232, 100, 78, 178, 253, 145, 36, 168, 30, 75, 100, 185, 100, 14, 198, 48, 14, 95, 3, 252, 185, 73, 183, 195, 153, 44}
+	expected := common.Hex2Bytes("86c1ec564b1dca759fae2a0a5534dae74ec52c0be2c7ba1e91892b4a4e081bd9acc5031c02b257a95a0080c29ffad767")
 
 	comm := root.ComputeCommitment()
 	got := bls.ToCompressedG1(comm)
@@ -282,7 +281,7 @@ func TestComputeRootCommitmentTwoLeaves256(t *testing.T) {
 	root := New(8)
 	root.Insert(zeroKeyTest, testValue)
 	root.Insert(ffx32KeyTest, testValue)
-	expected := common.Hex2Bytes("84c699b01f33e5af95d4dd3a09257c442606a0d812600bdfcc06f45be6eba3cc767fa837e47e5c1ac51956424c9258dd")
+	expected := common.Hex2Bytes("871f56f35eb3a58880b5895a545820e87befdd90177be2c881e109fc6ca337214d6460c28c52bdd87e1a7ae520073a5f")
 
 	comm := root.ComputeCommitment()
 	got := bls.ToCompressedG1(comm)
@@ -521,55 +520,55 @@ type Account struct {
 	CodeHash []byte
 }
 
-func TestDevnet0PostMortem(t *testing.T) {
-	addr1 := common.Hex2Bytes("3e47cd08ea12b4dfcf5210e3ef3827471994d49b")
-	addr2 := common.Hex2Bytes("617661d148a52bef51a268c728b3a21b58f94306")
-	balance1, _ := big.NewInt(0).SetString("100000000000000000000", 10)
-	balance2, _ := big.NewInt(0).SetString("1000003506000000000000000000", 10)
-	account1 := Account{
-		Nonce:    0,
-		Balance:  balance1,
-		Root:     emptyRootHash,
-		CodeHash: emptyCodeHash,
-	}
-	account2 := Account{
-		Nonce:    1,
-		Balance:  balance2,
-		Root:     emptyRootHash,
-		CodeHash: emptyCodeHash,
-	}
+//func TestDevnet0PostMortem(t *testing.T) {
+//addr1 := common.Hex2Bytes("3e47cd08ea12b4dfcf5210e3ef3827471994d49b")
+//addr2 := common.Hex2Bytes("617661d148a52bef51a268c728b3a21b58f94306")
+//balance1, _ := big.NewInt(0).SetString("100000000000000000000", 10)
+//balance2, _ := big.NewInt(0).SetString("1000003506000000000000000000", 10)
+//account1 := Account{
+//Nonce:    0,
+//Balance:  balance1,
+//Root:     emptyRootHash,
+//CodeHash: emptyCodeHash,
+//}
+//account2 := Account{
+//Nonce:    1,
+//Balance:  balance2,
+//Root:     emptyRootHash,
+//CodeHash: emptyCodeHash,
+//}
 
-	var buf1, buf2 bytes.Buffer
-	tree := New(8)
-	rlp.Encode(&buf1, &account1)
-	tree.Insert(addr1, buf1.Bytes())
-	rlp.Encode(&buf2, &account2)
-	tree.Insert(addr2, buf2.Bytes())
+//var buf1, buf2 bytes.Buffer
+//tree := New(8)
+//rlp.Encode(&buf1, &account1)
+//tree.Insert(addr1, buf1.Bytes())
+//rlp.Encode(&buf2, &account2)
+//tree.Insert(addr2, buf2.Bytes())
 
-	tree.ComputeCommitment()
+//tree.ComputeCommitment()
 
-	block1803Hash := tree.Hash()
-	if !bytes.Equal(block1803Hash[:], common.Hex2Bytes("74eb37a063c4c8806716d59816487c32315861d32f5f7697a9aaef5cfe964b9c")) {
-		t.Fatalf("error, got %x != 74eb37a063c4c8806716d59816487c32315861d32f5f7697a9aaef5cfe964b9c", block1803Hash)
-	}
+//block1803Hash := tree.Hash()
+//if !bytes.Equal(block1803Hash[:], common.Hex2Bytes("74eb37a063c4c8806716d59816487c32315861d32f5f7697a9aaef5cfe964b9c")) {
+//t.Fatalf("error, got %x != 74eb37a063c4c8806716d59816487c32315861d32f5f7697a9aaef5cfe964b9c", block1803Hash)
+//}
 
-	buf1.Reset()
-	account1.Balance.SetString("199000000000000000000", 10)
-	rlp.Encode(&buf1, &account1)
-	tree.Insert(addr1, buf1.Bytes())
-	buf2.Reset()
-	account2.Nonce = 4
-	account2.Balance.SetString("1000003587000000000000000000", 10)
-	rlp.Encode(&buf2, &account2)
-	tree.Insert(addr2, buf2.Bytes())
+//buf1.Reset()
+//account1.Balance.SetString("199000000000000000000", 10)
+//rlp.Encode(&buf1, &account1)
+//tree.Insert(addr1, buf1.Bytes())
+//buf2.Reset()
+//account2.Nonce = 4
+//account2.Balance.SetString("1000003587000000000000000000", 10)
+//rlp.Encode(&buf2, &account2)
+//tree.Insert(addr2, buf2.Bytes())
 
-	tree.ComputeCommitment()
+//tree.ComputeCommitment()
 
-	block1893Hash := tree.Hash()
-	if !bytes.Equal(block1893Hash[:], common.Hex2Bytes("55938f57d4211b306eb3a1404d4784b2e0a8fdb254f284834b3ccf74791e54ee")) {
-		t.Fatalf("error, got %x != 55938f57d4211b306eb3a1404d4784b2e0a8fdb254f284834b3ccf74791e54ee", block1803Hash)
-	}
-}
+//block1893Hash := tree.Hash()
+//if !bytes.Equal(block1893Hash[:], common.Hex2Bytes("55938f57d4211b306eb3a1404d4784b2e0a8fdb254f284834b3ccf74791e54ee")) {
+//t.Fatalf("error, got %x != 55938f57d4211b306eb3a1404d4784b2e0a8fdb254f284834b3ccf74791e54ee", block1803Hash)
+//}
+//}
 
 func TestConcurrentTrees(t *testing.T) {
 	value := []byte("value")
@@ -806,7 +805,7 @@ func TestMainnetStart(t *testing.T) {
 
 	h := tree.Hash()
 
-	if !bytes.Equal(h[:], common.Hex2Bytes("83fd7664ae16de3d3deb70897ecacfcbcd851bde2e6d4aad98b6c9c2ba903568")) {
+	if !bytes.Equal(h[:], common.Hex2Bytes("0e4c372a5ee50c6bbeb570c4d958569336f3bf887f68d9b41eceef20577b01de")) {
 		t.Fatalf("invalid hash: %x", h)
 	}
 }
