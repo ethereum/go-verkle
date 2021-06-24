@@ -152,6 +152,21 @@ func New(width int) VerkleNode {
 	return newInternalNode(0, GetTreeConfig(width))
 }
 
+func equalPaths(key1, key2 []byte, width int) bool {
+	if len(key1) != len(key2) {
+		return false
+	}
+
+	switch width {
+	case 8:
+		return bytes.Equal(key1[:31], key2[:31])
+	case 10:
+		return bytes.Equal(key1[:31], key2[:31]) && key1[31]&0xa0 == key2[31]&0xa0
+	default:
+		panic("invalid width")
+	}
+}
+
 // Offset2Key extracts the n bits of a key that correspond to the
 // index of a child node.
 func Offset2Key(key []byte, offset, width int) uint {
@@ -226,7 +241,7 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 			values:     make([][]byte, n.treeConfig.nodeWidth),
 			treeConfig: n.treeConfig,
 		}
-		lastNode.values[key[31]] = value
+		lastNode.values[lastSlot(n.treeConfig.width, key)] = value
 		n.children[nChild] = lastNode
 	case *HashedNode:
 		return errInsertIntoHash
@@ -234,7 +249,7 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 		// Need to add a new branch node to differentiate
 		// between two keys, if the keys are different.
 		// Otherwise, just update the key.
-		if bytes.Equal(child.key[:31], key[:31]) {
+		if equalPaths(child.key, key, n.treeConfig.width) {
 			child.Insert(key, value)
 		} else {
 			width := n.treeConfig.width
@@ -256,7 +271,7 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 					values:     make([][]byte, n.treeConfig.nodeWidth),
 					treeConfig: n.treeConfig,
 				}
-				lastNode.values[key[31]] = value
+				lastNode.values[lastSlot(n.treeConfig.width, key)] = value
 				newBranch.children[nextWordInInsertedKey] = lastNode
 			} else {
 				newBranch.Insert(key, value)
@@ -312,7 +327,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush chan Flusha
 			values:     make([][]byte, n.treeConfig.nodeWidth),
 			treeConfig: n.treeConfig,
 		}
-		lastNode.values[key[31]] = value
+		lastNode.values[lastSlot(n.treeConfig.width, key)] = value
 		n.children[nChild] = lastNode
 	case *HashedNode:
 		return errInsertIntoHash
@@ -320,8 +335,8 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush chan Flusha
 		// Need to add a new branch node to differentiate
 		// between two keys, if the keys are different.
 		// Otherwise, just update the key.
-		if bytes.Equal(child.key[:31], key[:31]) {
-			child.values[key[31]] = value
+		if equalPaths(child.key, key, n.treeConfig.width) {
+			child.values[lastSlot(n.treeConfig.width, key)] = value
 		} else {
 			width := n.treeConfig.width
 
@@ -352,7 +367,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush chan Flusha
 					values:     make([][]byte, n.treeConfig.nodeWidth),
 					treeConfig: n.treeConfig,
 				}
-				lastNode.values[key[31]] = value
+				lastNode.values[lastSlot(n.treeConfig.width, key)] = value
 				newBranch.children[nextWordInInsertedKey] = lastNode
 			} else {
 				// Reinsert the leaf in order to recurse
@@ -379,7 +394,7 @@ func (n *InternalNode) Delete(key []byte) error {
 	case *HashedNode:
 		return errors.New("trying to delete from a hashed subtree")
 	case *LeafNode:
-		if !bytes.Equal(child.key[:31], key[:31]) {
+		if !equalPaths(child.key, key, n.treeConfig.width) {
 			return errDeleteNonExistent
 		}
 		n.commitment = nil
@@ -602,10 +617,10 @@ func (n *InternalNode) clearCache() {
 
 func (n *LeafNode) Insert(k []byte, value []byte) error {
 	// Sanity check: ensure the key header is the same:
-	if bytes.Compare(k[:31], n.key[:31]) != 0 {
+	if !equalPaths(k, n.key, n.treeConfig.width) {
 		return errors.New("split should not happen here")
 	}
-	n.values[k[31]] = value
+	n.values[lastSlot(n.treeConfig.width, k)] = value
 	n.commitment = nil
 	return nil
 }
@@ -619,16 +634,27 @@ func (n *LeafNode) InsertOrdered(key []byte, value []byte, flush chan FlushableN
 
 func (n *LeafNode) Delete(k []byte) error {
 	// Sanity check: ensure the key header is the same:
-	if bytes.Compare(k[:31], n.key[:31]) != 0 {
+	if !equalPaths(k, n.key, n.treeConfig.width) {
 		return errors.New("trying to delete a non-existing key")
 	}
 
-	n.values[k[31]] = nil
+	n.values[lastSlot(n.treeConfig.width, k)] = nil
 	return nil
 }
 
+func lastSlot(width int, key []byte) int {
+	switch width {
+	case 8:
+		return int(key[31])
+	case 10:
+		return int(key[31]&0x3F) << 4
+	default:
+		panic("invalid width")
+	}
+}
+
 func (n *LeafNode) Get(k []byte, _ NodeResolverFn) ([]byte, error) {
-	if !bytes.Equal(k[:31], n.key[:31]) {
+	if !equalPaths(k, n.key, n.treeConfig.width) {
 		// If keys differ, return nil in order to
 		// signal that the key isn't present in the
 		// tree. Do not return an error, thus matching
@@ -636,7 +662,7 @@ func (n *LeafNode) Get(k []byte, _ NodeResolverFn) ([]byte, error) {
 		return nil, nil
 	}
 	// value can be nil, as expected by geth
-	return n.values[k[31]], nil
+	return n.values[lastSlot(n.treeConfig.width, k)], nil
 }
 
 func (n *LeafNode) ComputeCommitment() *bls.G1Point {
