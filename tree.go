@@ -382,7 +382,20 @@ func (n *InternalNode) Delete(key []byte) error {
 		if !bytes.Equal(child.key[:31], key[:31]) {
 			return errDeleteNonExistent
 		}
-		// overwrite empty if the last level node exists
+		n.commitment = nil
+		if err := child.Delete(key); err != nil {
+			return err
+		}
+		// Prune child if necessary
+		usedCount := 0
+		for _, v := range child.values {
+			if v != nil {
+				usedCount++
+				if usedCount >= 1 {
+					return nil
+				}
+			}
+		}
 		n.children[nChild] = Empty{}
 		return nil
 	default:
