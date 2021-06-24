@@ -27,6 +27,7 @@ package verkle
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -69,6 +70,9 @@ func ParseNode(serialized []byte, depth, width int) (VerkleNode, error) {
 			return nil, err
 		}
 		tc := GetTreeConfig(width)
+		if tc.nodeWidth != len(values) {
+			return nil, fmt.Errorf("invalid number of nodes in decoded child expected %d, got %d", tc.nodeWidth, len(values))
+		}
 		ln := &LeafNode{
 			key:        key,
 			values:     values,
