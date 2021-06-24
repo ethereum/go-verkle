@@ -532,23 +532,7 @@ func (n *InternalNode) ComputeCommitment() *bls.G1Point {
 		}
 	}
 
-	var commP *bls.G1Point
-	if n.treeConfig.nodeWidth-emptyChildren >= n.treeConfig.multiExpThreshold {
-		commP = bls.LinCombG1(n.treeConfig.lg1, poly[:])
-	} else {
-		var comm bls.G1Point
-		bls.CopyG1(&comm, &bls.ZERO_G1)
-		for i := range poly {
-			if !bls.EqualZero(&poly[i]) {
-				var tmpG1, eval bls.G1Point
-				bls.MulG1(&eval, &n.treeConfig.lg1[i], &poly[i])
-				bls.CopyG1(&tmpG1, &comm)
-				bls.AddG1(&comm, &tmpG1, &eval)
-			}
-		}
-		commP = &comm
-	}
-	n.commitment = commP
+	n.commitment = n.treeConfig.evalPoly(poly, emptyChildren)
 	return n.commitment
 }
 
@@ -671,23 +655,7 @@ func (n *LeafNode) ComputeCommitment() *bls.G1Point {
 		hashToFr(&poly[idx], h, n.treeConfig.modulus)
 	}
 
-	var commP *bls.G1Point
-	if n.treeConfig.nodeWidth-emptyChildren >= n.treeConfig.multiExpThreshold {
-		commP = bls.LinCombG1(n.treeConfig.lg1, poly[:])
-	} else {
-		var comm bls.G1Point
-		bls.CopyG1(&comm, &bls.ZERO_G1)
-		for i := range poly {
-			if !bls.EqualZero(&poly[i]) {
-				var tmpG1, eval bls.G1Point
-				bls.MulG1(&eval, &n.treeConfig.lg1[i], &poly[i])
-				bls.CopyG1(&tmpG1, &comm)
-				bls.AddG1(&comm, &tmpG1, &eval)
-			}
-		}
-		commP = &comm
-	}
-	n.commitment = commP
+	n.commitment = n.treeConfig.evalPoly(poly, emptyChildren)
 	return n.commitment
 }
 

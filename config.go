@@ -176,3 +176,22 @@ func (tc *TreeConfig) outerQuotients(f []bls.Fr, z, y *bls.Fr) []bls.Fr {
 
 	return q[:]
 }
+
+// Evaluate a polynomial in the lagrange basis
+func (tc *TreeConfig) evalPoly(poly []bls.Fr, emptyChildren int) *bls.G1Point {
+	if tc.nodeWidth-emptyChildren >= tc.multiExpThreshold {
+		return bls.LinCombG1(tc.lg1, poly[:])
+	} else {
+		var comm bls.G1Point
+		bls.CopyG1(&comm, &bls.ZERO_G1)
+		for i := range poly {
+			if !bls.EqualZero(&poly[i]) {
+				var tmpG1, eval bls.G1Point
+				bls.MulG1(&eval, &tc.lg1[i], &poly[i])
+				bls.CopyG1(&tmpG1, &comm)
+				bls.AddG1(&comm, &tmpG1, &eval)
+			}
+		}
+		return &comm
+	}
+}
