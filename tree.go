@@ -126,8 +126,11 @@ type (
 	}
 
 	LeafNode struct {
-		key   []byte
-		value []byte
+		key    []byte
+		values [][]byte
+
+		commitment *bls.G1Point
+		treeConfig *TreeConfig
 	}
 
 	Empty struct{}
@@ -147,6 +150,21 @@ func newInternalNode(depth int, tc *TreeConfig) VerkleNode {
 // New creates a new tree root
 func New(width int) VerkleNode {
 	return newInternalNode(0, GetTreeConfig(width))
+}
+
+func equalPaths(key1, key2 []byte, width int) bool {
+	if len(key1) != len(key2) {
+		return false
+	}
+
+	switch width {
+	case 8:
+		return bytes.Equal(key1[:31], key2[:31])
+	case 10:
+		return bytes.Equal(key1[:31], key2[:31]) && key1[31]&0xa0 == key2[31]&0xa0
+	default:
+		panic("invalid width")
+	}
 }
 
 // Offset2Key extracts the n bits of a key that correspond to the
@@ -218,15 +236,21 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 
 	switch child := n.children[nChild].(type) {
 	case Empty:
-		n.children[nChild] = &LeafNode{key: key, value: value}
+		lastNode := &LeafNode{
+			key:        key,
+			values:     make([][]byte, n.treeConfig.nodeWidth),
+			treeConfig: n.treeConfig,
+		}
+		lastNode.values[lastSlot(n.treeConfig.width, key)] = value
+		n.children[nChild] = lastNode
 	case *HashedNode:
 		return errInsertIntoHash
 	case *LeafNode:
 		// Need to add a new branch node to differentiate
 		// between two keys, if the keys are different.
 		// Otherwise, just update the key.
-		if bytes.Equal(child.key, key) {
-			child.value = value
+		if equalPaths(child.key, key, n.treeConfig.width) {
+			child.Insert(key, value)
 		} else {
 			width := n.treeConfig.width
 
@@ -242,7 +266,13 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 			if nextWordInInsertedKey != nextWordInExistingKey {
 				// Next word differs, so this was the last level.
 				// Insert it directly into its final slot.
-				newBranch.children[nextWordInInsertedKey] = &LeafNode{key: key, value: value}
+				lastNode := &LeafNode{
+					key:        key,
+					values:     make([][]byte, n.treeConfig.nodeWidth),
+					treeConfig: n.treeConfig,
+				}
+				lastNode.values[lastSlot(n.treeConfig.width, key)] = value
+				newBranch.children[nextWordInInsertedKey] = lastNode
 			} else {
 				newBranch.Insert(key, value)
 			}
@@ -281,7 +311,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush chan Flusha
 				break
 			default:
 				comm := n.children[i].ComputeCommitment()
-				// Doesn't re-compute commitment as it's cached
+				// Don't re-compute commitment as it's cached
 				h := n.children[i].Hash()
 				if flush != nil {
 					n.children[i].(*InternalNode).Flush(flush)
@@ -291,15 +321,22 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush chan Flusha
 			}
 		}
 
-		n.children[nChild] = &LeafNode{key: key, value: value}
+		// NOTE: these allocations are inducing a noticeable slowdown
+		lastNode := &LeafNode{
+			key:        key,
+			values:     make([][]byte, n.treeConfig.nodeWidth),
+			treeConfig: n.treeConfig,
+		}
+		lastNode.values[lastSlot(n.treeConfig.width, key)] = value
+		n.children[nChild] = lastNode
 	case *HashedNode:
 		return errInsertIntoHash
 	case *LeafNode:
 		// Need to add a new branch node to differentiate
 		// between two keys, if the keys are different.
 		// Otherwise, just update the key.
-		if bytes.Equal(child.key, key) {
-			child.value = value
+		if equalPaths(child.key, key, n.treeConfig.width) {
+			child.values[lastSlot(n.treeConfig.width, key)] = value
 		} else {
 			width := n.treeConfig.width
 
@@ -325,7 +362,13 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush chan Flusha
 				newBranch.children[nextWordInExistingKey] = &HashedNode{hash: h, commitment: comm}
 				// Next word differs, so this was the last level.
 				// Insert it directly into its final slot.
-				newBranch.children[nextWordInInsertedKey] = &LeafNode{key: key, value: value}
+				lastNode := &LeafNode{
+					key:        key,
+					values:     make([][]byte, n.treeConfig.nodeWidth),
+					treeConfig: n.treeConfig,
+				}
+				lastNode.values[lastSlot(n.treeConfig.width, key)] = value
+				newBranch.children[nextWordInInsertedKey] = lastNode
 			} else {
 				// Reinsert the leaf in order to recurse
 				newBranch.children[nextWordInExistingKey] = child
@@ -351,8 +394,22 @@ func (n *InternalNode) Delete(key []byte) error {
 	case *HashedNode:
 		return errors.New("trying to delete from a hashed subtree")
 	case *LeafNode:
-		if !bytes.Equal(child.key, key) {
+		if !equalPaths(child.key, key, n.treeConfig.width) {
 			return errDeleteNonExistent
+		}
+		n.commitment = nil
+		if err := child.Delete(key); err != nil {
+			return err
+		}
+		// Prune child if necessary
+		usedCount := 0
+		for _, v := range child.values {
+			if v != nil {
+				usedCount++
+				if usedCount >= 1 {
+					return nil
+				}
+			}
 		}
 		n.children[nChild] = Empty{}
 		return nil
@@ -490,23 +547,7 @@ func (n *InternalNode) ComputeCommitment() *bls.G1Point {
 		}
 	}
 
-	var commP *bls.G1Point
-	if n.treeConfig.nodeWidth-emptyChildren >= n.treeConfig.multiExpThreshold {
-		commP = bls.LinCombG1(n.treeConfig.lg1, poly[:])
-	} else {
-		var comm bls.G1Point
-		bls.CopyG1(&comm, &bls.ZERO_G1)
-		for i := range poly {
-			if !bls.EqualZero(&poly[i]) {
-				var tmpG1, eval bls.G1Point
-				bls.MulG1(&eval, &n.treeConfig.lg1[i], &poly[i])
-				bls.CopyG1(&tmpG1, &comm)
-				bls.AddG1(&comm, &tmpG1, &eval)
-			}
-		}
-		commP = &comm
-	}
-	n.commitment = commP
+	n.commitment = n.treeConfig.evalPoly(poly, emptyChildren)
 	return n.commitment
 }
 
@@ -575,40 +616,77 @@ func (n *InternalNode) clearCache() {
 }
 
 func (n *LeafNode) Insert(k []byte, value []byte) error {
-	n.key = k
-	n.value = value
+	// Sanity check: ensure the key header is the same:
+	if !equalPaths(k, n.key, n.treeConfig.width) {
+		return errors.New("split should not happen here")
+	}
+	n.values[lastSlot(n.treeConfig.width, k)] = value
+	n.commitment = nil
 	return nil
 }
 
 func (n *LeafNode) InsertOrdered(key []byte, value []byte, flush chan FlushableNode) error {
-	err := n.Insert(key, value)
-	if err != nil && flush != nil {
-		flush <- FlushableNode{n.Hash(), n}
-	}
-	return err
+	// In the previous version, this value used to be flushed on insert.
+	// This is no longer the case, as all values at the last level get
+	// flushed at the same time.
+	return n.Insert(key, value)
 }
 
 func (n *LeafNode) Delete(k []byte) error {
-	return errors.New("cant delete a leaf in-place")
+	// Sanity check: ensure the key header is the same:
+	if !equalPaths(k, n.key, n.treeConfig.width) {
+		return errors.New("trying to delete a non-existing key")
+	}
+
+	n.values[lastSlot(n.treeConfig.width, k)] = nil
+	return nil
+}
+
+func lastSlot(width int, key []byte) int {
+	switch width {
+	case 8:
+		return int(key[31])
+	case 10:
+		return int(key[31]&0x3F) << 4
+	default:
+		panic("invalid width")
+	}
 }
 
 func (n *LeafNode) Get(k []byte, _ NodeResolverFn) ([]byte, error) {
-	if !bytes.Equal(k, n.key) {
+	if !equalPaths(k, n.key, n.treeConfig.width) {
 		// If keys differ, return nil in order to
 		// signal that the key isn't present in the
 		// tree. Do not return an error, thus matching
 		// the behavior of Geth's SecureTrie.
 		return nil, nil
 	}
-	return n.value, nil
+	// value can be nil, as expected by geth
+	return n.values[lastSlot(n.treeConfig.width, k)], nil
 }
 
 func (n *LeafNode) ComputeCommitment() *bls.G1Point {
-	panic("can't compute the commitment directly")
+	if n.commitment != nil {
+		return n.commitment
+	}
+
+	emptyChildren := 0
+	poly := make([]bls.Fr, n.treeConfig.nodeWidth)
+	for idx, val := range n.values {
+		if val == nil {
+			emptyChildren++
+			continue
+		}
+		h := sha256.Sum256(val)
+		hashToFr(&poly[idx], h, n.treeConfig.modulus)
+	}
+
+	n.commitment = n.treeConfig.evalPoly(poly, emptyChildren)
+	return n.commitment
 }
 
 func (n *LeafNode) GetCommitment() *bls.G1Point {
-	panic("can't get the commitment directly")
+	return n.commitment
 }
 
 func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr) {
@@ -616,32 +694,30 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.F
 }
 
 func (n *LeafNode) Hash() common.Hash {
-	digest := sha256.New()
-	digest.Write(n.key)
-	digest.Write(n.value)
-	return common.BytesToHash(digest.Sum(nil))
+	comm := n.ComputeCommitment()
+	h := sha256.Sum256(bls.ToCompressedG1(comm))
+	return common.BytesToHash(h[:])
 }
 
 func (n *LeafNode) Serialize() ([]byte, error) {
-	return rlp.EncodeToBytes([]interface{}{leafRLPType, n.key, n.value})
+	return rlp.EncodeToBytes([]interface{}{leafRLPType, n.key, n.values})
 }
 
 func (n *LeafNode) Copy() VerkleNode {
 	l := &LeafNode{}
 	l.key = make([]byte, len(n.key))
-	l.value = make([]byte, len(n.value))
+	l.values = make([][]byte, len(n.values))
+	l.treeConfig = n.treeConfig
 	copy(l.key, n.key)
-	copy(l.value, n.value)
+	for i, v := range n.values {
+		l.values[i] = make([]byte, len(v))
+		copy(l.values[i], v)
+	}
+	if n.commitment != nil {
+		l.commitment = n.commitment
+	}
 
 	return l
-}
-
-func (n *LeafNode) Key() []byte {
-	return n.key
-}
-
-func (n *LeafNode) Value() []byte {
-	return n.value
 }
 
 func (n *HashedNode) Insert(k []byte, value []byte) error {
