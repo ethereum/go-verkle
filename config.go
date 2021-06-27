@@ -26,6 +26,7 @@
 package verkle
 
 import (
+	"bytes"
 	"math/big"
 	"sync"
 
@@ -194,4 +195,54 @@ func (tc *TreeConfig) evalPoly(poly []bls.Fr, emptyChildren int) *bls.G1Point {
 		}
 		return &comm
 	}
+}
+
+func (tc *TreeConfig) equalPaths(key1, key2 []byte) bool {
+	if len(key1) != len(key2) {
+		return false
+	}
+
+	switch tc.width {
+	case 8:
+		return bytes.Equal(key1[:31], key2[:31])
+	case 10:
+		return bytes.Equal(key1[:31], key2[:31]) && key1[31]&0xa0 == key2[31]&0xa0
+	default:
+		panic("invalid width")
+	}
+}
+
+// offset2key extracts the n bits of a key that correspond to the
+// index of a child node.
+func (tc *TreeConfig) offset2key(key []byte, offset int) uint {
+	switch tc.width {
+	case 10:
+		return offset2KeyTenBits(key, offset)
+	case 8:
+		return uint(key[offset/8])
+	default:
+		// no need to bother with other width
+		// until this is required.
+		panic("node width not supported")
+	}
+}
+
+func offset2KeyTenBits(key []byte, offset int) uint {
+	// The node has 1024 children, i.e. 10 bits. Extract it
+	// from the key to figure out which child to recurse into.
+	// The number is necessarily spread across 2 bytes because
+	// the pitch is 10 and therefore a multiple of 2. Hence, no
+	// 3 byte scenario is possible.
+	nFirstByte := offset / 8
+	nBitsInSecondByte := (offset + 10) % 8
+	firstBitShift := (8 - (offset % 8))
+	lastBitShift := (8 - nBitsInSecondByte) % 8
+	leftMask := (key[nFirstByte] >> firstBitShift) << firstBitShift
+	ret := (uint(key[nFirstByte]^leftMask) << ((uint(nBitsInSecondByte)-1)%8 + 1))
+	if int(nFirstByte)+1 < len(key) {
+		// Note that, at the last level, the last 4 bits are
+		// zeroed-out so children are 16 bits apart.
+		ret |= uint(key[nFirstByte+1] >> lastBitShift)
+	}
+	return ret
 }
