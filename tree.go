@@ -181,7 +181,7 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 		n.commitment = nil
 	}
 
-	nChild := n.treeConfig.Offset2Key(key, n.depth)
+	nChild := n.treeConfig.offset2key(key, n.depth)
 
 	switch child := n.children[nChild].(type) {
 	case Empty:
@@ -206,12 +206,12 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 			// A new branch node has to be inserted. Depending
 			// on the next word in both keys, a recursion into
 			// the moved leaf node can occur.
-			nextWordInExistingKey := n.treeConfig.Offset2Key(child.key, n.depth+width)
+			nextWordInExistingKey := n.treeConfig.offset2key(child.key, n.depth+width)
 			newBranch := newInternalNode(n.depth+width, n.treeConfig).(*InternalNode)
 			n.children[nChild] = newBranch
 			newBranch.children[nextWordInExistingKey] = child
 
-			nextWordInInsertedKey := n.treeConfig.Offset2Key(key, n.depth+width)
+			nextWordInInsertedKey := n.treeConfig.offset2key(key, n.depth+width)
 			if nextWordInInsertedKey != nextWordInExistingKey {
 				// Next word differs, so this was the last level.
 				// Insert it directly into its final slot.
@@ -238,7 +238,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush chan Flusha
 		n.commitment = nil
 	}
 
-	nChild := n.treeConfig.Offset2Key(key, n.depth)
+	nChild := n.treeConfig.offset2key(key, n.depth)
 
 	switch child := n.children[nChild].(type) {
 	case Empty:
@@ -292,11 +292,11 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush chan Flusha
 			// A new branch node has to be inserted. Depending
 			// on the next word in both keys, a recursion into
 			// the moved leaf node can occur.
-			nextWordInExistingKey := n.treeConfig.Offset2Key(child.key, n.depth+width)
+			nextWordInExistingKey := n.treeConfig.offset2key(child.key, n.depth+width)
 			newBranch := newInternalNode(n.depth+width, n.treeConfig).(*InternalNode)
 			n.children[nChild] = newBranch
 
-			nextWordInInsertedKey := n.treeConfig.Offset2Key(key, n.depth+width)
+			nextWordInInsertedKey := n.treeConfig.offset2key(key, n.depth+width)
 			if nextWordInInsertedKey != nextWordInExistingKey {
 				// Directly hash the (left) node that was already
 				// inserted.
@@ -336,7 +336,7 @@ func (n *InternalNode) Delete(key []byte) error {
 		n.commitment = nil
 	}
 
-	nChild := n.treeConfig.Offset2Key(key, n.depth)
+	nChild := n.treeConfig.offset2key(key, n.depth)
 	switch child := n.children[nChild].(type) {
 	case Empty:
 		return errDeleteNonExistent
@@ -406,7 +406,7 @@ func (n *InternalNode) Flush(flush chan FlushableNode) {
 }
 
 func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
-	nChild := n.treeConfig.Offset2Key(k, n.depth)
+	nChild := n.treeConfig.offset2key(k, n.depth)
 
 	switch child := n.children[nChild].(type) {
 	case Empty, nil:
@@ -505,7 +505,7 @@ func (n *InternalNode) GetCommitment() *bls.G1Point {
 }
 
 func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr) {
-	childIdx := n.treeConfig.Offset2Key(key, n.depth)
+	childIdx := n.treeConfig.offset2key(key, n.depth)
 	comms, zis, yis, fis := n.children[childIdx].GetCommitmentsAlongPath(key)
 	var zi, yi bls.Fr
 	bls.AsFr(&zi, uint64(childIdx))

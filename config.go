@@ -212,9 +212,9 @@ func (tc *TreeConfig) equalPaths(key1, key2 []byte) bool {
 	}
 }
 
-// Offset2Key extracts the n bits of a key that correspond to the
+// offset2key extracts the n bits of a key that correspond to the
 // index of a child node.
-func (tc *TreeConfig) Offset2Key(key []byte, offset int) uint {
+func (tc *TreeConfig) offset2key(key []byte, offset int) uint {
 	switch tc.width {
 	case 10:
 		return offset2KeyTenBits(key, offset)

@@ -254,26 +254,26 @@ func TestHashToFrTrailingZeroBytes(t *testing.T) {
 	}
 }
 
-func TestOffset2Key8BitsWide(t *testing.T) {
+func TestOffset2key8BitsWide(t *testing.T) {
 	key := common.Hex2Bytes("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
 	for i := 0; i < 32; i++ {
-		childId := GetTreeConfig(8).Offset2Key(key, i*8)
+		childId := GetTreeConfig(8).offset2key(key, i*8)
 		if childId != uint(i) {
 			t.Fatalf("error getting child number in key %d != %d", childId, i)
 		}
 	}
 }
 
-func TestOffset2Key10BitsWide(t *testing.T) {
+func TestOffset2key10BitsWide(t *testing.T) {
 	key := common.Hex2Bytes("00001008030100501807020090280b0300d0380f040110481305015058170601")
 	for i := 0; i < 25; i++ {
-		childId := GetTreeConfig(10).Offset2Key(key, i*10)
+		childId := GetTreeConfig(10).offset2key(key, i*10)
 		if childId != uint(i) {
 			t.Fatalf("error getting child number in key %d != %d", childId, i)
 		}
 	}
 
-	if childIdx := GetTreeConfig(10).Offset2Key(key, 250); childIdx != 16 {
+	if childIdx := GetTreeConfig(10).offset2key(key, 250); childIdx != 16 {
 		t.Fatalf("error getting last child number in key %d != %d", childIdx, 16)
 	}
 }
