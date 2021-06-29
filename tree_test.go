@@ -378,7 +378,7 @@ func TestCopy(t *testing.T) {
 	}
 	tree.Insert(key2, []byte("changed"))
 	tree.ComputeCommitment()
-	if bytes.Equal(bls.ToCompressedG1(copied.GetCommitment()), bls.ToCompressedG1(tree.GetCommitment())) {
+	if bytes.Equal(bls.ToCompressedG1(copied.ComputeCommitment()), bls.ToCompressedG1(tree.ComputeCommitment())) {
 		t.Fatal("error tree and its copy should have a different commitment after the update")
 	}
 }

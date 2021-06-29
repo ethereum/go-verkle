@@ -66,11 +66,8 @@ type VerkleNode interface {
 	Hash() common.Hash
 
 	// ComputeCommitment computes the commitment of the node
+	// The result is cached.
 	ComputeCommitment() *bls.G1Point
-
-	// GetCommitment retrieves the (previously computed)
-	// commitment of a node.
-	GetCommitment() *bls.G1Point
 
 	// GetCommitmentAlongPath follows the path that one key
 	// traces through the tree, and collects the various
@@ -502,10 +499,6 @@ func (n *InternalNode) ComputeCommitment() *bls.G1Point {
 	return n.commitment
 }
 
-func (n *InternalNode) GetCommitment() *bls.G1Point {
-	return n.commitment
-}
-
 func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr) {
 	childIdx := n.treeConfig.offset2key(key, n.depth)
 	comms, zis, yis, fis := n.children[childIdx].GetCommitmentsAlongPath(key)
@@ -518,7 +511,7 @@ func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*b
 			bls.CopyFr(&yi, &fi[i])
 		}
 	}
-	return append(comms, n.GetCommitment()), append(zis, &zi), append(yis, &yi), append(fis, fi[:])
+	return append(comms, n.ComputeCommitment()), append(zis, &zi), append(yis, &yi), append(fis, fi[:])
 }
 
 func (n *InternalNode) Serialize() ([]byte, error) {
@@ -636,10 +629,6 @@ func (n *LeafNode) ComputeCommitment() *bls.G1Point {
 	return n.commitment
 }
 
-func (n *LeafNode) GetCommitment() *bls.G1Point {
-	return n.commitment
-}
-
 func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr) {
 	return nil, nil, nil, nil
 }
@@ -701,10 +690,6 @@ func (n *HashedNode) ComputeCommitment() *bls.G1Point {
 	return n.commitment
 }
 
-func (n *HashedNode) GetCommitment() *bls.G1Point {
-	return n.commitment
-}
-
 func (n *HashedNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr) {
 	panic("can not get the full path, and there is no proof of absence")
 }
@@ -746,10 +731,6 @@ func (e Empty) Hash() common.Hash {
 }
 
 func (e Empty) ComputeCommitment() *bls.G1Point {
-	return &bls.ZeroG1
-}
-
-func (e Empty) GetCommitment() *bls.G1Point {
 	return &bls.ZeroG1
 }
 
