@@ -196,20 +196,23 @@ func TestComputeRootCommitmentOnlineThreeLeavesDeep(t *testing.T) {
 }
 
 func TestComputeRootCommitmentOnlineThreeLeavesFlush(t *testing.T) {
-	flush := make(chan FlushableNode)
+	flushCh := make(chan VerkleNode)
+	flush := func(node VerkleNode) {
+		flushCh <- node
+	}
 	go func() {
 		root := New(10)
 		root.InsertOrdered(zeroKeyTest, testValue, flush)
 		root.InsertOrdered(fourtyKeyTest, testValue, flush)
 		root.InsertOrdered(ffx32KeyTest, testValue, flush)
 		root.(*InternalNode).Flush(flush)
-		close(flush)
+		close(flushCh)
 	}()
 
 	count := 0
-	for f := range flush {
-		_, isLeaf := f.Node.(*LeafNode)
-		_, isInternal := f.Node.(*InternalNode)
+	for n := range flushCh {
+		_, isLeaf := n.(*LeafNode)
+		_, isInternal := n.(*InternalNode)
 		if !isLeaf && !isInternal {
 			t.Fatal("invalid node type received, expected leaf")
 		}
@@ -324,21 +327,24 @@ func TestFlush1kLeaves(t *testing.T) {
 	keys := randomKeysSorted(n)
 	value := []byte("value")
 
-	flush := make(chan FlushableNode)
+	flushCh := make(chan VerkleNode)
+	flush := func(node VerkleNode) {
+		flushCh <- node
+	}
 	go func() {
 		root := New(10)
 		for _, k := range keys {
 			root.InsertOrdered(k, value, flush)
 		}
 		root.(*InternalNode).Flush(flush)
-		close(flush)
+		close(flushCh)
 	}()
 
 	count := 0
 	leaves := 0
-	for f := range flush {
-		_, isLeaf := f.Node.(*LeafNode)
-		_, isInternal := f.Node.(*InternalNode)
+	for n := range flushCh {
+		_, isLeaf := n.(*LeafNode)
+		_, isInternal := n.(*InternalNode)
 		if !isLeaf && !isInternal {
 			t.Fatal("invalid node type received, expected leaf")
 		}
