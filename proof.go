@@ -34,10 +34,10 @@ import (
 	"github.com/protolambda/go-kzg/bls"
 )
 
-func calcR(cs []*bls.G1Point, indices []*bls.Fr, ys []*bls.Fr, modulus *big.Int) bls.Fr {
+func calcR(cs []*bls.Fr, indices []*bls.Fr, ys []*bls.Fr, modulus *big.Int) bls.Fr {
 	digest := sha256.New()
 	for _, c := range cs {
-		h := sha256.Sum256(bls.ToCompressedG1(c))
+		h := bls.FrTo32(c)
 		digest.Write(h[:])
 	}
 	for _, idx := range indices {
@@ -180,7 +180,7 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte) (d *bls.G1Point, y *bls
 	return
 }
 
-func VerifyVerkleProof(ks *kzg.KZGSettings, d, sigma *bls.G1Point, y *bls.Fr, commitments []*bls.G1Point, zis, yis []*bls.Fr, tc *TreeConfig) bool {
+func VerifyVerkleProof(ks *kzg.KZGSettings, d, sigma *bls.G1Point, y *bls.Fr, commitments []*bls.Fr, zis, yis []*bls.Fr, tc *TreeConfig) bool {
 	r := calcR(commitments, zis, yis, tc.modulus)
 	t := calcT(&r, d, tc.modulus)
 
@@ -199,7 +199,8 @@ func VerifyVerkleProof(ks *kzg.KZGSettings, d, sigma *bls.G1Point, y *bls.Fr, co
 
 		// E
 		var eTmp bls.G1Point
-		bls.MulG1(&eTmp, commitments[i], &rDivZi)
+		bls.MulG1(&eTmp, &bls.GenG1, commitments[i])
+		bls.MulG1(&eTmp, &eTmp, &rDivZi)
 		bls.AddG1(&e, &e, &eTmp)
 
 		// rⁱ⁺¹ = r ⨯ rⁱ

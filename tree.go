@@ -73,7 +73,7 @@ type VerkleNode interface {
 	// traces through the tree, and collects the various
 	// elements needed to build a proof. The order of elements
 	// is from the bottom of the tree, up to the root.
-	GetCommitmentsAlongPath([]byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr)
+	GetCommitmentsAlongPath([]byte) ([]*bls.Fr, []*bls.Fr, []*bls.Fr, [][]bls.Fr)
 
 	// Serialize encodes the node to RLP.
 	Serialize() ([]byte, error)
@@ -499,7 +499,7 @@ func (n *InternalNode) ComputeCommitment() *bls.G1Point {
 	return n.commitment
 }
 
-func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr) {
+func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.Fr, []*bls.Fr, []*bls.Fr, [][]bls.Fr) {
 	childIdx := n.treeConfig.offset2key(key, n.depth)
 	comms, zis, yis, fis := n.children[childIdx].GetCommitmentsAlongPath(key)
 	var zi, yi bls.Fr
@@ -511,7 +511,10 @@ func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*b
 			bls.CopyFr(&yi, &fi[i])
 		}
 	}
-	return append(comms, n.ComputeCommitment()), append(zis, &zi), append(yis, &yi), append(fis, fi[:])
+	comm := new(bls.Fr)
+	c := sha256.Sum256(bls.ToCompressedG1(n.ComputeCommitment()))
+	hashToFr(comm, c, n.treeConfig.modulus)
+	return append(comms, comm), append(zis, &zi), append(yis, &yi), append(fis, fi[:])
 }
 
 func (n *InternalNode) Serialize() ([]byte, error) {
@@ -629,7 +632,7 @@ func (n *LeafNode) ComputeCommitment() *bls.G1Point {
 	return n.commitment
 }
 
-func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr) {
+func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*bls.Fr, []*bls.Fr, []*bls.Fr, [][]bls.Fr) {
 	return nil, nil, nil, nil
 }
 
@@ -690,7 +693,7 @@ func (n *HashedNode) ComputeCommitment() *bls.G1Point {
 	return n.commitment
 }
 
-func (n *HashedNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr) {
+func (n *HashedNode) GetCommitmentsAlongPath(key []byte) ([]*bls.Fr, []*bls.Fr, []*bls.Fr, [][]bls.Fr) {
 	panic("can not get the full path, and there is no proof of absence")
 }
 
@@ -734,7 +737,7 @@ func (e Empty) ComputeCommitment() *bls.G1Point {
 	return &bls.ZeroG1
 }
 
-func (e Empty) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr) {
+func (e Empty) GetCommitmentsAlongPath(key []byte) ([]*bls.Fr, []*bls.Fr, []*bls.Fr, [][]bls.Fr) {
 	panic("trying to produce a commitment for an empty subtree")
 }
 
