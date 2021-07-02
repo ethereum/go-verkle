@@ -100,6 +100,10 @@ type (
 		// node depth in the tree, in bits
 		depth int
 
+		// child count, used for the special case in
+		// commitment calculations.
+		count uint
+
 		// Cache the hash of the current node
 		hash common.Hash
 
@@ -133,6 +137,7 @@ func newInternalNode(depth int, tc *TreeConfig) VerkleNode {
 	}
 	node.depth = depth
 	node.treeConfig = tc
+	node.count = 0
 	return node
 }
 
@@ -170,6 +175,7 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 	if n.commitment != nil {
 		n.commitment = nil
 	}
+	n.count++
 
 	nChild := n.treeConfig.offset2key(key, n.depth)
 
@@ -227,6 +233,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 	if n.commitment != nil {
 		n.commitment = nil
 	}
+	n.count++
 
 	nChild := n.treeConfig.offset2key(key, n.depth)
 
@@ -268,6 +275,10 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 		}
 		lastNode.values[lastSlot(n.treeConfig.width, key)] = value
 		n.children[nChild] = lastNode
+
+		// If the node was already created, then there was at least one
+		// child. As a result, inserting this new leaf means there are
+		// now more than one child in this node.
 	case *HashedNode:
 		return errInsertIntoHash
 	case *LeafNode:
@@ -341,38 +352,37 @@ func (n *InternalNode) Delete(key []byte) error {
 			return err
 		}
 		// Prune child if necessary
-		usedCount := 0
 		for _, v := range child.values {
 			if v != nil {
-				usedCount++
-				if usedCount >= 1 {
-					return nil
-				}
+				// bail if at least one child node have been found
+				return nil
 			}
 		}
+		// leaf node is now empty, prune it
 		n.children[nChild] = Empty{}
+		n.count--
 		return nil
-	default:
+	case *InternalNode:
 		if err := child.Delete(key); err != nil {
 			return err
 		}
 		// Prune child if necessary
-		emptyCount := 0
-		lastNonEmpty := -1
-		for i, c := range child.(*InternalNode).children {
-			if _, ok := c.(Empty); !ok {
-				emptyCount++
-				lastNonEmpty = i
-				if emptyCount >= 2 {
-					return nil
-				}
-			}
-		}
-		switch emptyCount {
+		switch child.count {
 		case 0:
 			n.children[nChild] = Empty{}
+			n.count--
 		case 1:
-			n.children[nChild] = child.(*InternalNode).children[lastNonEmpty]
+			// child node has only one child, and if that child
+			// is a LeafNode, then it needs to be removed since
+			// its key is covered by the extension. Other nodes
+			// with only one leaf could be the parent of a node
+			// with more than one leaf, and so they must remain
+			for i, v := range child.children {
+				if _, ok := v.(*LeafNode); !ok {
+					n.children[nChild] = child.children[i]
+					break
+				}
+			}
 		default:
 		}
 	}
@@ -430,9 +440,7 @@ func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 }
 
 func (n *InternalNode) Hash() common.Hash {
-	comm := n.ComputeCommitment()
-	h := sha256.Sum256(bls.ToCompressedG1(comm))
-	return common.BytesToHash(h[:])
+	return n.hash
 }
 
 // This function takes a hash and turns it into a bls.Fr integer, making
@@ -475,24 +483,63 @@ func (n *InternalNode) ComputeCommitment() *bls.G1Point {
 	}
 
 	emptyChildren := 0
+	lastIndex := -1
 	poly := make([]bls.Fr, n.treeConfig.nodeWidth)
 	for idx, childC := range n.children {
 		switch child := childC.(type) {
 		case Empty:
 			emptyChildren++
-		case *LeafNode, *HashedNode:
+		case *LeafNode:
+			lastIndex = idx
+			// XXX ça veut dire que qd je collapse le truc, je dois
+			// déjà décider le hash correct.
+
+			// Store the leaf node hash in the polynomial, even if
+			// the tree is free.
+			hashToFr(&poly[idx], child.Hash(), n.treeConfig.modulus)
+		case *HashedNode:
+			lastIndex = idx
 			hashToFr(&poly[idx], child.Hash(), n.treeConfig.modulus)
 		default:
-			compressed := bls.ToCompressedG1(childC.ComputeCommitment())
-			hashToFr(&poly[idx], sha256.Sum256(compressed), n.treeConfig.modulus)
+			lastIndex = idx
+			childC.ComputeCommitment()
+			h := childC.Hash()
+			hashToFr(&poly[idx], h, n.treeConfig.modulus)
 		}
 	}
 
-	n.commitment = n.treeConfig.evalPoly(poly, emptyChildren)
+	// Based on the number of children, consider the child as a single leaf
+	// (1 child, which must be a LeafNode), or multiple children, which are
+	// taken as the coefficients of a polynomial.
+	if child, ok := n.children[lastIndex].(*LeafNode); ok && n.count == 1 {
+		// Idée sur laquelle je bosse: cacher le commitment lui-même,
+		// renvoyer le hash à ce niveau (ou ne rien renvoyer) et pour
+		// GetCommitmentsAlongPath on récupère ce qui a été caché (donc
+		// les fis ?)
+		digest := sha256.New()
+		digest.Write(child.key[:31]) // write only the first 31 bytes
+		tmp := bls.FrTo32(&poly[lastIndex])
+		digest.Write(tmp[:])
+		n.hash = common.BytesToHash(digest.Sum(nil))
+
+		// Set the commitment to nil, as there is no real commitment at this
+		// level - only the hash has significance.
+		n.commitment = nil
+	} else {
+		n.commitment = n.treeConfig.evalPoly(poly, emptyChildren)
+		h := sha256.Sum256(bls.ToCompressedG1(n.commitment))
+		n.hash = common.BytesToHash(h[:])
+	}
+
 	return n.commitment
 }
 
 func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr) {
+	// Special case, no commitment
+	if n.count == 1 {
+		return nil, nil, nil, nil
+	}
+
 	childIdx := n.treeConfig.offset2key(key, n.depth)
 	comms, zis, yis, fis := n.children[childIdx].GetCommitmentsAlongPath(key)
 	var zi, yi bls.Fr
@@ -525,6 +572,7 @@ func (n *InternalNode) Copy() VerkleNode {
 		commitment: new(bls.G1Point),
 		depth:      n.depth,
 		treeConfig: n.treeConfig,
+		count:      n.count,
 	}
 
 	for i, child := range n.children {

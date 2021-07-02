@@ -134,13 +134,13 @@ func TestComputeRootCommitmentThreeLeaves(t *testing.T) {
 	root.Insert(fourtyKeyTest, testValue)
 	root.Insert(ffx32KeyTest, testValue)
 
-	expected := common.Hex2Bytes("951dcba37a55b6ca65717e36a8ba9fc9974c1e4959861ee50d6b935da0ecc869fe278b605108d1c346295c4bdefca3df")
+	expected := common.Hex2Bytes("f788863945087eb43c8d8e37c5111e2b64b7f45260fa90cdadf911d39b6523dc")
 
-	comm := root.ComputeCommitment()
-	got := bls.ToCompressedG1(comm)
+	root.ComputeCommitment()
+	got := root.Hash()
 
-	if !bytes.Equal(got, expected) {
-		t.Fatalf("incorrect root commitment %x != %x", got, expected)
+	if !bytes.Equal(got[:], expected) {
+		t.Fatalf("incorrect root commitment hash %x != %x", got, expected)
 	}
 }
 
@@ -228,12 +228,12 @@ func TestComputeRootCommitmentTwoLeaves(t *testing.T) {
 	root := New(10)
 	root.Insert(zeroKeyTest, testValue)
 	root.Insert(ffx32KeyTest, testValue)
-	expected := common.Hex2Bytes("a64ec9519659972fdb9d31c4abad5bed33135c0c27eff5d365809d30183785d6813767f2a651ae8642cb699d27bb450d")
+	expected := common.Hex2Bytes("de74e070a2309dfecf3aa6453f2b509a798f213b261050aeb83b1c832de077f7")
 
-	comm := root.ComputeCommitment()
-	got := bls.ToCompressedG1(comm)
+	root.ComputeCommitment()
+	got := root.Hash()
 
-	if !bytes.Equal(got, expected) {
+	if !bytes.Equal(got[:], expected) {
 		t.Fatalf("incorrect root commitment %x != %x", got, expected)
 	}
 }
@@ -285,12 +285,12 @@ func TestComputeRootCommitmentTwoLeaves256(t *testing.T) {
 	root := New(8)
 	root.Insert(zeroKeyTest, testValue)
 	root.Insert(ffx32KeyTest, testValue)
-	expected := common.Hex2Bytes("844b3cdb8312b0126b80746477c2b78014f3c9be90bf4b8830d544a4bd4095144993506559a76182e105704eb899e561")
+	expected := common.Hex2Bytes("ad52f5d5dce706ae99d968d79f5857eb341479b51cba2b539633b4c8b2b42fef")
 
-	comm := root.ComputeCommitment()
-	got := bls.ToCompressedG1(comm)
+	root.ComputeCommitment()
+	got := root.Hash()
 
-	if !bytes.Equal(got, expected) {
+	if !bytes.Equal(got[:], expected) {
 		t.Fatalf("incorrect root commitment %x != %x", got, expected)
 	}
 }
@@ -376,7 +376,11 @@ func TestCopy(t *testing.T) {
 	copied := tree.Copy()
 	copied.(*InternalNode).clearCache()
 
-	if !bytes.Equal(bls.ToCompressedG1(copied.ComputeCommitment()), bls.ToCompressedG1(tree.ComputeCommitment())) {
+	copied.ComputeCommitment()
+	tree.ComputeCommitment()
+	got1 := copied.Hash()
+	got2 := tree.Hash()
+	if !bytes.Equal(got1[:], got2[:]) {
 		t.Fatal("error copying commitments")
 	}
 	if copied.Hash() != tree.Hash() {
@@ -384,8 +388,11 @@ func TestCopy(t *testing.T) {
 	}
 	tree.Insert(key2, []byte("changed"))
 	tree.ComputeCommitment()
-	if bytes.Equal(bls.ToCompressedG1(copied.ComputeCommitment()), bls.ToCompressedG1(tree.ComputeCommitment())) {
-		t.Fatal("error tree and its copy should have a different commitment after the update")
+	got2 = tree.Hash()
+	if bytes.Equal(got1[:], got2[:]) {
+		t1, _ := tree.Get(key2, nil)
+		t2, _ := copied.Get(key2, nil)
+		t.Fatalf("error tree and its copy should have a different commitment after the update: %x == %x %s %s", got1, got2, t1, t2)
 	}
 }
 
@@ -811,6 +818,7 @@ func TestMainnetStart(t *testing.T) {
 		tree.InsertOrdered(key, value, nil)
 	}
 
+	tree.ComputeCommitment()
 	h := tree.Hash()
 
 	if !bytes.Equal(h[:], common.Hex2Bytes("cebf76a3acc9cfb1d880c480fc85e868a4c346698d239e409c3446a2c1fdb334")) {
