@@ -153,7 +153,7 @@ func TestComputeRootCommitmentThreeLeaves(t *testing.T) {
 	root.Insert(fourtyKeyTest, testValue)
 	root.Insert(ffx32KeyTest, testValue)
 
-	expected := common.Hex2Bytes("f788863945087eb43c8d8e37c5111e2b64b7f45260fa90cdadf911d39b6523dc")
+	expected := common.Hex2Bytes("3438030e22ae83a47e97592801b98c9887ab143a07108ca9d7c1de5a3eaac7b0")
 
 	root.ComputeCommitment()
 	got := root.Hash()
@@ -173,7 +173,7 @@ func TestComputeRootCommitmentOnlineThreeLeaves(t *testing.T) {
 	// commitment is calculated.
 	comm := root.ComputeCommitment()
 
-	expected := common.Hex2Bytes("951dcba37a55b6ca65717e36a8ba9fc9974c1e4959861ee50d6b935da0ecc869fe278b605108d1c346295c4bdefca3df")
+	expected := common.Hex2Bytes("88d760b018321bf37e62dddd78568b102f5d303bfd635c667fe3abffbf0523b3d337f061f0b5359198c970a55d60cbca")
 
 	got := bls.ToCompressedG1(comm)
 
@@ -188,13 +188,26 @@ func TestComputeRootCommitmentThreeLeavesDeep(t *testing.T) {
 	root.Insert(oneKeyTest, testValue)
 	root.Insert(ffx32KeyTest, testValue)
 
-	expected := common.Hex2Bytes("84651cc7122fcf0e0c6cba8e4f5c0212fc9d257f9fb43ab855c19a2e03396eb0b73720abf0c6d1324dd132f9340bc691")
+	expected := common.Hex2Bytes("b87fb70db2808c8c28b5c724191ea4b895489d6502b6172f92a82c83fb88c110021cd16f44149083541c834d54a1da36")
 
 	comm := root.ComputeCommitment()
 	got := bls.ToCompressedG1(comm)
 
 	if !bytes.Equal(got, expected) {
 		t.Fatalf("incorrect root commitment %x != %x", got, expected)
+	}
+}
+func TestComputeRootCommitmentOneLeaf(t *testing.T) {
+	root := New(8)
+	root.Insert(zeroKeyTest, zeroKeyTest)
+
+	expected := common.Hex2Bytes("c754161429960718cd6eca5ac4bf74af76b5435e838b928d90632f52be4700f4")
+
+	root.ComputeCommitment()
+	got := root.Hash()
+
+	if !bytes.Equal(got[:], expected) {
+		t.Fatalf("incorrect root commitment hash %x != %x", got, expected)
 	}
 }
 
@@ -204,7 +217,7 @@ func TestComputeRootCommitmentOnlineThreeLeavesDeep(t *testing.T) {
 	root.InsertOrdered(oneKeyTest, testValue, nil)
 	root.InsertOrdered(ffx32KeyTest, testValue, nil)
 
-	expected := common.Hex2Bytes("84651cc7122fcf0e0c6cba8e4f5c0212fc9d257f9fb43ab855c19a2e03396eb0b73720abf0c6d1324dd132f9340bc691")
+	expected := common.Hex2Bytes("b87fb70db2808c8c28b5c724191ea4b895489d6502b6172f92a82c83fb88c110021cd16f44149083541c834d54a1da36")
 
 	comm := root.ComputeCommitment()
 	got := bls.ToCompressedG1(comm)
@@ -247,7 +260,7 @@ func TestComputeRootCommitmentTwoLeaves(t *testing.T) {
 	root := New(10)
 	root.Insert(zeroKeyTest, testValue)
 	root.Insert(ffx32KeyTest, testValue)
-	expected := common.Hex2Bytes("de74e070a2309dfecf3aa6453f2b509a798f213b261050aeb83b1c832de077f7")
+	expected := common.Hex2Bytes("907f6841e2e95f350899c767213bb44a8e9d4bdfa36872a49cc2eddc05d70753")
 
 	root.ComputeCommitment()
 	got := root.Hash()
@@ -262,7 +275,7 @@ func TestComputeRootCommitmentTwoLeavesLastLevel(t *testing.T) {
 	root.Insert(zeroKeyTest, testValue)
 	root.Insert(oneKeyTest, testValue)
 
-	expected := common.Hex2Bytes("cbe6bf49d09e9ab506c2d5f36e5410dc81d7805b57cb567875ba79c47184ac4b")
+	expected := common.Hex2Bytes("0ac1acd61bf406b149bd8e6f0a6d3f858a0551955274e0bda9f4cdf2c7cce0fb")
 
 	root.ComputeCommitment()
 	got := root.Hash()
@@ -319,7 +332,7 @@ func TestComputeRootCommitmentTwoLeaves256(t *testing.T) {
 	root := New(8)
 	root.Insert(zeroKeyTest, testValue)
 	root.Insert(ffx32KeyTest, testValue)
-	expected := common.Hex2Bytes("ad52f5d5dce706ae99d968d79f5857eb341479b51cba2b539633b4c8b2b42fef")
+	expected := common.Hex2Bytes("a02ce754e95dcb632009d4f11845871990c1ceece8bddc8ed571623d03af4bfc")
 
 	root.ComputeCommitment()
 	got := root.Hash()
@@ -415,7 +428,7 @@ func TestCopy(t *testing.T) {
 	got1 := copied.Hash()
 	got2 := tree.Hash()
 	if !bytes.Equal(got1[:], got2[:]) {
-		t.Fatal("error copying commitments")
+		t.Fatalf("error copying commitments %x != %x", got1, got2)
 	}
 	if copied.Hash() != tree.Hash() {
 		t.Fatal("error copying commitments")
@@ -952,7 +965,7 @@ func TestMainnetStart(t *testing.T) {
 	tree.ComputeCommitment()
 	h := tree.Hash()
 
-	if !bytes.Equal(h[:], common.Hex2Bytes("cebf76a3acc9cfb1d880c480fc85e868a4c346698d239e409c3446a2c1fdb334")) {
+	if !bytes.Equal(h[:], common.Hex2Bytes("684fb4007b172aa7b33daad14e0badb200e6b6a521a9c8ebcdeb2ca45db2d88a")) {
 		t.Fatalf("invalid hash: %x", h)
 	}
 }

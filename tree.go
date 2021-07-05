@@ -123,6 +123,7 @@ type (
 		values [][]byte
 
 		commitment *bls.G1Point
+		hash       common.Hash
 		treeConfig *TreeConfig
 	}
 
@@ -496,6 +497,7 @@ func (n *InternalNode) ComputeCommitment() *bls.G1Point {
 			lastIndex = idx
 			// Store the leaf node hash in the polynomial, even if
 			// the tree is free.
+			child.ComputeCommitment()
 			hashToFr(&poly[idx], child.Hash(), n.treeConfig.modulus)
 		case *HashedNode:
 			lastIndex = idx
@@ -667,6 +669,7 @@ func (n *LeafNode) ComputeCommitment() *bls.G1Point {
 	}
 
 	n.commitment = n.treeConfig.evalPoly(poly, emptyChildren)
+	n.hash = sha256.Sum256(bls.ToCompressedG1(n.commitment))
 	return n.commitment
 }
 
@@ -675,9 +678,8 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.F
 }
 
 func (n *LeafNode) Hash() common.Hash {
-	comm := n.ComputeCommitment()
-	h := sha256.Sum256(bls.ToCompressedG1(comm))
-	return common.BytesToHash(h[:])
+	n.ComputeCommitment()
+	return n.hash
 }
 
 func (n *LeafNode) Serialize() ([]byte, error) {
@@ -697,6 +699,7 @@ func (n *LeafNode) Copy() VerkleNode {
 	if n.commitment != nil {
 		l.commitment = n.commitment
 	}
+	copy(l.hash[:], n.hash[:])
 
 	return l
 }
