@@ -175,7 +175,6 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 	if n.commitment != nil {
 		n.commitment = nil
 	}
-	n.count++
 
 	nChild := n.treeConfig.offset2key(key, n.depth)
 
@@ -188,6 +187,7 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 		}
 		lastNode.values[lastSlot(n.treeConfig.width, key)] = value
 		n.children[nChild] = lastNode
+		n.count++
 	case *HashedNode:
 		return errInsertIntoHash
 	case *LeafNode:
@@ -204,6 +204,7 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 			// the moved leaf node can occur.
 			nextWordInExistingKey := n.treeConfig.offset2key(child.key, n.depth+width)
 			newBranch := newInternalNode(n.depth+width, n.treeConfig).(*InternalNode)
+			newBranch.count = 1
 			n.children[nChild] = newBranch
 			newBranch.children[nextWordInExistingKey] = child
 
@@ -218,6 +219,7 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 				}
 				lastNode.values[lastSlot(n.treeConfig.width, key)] = value
 				newBranch.children[nextWordInInsertedKey] = lastNode
+				newBranch.count++
 			} else {
 				newBranch.Insert(key, value)
 			}
@@ -233,7 +235,6 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 	if n.commitment != nil {
 		n.commitment = nil
 	}
-	n.count++
 
 	nChild := n.treeConfig.offset2key(key, n.depth)
 
@@ -247,11 +248,12 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 			case Empty:
 				continue
 			case *LeafNode:
+				comm := n.children[i].ComputeCommitment()
 				childHash := n.children[i].Hash()
 				if flush != nil {
 					flush(n.children[i])
 				}
-				n.children[i] = &HashedNode{hash: childHash}
+				n.children[i] = &HashedNode{hash: childHash, commitment: comm}
 				break
 			case *HashedNode:
 				break
@@ -295,6 +297,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 			// the moved leaf node can occur.
 			nextWordInExistingKey := n.treeConfig.offset2key(child.key, n.depth+width)
 			newBranch := newInternalNode(n.depth+width, n.treeConfig).(*InternalNode)
+			newBranch.count = 1
 			n.children[nChild] = newBranch
 
 			nextWordInInsertedKey := n.treeConfig.offset2key(key, n.depth+width)
@@ -319,6 +322,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 				}
 				lastNode.values[lastSlot(n.treeConfig.width, key)] = value
 				newBranch.children[nextWordInInsertedKey] = lastNode
+				newBranch.count++
 			} else {
 				// Reinsert the leaf in order to recurse
 				newBranch.children[nextWordInExistingKey] = child
@@ -347,7 +351,6 @@ func (n *InternalNode) Delete(key []byte) error {
 		if !n.treeConfig.equalPaths(child.key, key) {
 			return errDeleteNonExistent
 		}
-		n.commitment = nil
 		if err := child.Delete(key); err != nil {
 			return err
 		}
@@ -378,7 +381,7 @@ func (n *InternalNode) Delete(key []byte) error {
 			// with only one leaf could be the parent of a node
 			// with more than one leaf, and so they must remain
 			for i, v := range child.children {
-				if _, ok := v.(*LeafNode); !ok {
+				if _, ok := v.(*LeafNode); ok {
 					n.children[nChild] = child.children[i]
 					break
 				}
@@ -491,9 +494,6 @@ func (n *InternalNode) ComputeCommitment() *bls.G1Point {
 			emptyChildren++
 		case *LeafNode:
 			lastIndex = idx
-			// XXX ça veut dire que qd je collapse le truc, je dois
-			// déjà décider le hash correct.
-
 			// Store the leaf node hash in the polynomial, even if
 			// the tree is free.
 			hashToFr(&poly[idx], child.Hash(), n.treeConfig.modulus)
@@ -722,12 +722,6 @@ func (n *HashedNode) Hash() common.Hash {
 }
 
 func (n *HashedNode) ComputeCommitment() *bls.G1Point {
-	if n.commitment == nil {
-		var hashAsFr bls.Fr
-		hashToFr(&hashAsFr, n.hash, big.NewInt(0))
-		n.commitment = new(bls.G1Point)
-		bls.MulG1(n.commitment, &bls.GenG1, &hashAsFr)
-	}
 	return n.commitment
 }
 

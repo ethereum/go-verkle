@@ -522,6 +522,103 @@ func TestDeletePrune(t *testing.T) {
 	}
 }
 
+func TestDeletePruneMultipleLevels(t *testing.T) {
+	value := []byte("value")
+	key1 := common.Hex2Bytes("0105000000000000000000000000000000000000000000000000000000000000")
+	key2 := common.Hex2Bytes("0107000000000000000000000000000000000000000000000000000000000000")
+	key3 := common.Hex2Bytes("0405000000000000000000000000000000000000000000000000000000000000")
+	key4 := common.Hex2Bytes("0405010000000000000000000000000000000000000000000000000000000000")
+	tree := New(8)
+	tree.Insert(key1, value)
+	tree.Insert(key2, value)
+
+	hash1 := tree.Hash()
+	tree.Insert(key3, value)
+	hash2 := tree.Hash()
+	tree.Insert(key4, value)
+
+	if err := tree.Delete(key4); err != nil {
+		t.Error(err)
+	}
+	postHash := tree.Hash()
+	if !bytes.Equal(hash2.Bytes(), postHash.Bytes()) {
+		t.Error("deleting leaf resulted in unexpected tree")
+	}
+
+	tempNode := tree.(*InternalNode).children[4]
+	if _, ok := tempNode.(*LeafNode); !ok {
+		t.Fatal("did not collapse extension for 450")
+	}
+
+	if err := tree.Delete(key3); err != nil {
+		t.Error(err)
+	}
+	postHash = tree.Hash()
+	if !bytes.Equal(hash1.Bytes(), postHash.Bytes()) {
+		t.Error("deleting leaf resulted in unexpected tree")
+	}
+
+	if _, ok := tree.(*InternalNode).children[4].(Empty); !ok {
+		t.Fatal("did not delete the right node")
+	}
+}
+
+func TestDeletePruneExtensions(t *testing.T) {
+	value := []byte("value")
+	key1 := common.Hex2Bytes("0105000000000000000000000000000000000000000000000000000000000000")
+	key2 := common.Hex2Bytes("0107000000000000000000000000000000000000000000000000000000000000")
+	key3 := common.Hex2Bytes("0405000000000000000000000000000000000000000000000000000000000000")
+	key4 := common.Hex2Bytes("0405000000000000000000000000000000000000000000000000000000000001")
+	tree := New(8)
+	tree.Insert(key1, value)
+	tree.Insert(key2, value)
+
+	hash1 := tree.Hash()
+	tree.Insert(key3, value)
+	hash2 := tree.Hash()
+	tree.Insert(key4, value)
+
+	node4 := tree.(*InternalNode).children[4]
+	leaf, ok := node4.(*LeafNode)
+	if !ok {
+		t.Fatal("could not find expected leaf node")
+	}
+
+	if leaf.values[0] == nil || leaf.values[1] == nil {
+		t.Fatal("value isn't present where expected")
+	}
+	for i := 2; i < 256; i++ {
+		if leaf.values[i] != nil {
+			t.Fatalf("unexpected value at %d", i)
+		}
+	}
+
+	if err := tree.Delete(key4); err != nil {
+		t.Error(err)
+	}
+	postHash := tree.Hash()
+	if !bytes.Equal(hash2.Bytes(), postHash.Bytes()) {
+		t.Error("deleting leaf resulted in unexpected tree")
+	}
+
+	if leaf.values[0] == nil {
+		t.Fatal("value isn't present where expected")
+	}
+	for i := 1; i < 256; i++ {
+		if leaf.values[i] != nil {
+			t.Fatalf("unexpected value at %d", i)
+		}
+	}
+
+	if err := tree.Delete(key3); err != nil {
+		t.Error(err)
+	}
+	postHash = tree.Hash()
+	if !bytes.Equal(hash1.Bytes(), postHash.Bytes()) {
+		t.Error("deleting leaf resulted in unexpected tree")
+	}
+}
+
 var (
 	emptyCodeHash = common.Hex2Bytes("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
 	emptyRootHash = common.HexToHash("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
