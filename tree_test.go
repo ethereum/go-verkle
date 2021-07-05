@@ -93,6 +93,25 @@ func TestInsertTwoLeaves(t *testing.T) {
 	}
 }
 
+func TestInsertTwoLeavesLastLevel(t *testing.T) {
+	root := New(8)
+	root.Insert(zeroKeyTest, testValue)
+	root.Insert(oneKeyTest, testValue)
+
+	leaf, ok := root.(*InternalNode).children[0].(*LeafNode)
+	if !ok {
+		t.Fatalf("invalid leaf node type %v", root.(*InternalNode).children[0])
+	}
+
+	if !bytes.Equal(leaf.values[1][:], testValue) {
+		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaf.values[1])
+	}
+	if !bytes.Equal(leaf.values[0][:], testValue) {
+		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaf.values[0])
+	}
+
+}
+
 func TestGetTwoLeaves(t *testing.T) {
 	root := New(10)
 	root.Insert(zeroKeyTest, testValue)
@@ -229,6 +248,21 @@ func TestComputeRootCommitmentTwoLeaves(t *testing.T) {
 	root.Insert(zeroKeyTest, testValue)
 	root.Insert(ffx32KeyTest, testValue)
 	expected := common.Hex2Bytes("de74e070a2309dfecf3aa6453f2b509a798f213b261050aeb83b1c832de077f7")
+
+	root.ComputeCommitment()
+	got := root.Hash()
+
+	if !bytes.Equal(got[:], expected) {
+		t.Fatalf("incorrect root commitment %x != %x", got, expected)
+	}
+}
+
+func TestComputeRootCommitmentTwoLeavesLastLevel(t *testing.T) {
+	root := New(8)
+	root.Insert(zeroKeyTest, testValue)
+	root.Insert(oneKeyTest, testValue)
+
+	expected := common.Hex2Bytes("cbe6bf49d09e9ab506c2d5f36e5410dc81d7805b57cb567875ba79c47184ac4b")
 
 	root.ComputeCommitment()
 	got := root.Hash()
