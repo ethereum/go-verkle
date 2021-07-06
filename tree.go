@@ -36,14 +36,7 @@ import (
 	"github.com/protolambda/go-kzg/bls"
 )
 
-// FlushableNode is a tuple of a node and its hash, to be passed
-// to a consumer (e.g. the routine responsible for saving it to
-// the db) once the node is no longer used by the tree.
-type FlushableNode struct {
-	Hash [32]byte
-	Node VerkleNode
-}
-
+type NodeFlushFn func(VerkleNode)
 type NodeResolverFn func([]byte) ([]byte, error)
 
 type VerkleNode interface {
@@ -54,7 +47,7 @@ type VerkleNode interface {
 	// values are expected to be ordered, and the commitments and
 	// hashes for each subtrie are computed online, as soon as it
 	// is clear that no more values will be inserted in there.
-	InsertOrdered([]byte, []byte, chan FlushableNode) error
+	InsertOrdered([]byte, []byte, NodeFlushFn) error
 
 	// Delete a leaf with the given key
 	Delete([]byte) error
@@ -229,7 +222,7 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 	return nil
 }
 
-func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush chan FlushableNode) error {
+func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn) error {
 	// Clear cached commitment on modification
 	if n.commitment != nil {
 		n.commitment = nil
@@ -249,7 +242,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush chan Flusha
 			case *LeafNode:
 				childHash := n.children[i].Hash()
 				if flush != nil {
-					flush <- FlushableNode{childHash, n.children[i]}
+					flush(n.children[i])
 				}
 				n.children[i] = &HashedNode{hash: childHash}
 				break
@@ -303,7 +296,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush chan Flusha
 				hashToFr(&tmp, h, n.treeConfig.modulus)
 				bls.MulG1(comm, &bls.GenG1, &tmp)
 				if flush != nil {
-					flush <- FlushableNode{h, child}
+					flush(child)
 				}
 				newBranch.children[nextWordInExistingKey] = &HashedNode{hash: h, commitment: comm}
 				// Next word differs, so this was the last level.
@@ -388,18 +381,18 @@ func (n *InternalNode) Delete(key []byte) error {
 
 // Flush hashes the children of an internal node and replaces them
 // with HashedNode. It also sends the current node on the flush channel.
-func (n *InternalNode) Flush(flush chan FlushableNode) {
+func (n *InternalNode) Flush(flush NodeFlushFn) {
 	for i, child := range n.children {
 		if c, ok := child.(*InternalNode); ok {
 			c.Flush(flush)
 			n.children[i] = &HashedNode{c.Hash(), c.commitment}
 		} else if c, ok := child.(*LeafNode); ok {
 			childHash := c.Hash()
-			flush <- FlushableNode{childHash, c}
+			flush(c)
 			n.children[i] = &HashedNode{hash: childHash}
 		}
 	}
-	flush <- FlushableNode{n.Hash(), n}
+	flush(n)
 }
 
 func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
@@ -569,7 +562,7 @@ func (n *LeafNode) Insert(k []byte, value []byte) error {
 	return nil
 }
 
-func (n *LeafNode) InsertOrdered(key []byte, value []byte, flush chan FlushableNode) error {
+func (n *LeafNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn) error {
 	// In the previous version, this value used to be flushed on insert.
 	// This is no longer the case, as all values at the last level get
 	// flushed at the same time.
@@ -664,7 +657,7 @@ func (n *HashedNode) Insert(k []byte, value []byte) error {
 	return errInsertIntoHash
 }
 
-func (n *HashedNode) InsertOrdered(key []byte, value []byte, _ chan FlushableNode) error {
+func (n *HashedNode) InsertOrdered(key []byte, value []byte, _ NodeFlushFn) error {
 	return errInsertIntoHash
 }
 
@@ -714,7 +707,7 @@ func (e Empty) Insert(k []byte, value []byte) error {
 	return errors.New("an empty node should not be inserted directly into")
 }
 
-func (e Empty) InsertOrdered(key []byte, value []byte, _ chan FlushableNode) error {
+func (e Empty) InsertOrdered(key []byte, value []byte, _ NodeFlushFn) error {
 	return e.Insert(key, value)
 }
 
