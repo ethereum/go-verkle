@@ -55,12 +55,10 @@ type VerkleNode interface {
 	// Get value at a given key
 	Get([]byte, NodeResolverFn) ([]byte, error)
 
-	// Hash of the current node
-	Hash() common.Hash
-
 	// ComputeCommitment computes the commitment of the node
-	// The result is cached.
-	ComputeCommitment() *bls.G1Point
+	// The results (the cureve point and the field element
+	// representation of its hash) are cached.
+	ComputeCommitment() *bls.Fr
 
 	// GetCommitmentAlongPath follows the path that one key
 	// traces through the tree, and collects the various
@@ -83,10 +81,11 @@ const (
 )
 
 var (
-	errInsertIntoHash    = errors.New("trying to insert into hashed node")
-	errValueNotPresent   = errors.New("value not present in tree")
-	errDeleteNonExistent = errors.New("trying to delete non-existent leaf")
-	errReadFromInvalid   = errors.New("trying to read from an invalid child")
+	errInsertIntoHash      = errors.New("trying to insert into hashed node")
+	errValueNotPresent     = errors.New("value not present in tree")
+	errDeleteNonExistent   = errors.New("trying to delete non-existent leaf")
+	errReadFromInvalid     = errors.New("trying to read from an invalid child")
+	errSerializeHashedNode = errors.New("trying to serialized a hashed node")
 
 	zeroHash = common.HexToHash("0000000000000000000000000000000000000000000000000000000000000000")
 )
@@ -104,8 +103,9 @@ type (
 		// commitment calculations.
 		count uint
 
-		// Cache the hash of the current node
-		hash common.Hash
+		// Cache the field representation of the hash
+		// of the current node.
+		hash *bls.Fr
 
 		// Cache the commitment value
 		commitment *bls.G1Point
@@ -114,7 +114,7 @@ type (
 	}
 
 	HashedNode struct {
-		hash       common.Hash
+		hash       *bls.Fr
 		commitment *bls.G1Point
 	}
 
@@ -123,7 +123,7 @@ type (
 		values [][]byte
 
 		commitment *bls.G1Point
-		hash       common.Hash
+		hash       *bls.Fr
 		treeConfig *TreeConfig
 	}
 
@@ -231,6 +231,10 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 	return nil
 }
 
+func (n *InternalNode) toHashedNode() *HashedNode {
+	return &HashedNode{n.hash, n.commitment}
+}
+
 func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn) error {
 	// Clear cached commitment on modification
 	if n.commitment != nil {
@@ -245,27 +249,17 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 		// subtree directly preceding this new one, can
 		// safely be calculated.
 		for i := int(nChild) - 1; i >= 0; i-- {
-			switch n.children[i].(type) {
+			switch child := n.children[i].(type) {
 			case Empty:
 				continue
-			case *LeafNode:
-				comm := n.children[i].ComputeCommitment()
-				childHash := n.children[i].Hash()
-				if flush != nil {
-					flush(n.children[i])
-				}
-				n.children[i] = &HashedNode{hash: childHash, commitment: comm}
+			case *LeafNode, *HashedNode:
 				break
-			case *HashedNode:
-				break
-			default:
-				comm := n.children[i].ComputeCommitment()
-				// Don't re-compute commitment as it's cached
-				h := n.children[i].Hash()
+			case *InternalNode:
+				n.children[i].ComputeCommitment()
 				if flush != nil {
 					n.children[i].(*InternalNode).Flush(flush)
 				}
-				n.children[i] = &HashedNode{hash: h, commitment: comm}
+				n.children[i] = child.toHashedNode()
 				break
 			}
 		}
@@ -278,6 +272,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 		}
 		lastNode.values[lastSlot(n.treeConfig.width, key)] = value
 		n.children[nChild] = lastNode
+		n.count++
 
 		// If the node was already created, then there was at least one
 		// child. As a result, inserting this new leaf means there are
@@ -305,15 +300,11 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 			if nextWordInInsertedKey != nextWordInExistingKey {
 				// Directly hash the (left) node that was already
 				// inserted.
-				h := child.Hash()
-				comm := new(bls.G1Point)
-				var tmp bls.Fr
-				hashToFr(&tmp, h, n.treeConfig.modulus)
-				bls.MulG1(comm, &bls.GenG1, &tmp)
+				child.ComputeCommitment()
 				if flush != nil {
 					flush(child)
 				}
-				newBranch.children[nextWordInExistingKey] = &HashedNode{hash: h, commitment: comm}
+				newBranch.children[nextWordInExistingKey] = child.toHashedNode()
 				// Next word differs, so this was the last level.
 				// Insert it directly into its final slot.
 				lastNode := &LeafNode{
@@ -401,9 +392,7 @@ func (n *InternalNode) Flush(flush NodeFlushFn) {
 			c.Flush(flush)
 			n.children[i] = &HashedNode{c.Hash(), c.commitment}
 		} else if c, ok := child.(*LeafNode); ok {
-			childHash := c.Hash()
-			flush(c)
-			n.children[i] = &HashedNode{hash: childHash}
+			n.children[i] = c.toHashedNode()
 		}
 	}
 	flush(n)
@@ -425,7 +414,8 @@ func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 			return nil, errReadFromInvalid
 		}
 
-		payload, err := getter(child.hash[:])
+		commitment := bls.FrTo32(child.hash)
+		payload, err := getter(commitment[:])
 		if err != nil {
 			return nil, err
 		}
@@ -441,10 +431,6 @@ func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 	default: // InternalNode
 		return child.Get(k, getter)
 	}
-}
-
-func (n *InternalNode) Hash() common.Hash {
-	return n.hash
 }
 
 // This function takes a hash and turns it into a bls.Fr integer, making
@@ -481,10 +467,11 @@ func hashToFr(out *bls.Fr, h [32]byte, modulus *big.Int) {
 	}
 }
 
-func (n *InternalNode) ComputeCommitment() *bls.G1Point {
-	if n.commitment != nil {
-		return n.commitment
+func (n *InternalNode) ComputeCommitment() *bls.Fr {
+	if n.hash != nil {
+		return n.hash
 	}
+	n.hash = new(bls.Fr)
 
 	emptyChildren := 0
 	lastIndex := -1
@@ -497,16 +484,14 @@ func (n *InternalNode) ComputeCommitment() *bls.G1Point {
 			lastIndex = idx
 			// Store the leaf node hash in the polynomial, even if
 			// the tree is free.
-			child.ComputeCommitment()
-			hashToFr(&poly[idx], child.Hash(), n.treeConfig.modulus)
+			bls.CopyFr(&poly[idx], child.ComputeCommitment())
 		case *HashedNode:
 			lastIndex = idx
-			hashToFr(&poly[idx], child.Hash(), n.treeConfig.modulus)
+			bls.CopyFr(&poly[idx], child.ComputeCommitment())
 		default:
 			lastIndex = idx
 			childC.ComputeCommitment()
-			h := childC.Hash()
-			hashToFr(&poly[idx], h, n.treeConfig.modulus)
+			bls.CopyFr(&poly[idx], child.ComputeCommitment())
 		}
 	}
 
@@ -514,15 +499,11 @@ func (n *InternalNode) ComputeCommitment() *bls.G1Point {
 	// (1 child, which must be a LeafNode), or multiple children, which are
 	// taken as the coefficients of a polynomial.
 	if child, ok := n.children[lastIndex].(*LeafNode); ok && n.count == 1 {
-		// Idée sur laquelle je bosse: cacher le commitment lui-même,
-		// renvoyer le hash à ce niveau (ou ne rien renvoyer) et pour
-		// GetCommitmentsAlongPath on récupère ce qui a été caché (donc
-		// les fis ?)
 		digest := sha256.New()
 		digest.Write(child.key[:31]) // write only the first 31 bytes
 		tmp := bls.FrTo32(&poly[lastIndex])
 		digest.Write(tmp[:])
-		n.hash = common.BytesToHash(digest.Sum(nil))
+		hashToFr(n.hash, common.BytesToHash(digest.Sum(nil)), n.treeConfig.modulus)
 
 		// Set the commitment to nil, as there is no real commitment at this
 		// level - only the hash has significance.
@@ -530,10 +511,10 @@ func (n *InternalNode) ComputeCommitment() *bls.G1Point {
 	} else {
 		n.commitment = n.treeConfig.evalPoly(poly, emptyChildren)
 		h := sha256.Sum256(bls.ToCompressedG1(n.commitment))
-		n.hash = common.BytesToHash(h[:])
+		hashToFr(n.hash, h, n.treeConfig.modulus)
 	}
 
-	return n.commitment
+	return n.hash
 }
 
 func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr) {
@@ -548,12 +529,12 @@ func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*b
 	bls.AsFr(&zi, uint64(childIdx))
 	fi := make([]bls.Fr, n.treeConfig.nodeWidth)
 	for i, child := range n.children {
-		hashToFr(&fi[i], child.Hash(), n.treeConfig.modulus)
+		bls.CopyFr(&fi[i], child.ComputeCommitment())
 		if i == int(childIdx) {
 			bls.CopyFr(&yi, &fi[i])
 		}
 	}
-	return append(comms, n.ComputeCommitment()), append(zis, &zi), append(yis, &yi), append(fis, fi[:])
+	return append(comms, n.commitment), append(zis, &zi), append(yis, &yi), append(fis, fi[:])
 }
 
 func (n *InternalNode) Serialize() ([]byte, error) {
@@ -562,7 +543,8 @@ func (n *InternalNode) Serialize() ([]byte, error) {
 	for i, c := range n.children {
 		if _, ok := c.(Empty); !ok {
 			setBit(bitlist[:], i)
-			children = append(children, c.Hash().Bytes()...)
+			digits := bls.FrTo32(c.ComputeCommitment())
+			children = append(children, digits[:]...)
 		}
 	}
 	return rlp.EncodeToBytes([]interface{}{internalRLPType, bitlist, children})
@@ -581,7 +563,10 @@ func (n *InternalNode) Copy() VerkleNode {
 		ret.children[i] = child.Copy()
 	}
 
-	copy(ret.hash[:], n.hash[:])
+	if n.hash != nil {
+		ret.hash = new(bls.Fr)
+		bls.CopyFr(ret.hash, n.hash)
+	}
 	if n.commitment != nil {
 		bls.CopyG1(ret.commitment, n.commitment)
 	}
@@ -600,6 +585,10 @@ func (n *InternalNode) clearCache() {
 		in.clearCache()
 	}
 	n.commitment = nil
+}
+
+func (n *LeafNode) toHashedNode() *HashedNode {
+	return &HashedNode{n.hash, n.commitment}
 }
 
 func (n *LeafNode) Insert(k []byte, value []byte) error {
@@ -652,10 +641,11 @@ func (n *LeafNode) Get(k []byte, _ NodeResolverFn) ([]byte, error) {
 	return n.values[lastSlot(n.treeConfig.width, k)], nil
 }
 
-func (n *LeafNode) ComputeCommitment() *bls.G1Point {
-	if n.commitment != nil {
-		return n.commitment
+func (n *LeafNode) ComputeCommitment() *bls.Fr {
+	if n.hash != nil {
+		return n.hash
 	}
+	n.hash = new(bls.Fr)
 
 	emptyChildren := 0
 	poly := make([]bls.Fr, n.treeConfig.nodeWidth)
@@ -669,17 +659,13 @@ func (n *LeafNode) ComputeCommitment() *bls.G1Point {
 	}
 
 	n.commitment = n.treeConfig.evalPoly(poly, emptyChildren)
-	n.hash = sha256.Sum256(bls.ToCompressedG1(n.commitment))
-	return n.commitment
+
+	hashToFr(n.hash, sha256.Sum256(bls.ToCompressedG1(n.commitment)), n.treeConfig.modulus)
+	return n.hash
 }
 
 func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr) {
 	return nil, nil, nil, nil
-}
-
-func (n *LeafNode) Hash() common.Hash {
-	n.ComputeCommitment()
-	return n.hash
 }
 
 func (n *LeafNode) Serialize() ([]byte, error) {
@@ -699,7 +685,9 @@ func (n *LeafNode) Copy() VerkleNode {
 	if n.commitment != nil {
 		l.commitment = n.commitment
 	}
-	copy(l.hash[:], n.hash[:])
+	if l.hash != nil {
+		bls.CopyFr(l.hash, n.hash)
+	}
 
 	return l
 }
@@ -720,12 +708,8 @@ func (n *HashedNode) Get(k []byte, _ NodeResolverFn) ([]byte, error) {
 	return nil, errors.New("can not read from a hash node")
 }
 
-func (n *HashedNode) Hash() common.Hash {
+func (n *HashedNode) ComputeCommitment() *bls.Fr {
 	return n.hash
-}
-
-func (n *HashedNode) ComputeCommitment() *bls.G1Point {
-	return n.commitment
 }
 
 func (n *HashedNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr) {
@@ -733,14 +717,16 @@ func (n *HashedNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls
 }
 
 func (n *HashedNode) Serialize() ([]byte, error) {
-	return rlp.EncodeToBytes([][]byte{n.hash[:]})
+	return nil, errSerializeHashedNode
 }
 
 func (n *HashedNode) Copy() VerkleNode {
 	h := &HashedNode{
 		commitment: new(bls.G1Point),
 	}
-	copy(h.hash[:], n.hash[:])
+	if n.hash != nil {
+		bls.CopyFr(h.hash, n.hash)
+	}
 	if n.commitment != nil {
 		bls.CopyG1(h.commitment, n.commitment)
 	}
@@ -752,7 +738,7 @@ func (e Empty) Insert(k []byte, value []byte) error {
 	return errors.New("an empty node should not be inserted directly into")
 }
 
-func (e Empty) InsertOrdered(key []byte, value []byte, _ NodeFlushFn) error {
+func (e Empty) InsertOrdered(key []byte, value []byte, _ chan FlushableNode) error {
 	return e.Insert(key, value)
 }
 
@@ -764,12 +750,8 @@ func (e Empty) Get(k []byte, _ NodeResolverFn) ([]byte, error) {
 	return nil, nil
 }
 
-func (e Empty) Hash() common.Hash {
-	return zeroHash
-}
-
-func (e Empty) ComputeCommitment() *bls.G1Point {
-	return &bls.ZeroG1
+func (e Empty) ComputeCommitment() *bls.Fr {
+	return &bls.ZERO
 }
 
 func (e Empty) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr) {
