@@ -105,6 +105,7 @@ func createInternalNode(bitlist []byte, raw []byte, depth, width int) (*Internal
 	}
 	for i, index := range indices {
 		n.children[index] = &HashedNode{hash: common.BytesToHash(raw[i*32 : (i+1)*32])}
+		n.count++
 	}
 	return n, nil
 }
