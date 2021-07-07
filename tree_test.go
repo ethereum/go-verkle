@@ -535,7 +535,7 @@ func TestDeletePrune(t *testing.T) {
 	}
 	postHash := tree.ComputeCommitment()
 	if !bls.EqualFr(hash2, postHash) {
-		t.Error("deleting leaf resulted in unexpected tree")
+		t.Error("deleting leaf #4 resulted in unexpected tree")
 	}
 
 	if err := tree.Delete(key3); err != nil {
@@ -543,7 +543,7 @@ func TestDeletePrune(t *testing.T) {
 	}
 	postHash = tree.ComputeCommitment()
 	if !bls.EqualFr(hash1, postHash) {
-		t.Error("deleting leaf resulted in unexpected tree")
+		t.Error("deleting leaf #3 resulted in unexpected tree")
 	}
 }
 

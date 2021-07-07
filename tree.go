@@ -175,6 +175,7 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 	// Clear cached commitment on modification
 	if n.commitment != nil {
 		n.commitment = nil
+		n.hash = nil
 	}
 
 	nChild := n.treeConfig.offset2key(key, n.depth)
@@ -239,6 +240,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 	// Clear cached commitment on modification
 	if n.commitment != nil {
 		n.commitment = nil
+		n.hash = nil
 	}
 
 	nChild := n.treeConfig.offset2key(key, n.depth)
@@ -329,9 +331,8 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 
 func (n *InternalNode) Delete(key []byte) error {
 	// Clear cached commitment on modification
-	if n.commitment != nil {
-		n.commitment = nil
-	}
+	n.commitment = nil
+	n.hash = nil
 
 	nChild := n.treeConfig.offset2key(key, n.depth)
 	switch child := n.children[nChild].(type) {
@@ -598,6 +599,7 @@ func (n *LeafNode) Insert(k []byte, value []byte) error {
 	}
 	n.values[lastSlot(n.treeConfig.width, k)] = value
 	n.commitment = nil
+	n.hash = nil
 	return nil
 }
 
@@ -614,6 +616,8 @@ func (n *LeafNode) Delete(k []byte) error {
 		return errors.New("trying to delete a non-existing key")
 	}
 
+	n.commitment = nil
+	n.hash = nil
 	n.values[lastSlot(n.treeConfig.width, k)] = nil
 	return nil
 }
