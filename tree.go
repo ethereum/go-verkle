@@ -250,19 +250,28 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 		// Insert into a new subtrie, which means that the
 		// subtree directly preceding this new one, can
 		// safely be calculated.
+	searchFirstNonEmptyChild:
 		for i := int(nChild) - 1; i >= 0; i-- {
 			switch child := n.children[i].(type) {
 			case Empty:
 				continue
-			case *LeafNode, *HashedNode:
-				break
+			case *LeafNode:
+				child.ComputeCommitment()
+				if flush != nil {
+					fmt.Printf("sending leaf %x\n", child.key)
+					flush(child)
+				}
+				n.children[i] = child.toHashedNode()
+				break searchFirstNonEmptyChild
+			case *HashedNode:
+				break searchFirstNonEmptyChild
 			case *InternalNode:
 				n.children[i].ComputeCommitment()
 				if flush != nil {
-					n.children[i].(*InternalNode).Flush(flush)
+					child.Flush(flush)
 				}
 				n.children[i] = child.toHashedNode()
-				break
+				break searchFirstNonEmptyChild
 			}
 		}
 
@@ -391,8 +400,9 @@ func (n *InternalNode) Flush(flush NodeFlushFn) {
 	for i, child := range n.children {
 		if c, ok := child.(*InternalNode); ok {
 			c.Flush(flush)
-			n.children[i] = &HashedNode{c.Hash(), c.commitment}
+			n.children[i] = c.toHashedNode()
 		} else if c, ok := child.(*LeafNode); ok {
+			flush(n.children[i])
 			n.children[i] = c.toHashedNode()
 		}
 	}
@@ -742,7 +752,7 @@ func (e Empty) Insert(k []byte, value []byte) error {
 	return errors.New("an empty node should not be inserted directly into")
 }
 
-func (e Empty) InsertOrdered(key []byte, value []byte, _ chan FlushableNode) error {
+func (e Empty) InsertOrdered(key []byte, value []byte, _ NodeFlushFn) error {
 	return e.Insert(key, value)
 }
 

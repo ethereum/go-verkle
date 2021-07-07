@@ -362,7 +362,7 @@ func TestFlush1kLeaves(t *testing.T) {
 		flushCh <- node
 	}
 	go func() {
-		root := New(10)
+		root := New(8)
 		for _, k := range keys {
 			root.InsertOrdered(k, value, flush)
 		}
@@ -385,10 +385,7 @@ func TestFlush1kLeaves(t *testing.T) {
 	}
 
 	if leaves != n {
-		t.Errorf("number of flushed leaves incorrect. Expected %d got %d\n", n, leaves)
-	}
-	if count <= n {
-		t.Errorf("number of flushed nodes incorrect. Expected %d got %d\n", n, leaves)
+		t.Fatalf("number of flushed leaves incorrect. Expected %d got %d\n", n, leaves)
 	}
 }
 
