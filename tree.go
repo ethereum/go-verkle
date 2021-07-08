@@ -56,7 +56,7 @@ type VerkleNode interface {
 	Get([]byte, NodeResolverFn) ([]byte, error)
 
 	// ComputeCommitment computes the commitment of the node
-	// The results (the cureve point and the field element
+	// The results (the curve point and the field element
 	// representation of its hash) are cached.
 	ComputeCommitment() *bls.Fr
 
