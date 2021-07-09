@@ -1065,3 +1065,60 @@ func TestTreeHashingPython(t *testing.T) {
 	}
 
 }
+
+// Test root commitment calculation when two keys are in the same LeafNode and
+// a third one in a different leaf node, at the same root branch node.
+func TestTreeHashingPython2(t *testing.T) {
+	root := New(8)
+
+	x := common.Hex2Bytes("0100000000000000000000000000000000000000000000000000000000000000")
+
+	root.Insert(zeroKeyTest, zeroKeyTest)
+	root.Insert(oneKeyTest, zeroKeyTest)
+	root.Insert(x, zeroKeyTest)
+
+	got := bls.FrTo32(root.ComputeCommitment())
+	expected := common.Hex2Bytes("fd45a2b008eb4c973c6959656e9699d8a0c4b42004ee3e4bfd255637a0ca7142")
+
+	if !bytes.Equal(got[:], expected) {
+		t.Fatalf("incorrect root commitment %x != %x", got, expected)
+	}
+}
+
+// Test root commitment calculation when two keys are in the same LeafNode and
+// a third one in a different leaf node, with two levels of branch nodes.
+func TestTreeHashingPython3(t *testing.T) {
+	root := New(8)
+
+	x := common.Hex2Bytes("0001000000000000000000000000000000000000000000000000000000000000")
+
+	root.Insert(zeroKeyTest, zeroKeyTest)
+	root.Insert(oneKeyTest, zeroKeyTest)
+	root.Insert(x, zeroKeyTest)
+
+	got := bls.FrTo32(root.ComputeCommitment())
+	expected := common.Hex2Bytes("9cc14a1a355b1d8012332773213e3448514ceae65a689546d78e7ab9aa34826f")
+
+	if !bytes.Equal(got[:], expected) {
+		t.Fatalf("incorrect root commitment %x != %x", got, expected)
+	}
+}
+
+// Test root commitment calculation when two keys are in the same LeafNode and
+// a third one in a different leaf node, with 31 levels of branch nodes.
+func TestTreeHashingPython4(t *testing.T) {
+	root := New(8)
+
+	x := common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000100")
+
+	root.Insert(zeroKeyTest, zeroKeyTest)
+	root.Insert(oneKeyTest, zeroKeyTest)
+	root.Insert(x, zeroKeyTest)
+
+	got := bls.FrTo32(root.ComputeCommitment())
+	expected := common.Hex2Bytes("8755ef6cbe3392c6b646313c1566a41c67b90a40b45d9990965549ef5958d846")
+
+	if !bytes.Equal(got[:], expected) {
+		t.Fatalf("incorrect root commitment %x != %x", got, expected)
+	}
+}

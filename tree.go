@@ -495,7 +495,24 @@ func (n *InternalNode) ComputeCommitment() *bls.Fr {
 			lastIndex = idx
 			// Store the leaf node hash in the polynomial, even if
 			// the tree is free.
-			bls.CopyFr(&poly[idx], child.ComputeCommitment())
+			digest := sha256.New()
+			digest.Write(child.key[:31]) // Write the stem
+			if n.treeConfig.width == 10 {
+				// If width == 10, add the trailing 2 bits
+				digest.Write([]byte{child.key[31] & 0xA0})
+			}
+			tmp := bls.FrTo32(child.ComputeCommitment())
+			digest.Write(tmp[:])
+			// special case: only one leaf node - then ignore the top
+			// branch node.
+			if n.count == 1 && n.depth == 0 {
+				hashToFr(n.hash, common.BytesToHash(digest.Sum(nil)), n.treeConfig.modulus)
+				// Set the commitment to nil, as there is no real commitment at this
+				// level - only the hash has significance.
+				n.commitment = nil
+				return n.hash
+			}
+			hashToFr(&poly[idx], common.BytesToHash(digest.Sum(nil)), n.treeConfig.modulus)
 		case *HashedNode:
 			lastIndex = idx
 			bls.CopyFr(&poly[idx], child.ComputeCommitment())
@@ -506,28 +523,12 @@ func (n *InternalNode) ComputeCommitment() *bls.Fr {
 		}
 	}
 
-	// Based on the number of children, consider the child as a single leaf
-	// (1 child, which must be a LeafNode), or multiple children, which are
-	// taken as the coefficients of a polynomial.
-	if child, ok := n.children[lastIndex].(*LeafNode); ok && n.count == 1 {
-		digest := sha256.New()
-		digest.Write(child.key[:31]) // Write the stem
-		if n.treeConfig.width == 10 {
-			// If width == 10, add the trailing 2 bits
-			digest.Write([]byte{child.key[31] & 0xA0})
-		}
-		tmp := bls.FrTo32(&poly[lastIndex])
-		digest.Write(tmp[:])
-		hashToFr(n.hash, common.BytesToHash(digest.Sum(nil)), n.treeConfig.modulus)
-
-		// Set the commitment to nil, as there is no real commitment at this
-		// level - only the hash has significance.
-		n.commitment = nil
-	} else {
-		n.commitment = n.treeConfig.evalPoly(poly, emptyChildren)
-		h := sha256.Sum256(bls.ToCompressedG1(n.commitment))
-		hashToFr(n.hash, h, n.treeConfig.modulus)
-	}
+	// All the coefficients have been computed, evaluate the polynomial,
+	// serialize and hash the resulting point - this is the commitment.
+	n.commitment = n.treeConfig.evalPoly(poly, emptyChildren)
+	serialized := bls.ToCompressedG1(n.commitment)
+	h := sha256.Sum256(serialized)
+	hashToFr(n.hash, h, n.treeConfig.modulus)
 
 	return n.hash
 }
