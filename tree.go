@@ -513,8 +513,8 @@ func (n *InternalNode) ComputeCommitment() *bls.Fr {
 		digest := sha256.New()
 		digest.Write(child.key[:31]) // Write the stem
 		if n.treeConfig.width == 10 {
-			// If width == 10, add the trailing 6 bits
-			digest.Write([]byte{child.key[31] & 0xFA})
+			// If width == 10, add the trailing 2 bits
+			digest.Write([]byte{child.key[31] & 0xA0})
 		}
 		tmp := bls.FrTo32(&poly[lastIndex])
 		digest.Write(tmp[:])
@@ -678,7 +678,8 @@ func (n *LeafNode) ComputeCommitment() *bls.Fr {
 
 	n.commitment = n.treeConfig.evalPoly(poly, emptyChildren)
 
-	hashToFr(n.hash, sha256.Sum256(bls.ToCompressedG1(n.commitment)), n.treeConfig.modulus)
+	h := sha256.Sum256(bls.ToCompressedG1(n.commitment))
+	hashToFr(n.hash, h, n.treeConfig.modulus)
 	return n.hash
 }
 

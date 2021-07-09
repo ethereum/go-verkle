@@ -1051,3 +1051,17 @@ func isLeafEqual(a, b *LeafNode) bool {
 
 	return true
 }
+
+func TestTreeHashingPython(t *testing.T) {
+	root := New(8)
+	root.Insert(zeroKeyTest, zeroKeyTest)
+	root.Insert(oneKeyTest, zeroKeyTest)
+
+	rootcomm := bls.FrTo32(root.ComputeCommitment())
+	expected := common.Hex2Bytes("5d2a77f5ab0ed54f61a1df01c01af3202f6975c4d071e4c0d04b3c1fe8126656")
+
+	if !bytes.Equal(rootcomm[:], expected) {
+		t.Fatalf("incorrect root commitment %x != %x", rootcomm, expected)
+	}
+
+}
