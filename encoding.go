@@ -108,6 +108,7 @@ func createInternalNode(bitlist []byte, raw []byte, depth, width int) (*Internal
 		hashed := &HashedNode{hash: new(bls.Fr)}
 		bls.FrFrom32(hashed.hash, common.BytesToHash(raw[i*32:(i+1)*32]))
 		n.children[index] = hashed
+		n.count++
 	}
 	return n, nil
 }
