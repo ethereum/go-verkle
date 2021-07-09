@@ -511,7 +511,11 @@ func (n *InternalNode) ComputeCommitment() *bls.Fr {
 	// taken as the coefficients of a polynomial.
 	if child, ok := n.children[lastIndex].(*LeafNode); ok && n.count == 1 {
 		digest := sha256.New()
-		digest.Write(child.key[:31]) // write only the first 31 bytes
+		digest.Write(child.key[:31]) // Write the stem
+		if n.treeConfig.width == 10 {
+			// If width == 10, add the trailing 6 bits
+			digest.Write([]byte{child.key[31] & 0xFA})
+		}
 		tmp := bls.FrTo32(&poly[lastIndex])
 		digest.Write(tmp[:])
 		hashToFr(n.hash, common.BytesToHash(digest.Sum(nil)), n.treeConfig.modulus)
