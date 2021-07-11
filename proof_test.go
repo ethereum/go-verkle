@@ -48,19 +48,19 @@ func TestProofGenerationTwoLeaves(t *testing.T) {
 	bls.SetFr(&s, "1927409816240961209460912649124")
 	d, y, sigma := MakeVerkleProofOneLeaf(root, zeroKeyTest)
 
-	expectedD := common.Hex2Bytes("89c77677a11dfa1ef9310fce4b06f2968dedecceff4a8b00558084c15fbd14be8e849b8e80544f2c942092251091dd9f")
+	expectedD := common.Hex2Bytes("91f4e5143a09ca7790b4f53c935373b1c6d1937ef2fdf6977e89ab0bfb8b73bfce43bce0fe984f7ec947316a5b34dad1")
 
 	if !bytes.Equal(expectedD, bls.ToCompressedG1(d)) {
 		t.Fatalf("invalid D commitment, expected %x, got %x", expectedD, bls.ToCompressedG1(d))
 	}
 
-	expectedY := "44262530365830020960528281697371625752774499948451925575770522118425327618717"
+	expectedY := "30443040441613717085488508586618820988587781232416523118637514233084160833753"
 	gotY := bls.FrStr(y)
 	if expectedY != gotY {
 		t.Fatalf("invalid y, expected %s != %s", expectedY, gotY)
 	}
 
-	expectedSigma := common.Hex2Bytes("862e0c4147fd5ebd3e41d812ea2799944bf6ef805b872aefebec92be0c1ff44747dea4a7fa299c0c3a5f0f0cb6609897")
+	expectedSigma := common.Hex2Bytes("85278a9199dd880a2bdaa6f3d23ff5d3bc6132a7bd2943ac1d815f8a3eb91414b6772192fbde7a26c3556368939f0feb")
 	if !bytes.Equal(expectedSigma, bls.ToCompressedG1(sigma)) {
 		t.Fatalf("invalid sigma, expected %x, got %x", expectedSigma, bls.ToCompressedG1(sigma))
 	}

@@ -256,11 +256,20 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 			case Empty:
 				continue
 			case *LeafNode:
-				child.ComputeCommitment()
+				// Store the leaf node hash in the polynomial, even if
+				// the tree is free.
+				digest := sha256.New()
+				digest.Write(child.key[:31]) // Write the stem
+				if n.treeConfig.width == 10 {
+					// If width == 10, add the trailing 2 bits
+					digest.Write([]byte{child.key[31] & 0xA0})
+				}
+				tmp := bls.FrTo32(child.ComputeCommitment())
+				digest.Write(tmp[:])
 				if flush != nil {
-					fmt.Printf("sending leaf %x\n", child.key)
 					flush(child)
 				}
+				hashToFr(child.hash, common.BytesToHash(digest.Sum(nil)), n.treeConfig.modulus)
 				n.children[i] = child.toHashedNode()
 				break searchFirstNonEmptyChild
 			case *HashedNode:
@@ -485,14 +494,12 @@ func (n *InternalNode) ComputeCommitment() *bls.Fr {
 	n.hash = new(bls.Fr)
 
 	emptyChildren := 0
-	lastIndex := -1
 	poly := make([]bls.Fr, n.treeConfig.nodeWidth)
 	for idx, childC := range n.children {
 		switch child := childC.(type) {
 		case Empty:
 			emptyChildren++
 		case *LeafNode:
-			lastIndex = idx
 			// Store the leaf node hash in the polynomial, even if
 			// the tree is free.
 			digest := sha256.New()
@@ -514,10 +521,8 @@ func (n *InternalNode) ComputeCommitment() *bls.Fr {
 			}
 			hashToFr(&poly[idx], common.BytesToHash(digest.Sum(nil)), n.treeConfig.modulus)
 		case *HashedNode:
-			lastIndex = idx
 			bls.CopyFr(&poly[idx], child.ComputeCommitment())
 		default:
-			lastIndex = idx
 			childC.ComputeCommitment()
 			bls.CopyFr(&poly[idx], child.ComputeCommitment())
 		}
