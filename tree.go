@@ -696,7 +696,21 @@ func (n *LeafNode) ComputeCommitment() *bls.Fr {
 }
 
 func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr) {
-	return nil, nil, nil, nil
+	var zi bls.Fr
+	if n.treeConfig.width == 10 {
+		bls.AsFr(&zi, uint64(key[31]&0x3F)<<4)
+	} else {
+		bls.AsFr(&zi, uint64(key[31]))
+	}
+	fis := make([]bls.Fr, n.treeConfig.nodeWidth)
+	for i, val := range n.values {
+		if val != nil {
+			var fi bls.Fr
+			hashToFr(&fi, sha256.Sum256(val), n.treeConfig.modulus)
+			bls.CopyFr(&fis[i], &fi)
+		}
+	}
+	return []*bls.G1Point{n.commitment}, []*bls.Fr{&zi}, []*bls.Fr{n.hash}, [][]bls.Fr{fis}
 }
 
 func (n *LeafNode) Serialize() ([]byte, error) {
