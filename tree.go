@@ -256,13 +256,11 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 			case Empty:
 				continue
 			case *LeafNode:
-				// Store the leaf node hash in the polynomial, even if
-				// the tree is free.
 				digest := sha256.New()
 				digest.Write(child.key[:31]) // Write the stem
 				if n.treeConfig.width == 10 {
 					// If width == 10, add the trailing 2 bits
-					digest.Write([]byte{child.key[31] & 0xA0})
+					digest.Write([]byte{child.key[31] & 0xC0})
 				}
 				tmp := bls.FrTo32(child.ComputeCommitment())
 				digest.Write(tmp[:])
@@ -320,10 +318,18 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 			if nextWordInInsertedKey != nextWordInExistingKey {
 				// Directly hash the (left) node that was already
 				// inserted.
-				child.ComputeCommitment()
+				digest := sha256.New()
+				digest.Write(child.key[:31]) // Write the stem
+				if n.treeConfig.width == 10 {
+					// If width == 10, add the trailing 2 bits
+					digest.Write([]byte{child.key[31] & 0xC0})
+				}
+				tmp := bls.FrTo32(child.ComputeCommitment())
+				digest.Write(tmp[:])
 				if flush != nil {
 					flush(child)
 				}
+				hashToFr(child.hash, common.BytesToHash(digest.Sum(nil)), n.treeConfig.modulus)
 				newBranch.children[nextWordInExistingKey] = child.toHashedNode()
 				// Next word differs, so this was the last level.
 				// Insert it directly into its final slot.
@@ -506,7 +512,7 @@ func (n *InternalNode) ComputeCommitment() *bls.Fr {
 			digest.Write(child.key[:31]) // Write the stem
 			if n.treeConfig.width == 10 {
 				// If width == 10, add the trailing 2 bits
-				digest.Write([]byte{child.key[31] & 0xA0})
+				digest.Write([]byte{child.key[31] & 0xC0})
 			}
 			tmp := bls.FrTo32(child.ComputeCommitment())
 			digest.Write(tmp[:])

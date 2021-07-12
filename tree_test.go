@@ -140,12 +140,12 @@ func TestGetTwoLeaves(t *testing.T) {
 }
 
 func TestComputeRootCommitmentThreeLeaves(t *testing.T) {
-	root := New(10)
-	root.Insert(zeroKeyTest, testValue)
-	root.Insert(fourtyKeyTest, testValue)
-	root.Insert(ffx32KeyTest, testValue)
+	root := New(8)
+	root.Insert(zeroKeyTest, zeroKeyTest)
+	root.Insert(fourtyKeyTest, zeroKeyTest)
+	root.Insert(ffx32KeyTest, zeroKeyTest)
 
-	expected := common.Hex2Bytes("5324f0da32558ef7b57f3a628c96672a1e4ee88140ed3d3f5859fa3a72925764")
+	expected := common.Hex2Bytes("26664ee4292cccea11c029f1c833e6a2115490bf586a8189d7f6ef8e5a825204")
 
 	got := bls.FrTo32(root.ComputeCommitment())
 
@@ -155,16 +155,16 @@ func TestComputeRootCommitmentThreeLeaves(t *testing.T) {
 }
 
 func TestComputeRootCommitmentOnlineThreeLeaves(t *testing.T) {
-	root := New(10)
-	root.InsertOrdered(zeroKeyTest, testValue, nil)
-	root.InsertOrdered(fourtyKeyTest, testValue, nil)
-	root.InsertOrdered(ffx32KeyTest, testValue, nil)
+	root := New(8)
+	root.InsertOrdered(zeroKeyTest, zeroKeyTest, nil)
+	root.InsertOrdered(fourtyKeyTest, zeroKeyTest, nil)
+	root.InsertOrdered(ffx32KeyTest, zeroKeyTest, nil)
 
 	// This still needs to be called, so that the root
 	// commitment is calculated.
 	got := bls.FrTo32(root.ComputeCommitment())
 
-	expected := common.Hex2Bytes("5324f0da32558ef7b57f3a628c96672a1e4ee88140ed3d3f5859fa3a72925764")
+	expected := common.Hex2Bytes("26664ee4292cccea11c029f1c833e6a2115490bf586a8189d7f6ef8e5a825204")
 
 	if !bytes.Equal(got[:], expected) {
 		t.Fatalf("incorrect root commitment %x != %x", got, expected)
@@ -172,12 +172,12 @@ func TestComputeRootCommitmentOnlineThreeLeaves(t *testing.T) {
 }
 
 func TestComputeRootCommitmentThreeLeavesDeep(t *testing.T) {
-	root := New(10)
-	root.Insert(zeroKeyTest, testValue)
-	root.Insert(oneKeyTest, testValue)
-	root.Insert(ffx32KeyTest, testValue)
+	root := New(8)
+	root.Insert(zeroKeyTest, zeroKeyTest)
+	root.Insert(oneKeyTest, zeroKeyTest)
+	root.Insert(ffx32KeyTest, zeroKeyTest)
 
-	expected := common.Hex2Bytes("e94e28fd1c104d4304908b599798ddf9c63798b74d25f59fb9a2ca1a92d62437")
+	expected := common.Hex2Bytes("e7f96777a5425495f93dfb43960d39be2d5e97a86de2dd1bf2566032a478345f")
 
 	got := bls.FrTo32(root.ComputeCommitment())
 
@@ -875,7 +875,7 @@ func randomKeysSorted(n int) [][]byte {
 }
 
 func TestMainnetStart(t *testing.T) {
-	tree := New(10)
+	tree := New(8)
 	type KV struct {
 		key   string
 		value string
@@ -911,7 +911,7 @@ func TestMainnetStart(t *testing.T) {
 
 	h := bls.FrTo32(tree.ComputeCommitment())
 
-	if !bytes.Equal(h[:], common.Hex2Bytes("2a0baf8549e62f4d1ca42e953e5828f6ab014520567f67e4cc4567a8f7c0986e")) {
+	if !bytes.Equal(h[:], common.Hex2Bytes("61f23b37d460d8f3aee9d3a0b55c16194703de82ee971c9778ef6748df6ab42e")) {
 		t.Fatalf("invalid hash: %x", h)
 	}
 }
