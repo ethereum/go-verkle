@@ -77,14 +77,14 @@ func TestProofVerifyTwoLeaves(t *testing.T) {
 	}
 
 	var tc *TreeConfig
-	root := New(10)
+	root := New(8)
 	if root, ok := root.(*InternalNode); !ok {
 		t.Fatal("root node isn't an *InternalNode")
 	} else {
 		tc = root.treeConfig
 	}
-	root.Insert(zeroKeyTest, testValue)
 	root.Insert(ffx32KeyTest, testValue)
+	root.Insert(zeroKeyTest, zeroKeyTest)
 
 	// Calculate all commitments
 	root.ComputeCommitment()

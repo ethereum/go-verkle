@@ -545,23 +545,38 @@ func (n *InternalNode) ComputeCommitment() *bls.Fr {
 }
 
 func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr) {
-	// Special case, no commitment
+	childIdx := n.treeConfig.offset2key(key, n.depth)
+
+	// Special case, no commitment for the root if there is only one
+	// child in the tree.
 	if n.count == 1 {
-		return nil, nil, nil, nil
+		return n.children[childIdx].GetCommitmentsAlongPath(key)
 	}
 
-	childIdx := n.treeConfig.offset2key(key, n.depth)
 	comms, zis, yis, fis := n.children[childIdx].GetCommitmentsAlongPath(key)
-	var zi, yi bls.Fr
-	bls.AsFr(&zi, uint64(childIdx))
+	var yi bls.Fr
+	zi := n.treeConfig.omegaIs[childIdx]
 	fi := make([]bls.Fr, n.treeConfig.nodeWidth)
 	for i, child := range n.children {
-		bls.CopyFr(&fi[i], child.ComputeCommitment())
+		if c, ok := child.(*LeafNode); ok {
+			digest := sha256.New()
+			digest.Write(c.key[:31]) // Write the stem
+			if n.treeConfig.width == 10 {
+				// If width == 10, add the trailing 2 bits
+				digest.Write([]byte{c.key[31] & 0xC0})
+			}
+			tmp := bls.FrTo32(c.hash)
+			digest.Write(tmp[:])
+			hashToFr(&fi[i], common.BytesToHash(digest.Sum(nil)), n.treeConfig.modulus)
+		} else {
+			bls.CopyFr(&fi[i], child.ComputeCommitment())
+		}
+
 		if i == int(childIdx) {
 			bls.CopyFr(&yi, &fi[i])
 		}
 	}
-	return append(comms, n.commitment), append(zis, &zi), append(yis, &yi), append(fis, fi[:])
+	return append(comms, n.commitment), append(zis, &zi), append(yis, &yi), append(fis, fi)
 }
 
 func (n *InternalNode) Serialize() ([]byte, error) {
@@ -696,12 +711,13 @@ func (n *LeafNode) ComputeCommitment() *bls.Fr {
 }
 
 func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.Fr, []*bls.Fr, [][]bls.Fr) {
-	var zi bls.Fr
+	var slot uint64
 	if n.treeConfig.width == 10 {
-		bls.AsFr(&zi, uint64(key[31]&0x3F)<<4)
+		slot = uint64(key[31]&0x3F) << 4
 	} else {
-		bls.AsFr(&zi, uint64(key[31]))
+		slot = uint64(key[31])
 	}
+	zi := n.treeConfig.omegaIs[slot]
 	fis := make([]bls.Fr, n.treeConfig.nodeWidth)
 	for i, val := range n.values {
 		if val != nil {
@@ -710,7 +726,7 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.F
 			bls.CopyFr(&fis[i], &fi)
 		}
 	}
-	return []*bls.G1Point{n.commitment}, []*bls.Fr{&zi}, []*bls.Fr{n.hash}, [][]bls.Fr{fis}
+	return []*bls.G1Point{n.commitment}, []*bls.Fr{&zi}, []*bls.Fr{&fis[slot]}, [][]bls.Fr{fis}
 }
 
 func (n *LeafNode) Serialize() ([]byte, error) {
