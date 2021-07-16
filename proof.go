@@ -191,13 +191,15 @@ func VerifyVerkleProof(ks *kzg.KZGSettings, d, sigma *bls.G1Point, y *bls.Fr, co
 	var powR bls.Fr
 	var e bls.G1Point
 	bls.CopyFr(&powR, &bls.ONE)
+	var g2t bls.Fr
 	for i := range g2 {
-		var tMinusZi, rDivZi bls.Fr
+		var tMinusZi, rDivZi, tmp bls.Fr
 		bls.SubModFr(&tMinusZi, &t, &tc.omegaIs[i])
 		bls.DivModFr(&rDivZi, &powR, &tMinusZi)
 
 		// g₂(t)
-		bls.MulModFr(&g2[i], &rDivZi, yis[i])
+		bls.MulModFr(&tmp, &rDivZi, yis[i])
+		bls.AddModFr(&g2t, &g2t, &tmp)
 
 		// E
 		var eTmp bls.G1Point
@@ -207,8 +209,6 @@ func VerifyVerkleProof(ks *kzg.KZGSettings, d, sigma *bls.G1Point, y *bls.Fr, co
 		// rⁱ⁺¹ = r ⨯ rⁱ
 		bls.MulModFr(&powR, &powR, &r)
 	}
-	var g2t bls.Fr
-	bls.EvalPolyAt(&g2t, g2, &t)
 
 	// w = y - g₂(t)
 	var w bls.Fr
