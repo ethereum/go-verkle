@@ -67,8 +67,8 @@ func TestProofGenerationTwoLeaves(t *testing.T) {
 }
 
 func TestProofVerifyTwoLeaves(t *testing.T) {
-	s1, s2 := kzg.GenerateTestingSetup("8927347823478352432985", 1024)
-	fftCfg := kzg.NewFFTSettings(10)
+	s1, s2 := kzg.GenerateTestingSetup("8927347823478352432985", 256)
+	fftCfg := kzg.NewFFTSettings(8)
 	ks := kzg.NewKZGSettings(fftCfg, s1, s2)
 	var err error
 	lg1, err = fftCfg.FFTG1(s1, true)
@@ -83,8 +83,8 @@ func TestProofVerifyTwoLeaves(t *testing.T) {
 	} else {
 		tc = root.treeConfig
 	}
-	root.Insert(ffx32KeyTest, testValue)
 	root.Insert(zeroKeyTest, zeroKeyTest)
+	root.Insert(common.Hex2Bytes("0100000000000000000000000000000000000000000000000000000000000000"), zeroKeyTest)
 
 	// Calculate all commitments
 	root.ComputeCommitment()

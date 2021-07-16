@@ -140,7 +140,9 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte) (d *bls.G1Point, y *bls
 		bls.MulModFr(&powR, &powR, &r)
 	}
 
-	// compute y and w
+	// compute y and w by evaluating g and h at t. Since
+	// t is outside the evaluation domain, each f_i(t)
+	// is evaluated using the barycentric formula.
 	y = new(bls.Fr)
 	w := new(bls.Fr)
 	for i := range g {
@@ -153,7 +155,7 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte) (d *bls.G1Point, y *bls
 		bls.MulModFr(&tmp, &g[i], &factor)
 		bls.AddModFr(w, w, &tmp)
 	}
-	// Compute t^width - 1
+	// Compute (t^width - 1)/width
 	var tPowWidth bls.Fr
 	bls.CopyFr(&tPowWidth, &t)
 	for i := 0; i < tc.width; i++ {
