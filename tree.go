@@ -554,8 +554,8 @@ func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*b
 	}
 
 	comms, zis, yis, fis := n.children[childIdx].GetCommitmentsAlongPath(key)
-	var yi bls.Fr
-	zi := n.treeConfig.omegaIs[childIdx]
+	var zi, yi bls.Fr
+	bls.AsFr(&zi, uint64(childIdx))
 	fi := make([]bls.Fr, n.treeConfig.nodeWidth)
 	for i, child := range n.children {
 		if c, ok := child.(*LeafNode); ok {
@@ -717,7 +717,8 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []*bls.F
 	} else {
 		slot = uint64(key[31])
 	}
-	zi := n.treeConfig.omegaIs[slot]
+	var zi bls.Fr
+	bls.AsFr(&zi, uint64(slot))
 	fis := make([]bls.Fr, n.treeConfig.nodeWidth)
 	for i, val := range n.values {
 		if val != nil {
