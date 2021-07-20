@@ -66,36 +66,37 @@ func TestProofGenerationTwoLeaves(t *testing.T) {
 	}
 }
 
-//func TestProofVerifyTwoLeaves(t *testing.T) {
-//s1, s2 := kzg.GenerateTestingSetup("8927347823478352432985", 256)
-//fftCfg := kzg.NewFFTSettings(8)
-//ks := kzg.NewKZGSettings(fftCfg, s1, s2)
-//var err error
-//lg1, err = fftCfg.FFTG1(s1, true)
-//if err != nil {
-//panic(err)
-//}
+func TestProofVerifyTwoLeaves(t *testing.T) {
+	s1, s2 := kzg.GenerateTestingSetup("8927347823478352432985", 256)
+	fftCfg := kzg.NewFFTSettings(8)
+	ks := kzg.NewKZGSettings(fftCfg, s1, s2)
+	var err error
+	lg1, err = fftCfg.FFTG1(s1, true)
+	if err != nil {
+		panic(err)
+	}
 
-//var tc *TreeConfig
-//root := New(8)
-//if root, ok := root.(*InternalNode); !ok {
-//t.Fatal("root node isn't an *InternalNode")
-//} else {
-//tc = root.treeConfig
-//}
-//root.Insert(zeroKeyTest, zeroKeyTest)
-//root.Insert(common.Hex2Bytes("0100000000000000000000000000000000000000000000000000000000000000"), zeroKeyTest)
+	var tc *TreeConfig
+	root := New(8)
+	if root, ok := root.(*InternalNode); !ok {
+		t.Fatal("root node isn't an *InternalNode")
+	} else {
+		tc = root.treeConfig
+	}
+	root.Insert(zeroKeyTest, zeroKeyTest)
+	root.Insert(common.Hex2Bytes("0100000000000000000000000000000000000000000000000000000000000000"), zeroKeyTest)
+	root.Insert(ffx32KeyTest, zeroKeyTest)
 
-//// Calculate all commitments
-//root.ComputeCommitment()
+	// Calculate all commitments
+	root.ComputeCommitment()
 
-//d, y, sigma := MakeVerkleProofOneLeaf(root, zeroKeyTest)
+	d, y, sigma := MakeVerkleProofOneLeaf(root, ffx32KeyTest)
 
-//comms, zis, yis, _ := root.GetCommitmentsAlongPath(zeroKeyTest)
-//if !VerifyVerkleProof(ks, d, sigma, y, comms, zis, yis, tc) {
-//t.Fatal("could not verify verkle proof")
-//}
-//}
+	comms, zis, yis, _ := root.GetCommitmentsAlongPath(ffx32KeyTest)
+	if !VerifyVerkleProof(ks, d, sigma, y, comms, zis, yis, tc) {
+		t.Fatal("could not verify verkle proof")
+	}
+}
 
 func BenchmarkProofCalculation(b *testing.B) {
 	rand.Seed(time.Now().UnixNano())

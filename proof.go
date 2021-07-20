@@ -99,7 +99,11 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte) (d *bls.G1Point, y *bls
 	}
 
 	var fis [][]bls.Fr
-	commitments, zis, yis, fis := root.GetCommitmentsAlongPath(key)
+	commitments, indices, yis, fis := root.GetCommitmentsAlongPath(key)
+	zis := make([]*bls.Fr, len(indices))
+	for i, index := range indices {
+		zis[i] = &tc.omegaIs[index]
+	}
 
 	// Construct g(x)
 	r := calcR(commitments, zis, yis, tc.modulus)
@@ -107,7 +111,8 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte) (d *bls.G1Point, y *bls
 	g := make([]bls.Fr, tc.nodeWidth)
 	var powR bls.Fr
 	bls.CopyFr(&powR, &bls.ONE)
-	for index, f := range fis {
+	for level, index := range indices {
+		f := fis[level]
 		quotients := tc.innerQuotients(f, index)
 		var tmp bls.Fr
 		for i := 0; i < tc.nodeWidth; i++ {
@@ -125,7 +130,8 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte) (d *bls.G1Point, y *bls
 
 	h := make([]bls.Fr, tc.nodeWidth)
 	bls.CopyFr(&powR, &bls.ONE)
-	for index, f := range fis {
+	for level, index := range indices {
+		f := fis[level]
 		var denom bls.Fr
 		bls.SubModFr(&denom, &t, &tc.omegaIs[index])
 		bls.DivModFr(&denom, &powR, &denom)
@@ -182,19 +188,22 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte) (d *bls.G1Point, y *bls
 	return
 }
 
-func VerifyVerkleProof(ks *kzg.KZGSettings, d, sigma *bls.G1Point, y *bls.Fr, commitments []*bls.G1Point, zis, yis []*bls.Fr, tc *TreeConfig) bool {
+func VerifyVerkleProof(ks *kzg.KZGSettings, d, sigma *bls.G1Point, y *bls.Fr, commitments []*bls.G1Point, indices []int, yis []*bls.Fr, tc *TreeConfig) bool {
+	zis := make([]*bls.Fr, len(indices))
+	for i, index := range indices {
+		zis[i] = &tc.omegaIs[index]
+	}
 	r := calcR(commitments, zis, yis, tc.modulus)
 	t := calcT(&r, d, tc.modulus)
 
 	// Evaluate w = g₂(t) and E
-	g2 := make([]bls.Fr, len(commitments))
 	var powR bls.Fr
 	var e bls.G1Point
 	bls.CopyFr(&powR, &bls.ONE)
 	var g2t bls.Fr
-	for i := range g2 {
+	for i, index := range indices {
 		var tMinusZi, rDivZi, tmp bls.Fr
-		bls.SubModFr(&tMinusZi, &t, &tc.omegaIs[i])
+		bls.SubModFr(&tMinusZi, &t, &tc.omegaIs[index])
 		bls.DivModFr(&rDivZi, &powR, &tMinusZi)
 
 		// g₂(t)
