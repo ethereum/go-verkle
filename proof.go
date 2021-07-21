@@ -34,14 +34,14 @@ import (
 	"github.com/protolambda/go-kzg/bls"
 )
 
-func calcR(cs []*bls.G1Point, indices []*bls.Fr, ys []*bls.Fr, modulus *big.Int) bls.Fr {
+func calcR(cs []*bls.G1Point, indices []int, ys []*bls.Fr, tc *TreeConfig) bls.Fr {
 	digest := sha256.New()
 	for _, c := range cs {
 		h := sha256.Sum256(bls.ToCompressedG1(c))
 		digest.Write(h[:])
 	}
 	for _, idx := range indices {
-		tmp := bls.FrTo32(idx)
+		tmp := bls.FrTo32(&tc.omegaIs[idx])
 		digest.Write(tmp[:])
 	}
 	for _, y := range ys {
@@ -50,7 +50,7 @@ func calcR(cs []*bls.G1Point, indices []*bls.Fr, ys []*bls.Fr, modulus *big.Int)
 	}
 
 	var tmp bls.Fr
-	hashToFr(&tmp, common.BytesToHash(digest.Sum(nil)), modulus)
+	hashToFr(&tmp, common.BytesToHash(digest.Sum(nil)), tc.modulus)
 	return tmp
 
 }
@@ -100,13 +100,9 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte) (d *bls.G1Point, y *bls
 
 	var fis [][]bls.Fr
 	commitments, indices, yis, fis := root.GetCommitmentsAlongPath(key)
-	zis := make([]*bls.Fr, len(indices))
-	for i, index := range indices {
-		zis[i] = &tc.omegaIs[index]
-	}
 
 	// Construct g(x)
-	r := calcR(commitments, zis, yis, tc.modulus)
+	r := calcR(commitments, indices, yis, tc)
 
 	g := make([]bls.Fr, tc.nodeWidth)
 	var powR bls.Fr
@@ -193,7 +189,7 @@ func VerifyVerkleProof(ks *kzg.KZGSettings, d, sigma *bls.G1Point, y *bls.Fr, co
 	for i, index := range indices {
 		zis[i] = &tc.omegaIs[index]
 	}
-	r := calcR(commitments, zis, yis, tc.modulus)
+	r := calcR(commitments, indices, yis, tc)
 	t := calcT(&r, d, tc.modulus)
 
 	// Evaluate w = g₂(t) and E
