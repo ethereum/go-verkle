@@ -53,7 +53,7 @@ var s1, lg1 []bls.G1Point
 var s2 []bls.G2Point
 
 func TestInsertIntoRoot(t *testing.T) {
-	root := New(10)
+	root := New(8)
 	err := root.Insert(zeroKeyTest, testValue)
 	if err != nil {
 		t.Fatalf("error inserting: %v", err)
@@ -70,7 +70,7 @@ func TestInsertIntoRoot(t *testing.T) {
 }
 
 func TestInsertTwoLeaves(t *testing.T) {
-	root := New(10)
+	root := New(8)
 	root.Insert(zeroKeyTest, testValue)
 	root.Insert(ffx32KeyTest, testValue)
 
@@ -79,16 +79,16 @@ func TestInsertTwoLeaves(t *testing.T) {
 		t.Fatalf("invalid leaf node type %v", root.(*InternalNode).children[0])
 	}
 
-	leaff, ok := root.(*InternalNode).children[1023].(*LeafNode)
+	leaff, ok := root.(*InternalNode).children[255].(*LeafNode)
 	if !ok {
-		t.Fatalf("invalid leaf node type %v", root.(*InternalNode).children[1023])
+		t.Fatalf("invalid leaf node type %v", root.(*InternalNode).children[255])
 	}
 
 	if !bytes.Equal(leaf0.values[zeroKeyTest[31]][:], testValue) {
 		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaf0.values[zeroKeyTest[31]][:])
 	}
 
-	if !bytes.Equal(leaff.values[1008][:], testValue) {
+	if !bytes.Equal(leaff.values[255][:], testValue) {
 		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaff.values[ffx32KeyTest[31]][:])
 	}
 }
@@ -113,7 +113,7 @@ func TestInsertTwoLeavesLastLevel(t *testing.T) {
 }
 
 func TestGetTwoLeaves(t *testing.T) {
-	root := New(10)
+	root := New(8)
 	root.Insert(zeroKeyTest, testValue)
 	root.Insert(ffx32KeyTest, testValue)
 
@@ -204,7 +204,7 @@ func TestComputeRootCommitmentOnlineThreeLeavesFlush(t *testing.T) {
 		flushCh <- node
 	}
 	go func() {
-		root := New(10)
+		root := New(8)
 		root.InsertOrdered(zeroKeyTest, testValue, flush)
 		root.InsertOrdered(fourtyKeyTest, testValue, flush)
 		root.InsertOrdered(ffx32KeyTest, testValue, flush)
@@ -678,14 +678,14 @@ func TestDevnet0PostMortem(t *testing.T) {
 
 func TestConcurrentTrees(t *testing.T) {
 	value := []byte("value")
-	tree := New(10)
+	tree := New(8)
 	tree.Insert(zeroKeyTest, value)
 	expected := tree.ComputeCommitment()
 
 	threads := 2
 	ch := make(chan *bls.Fr)
 	builder := func() {
-		tree := New(10)
+		tree := New(8)
 		tree.Insert(zeroKeyTest, value)
 		ch <- tree.ComputeCommitment()
 	}
@@ -917,7 +917,7 @@ func TestMainnetStart(t *testing.T) {
 }
 
 func TestNodeSerde(t *testing.T) {
-	width := 10
+	width := 8
 	tree := New(width)
 	tree.Insert(zeroKeyTest, testValue)
 	tree.Insert(fourtyKeyTest, testValue)
@@ -930,8 +930,8 @@ func TestNodeSerde(t *testing.T) {
 		t.Error(err)
 	}
 
-	leaf256 := (root.children[256]).(*LeafNode)
-	ls256, err := leaf256.Serialize()
+	leaf64 := (root.children[64]).(*LeafNode)
+	ls64, err := leaf64.Serialize()
 	if err != nil {
 		t.Error(err)
 	}
@@ -948,11 +948,11 @@ func TestNodeSerde(t *testing.T) {
 	}
 	resLeaf0 := res.(*LeafNode)
 
-	res, err = ParseNode(ls256, 1, width)
+	res, err = ParseNode(ls64, 1, width)
 	if err != nil {
 		t.Error(err)
 	}
-	resLeaf256 := res.(*LeafNode)
+	resLeaf64 := res.(*LeafNode)
 
 	res, err = ParseNode(rs, 0, width)
 	if err != nil {
@@ -961,7 +961,7 @@ func TestNodeSerde(t *testing.T) {
 	resRoot := res.(*InternalNode)
 
 	resRoot.children[0] = resLeaf0
-	resRoot.children[256] = resLeaf256
+	resRoot.children[64] = resLeaf64
 
 	if !isInternalEqual(root, resRoot) {
 		t.Error("parsed node not equal")
