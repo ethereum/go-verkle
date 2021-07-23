@@ -144,7 +144,7 @@ func newInternalNode(depth int, tc *TreeConfig) VerkleNode {
 
 // New creates a new tree root
 func New() VerkleNode {
-	return newInternalNode(0, GetTreeConfig(8))
+	return newInternalNode(0, GetTreeConfig())
 }
 
 func (n *InternalNode) Depth() int {

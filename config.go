@@ -51,20 +51,16 @@ type TreeConfig struct {
 }
 
 var (
-	configs   map[int]*TreeConfig
+	config    *TreeConfig
 	configMtx sync.Mutex
 )
 
-func init() {
-	configs = make(map[int]*TreeConfig)
-}
-
-func GetTreeConfig(width int) *TreeConfig {
+func GetTreeConfig() *TreeConfig {
 	configMtx.Lock()
 	defer configMtx.Unlock()
 
-	if cfg, ok := configs[width]; ok {
-		return cfg
+	if config != nil {
+		return config
 	}
 
 	// Hardcode the secret to simplify the API for the
@@ -75,7 +71,7 @@ func GetTreeConfig(width int) *TreeConfig {
 	var sPow bls.Fr
 	bls.CopyFr(&sPow, &bls.ONE)
 
-	nChildren := 1 << width
+	nChildren := 256
 	s1Out := make([]bls.G1Point, nChildren, nChildren)
 	s2Out := make([]bls.G2Point, nChildren, nChildren)
 	for i := 0; i < nChildren; i++ {
@@ -86,25 +82,22 @@ func GetTreeConfig(width int) *TreeConfig {
 		bls.MulModFr(&sPow, &tmp, &s)
 	}
 
-	fftCfg := kzg.NewFFTSettings(uint8(width))
+	fftCfg := kzg.NewFFTSettings(8)
 	lg1, err := fftCfg.FFTG1(s1Out, true)
 	if err != nil {
 		panic(err)
 	}
 
-	configs[width] = initTreeConfig(width, lg1)
-	return configs[width]
+	config = initTreeConfig(lg1)
+	return config
 }
 
-func initTreeConfig(width int, lg1 []bls.G1Point) *TreeConfig {
+func initTreeConfig(lg1 []bls.G1Point) *TreeConfig {
 	tc := &TreeConfig{
-		width:             width,
-		nodeWidth:         1 << width,
+		width:             8,
+		nodeWidth:         256,
 		lg1:               lg1,
 		multiExpThreshold: multiExpThreshold8,
-	}
-	if width == 10 {
-		tc.multiExpThreshold = multiExpThreshold10
 	}
 	tc.omegaIs = make([]bls.Fr, tc.nodeWidth)
 	tc.inverses = make([]bls.Fr, tc.nodeWidth)
@@ -114,7 +107,7 @@ func initTreeConfig(width int, lg1 []bls.G1Point) *TreeConfig {
 	bls.CopyFr(&tmp, &bls.ONE)
 	for i := 0; i < tc.nodeWidth; i++ {
 		bls.CopyFr(&tc.omegaIs[i], &tmp)
-		bls.MulModFr(&tmp, &tmp, &bls.Scale2RootOfUnity[width])
+		bls.MulModFr(&tmp, &tmp, &bls.Scale2RootOfUnity[8])
 	}
 
 	var ok bool
@@ -202,47 +195,11 @@ func (tc *TreeConfig) equalPaths(key1, key2 []byte) bool {
 		return false
 	}
 
-	switch tc.width {
-	case 8:
-		return bytes.Equal(key1[:31], key2[:31])
-	case 10:
-		return bytes.Equal(key1[:31], key2[:31]) && key1[31]&0xa0 == key2[31]&0xa0
-	default:
-		panic("invalid width")
-	}
+	return bytes.Equal(key1[:31], key2[:31])
 }
 
 // offset2key extracts the n bits of a key that correspond to the
 // index of a child node.
 func (tc *TreeConfig) offset2key(key []byte, offset int) uint {
-	switch tc.width {
-	case 10:
-		return offset2KeyTenBits(key, offset)
-	case 8:
-		return uint(key[offset/8])
-	default:
-		// no need to bother with other width
-		// until this is required.
-		panic("node width not supported")
-	}
-}
-
-func offset2KeyTenBits(key []byte, offset int) uint {
-	// The node has 1024 children, i.e. 10 bits. Extract it
-	// from the key to figure out which child to recurse into.
-	// The number is necessarily spread across 2 bytes because
-	// the pitch is 10 and therefore a multiple of 2. Hence, no
-	// 3 byte scenario is possible.
-	nFirstByte := offset / 8
-	nBitsInSecondByte := (offset + 10) % 8
-	firstBitShift := (8 - (offset % 8))
-	lastBitShift := (8 - nBitsInSecondByte) % 8
-	leftMask := (key[nFirstByte] >> firstBitShift) << firstBitShift
-	ret := (uint(key[nFirstByte]^leftMask) << ((uint(nBitsInSecondByte)-1)%8 + 1))
-	if int(nFirstByte)+1 < len(key) {
-		// Note that, at the last level, the last 4 bits are
-		// zeroed-out so children are 16 bits apart.
-		ret |= uint(key[nFirstByte+1] >> lastBitShift)
-	}
-	return ret
+	return uint(key[offset/8])
 }
