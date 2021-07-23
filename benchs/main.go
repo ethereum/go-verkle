@@ -35,7 +35,6 @@ func GenerateTestingSetupWithLagrange(secret string, n uint64, fftCfg *kzg.FFTSe
 }
 
 func main() {
-	benchmarkInsertInExisting(10)
 	benchmarkInsertInExisting(8)
 }
 
@@ -67,7 +66,7 @@ func benchmarkInsertInExisting(width uint8) {
 
 		// Create tree from same keys multiple times
 		for i := 0; i < 5; i++ {
-			root := verkle.New(int(width))
+			root := verkle.New()
 			for _, k := range keys {
 				if err := root.Insert(k, value); err != nil {
 					panic(err)

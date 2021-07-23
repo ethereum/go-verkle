@@ -143,8 +143,8 @@ func newInternalNode(depth int, tc *TreeConfig) VerkleNode {
 }
 
 // New creates a new tree root
-func New(width int) VerkleNode {
-	return newInternalNode(0, GetTreeConfig(width))
+func New() VerkleNode {
+	return newInternalNode(0, GetTreeConfig(8))
 }
 
 func (n *InternalNode) Depth() int {
@@ -187,7 +187,7 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 			values:     make([][]byte, n.treeConfig.nodeWidth),
 			treeConfig: n.treeConfig,
 		}
-		lastNode.values[lastSlot(n.treeConfig.width, key)] = value
+		lastNode.values[key[31]] = value
 		n.children[nChild] = lastNode
 		n.count++
 	case *HashedNode:
@@ -219,7 +219,7 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 					values:     make([][]byte, n.treeConfig.nodeWidth),
 					treeConfig: n.treeConfig,
 				}
-				lastNode.values[lastSlot(n.treeConfig.width, key)] = value
+				lastNode.values[key[31]] = value
 				newBranch.children[nextWordInInsertedKey] = lastNode
 				newBranch.count++
 			} else {
@@ -288,7 +288,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 			values:     make([][]byte, n.treeConfig.nodeWidth),
 			treeConfig: n.treeConfig,
 		}
-		lastNode.values[lastSlot(n.treeConfig.width, key)] = value
+		lastNode.values[key[31]] = value
 		n.children[nChild] = lastNode
 		n.count++
 
@@ -302,7 +302,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 		// between two keys, if the keys are different.
 		// Otherwise, just update the key.
 		if n.treeConfig.equalPaths(child.key, key) {
-			child.values[lastSlot(n.treeConfig.width, key)] = value
+			child.values[key[31]] = value
 		} else {
 			width := n.treeConfig.width
 
@@ -338,7 +338,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 					values:     make([][]byte, n.treeConfig.nodeWidth),
 					treeConfig: n.treeConfig,
 				}
-				lastNode.values[lastSlot(n.treeConfig.width, key)] = value
+				lastNode.values[key[31]] = value
 				newBranch.children[nextWordInInsertedKey] = lastNode
 				newBranch.count++
 			} else {
@@ -637,7 +637,7 @@ func (n *LeafNode) Insert(k []byte, value []byte) error {
 	if !n.treeConfig.equalPaths(k, n.key) {
 		return errors.New("split should not happen here")
 	}
-	n.values[lastSlot(n.treeConfig.width, k)] = value
+	n.values[k[31]] = value
 	n.commitment = nil
 	n.hash = nil
 	return nil
@@ -658,19 +658,8 @@ func (n *LeafNode) Delete(k []byte) error {
 
 	n.commitment = nil
 	n.hash = nil
-	n.values[lastSlot(n.treeConfig.width, k)] = nil
+	n.values[k[31]] = nil
 	return nil
-}
-
-func lastSlot(width int, key []byte) int {
-	switch width {
-	case 8:
-		return int(key[31])
-	case 10:
-		return int(key[31]&0x3F) << 4
-	default:
-		panic("invalid width")
-	}
 }
 
 func (n *LeafNode) Get(k []byte, _ NodeResolverFn) ([]byte, error) {
@@ -682,7 +671,7 @@ func (n *LeafNode) Get(k []byte, _ NodeResolverFn) ([]byte, error) {
 		return nil, nil
 	}
 	// value can be nil, as expected by geth
-	return n.values[lastSlot(n.treeConfig.width, k)], nil
+	return n.values[k[31]], nil
 }
 
 func (n *LeafNode) ComputeCommitment() *bls.Fr {

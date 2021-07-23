@@ -37,7 +37,7 @@ import (
 )
 
 func TestProofGenerationTwoLeaves(t *testing.T) {
-	root := New(8)
+	root := New()
 	root.Insert(zeroKeyTest, testValue)
 	root.Insert(ffx32KeyTest, testValue)
 
@@ -77,7 +77,7 @@ func TestProofVerifyTwoLeaves(t *testing.T) {
 	}
 
 	var tc *TreeConfig
-	root := New(8)
+	root := New()
 	if root, ok := root.(*InternalNode); !ok {
 		t.Fatal("root node isn't an *InternalNode")
 	} else {
@@ -111,7 +111,7 @@ func BenchmarkProofCalculation(b *testing.B) {
 
 	value := []byte("value")
 	keys := make([][]byte, 100000)
-	root := New(8)
+	root := New()
 	for i := 0; i < 100000; i++ {
 		key := make([]byte, 32)
 		rand.Read(key)
@@ -144,7 +144,7 @@ func BenchmarkProofVerification(b *testing.B) {
 
 	value := []byte("value")
 	keys := make([][]byte, 100000)
-	root := New(8)
+	root := New()
 	var tc *TreeConfig
 	if root, ok := root.(*InternalNode); !ok {
 		b.Fatal("root node isn't an *InternalNode")
