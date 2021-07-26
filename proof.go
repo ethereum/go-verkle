@@ -98,6 +98,8 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte) (d *bls.G1Point, y *bls
 		tc = root.treeConfig
 	}
 
+	root.ComputeCommitment()
+
 	var fis [][]bls.Fr
 	commitments, indices, yis, fis := root.GetCommitmentsAlongPath(key)
 
