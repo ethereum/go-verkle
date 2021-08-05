@@ -740,6 +740,17 @@ func (n *LeafNode) Copy() VerkleNode {
 	return l
 }
 
+func (n *LeafNode) Key(i int) []byte {
+	var ret [32]byte
+	copy(ret[:], n.key[:])
+	ret[31] = byte(i)
+	return ret[:]
+}
+
+func (n *LeafNode) Value(i int) []byte {
+	return n.values[i]
+}
+
 func (n *HashedNode) Insert(k []byte, value []byte) error {
 	return errInsertIntoHash
 }
