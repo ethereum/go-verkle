@@ -59,8 +59,21 @@ jobs:
           paths:
             - "/go/pkg"
 
+  test_linux_arm:
+    machine:
+      image: ubuntu-2004:202101-01
+    resource_class: arm.medium
+
+    steps:
+      - checkout
+
+      - run:
+          name: Run unit tests with kilic
+          command: go test -tags bignum_kilic ./...
+
 workflows:
   build_and_test:
     jobs:
       - build_linux
       - test_linux
+      - test_linux_arm
