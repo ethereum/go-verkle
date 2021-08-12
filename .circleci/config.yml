@@ -1,6 +1,6 @@
-version: 2
+version: 2.1
 jobs:
-  build:
+  build_linux:
     docker:
       - image: circleci/golang:1.15.8
     working_directory: /go/src/github.com/gballet/go-verkle
@@ -26,11 +26,54 @@ jobs:
 
       - run:
           name: Run the static checkers
-          command: |
-            go vet
+          command: go vet
             #   /go/bin/staticcheck
 
       - save_cache: # Store cache in the /go/pkg directory
           key: v1-pkg-cache
           paths:
             - "/go/pkg"
+
+  test_linux:
+    docker:
+      - image: circleci/golang:1.15.8
+    working_directory: /go/src/github.com/gballet/go-verkle
+
+    steps:
+      - checkout
+
+      - restore_cache:
+          keys:
+            - v1-pkg-cache
+
+      - run:
+          name: Run unit tests
+          command: go test ./...
+
+      - run:
+          name: Run unit tests with kilic
+          command: go test -tags bignum_kilic ./...
+
+      - save_cache: # Store cache in the /go/pkg directory
+          key: v1-pkg-cache
+          paths:
+            - "/go/pkg"
+
+  test_linux_arm:
+    machine:
+      image: ubuntu-2004:202101-01
+    resource_class: arm.medium
+
+    steps:
+      - checkout
+
+      - run:
+          name: Run unit tests with kilic
+          command: go test -tags bignum_kilic ./...
+
+workflows:
+  build_and_test:
+    jobs:
+      - build_linux
+      - test_linux
+      - test_linux_arm
