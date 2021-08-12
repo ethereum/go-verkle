@@ -186,6 +186,123 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte) (d *bls.G1Point, y *bls
 	return
 }
 
+func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte) ([]*bls.G1Point, []int, []*bls.Fr, [][]bls.Fr) {
+	var (
+		fis         [][]bls.Fr
+		commitments []*bls.G1Point
+		indices     []int
+		yis         []*bls.Fr
+	)
+
+	for _, key := range keys {
+		cs, idxs, ys, fs := root.GetCommitmentsAlongPath(key)
+		commitments = append(commitments, cs...)
+		indices = append(indices, idxs...)
+		yis = append(yis, ys...)
+		fis = append(fis, fs...)
+	}
+
+	return commitments, indices, yis, fis
+}
+
+// Naive implementation, in which common keys are duplicated.
+func MakeVerkleMultiProof(root VerkleNode, keys [][]byte) (d *bls.G1Point, y *bls.Fr, sigma *bls.G1Point) {
+	var (
+		tc   *TreeConfig
+		powR bls.Fr
+	)
+	if root, ok := root.(*InternalNode); !ok {
+		panic("no tree config")
+	} else {
+		tc = root.treeConfig
+	}
+
+	root.ComputeCommitment()
+
+	commitments, indices, yis, fis := GetCommitmentsForMultiproof(root, keys)
+
+	// Construct g(x)
+	r := calcR(commitments, indices, yis, tc)
+
+	g := make([]bls.Fr, tc.nodeWidth)
+	bls.CopyFr(&powR, &bls.ONE)
+	for level, index := range indices {
+		f := fis[level]
+		quotients := tc.innerQuotients(f, index)
+		var tmp bls.Fr
+		for i := 0; i < tc.nodeWidth; i++ {
+			bls.MulModFr(&tmp, &powR, &quotients[i])
+			bls.AddModFr(&g[i], &g[i], &tmp)
+		}
+
+		// rⁱ⁺¹ = r ⨯ rⁱ
+		bls.MulModFr(&powR, &powR, &r)
+	}
+	d = bls.LinCombG1(tc.lg1, g[:])
+
+	// Compute h(x)
+	t := calcT(&r, d, tc.modulus)
+
+	h := make([]bls.Fr, tc.nodeWidth)
+	bls.CopyFr(&powR, &bls.ONE)
+	for level, index := range indices {
+		f := fis[level]
+		var denom bls.Fr
+		bls.SubModFr(&denom, &t, &tc.omegaIs[index])
+		bls.DivModFr(&denom, &powR, &denom)
+
+		for i := 0; i < tc.nodeWidth; i++ {
+			var tmp bls.Fr
+			bls.MulModFr(&tmp, &denom, &f[i])
+			bls.AddModFr(&h[i], &h[i], &tmp)
+		}
+
+		// rⁱ⁺¹ = r ⨯ rⁱ
+		bls.MulModFr(&powR, &powR, &r)
+	}
+
+	// compute y and w by evaluating g and h at t. Since
+	// t is outside the evaluation domain, each f_i(t)
+	// is evaluated using the barycentric formula.
+	y = new(bls.Fr)
+	w := new(bls.Fr)
+	for i := range g {
+		var factor, tmp bls.Fr
+		bls.SubModFr(&factor, &t, &tc.omegaIs[i])
+		bls.DivModFr(&factor, &tc.omegaIs[i], &factor)
+
+		bls.MulModFr(&tmp, &h[i], &factor)
+		bls.AddModFr(y, y, &tmp)
+		bls.MulModFr(&tmp, &g[i], &factor)
+		bls.AddModFr(w, w, &tmp)
+	}
+	// Compute (t^width - 1)/width
+	var tPowWidth bls.Fr
+	bls.CopyFr(&tPowWidth, &t)
+	for i := 0; i < tc.width; i++ {
+		bls.MulModFr(&tPowWidth, &tPowWidth, &tPowWidth)
+	}
+	bls.SubModFr(&tPowWidth, &tPowWidth, &bls.ONE)
+	bls.MulModFr(&tPowWidth, &tPowWidth, &tc.nodeWidthInversed)
+	bls.MulModFr(w, w, &tPowWidth)
+	bls.MulModFr(y, y, &tPowWidth)
+
+	// compute π and ρ
+	pi := ComputeKZGProof(tc, h, &t, y)
+	rho := ComputeKZGProof(tc, g, &t, w)
+
+	// Compute E
+	e := kzg.CommitToEvalPoly(tc.lg1, h[:])
+
+	// compute σ
+	sigma = new(bls.G1Point)
+	q := calcQ(e, d, y, w, tc.modulus)
+	bls.MulG1(sigma, rho, &q)
+	bls.AddG1(sigma, sigma, pi)
+
+	return
+}
+
 func VerifyVerkleProof(ks *kzg.KZGSettings, d, sigma *bls.G1Point, y *bls.Fr, commitments []*bls.G1Point, indices []int, yis []*bls.Fr, tc *TreeConfig) bool {
 	zis := make([]*bls.Fr, len(indices))
 	for i, index := range indices {

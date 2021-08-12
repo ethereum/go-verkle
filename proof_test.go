@@ -127,6 +127,41 @@ func TestProofVerifyMultipleLeaves(t *testing.T) {
 	}
 }
 
+func TestMultiProofVerifyMultipleLeaves(t *testing.T) {
+	const leafCount = 1000
+	s1, s2 := kzg.GenerateTestingSetup("8927347823478352432985", 256)
+	fftCfg := kzg.NewFFTSettings(8)
+	ks := kzg.NewKZGSettings(fftCfg, s1, s2)
+	var err error
+	lg1, err = fftCfg.FFTG1(s1, true)
+	if err != nil {
+		panic(err)
+	}
+
+	value := []byte("value")
+	keys := make([][]byte, leafCount)
+	root := New()
+	var tc *TreeConfig
+	if root, ok := root.(*InternalNode); !ok {
+		t.Fatal("root node isn't an *InternalNode")
+	} else {
+		tc = root.treeConfig
+	}
+	for i := 0; i < leafCount; i++ {
+		key := make([]byte, 32)
+		rand.Read(key)
+		keys[i] = key
+		root.Insert(key, value)
+	}
+
+	d, y, sigma := MakeVerkleMultiProof(root, keys[0:2])
+
+	comms, zis, yis, _ := GetCommitmentsForMultiproof(root, keys[0:2])
+	if !VerifyVerkleProof(ks, d, sigma, y, comms, zis, yis, tc) {
+		t.Fatal("could not verify verkle proof")
+	}
+}
+
 func BenchmarkProofCalculation(b *testing.B) {
 	rand.Seed(time.Now().UnixNano())
 
