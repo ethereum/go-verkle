@@ -19,8 +19,8 @@ func GenerateTestingSetupWithLagrange(secret string, n uint64, fftCfg *kzg.FFTSe
 	var sPow bls.Fr
 	bls.CopyFr(&sPow, &bls.ONE)
 
-	s1Out := make([]bls.G1Point, n, n)
-	s2Out := make([]bls.G2Point, n, n)
+	s1Out := make([]bls.G1Point, n)
+	s2Out := make([]bls.G2Point, n)
 	for i := uint64(0); i < n; i++ {
 		bls.MulG1(&s1Out[i], &bls.GenG1, &sPow)
 		bls.MulG2(&s2Out[i], &bls.GenG2, &sPow)

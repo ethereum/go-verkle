@@ -82,12 +82,9 @@ const (
 
 var (
 	errInsertIntoHash      = errors.New("trying to insert into hashed node")
-	errValueNotPresent     = errors.New("value not present in tree")
 	errDeleteNonExistent   = errors.New("trying to delete non-existent leaf")
 	errReadFromInvalid     = errors.New("trying to read from an invalid child")
 	errSerializeHashedNode = errors.New("trying to serialized a hashed node")
-
-	zeroHash = common.HexToHash("0000000000000000000000000000000000000000000000000000000000000000")
 )
 
 type (
@@ -197,7 +194,9 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 		// between two keys, if the keys are different.
 		// Otherwise, just update the key.
 		if n.treeConfig.equalPaths(child.key, key) {
-			child.Insert(key, value)
+			if err := child.Insert(key, value); err != nil {
+				return err
+			}
 		} else {
 			width := n.treeConfig.width
 
@@ -223,7 +222,9 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 				newBranch.children[nextWordInInsertedKey] = lastNode
 				newBranch.count++
 			} else {
-				newBranch.Insert(key, value)
+				if err := newBranch.Insert(key, value); err != nil {
+					return err
+				}
 			}
 		}
 	default: // InternalNode
@@ -336,7 +337,9 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 			} else {
 				// Reinsert the leaf in order to recurse
 				newBranch.children[nextWordInExistingKey] = child
-				newBranch.InsertOrdered(key, value, flush)
+				if err := newBranch.InsertOrdered(key, value, flush); err != nil {
+					return err
+				}
 			}
 		}
 	default: // InternalNode
@@ -683,8 +686,7 @@ func (n *LeafNode) ComputeCommitment() *bls.Fr {
 }
 
 func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []int, []*bls.Fr, [][]bls.Fr) {
-	var slot uint64
-	slot = uint64(key[31])
+	slot := uint64(key[31])
 	fis := make([]bls.Fr, n.treeConfig.nodeWidth)
 	for i, val := range n.values {
 		if val != nil {

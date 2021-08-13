@@ -14,7 +14,9 @@ jobs:
 
       - run: wget -O- -nv https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s latest
 
-      - run: ./bin/golangci-lint run
+      - run:
+          name: Lint
+          command: ./bin/golangci-lint run
 
         #- run: go get honnef.co/go/tools/cmd/staticcheck
 

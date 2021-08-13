@@ -72,8 +72,8 @@ func GetTreeConfig() *TreeConfig {
 	bls.CopyFr(&sPow, &bls.ONE)
 
 	nChildren := 256
-	s1Out := make([]bls.G1Point, nChildren, nChildren)
-	s2Out := make([]bls.G2Point, nChildren, nChildren)
+	s1Out := make([]bls.G1Point, nChildren)
+	s2Out := make([]bls.G2Point, nChildren)
 	for i := 0; i < nChildren; i++ {
 		bls.MulG1(&s1Out[i], &bls.GenG1, &sPow)
 		bls.MulG2(&s2Out[i], &bls.GenG2, &sPow)
