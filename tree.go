@@ -26,7 +26,6 @@
 package verkle
 
 import (
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"math/big"
@@ -256,18 +255,10 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 			case Empty:
 				continue
 			case *LeafNode:
-				digest := sha256.New()
-				digest.Write(child.key[:31]) // Write the stem
-				if n.treeConfig.width == 10 {
-					// If width == 10, add the trailing 2 bits
-					digest.Write([]byte{child.key[31] & 0xC0})
-				}
-				tmp := bls.FrTo32(child.ComputeCommitment())
-				digest.Write(tmp[:])
+				n.children[i].ComputeCommitment()
 				if flush != nil {
 					flush(child)
 				}
-				hashToFr(child.hash, common.BytesToHash(digest.Sum(nil)), n.treeConfig.modulus)
 				n.children[i] = child.toHashedNode()
 				break searchFirstNonEmptyChild
 			case *HashedNode:
@@ -318,18 +309,10 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 			if nextWordInInsertedKey != nextWordInExistingKey {
 				// Directly hash the (left) node that was already
 				// inserted.
-				digest := sha256.New()
-				digest.Write(child.key[:31]) // Write the stem
-				if n.treeConfig.width == 10 {
-					// If width == 10, add the trailing 2 bits
-					digest.Write([]byte{child.key[31] & 0xC0})
-				}
-				tmp := bls.FrTo32(child.ComputeCommitment())
-				digest.Write(tmp[:])
+				child.ComputeCommitment()
 				if flush != nil {
 					flush(child)
 				}
-				hashToFr(child.hash, common.BytesToHash(digest.Sum(nil)), n.treeConfig.modulus)
 				newBranch.children[nextWordInExistingKey] = child.toHashedNode()
 				// Next word differs, so this was the last level.
 				// Insert it directly into its final slot.
@@ -508,24 +491,15 @@ func (n *InternalNode) ComputeCommitment() *bls.Fr {
 		case *LeafNode:
 			// Store the leaf node hash in the polynomial, even if
 			// the tree is free.
-			digest := sha256.New()
-			digest.Write(child.key[:31]) // Write the stem
-			if n.treeConfig.width == 10 {
-				// If width == 10, add the trailing 2 bits
-				digest.Write([]byte{child.key[31] & 0xC0})
-			}
-			tmp := bls.FrTo32(child.ComputeCommitment())
-			digest.Write(tmp[:])
+			child.ComputeCommitment()
 			// special case: only one leaf node - then ignore the top
-			// branch node.
+			// branch node and returns the child's commitment.
 			if n.count == 1 && n.depth == 0 {
-				hashToFr(n.hash, common.BytesToHash(digest.Sum(nil)), n.treeConfig.modulus)
-				// Set the commitment to nil, as there is no real commitment at this
-				// level - only the hash has significance.
-				n.commitment = nil
+				n.hash = child.hash
+				n.commitment = child.commitment
 				return n.hash
 			}
-			hashToFr(&poly[idx], common.BytesToHash(digest.Sum(nil)), n.treeConfig.modulus)
+			bls.CopyFr(&poly[idx], child.hash)
 		case *HashedNode:
 			bls.CopyFr(&poly[idx], child.ComputeCommitment())
 		default:
@@ -537,9 +511,9 @@ func (n *InternalNode) ComputeCommitment() *bls.Fr {
 	// All the coefficients have been computed, evaluate the polynomial,
 	// serialize and hash the resulting point - this is the commitment.
 	n.commitment = n.treeConfig.evalPoly(poly, emptyChildren)
-	serialized := bls.ToCompressedG1(n.commitment)
-	h := sha256.Sum256(serialized)
-	hashToFr(n.hash, h, n.treeConfig.modulus)
+	var serialized [32]byte
+	copy(serialized[:], bls.ToCompressedG1(n.commitment)[:])
+	bls.FrFrom32(n.hash, serialized)
 
 	return n.hash
 }
@@ -557,19 +531,7 @@ func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []in
 	var yi bls.Fr
 	fi := make([]bls.Fr, n.treeConfig.nodeWidth)
 	for i, child := range n.children {
-		if c, ok := child.(*LeafNode); ok {
-			digest := sha256.New()
-			digest.Write(c.key[:31]) // Write the stem
-			if n.treeConfig.width == 10 {
-				// If width == 10, add the trailing 2 bits
-				digest.Write([]byte{c.key[31] & 0xC0})
-			}
-			tmp := bls.FrTo32(c.hash)
-			digest.Write(tmp[:])
-			hashToFr(&fi[i], common.BytesToHash(digest.Sum(nil)), n.treeConfig.modulus)
-		} else {
-			bls.CopyFr(&fi[i], child.ComputeCommitment())
-		}
+		bls.CopyFr(&fi[i], child.ComputeCommitment())
 
 		if i == int(childIdx) {
 			bls.CopyFr(&yi, &fi[i])
@@ -674,6 +636,37 @@ func (n *LeafNode) Get(k []byte, _ NodeResolverFn) ([]byte, error) {
 	return n.values[k[31]], nil
 }
 
+func pedersenLeaf(tc *TreeConfig, key []byte, value []byte) *bls.Fr {
+	var (
+		poly [4]bls.Fr
+		tmp  [32]byte
+		ret  bls.Fr
+	)
+	// TODO check that kilic is little endian
+	bls.CopyFr(&poly[0], &bls.ONE)
+	copy(tmp[:16], value)
+	bls.FrFrom32(&poly[2], tmp)
+	if len(value) > 16 {
+		copy(tmp[:], value[16:])
+		bls.FrFrom32(&poly[3], tmp)
+	}
+	copy(tmp[:], key)
+	bls.FrFrom32(&poly[1], tmp)
+
+	// The number of multiplications is free
+	// XXX make sure this is still true with bandersnatch / the pedersen basis
+	comm := new(bls.G1Point)
+	for i, v := range poly {
+		var tmpG1 bls.G1Point
+		bls.MulG1(&tmpG1, &tc.lg1[i], &v)
+		bls.AddG1(comm, comm, &tmpG1)
+	}
+
+	copy(tmp[:], bls.ToCompressedG1(comm))
+	bls.FrFrom32(&ret, tmp)
+	return &ret
+}
+
 func (n *LeafNode) ComputeCommitment() *bls.Fr {
 	if n.hash != nil {
 		return n.hash
@@ -687,14 +680,14 @@ func (n *LeafNode) ComputeCommitment() *bls.Fr {
 			emptyChildren++
 			continue
 		}
-		h := sha256.Sum256(val)
-		hashToFr(&poly[idx], h, n.treeConfig.modulus)
+		bls.CopyFr(&poly[idx], pedersenLeaf(n.treeConfig, n.key, val))
 	}
 
 	n.commitment = n.treeConfig.evalPoly(poly, emptyChildren)
 
-	h := sha256.Sum256(bls.ToCompressedG1(n.commitment))
-	hashToFr(n.hash, h, n.treeConfig.modulus)
+	var tmp [32]byte
+	copy(tmp[:], bls.ToCompressedG1(n.commitment))
+	bls.FrFrom32(n.hash, tmp)
 	return n.hash
 }
 
@@ -708,9 +701,8 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []int, [
 	fis := make([]bls.Fr, n.treeConfig.nodeWidth)
 	for i, val := range n.values {
 		if val != nil {
-			var fi bls.Fr
-			hashToFr(&fi, sha256.Sum256(val), n.treeConfig.modulus)
-			bls.CopyFr(&fis[i], &fi)
+			// XXX the commitment is recalculated here,
+			bls.CopyFr(&fis[i], pedersenLeaf(n.treeConfig, n.key, val))
 		}
 	}
 	return []*bls.G1Point{n.commitment}, []int{int(slot)}, []*bls.Fr{&fis[slot]}, [][]bls.Fr{fis}
