@@ -206,7 +206,7 @@ func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte) ([]*bls.G1Point
 }
 
 // Naive implementation, in which common keys are duplicated.
-func MakeVerkleMultiProof(root VerkleNode, keys [][]byte) (d *bls.G1Point, y *bls.Fr, sigma *bls.G1Point) {
+func MakeVerkleMultiProof(root VerkleNode, keys [][]byte) (d *bls.G1Point, y *bls.Fr, σ *bls.G1Point) {
 	var (
 		tc   *TreeConfig
 		powR bls.Fr
@@ -295,10 +295,10 @@ func MakeVerkleMultiProof(root VerkleNode, keys [][]byte) (d *bls.G1Point, y *bl
 	e := kzg.CommitToEvalPoly(tc.lg1, h[:])
 
 	// compute σ
-	sigma = new(bls.G1Point)
+	σ = new(bls.G1Point)
 	q := calcQ(e, d, y, w, tc.modulus)
-	bls.MulG1(sigma, rho, &q)
-	bls.AddG1(sigma, sigma, pi)
+	bls.MulG1(σ, rho, &q)
+	bls.AddG1(σ, σ, pi)
 
 	return
 }

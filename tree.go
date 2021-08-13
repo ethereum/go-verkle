@@ -258,10 +258,6 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 			case *LeafNode:
 				digest := sha256.New()
 				digest.Write(child.key[:31]) // Write the stem
-				if n.treeConfig.width == 10 {
-					// If width == 10, add the trailing 2 bits
-					digest.Write([]byte{child.key[31] & 0xC0})
-				}
 				tmp := bls.FrTo32(child.ComputeCommitment())
 				digest.Write(tmp[:])
 				if flush != nil {
@@ -320,10 +316,6 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 				// inserted.
 				digest := sha256.New()
 				digest.Write(child.key[:31]) // Write the stem
-				if n.treeConfig.width == 10 {
-					// If width == 10, add the trailing 2 bits
-					digest.Write([]byte{child.key[31] & 0xC0})
-				}
 				tmp := bls.FrTo32(child.ComputeCommitment())
 				digest.Write(tmp[:])
 				if flush != nil {
@@ -510,10 +502,6 @@ func (n *InternalNode) ComputeCommitment() *bls.Fr {
 			// the tree is free.
 			digest := sha256.New()
 			digest.Write(child.key[:31]) // Write the stem
-			if n.treeConfig.width == 10 {
-				// If width == 10, add the trailing 2 bits
-				digest.Write([]byte{child.key[31] & 0xC0})
-			}
 			tmp := bls.FrTo32(child.ComputeCommitment())
 			digest.Write(tmp[:])
 			// special case: only one leaf node - then ignore the top
@@ -560,10 +548,6 @@ func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []in
 		if c, ok := child.(*LeafNode); ok {
 			digest := sha256.New()
 			digest.Write(c.key[:31]) // Write the stem
-			if n.treeConfig.width == 10 {
-				// If width == 10, add the trailing 2 bits
-				digest.Write([]byte{c.key[31] & 0xC0})
-			}
 			tmp := bls.FrTo32(c.hash)
 			digest.Write(tmp[:])
 			hashToFr(&fi[i], common.BytesToHash(digest.Sum(nil)), n.treeConfig.modulus)
@@ -700,11 +684,7 @@ func (n *LeafNode) ComputeCommitment() *bls.Fr {
 
 func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []int, []*bls.Fr, [][]bls.Fr) {
 	var slot uint64
-	if n.treeConfig.width == 10 {
-		slot = uint64(key[31]&0x3F) << 4
-	} else {
-		slot = uint64(key[31])
-	}
+	slot = uint64(key[31])
 	fis := make([]bls.Fr, n.treeConfig.nodeWidth)
 	for i, val := range n.values {
 		if val != nil {
