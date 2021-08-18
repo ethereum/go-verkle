@@ -49,8 +49,7 @@ var (
 	ffx32KeyTest  = common.Hex2Bytes("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
 )
 
-var s1, lg1 []bls.G1Point
-var s2 []bls.G2Point
+var lg1 []bls.G1Point
 
 func TestInsertIntoRoot(t *testing.T) {
 	root := New()
@@ -294,11 +293,17 @@ func TestInsertVsOrdered(t *testing.T) {
 
 	root1 := New()
 	for _, k := range keys {
-		root1.Insert(k, value)
+		err := root1.Insert(k, value)
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 	root2 := New()
 	for _, k := range sortedKeys {
-		root2.InsertOrdered(k, value, nil)
+		err := root2.InsertOrdered(k, value, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	h2 := bls.FrTo32(root2.ComputeCommitment())
@@ -633,6 +638,7 @@ func TestDevnet0PostMortem(t *testing.T) {
 	var buf1, buf2 bytes.Buffer
 	tree := New()
 	rlp.Encode(&buf1, &account1)
+
 	tree.Insert(addr1, buf1.Bytes())
 	rlp.Encode(&buf2, &account2)
 	tree.Insert(addr2, buf2.Bytes())
@@ -665,7 +671,10 @@ func TestDevnet0PostMortem(t *testing.T) {
 func TestConcurrentTrees(t *testing.T) {
 	value := []byte("value")
 	tree := New()
-	tree.Insert(zeroKeyTest, value)
+	err := tree.Insert(zeroKeyTest, value)
+	if err != nil {
+		t.Fatal(err)
+	}
 	expected := tree.ComputeCommitment()
 
 	threads := 2

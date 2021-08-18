@@ -82,12 +82,9 @@ const (
 
 var (
 	errInsertIntoHash      = errors.New("trying to insert into hashed node")
-	errValueNotPresent     = errors.New("value not present in tree")
 	errDeleteNonExistent   = errors.New("trying to delete non-existent leaf")
 	errReadFromInvalid     = errors.New("trying to read from an invalid child")
 	errSerializeHashedNode = errors.New("trying to serialized a hashed node")
-
-	zeroHash = common.HexToHash("0000000000000000000000000000000000000000000000000000000000000000")
 )
 
 type (
@@ -197,7 +194,9 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 		// between two keys, if the keys are different.
 		// Otherwise, just update the key.
 		if n.treeConfig.equalPaths(child.key, key) {
-			child.Insert(key, value)
+			if err := child.Insert(key, value); err != nil {
+				return err
+			}
 		} else {
 			width := n.treeConfig.width
 
@@ -223,7 +222,9 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 				newBranch.children[nextWordInInsertedKey] = lastNode
 				newBranch.count++
 			} else {
-				newBranch.Insert(key, value)
+				if err := newBranch.Insert(key, value); err != nil {
+					return err
+				}
 			}
 		}
 	default: // InternalNode
@@ -258,10 +259,6 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 			case *LeafNode:
 				digest := sha256.New()
 				digest.Write(child.key[:31]) // Write the stem
-				if n.treeConfig.width == 10 {
-					// If width == 10, add the trailing 2 bits
-					digest.Write([]byte{child.key[31] & 0xC0})
-				}
 				tmp := bls.FrTo32(child.ComputeCommitment())
 				digest.Write(tmp[:])
 				if flush != nil {
@@ -320,10 +317,6 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 				// inserted.
 				digest := sha256.New()
 				digest.Write(child.key[:31]) // Write the stem
-				if n.treeConfig.width == 10 {
-					// If width == 10, add the trailing 2 bits
-					digest.Write([]byte{child.key[31] & 0xC0})
-				}
 				tmp := bls.FrTo32(child.ComputeCommitment())
 				digest.Write(tmp[:])
 				if flush != nil {
@@ -344,7 +337,9 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 			} else {
 				// Reinsert the leaf in order to recurse
 				newBranch.children[nextWordInExistingKey] = child
-				newBranch.InsertOrdered(key, value, flush)
+				if err := newBranch.InsertOrdered(key, value, flush); err != nil {
+					return err
+				}
 			}
 		}
 	default: // InternalNode
@@ -510,10 +505,6 @@ func (n *InternalNode) ComputeCommitment() *bls.Fr {
 			// the tree is free.
 			digest := sha256.New()
 			digest.Write(child.key[:31]) // Write the stem
-			if n.treeConfig.width == 10 {
-				// If width == 10, add the trailing 2 bits
-				digest.Write([]byte{child.key[31] & 0xC0})
-			}
 			tmp := bls.FrTo32(child.ComputeCommitment())
 			digest.Write(tmp[:])
 			// special case: only one leaf node - then ignore the top
@@ -560,10 +551,6 @@ func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []in
 		if c, ok := child.(*LeafNode); ok {
 			digest := sha256.New()
 			digest.Write(c.key[:31]) // Write the stem
-			if n.treeConfig.width == 10 {
-				// If width == 10, add the trailing 2 bits
-				digest.Write([]byte{c.key[31] & 0xC0})
-			}
 			tmp := bls.FrTo32(c.hash)
 			digest.Write(tmp[:])
 			hashToFr(&fi[i], common.BytesToHash(digest.Sum(nil)), n.treeConfig.modulus)
@@ -699,12 +686,7 @@ func (n *LeafNode) ComputeCommitment() *bls.Fr {
 }
 
 func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []int, []*bls.Fr, [][]bls.Fr) {
-	var slot uint64
-	if n.treeConfig.width == 10 {
-		slot = uint64(key[31]&0x3F) << 4
-	} else {
-		slot = uint64(key[31])
-	}
+	slot := uint64(key[31])
 	fis := make([]bls.Fr, n.treeConfig.nodeWidth)
 	for i, val := range n.values {
 		if val != nil {

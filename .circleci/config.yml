@@ -1,6 +1,6 @@
 version: 2.1
 jobs:
-  build_linux:
+  lint_and_check:
     docker:
       - image: circleci/golang:1.15.8
     working_directory: /go/src/github.com/gballet/go-verkle
@@ -12,17 +12,13 @@ jobs:
           keys:
             - v1-pkg-cache
 
-      - run: go build
+      - run: wget -O- -nv https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s latest
+
+      - run:
+          name: Lint
+          command: ./bin/golangci-lint run
 
         #- run: go get honnef.co/go/tools/cmd/staticcheck
-
-      - run:
-          name: Run unit tests
-          command: go test ./...
-
-      - run:
-          name: Run unit tests with kilic
-          command: go test -tags bignum_kilic ./...
 
       - run:
           name: Run the static checkers
@@ -72,8 +68,8 @@ jobs:
           command: go test -tags bignum_kilic ./...
 
 workflows:
-  build_and_test:
+  lint_and_test:
     jobs:
-      - build_linux
+      - lint_and_check
       - test_linux
       - test_linux_arm
