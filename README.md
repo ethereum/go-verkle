@@ -1,5 +1,6 @@
 [![CircleCI](https://circleci.com/gh/gballet/go-verkle.svg?style=shield)](https://circleci.com/gh/gballet/go-verkle)
 [![DeepSource](https://deepsource.io/gh/gballet/go-verkle.svg/?label=active+issues&show_trend=true&token=OjuF5Q2HbKzpWY8LgWuffNZp)](https://deepsource.io/gh/gballet/go-verkle/?ref=repository-badge)
+[![codecov](https://codecov.io/gh/gballet/go-verkle/branch/master/graph/badge.svg)](https://codecov.io/gh/gballet/go-verkle)
 
 # go-verkle
 
