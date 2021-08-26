@@ -48,7 +48,11 @@ jobs:
 
       - run:
           name: Run unit tests with kilic
-          command: go test -tags bignum_kilic ./...
+          command: go test -v -coverprofile=coverage.txt -covermode=count -tags bignum_kilic ./...
+
+      - run:
+          name: Codecov upload
+          command: bash <(curl -s https://codecov.io/bash)
 
       - save_cache: # Store cache in the /go/pkg directory
           key: v1-pkg-cache
