@@ -28,6 +28,7 @@ package verkle
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math/big"
 	"math/rand"
@@ -955,11 +956,7 @@ func TestNodeSerde(t *testing.T) {
 }
 
 func isInternalEqual(a, b *InternalNode) bool {
-	if a.treeConfig.nodeWidth != b.treeConfig.nodeWidth {
-		return false
-	}
-
-	for i := 0; i < a.treeConfig.nodeWidth; i++ {
+	for i := 0; i < NodeWidth; i++ {
 		c := a.children[i]
 		switch c.(type) {
 		case Empty:
@@ -1078,5 +1075,54 @@ func TestTreeHashingPython4(t *testing.T) {
 
 	if !bytes.Equal(got[:], expected) {
 		t.Fatalf("incorrect root commitment %x != %x", got, expected)
+	}
+}
+
+func TestGetResolveFromHash(t *testing.T) {
+	var count uint
+	var dummyError = errors.New("dummy")
+	var serialized []byte
+	getter := func([]byte) ([]byte, error) {
+		count++
+
+		return serialized, nil
+	}
+	failingGetter := func([]byte) ([]byte, error) {
+		return nil, dummyError
+	}
+	flush := func(n VerkleNode) {
+		s, err := n.Serialize()
+		if err != nil {
+			panic(err)
+		}
+		serialized = append(serialized, s...)
+	}
+	root := New()
+	root.InsertOrdered(zeroKeyTest, zeroKeyTest, flush)
+	root.InsertOrdered(fourtyKeyTest, zeroKeyTest, flush)
+	err := root.InsertOrdered(oneKeyTest, zeroKeyTest, flush)
+	if err != errInsertIntoHash {
+		t.Fatal(err)
+	}
+
+	data, err := root.Get(zeroKeyTest, nil)
+	if err != errReadFromInvalid || len(data) != 0 {
+		t.Fatal(err)
+	}
+
+	data, err = root.Get(zeroKeyTest, failingGetter)
+	if err != dummyError || len(data) != 0 {
+		t.Fatal(err)
+	}
+
+	data, err = root.Get(zeroKeyTest, getter)
+	if err != nil {
+		t.Fatalf("error resolving hash: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("error getting the correct number of nodes: 1 != %d", count)
+	}
+	if !bytes.Equal(data[:], zeroKeyTest[:]) {
+		t.Fatalf("invalid result: %x != %x", zeroKeyTest, data)
 	}
 }

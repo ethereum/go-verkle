@@ -78,6 +78,8 @@ const (
 	// and leaf nodes when decoding from RLP.
 	internalRLPType byte = 1
 	leafRLPType     byte = 2
+
+	NodeWidth = 256
 )
 
 var (
@@ -129,7 +131,7 @@ type (
 
 func newInternalNode(depth int, tc *TreeConfig) VerkleNode {
 	node := new(InternalNode)
-	node.children = make([]VerkleNode, tc.nodeWidth)
+	node.children = make([]VerkleNode, NodeWidth)
 	for idx := range node.children {
 		node.children[idx] = Empty(struct{}{})
 	}
@@ -152,16 +154,12 @@ func (n *InternalNode) SetDepth(depth int) {
 	n.depth = depth
 }
 
-func (n *InternalNode) Width() int {
-	return n.treeConfig.width
-}
-
 func (n *InternalNode) Children() []VerkleNode {
 	return n.children
 }
 
 func (n *InternalNode) SetChild(i int, c VerkleNode) error {
-	if i >= n.treeConfig.nodeWidth-1 {
+	if i >= NodeWidth-1 {
 		return errors.New("child index higher than node width")
 	}
 	n.children[i] = c
@@ -181,7 +179,7 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 	case Empty:
 		lastNode := &LeafNode{
 			key:        key,
-			values:     make([][]byte, n.treeConfig.nodeWidth),
+			values:     make([][]byte, NodeWidth),
 			treeConfig: n.treeConfig,
 		}
 		lastNode.values[key[31]] = value
@@ -215,7 +213,7 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 				// Insert it directly into its final slot.
 				lastNode := &LeafNode{
 					key:        key,
-					values:     make([][]byte, n.treeConfig.nodeWidth),
+					values:     make([][]byte, NodeWidth),
 					treeConfig: n.treeConfig,
 				}
 				lastNode.values[key[31]] = value
@@ -282,7 +280,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 		// NOTE: these allocations are inducing a noticeable slowdown
 		lastNode := &LeafNode{
 			key:        key,
-			values:     make([][]byte, n.treeConfig.nodeWidth),
+			values:     make([][]byte, NodeWidth),
 			treeConfig: n.treeConfig,
 		}
 		lastNode.values[key[31]] = value
@@ -328,7 +326,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 				// Insert it directly into its final slot.
 				lastNode := &LeafNode{
 					key:        key,
-					values:     make([][]byte, n.treeConfig.nodeWidth),
+					values:     make([][]byte, NodeWidth),
 					treeConfig: n.treeConfig,
 				}
 				lastNode.values[key[31]] = value
@@ -442,7 +440,7 @@ func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 		}
 
 		// deserialize the payload and set it as the child
-		c, err := ParseNode(payload, n.depth+n.Width(), n.Width())
+		c, err := ParseNode(payload, n.depth+NodeWidth, NodeWidth)
 		if err != nil {
 			return nil, err
 		}
@@ -495,7 +493,7 @@ func (n *InternalNode) ComputeCommitment() *bls.Fr {
 	n.hash = new(bls.Fr)
 
 	emptyChildren := 0
-	poly := make([]bls.Fr, n.treeConfig.nodeWidth)
+	poly := make([]bls.Fr, NodeWidth)
 	for idx, childC := range n.children {
 		switch child := childC.(type) {
 		case Empty:
@@ -546,7 +544,7 @@ func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []in
 
 	comms, zis, yis, fis := n.children[childIdx].GetCommitmentsAlongPath(key)
 	var yi bls.Fr
-	fi := make([]bls.Fr, n.treeConfig.nodeWidth)
+	fi := make([]bls.Fr, NodeWidth)
 	for i, child := range n.children {
 		if c, ok := child.(*LeafNode); ok {
 			digest := sha256.New()
@@ -567,7 +565,7 @@ func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []in
 
 func (n *InternalNode) Serialize() ([]byte, error) {
 	var bitlist [128]uint8
-	children := make([]byte, 0, n.treeConfig.nodeWidth*32)
+	children := make([]byte, 0, NodeWidth*32)
 	for i, c := range n.children {
 		if _, ok := c.(Empty); !ok {
 			setBit(bitlist[:], i)
@@ -668,7 +666,7 @@ func (n *LeafNode) ComputeCommitment() *bls.Fr {
 	n.hash = new(bls.Fr)
 
 	emptyChildren := 0
-	poly := make([]bls.Fr, n.treeConfig.nodeWidth)
+	poly := make([]bls.Fr, NodeWidth)
 	for idx, val := range n.values {
 		if val == nil {
 			emptyChildren++
@@ -687,7 +685,7 @@ func (n *LeafNode) ComputeCommitment() *bls.Fr {
 
 func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []int, []*bls.Fr, [][]bls.Fr) {
 	slot := uint64(key[31])
-	fis := make([]bls.Fr, n.treeConfig.nodeWidth)
+	fis := make([]bls.Fr, NodeWidth)
 	for i, val := range n.values {
 		if val != nil {
 			var fi bls.Fr

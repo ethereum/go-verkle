@@ -106,14 +106,14 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte) (d *bls.G1Point, y *bls
 	// Construct g(x)
 	r := calcR(commitments, indices, yis, tc)
 
-	g := make([]bls.Fr, tc.nodeWidth)
+	g := make([]bls.Fr, NodeWidth)
 	var powR bls.Fr
 	bls.CopyFr(&powR, &bls.ONE)
 	for level, index := range indices {
 		f := fis[level]
 		quotients := tc.innerQuotients(f, index)
 		var tmp bls.Fr
-		for i := 0; i < tc.nodeWidth; i++ {
+		for i := 0; i < NodeWidth; i++ {
 			bls.MulModFr(&tmp, &powR, &quotients[i])
 			bls.AddModFr(&g[i], &g[i], &tmp)
 		}
@@ -126,7 +126,7 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte) (d *bls.G1Point, y *bls
 	// Compute h(x)
 	t := calcT(&r, d, tc.modulus)
 
-	h := make([]bls.Fr, tc.nodeWidth)
+	h := make([]bls.Fr, NodeWidth)
 	bls.CopyFr(&powR, &bls.ONE)
 	for level, index := range indices {
 		f := fis[level]
@@ -134,7 +134,7 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte) (d *bls.G1Point, y *bls
 		bls.SubModFr(&denom, &t, &tc.omegaIs[index])
 		bls.DivModFr(&denom, &powR, &denom)
 
-		for i := 0; i < tc.nodeWidth; i++ {
+		for i := 0; i < NodeWidth; i++ {
 			var tmp bls.Fr
 			bls.MulModFr(&tmp, &denom, &f[i])
 			bls.AddModFr(&h[i], &h[i], &tmp)
@@ -224,13 +224,13 @@ func MakeVerkleMultiProof(root VerkleNode, keys [][]byte) (d *bls.G1Point, y *bl
 	// Construct g(x)
 	r := calcR(commitments, indices, yis, tc)
 
-	g := make([]bls.Fr, tc.nodeWidth)
+	g := make([]bls.Fr, NodeWidth)
 	bls.CopyFr(&powR, &bls.ONE)
 	for level, index := range indices {
 		f := fis[level]
 		quotients := tc.innerQuotients(f, index)
 		var tmp bls.Fr
-		for i := 0; i < tc.nodeWidth; i++ {
+		for i := 0; i < NodeWidth; i++ {
 			bls.MulModFr(&tmp, &powR, &quotients[i])
 			bls.AddModFr(&g[i], &g[i], &tmp)
 		}
@@ -243,7 +243,7 @@ func MakeVerkleMultiProof(root VerkleNode, keys [][]byte) (d *bls.G1Point, y *bl
 	// Compute h(x)
 	t := calcT(&r, d, tc.modulus)
 
-	h := make([]bls.Fr, tc.nodeWidth)
+	h := make([]bls.Fr, NodeWidth)
 	bls.CopyFr(&powR, &bls.ONE)
 	for level, index := range indices {
 		f := fis[level]
@@ -251,7 +251,7 @@ func MakeVerkleMultiProof(root VerkleNode, keys [][]byte) (d *bls.G1Point, y *bl
 		bls.SubModFr(&denom, &t, &tc.omegaIs[index])
 		bls.DivModFr(&denom, &powR, &denom)
 
-		for i := 0; i < tc.nodeWidth; i++ {
+		for i := 0; i < NodeWidth; i++ {
 			var tmp bls.Fr
 			bls.MulModFr(&tmp, &denom, &f[i])
 			bls.AddModFr(&h[i], &h[i], &tmp)

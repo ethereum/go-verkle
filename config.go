@@ -38,7 +38,6 @@ const multiExpThreshold8 = 25
 
 type TreeConfig struct {
 	width             int      // number of key bits spanned by a node
-	nodeWidth         int      // Number of children in an internal node
 	modulus           *big.Int // Field's modulus
 	omegaIs           []bls.Fr // List of the root of unity
 	inverses          []bls.Fr // List of all 1 / (1 - ωⁱ)
@@ -95,17 +94,16 @@ func GetTreeConfig() *TreeConfig {
 func initTreeConfig(lg1 []bls.G1Point) *TreeConfig {
 	tc := &TreeConfig{
 		width:             8,
-		nodeWidth:         256,
 		lg1:               lg1,
 		multiExpThreshold: multiExpThreshold8,
 	}
-	tc.omegaIs = make([]bls.Fr, tc.nodeWidth)
-	tc.inverses = make([]bls.Fr, tc.nodeWidth)
+	tc.omegaIs = make([]bls.Fr, NodeWidth)
+	tc.inverses = make([]bls.Fr, NodeWidth)
 
 	// Calculate the lagrangian evaluation basis.
 	var tmp bls.Fr
 	bls.CopyFr(&tmp, &bls.ONE)
-	for i := 0; i < tc.nodeWidth; i++ {
+	for i := 0; i < NodeWidth; i++ {
 		bls.CopyFr(&tc.omegaIs[i], &tmp)
 		bls.MulModFr(&tmp, &tmp, &bls.Scale2RootOfUnity[8])
 	}
@@ -118,13 +116,13 @@ func initTreeConfig(lg1 []bls.G1Point) *TreeConfig {
 
 	// Compute all 1 / (1 - ωⁱ)
 	bls.CopyFr(&tc.inverses[0], &bls.ZERO)
-	for i := 1; i < tc.nodeWidth; i++ {
+	for i := 1; i < NodeWidth; i++ {
 		var tmp bls.Fr
 		bls.SubModFr(&tmp, &bls.ONE, &tc.omegaIs[i])
 		bls.DivModFr(&tc.inverses[i], &bls.ONE, &tmp)
 	}
 
-	bls.AsFr(&tc.nodeWidthInversed, uint64(tc.nodeWidth))
+	bls.AsFr(&tc.nodeWidthInversed, uint64(NodeWidth))
 	bls.InvModFr(&tc.nodeWidthInversed, &tc.nodeWidthInversed)
 
 	return tc
@@ -132,14 +130,14 @@ func initTreeConfig(lg1 []bls.G1Point) *TreeConfig {
 
 // Compute a function in eval form at one of the points in the domain
 func (tc *TreeConfig) innerQuotients(f []bls.Fr, index int) []bls.Fr {
-	q := make([]bls.Fr, tc.nodeWidth)
+	q := make([]bls.Fr, NodeWidth)
 
 	y := f[index]
-	for i := 0; i < tc.nodeWidth; i++ {
+	for i := 0; i < NodeWidth; i++ {
 		if i != index {
 			omegaIdx := (len(tc.omegaIs) - i) % len(tc.omegaIs)
-			invIdx := (index + tc.nodeWidth - i) % tc.nodeWidth
-			iMinIdx := (i - index + tc.nodeWidth) % tc.nodeWidth
+			invIdx := (index + NodeWidth - i) % NodeWidth
+			iMinIdx := (i - index + NodeWidth) % NodeWidth
 
 			// calculate q[i]
 			var tmp bls.Fr
@@ -159,9 +157,9 @@ func (tc *TreeConfig) innerQuotients(f []bls.Fr, index int) []bls.Fr {
 
 // Compute a function in eval form at a point outside of the domain
 func (tc *TreeConfig) outerQuotients(f []bls.Fr, z, y *bls.Fr) []bls.Fr {
-	q := make([]bls.Fr, tc.nodeWidth)
+	q := make([]bls.Fr, NodeWidth)
 
-	for i := 0; i < tc.nodeWidth; i++ {
+	for i := 0; i < NodeWidth; i++ {
 		var tmp, quo bls.Fr
 		bls.SubModFr(&tmp, &f[i], y)
 		bls.SubModFr(&quo, &tc.omegaIs[i], z)
@@ -173,7 +171,7 @@ func (tc *TreeConfig) outerQuotients(f []bls.Fr, z, y *bls.Fr) []bls.Fr {
 
 // Evaluate a polynomial in the lagrange basis
 func (tc *TreeConfig) evalPoly(poly []bls.Fr, emptyChildren int) *bls.G1Point {
-	if tc.nodeWidth-emptyChildren >= tc.multiExpThreshold {
+	if NodeWidth-emptyChildren >= tc.multiExpThreshold {
 		return bls.LinCombG1(tc.lg1, poly[:])
 	} else {
 		var comm bls.G1Point
