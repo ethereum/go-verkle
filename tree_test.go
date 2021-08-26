@@ -955,11 +955,7 @@ func TestNodeSerde(t *testing.T) {
 }
 
 func isInternalEqual(a, b *InternalNode) bool {
-	if a.treeConfig.nodeWidth != b.treeConfig.nodeWidth {
-		return false
-	}
-
-	for i := 0; i < a.treeConfig.nodeWidth; i++ {
+	for i := 0; i < NodeWidth; i++ {
 		c := a.children[i]
 		switch c.(type) {
 		case Empty:

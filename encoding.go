@@ -71,8 +71,8 @@ func ParseNode(serialized []byte, depth, width int) (VerkleNode, error) {
 			return nil, err
 		}
 		tc := GetTreeConfig()
-		if tc.nodeWidth != len(values) {
-			return nil, fmt.Errorf("invalid number of nodes in decoded child expected %d, got %d", tc.nodeWidth, len(values))
+		if NodeWidth != len(values) {
+			return nil, fmt.Errorf("invalid number of nodes in decoded child expected %d, got %d", NodeWidth, len(values))
 		}
 		ln := &LeafNode{
 			key:        key,
