@@ -78,8 +78,6 @@ const (
 	// and leaf nodes when decoding from RLP.
 	internalRLPType byte = 1
 	leafRLPType     byte = 2
-
-	NodeWidth = 256
 )
 
 var (
@@ -109,7 +107,7 @@ type (
 		// Cache the commitment value
 		commitment *bls.G1Point
 
-		treeConfig *TreeConfig
+		treeConfig *KZGConfig
 	}
 
 	HashedNode struct {
@@ -123,13 +121,13 @@ type (
 
 		commitment *bls.G1Point
 		hash       *bls.Fr
-		treeConfig *TreeConfig
+		treeConfig *KZGConfig
 	}
 
 	Empty struct{}
 )
 
-func newInternalNode(depth int, tc *TreeConfig) VerkleNode {
+func newInternalNode(depth int, tc *KZGConfig) VerkleNode {
 	node := new(InternalNode)
 	node.children = make([]VerkleNode, NodeWidth)
 	for idx := range node.children {
@@ -143,7 +141,7 @@ func newInternalNode(depth int, tc *TreeConfig) VerkleNode {
 
 // New creates a new tree root
 func New() VerkleNode {
-	return newInternalNode(0, GetTreeConfig())
+	return newInternalNode(0, GetKZGConfig())
 }
 
 func (n *InternalNode) Depth() int {
@@ -173,7 +171,7 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 		n.hash = nil
 	}
 
-	nChild := n.treeConfig.offset2key(key, n.depth)
+	nChild := offset2key(key, n.depth)
 
 	switch child := n.children[nChild].(type) {
 	case Empty:
@@ -191,23 +189,21 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 		// Need to add a new branch node to differentiate
 		// between two keys, if the keys are different.
 		// Otherwise, just update the key.
-		if n.treeConfig.equalPaths(child.key, key) {
+		if equalPaths(child.key, key) {
 			if err := child.Insert(key, value); err != nil {
 				return err
 			}
 		} else {
-			width := n.treeConfig.width
-
 			// A new branch node has to be inserted. Depending
 			// on the next word in both keys, a recursion into
 			// the moved leaf node can occur.
-			nextWordInExistingKey := n.treeConfig.offset2key(child.key, n.depth+width)
-			newBranch := newInternalNode(n.depth+width, n.treeConfig).(*InternalNode)
+			nextWordInExistingKey := offset2key(child.key, n.depth+NodeBitWidth)
+			newBranch := newInternalNode(n.depth+NodeBitWidth, n.treeConfig).(*InternalNode)
 			newBranch.count = 1
 			n.children[nChild] = newBranch
 			newBranch.children[nextWordInExistingKey] = child
 
-			nextWordInInsertedKey := n.treeConfig.offset2key(key, n.depth+width)
+			nextWordInInsertedKey := offset2key(key, n.depth+NodeBitWidth)
 			if nextWordInInsertedKey != nextWordInExistingKey {
 				// Next word differs, so this was the last level.
 				// Insert it directly into its final slot.
@@ -242,7 +238,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 		n.hash = nil
 	}
 
-	nChild := n.treeConfig.offset2key(key, n.depth)
+	nChild := offset2key(key, n.depth)
 
 	switch child := n.children[nChild].(type) {
 	case Empty:
@@ -296,20 +292,18 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 		// Need to add a new branch node to differentiate
 		// between two keys, if the keys are different.
 		// Otherwise, just update the key.
-		if n.treeConfig.equalPaths(child.key, key) {
+		if equalPaths(child.key, key) {
 			child.values[key[31]] = value
 		} else {
-			width := n.treeConfig.width
-
 			// A new branch node has to be inserted. Depending
 			// on the next word in both keys, a recursion into
 			// the moved leaf node can occur.
-			nextWordInExistingKey := n.treeConfig.offset2key(child.key, n.depth+width)
-			newBranch := newInternalNode(n.depth+width, n.treeConfig).(*InternalNode)
+			nextWordInExistingKey := offset2key(child.key, n.depth+NodeBitWidth)
+			newBranch := newInternalNode(n.depth+NodeBitWidth, n.treeConfig).(*InternalNode)
 			newBranch.count = 1
 			n.children[nChild] = newBranch
 
-			nextWordInInsertedKey := n.treeConfig.offset2key(key, n.depth+width)
+			nextWordInInsertedKey := offset2key(key, n.depth+NodeBitWidth)
 			if nextWordInInsertedKey != nextWordInExistingKey {
 				// Directly hash the (left) node that was already
 				// inserted.
@@ -351,14 +345,14 @@ func (n *InternalNode) Delete(key []byte) error {
 	n.commitment = nil
 	n.hash = nil
 
-	nChild := n.treeConfig.offset2key(key, n.depth)
+	nChild := offset2key(key, n.depth)
 	switch child := n.children[nChild].(type) {
 	case Empty:
 		return errDeleteNonExistent
 	case *HashedNode:
 		return errors.New("trying to delete from a hashed subtree")
 	case *LeafNode:
-		if !n.treeConfig.equalPaths(child.key, key) {
+		if !equalPaths(child.key, key) {
 			return errDeleteNonExistent
 		}
 		if err := child.Delete(key); err != nil {
@@ -418,7 +412,7 @@ func (n *InternalNode) Flush(flush NodeFlushFn) {
 }
 
 func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
-	nChild := n.treeConfig.offset2key(k, n.depth)
+	nChild := offset2key(k, n.depth)
 
 	switch child := n.children[nChild].(type) {
 	case Empty, nil:
@@ -534,7 +528,7 @@ func (n *InternalNode) ComputeCommitment() *bls.Fr {
 }
 
 func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []int, []*bls.Fr, [][]bls.Fr) {
-	childIdx := n.treeConfig.offset2key(key, n.depth)
+	childIdx := offset2key(key, n.depth)
 
 	// Special case, no commitment for the root if there is only one
 	// child in the tree.
@@ -619,7 +613,7 @@ func (n *LeafNode) toHashedNode() *HashedNode {
 
 func (n *LeafNode) Insert(k []byte, value []byte) error {
 	// Sanity check: ensure the key header is the same:
-	if !n.treeConfig.equalPaths(k, n.key) {
+	if !equalPaths(k, n.key) {
 		return errors.New("split should not happen here")
 	}
 	n.values[k[31]] = value
@@ -637,7 +631,7 @@ func (n *LeafNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn) er
 
 func (n *LeafNode) Delete(k []byte) error {
 	// Sanity check: ensure the key header is the same:
-	if !n.treeConfig.equalPaths(k, n.key) {
+	if !equalPaths(k, n.key) {
 		return errors.New("trying to delete a non-existing key")
 	}
 
@@ -648,7 +642,7 @@ func (n *LeafNode) Delete(k []byte) error {
 }
 
 func (n *LeafNode) Get(k []byte, _ NodeResolverFn) ([]byte, error) {
-	if !n.treeConfig.equalPaths(k, n.key) {
+	if !equalPaths(k, n.key) {
 		// If keys differ, return nil in order to
 		// signal that the key isn't present in the
 		// tree. Do not return an error, thus matching

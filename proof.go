@@ -34,7 +34,7 @@ import (
 	"github.com/protolambda/go-kzg/bls"
 )
 
-func calcR(cs []*bls.G1Point, indices []int, ys []*bls.Fr, tc *TreeConfig) bls.Fr {
+func calcR(cs []*bls.G1Point, indices []int, ys []*bls.Fr, tc *KZGConfig) bls.Fr {
 	digest := sha256.New()
 	for _, c := range cs {
 		h := sha256.Sum256(bls.ToCompressedG1(c))
@@ -85,13 +85,13 @@ func calcQ(e, d *bls.G1Point, y, w *bls.Fr, modulus *big.Int) bls.Fr {
 	return tmp
 }
 
-func ComputeKZGProof(tc *TreeConfig, poly []bls.Fr, z, y *bls.Fr) *bls.G1Point {
+func ComputeKZGProof(tc *KZGConfig, poly []bls.Fr, z, y *bls.Fr) *bls.G1Point {
 	oq := tc.outerQuotients(poly, z, y)
 	return kzg.CommitToEvalPoly(tc.lg1, oq)
 }
 
 func MakeVerkleProofOneLeaf(root VerkleNode, key []byte) (d *bls.G1Point, y *bls.Fr, sigma *bls.G1Point) {
-	var tc *TreeConfig
+	var tc *KZGConfig
 	if root, ok := root.(*InternalNode); !ok {
 		panic("no tree config")
 	} else {
@@ -162,7 +162,7 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte) (d *bls.G1Point, y *bls
 	// Compute (t^width - 1)/width
 	var tPowWidth bls.Fr
 	bls.CopyFr(&tPowWidth, &t)
-	for i := 0; i < tc.width; i++ {
+	for i := 0; i < NodeBitWidth; i++ {
 		bls.MulModFr(&tPowWidth, &tPowWidth, &tPowWidth)
 	}
 	bls.SubModFr(&tPowWidth, &tPowWidth, &bls.ONE)
@@ -208,7 +208,7 @@ func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte) ([]*bls.G1Point
 // Naive implementation, in which common keys are duplicated.
 func MakeVerkleMultiProof(root VerkleNode, keys [][]byte) (d *bls.G1Point, y *bls.Fr, σ *bls.G1Point) {
 	var (
-		tc   *TreeConfig
+		tc   *KZGConfig
 		powR bls.Fr
 	)
 	if root, ok := root.(*InternalNode); !ok {
@@ -279,7 +279,7 @@ func MakeVerkleMultiProof(root VerkleNode, keys [][]byte) (d *bls.G1Point, y *bl
 	// Compute (t^width - 1)/width
 	var tPowWidth bls.Fr
 	bls.CopyFr(&tPowWidth, &t)
-	for i := 0; i < tc.width; i++ {
+	for i := 0; i < NodeBitWidth; i++ {
 		bls.MulModFr(&tPowWidth, &tPowWidth, &tPowWidth)
 	}
 	bls.SubModFr(&tPowWidth, &tPowWidth, &bls.ONE)
@@ -303,7 +303,7 @@ func MakeVerkleMultiProof(root VerkleNode, keys [][]byte) (d *bls.G1Point, y *bl
 	return
 }
 
-func VerifyVerkleProof(ks *kzg.KZGSettings, d, sigma *bls.G1Point, y *bls.Fr, commitments []*bls.G1Point, indices []int, yis []*bls.Fr, tc *TreeConfig) bool {
+func VerifyVerkleProof(ks *kzg.KZGSettings, d, sigma *bls.G1Point, y *bls.Fr, commitments []*bls.G1Point, indices []int, yis []*bls.Fr, tc *KZGConfig) bool {
 	zis := make([]*bls.Fr, len(indices))
 	for i, index := range indices {
 		zis[i] = &tc.omegaIs[index]

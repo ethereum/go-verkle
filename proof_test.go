@@ -73,13 +73,7 @@ func TestProofVerifyTwoLeaves(t *testing.T) {
 		panic(err)
 	}
 
-	var tc *TreeConfig
 	root := New()
-	if root, ok := root.(*InternalNode); !ok {
-		t.Fatal("root node isn't an *InternalNode")
-	} else {
-		tc = root.treeConfig
-	}
 	root.Insert(zeroKeyTest, zeroKeyTest)
 	root.Insert(common.Hex2Bytes("0100000000000000000000000000000000000000000000000000000000000000"), zeroKeyTest)
 	root.Insert(ffx32KeyTest, zeroKeyTest)
@@ -87,7 +81,7 @@ func TestProofVerifyTwoLeaves(t *testing.T) {
 	d, y, sigma := MakeVerkleProofOneLeaf(root, ffx32KeyTest)
 
 	comms, zis, yis, _ := root.GetCommitmentsAlongPath(ffx32KeyTest)
-	if !VerifyVerkleProof(ks, d, sigma, y, comms, zis, yis, tc) {
+	if !VerifyVerkleProof(ks, d, sigma, y, comms, zis, yis, GetKZGConfig()) {
 		t.Fatal("could not verify verkle proof")
 	}
 }
@@ -106,12 +100,6 @@ func TestProofVerifyMultipleLeaves(t *testing.T) {
 	value := []byte("value")
 	keys := make([][]byte, leafCount)
 	root := New()
-	var tc *TreeConfig
-	if root, ok := root.(*InternalNode); !ok {
-		t.Fatal("root node isn't an *InternalNode")
-	} else {
-		tc = root.treeConfig
-	}
 	for i := 0; i < leafCount; i++ {
 		key := make([]byte, 32)
 		rand.Read(key)
@@ -122,7 +110,7 @@ func TestProofVerifyMultipleLeaves(t *testing.T) {
 	d, y, sigma := MakeVerkleProofOneLeaf(root, keys[0])
 
 	comms, zis, yis, _ := root.GetCommitmentsAlongPath(keys[0])
-	if !VerifyVerkleProof(ks, d, sigma, y, comms, zis, yis, tc) {
+	if !VerifyVerkleProof(ks, d, sigma, y, comms, zis, yis, GetKZGConfig()) {
 		t.Fatal("could not verify verkle proof")
 	}
 }
@@ -141,12 +129,6 @@ func TestMultiProofVerifyMultipleLeaves(t *testing.T) {
 	value := []byte("value")
 	keys := make([][]byte, leafCount)
 	root := New()
-	var tc *TreeConfig
-	if root, ok := root.(*InternalNode); !ok {
-		t.Fatal("root node isn't an *InternalNode")
-	} else {
-		tc = root.treeConfig
-	}
 	for i := 0; i < leafCount; i++ {
 		key := make([]byte, 32)
 		rand.Read(key)
@@ -157,7 +139,7 @@ func TestMultiProofVerifyMultipleLeaves(t *testing.T) {
 	d, y, sigma := MakeVerkleMultiProof(root, keys[0:2])
 
 	comms, zis, yis, _ := GetCommitmentsForMultiproof(root, keys[0:2])
-	if !VerifyVerkleProof(ks, d, sigma, y, comms, zis, yis, tc) {
+	if !VerifyVerkleProof(ks, d, sigma, y, comms, zis, yis, GetKZGConfig()) {
 		t.Fatal("could not verify verkle proof")
 	}
 }
@@ -206,12 +188,6 @@ func BenchmarkProofVerification(b *testing.B) {
 	value := []byte("value")
 	keys := make([][]byte, 100000)
 	root := New()
-	var tc *TreeConfig
-	if root, ok := root.(*InternalNode); !ok {
-		b.Fatal("root node isn't an *InternalNode")
-	} else {
-		tc = root.treeConfig
-	}
 	for i := 0; i < 100000; i++ {
 		key := make([]byte, 32)
 		rand.Read(key)
@@ -226,6 +202,6 @@ func BenchmarkProofVerification(b *testing.B) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		VerifyVerkleProof(ks, d, sigma, y, comms, zis, yis, tc)
+		VerifyVerkleProof(ks, d, sigma, y, comms, zis, yis, GetKZGConfig())
 	}
 }
