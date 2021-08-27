@@ -34,27 +34,27 @@ import (
 	"github.com/protolambda/go-kzg/bls"
 )
 
-const multiExpThreshold8 = 25
+const (
+	multiExpThreshold8 = 25
 
-type TreeConfig struct {
-	width             int      // number of key bits spanned by a node
+	NodeWidth    = 256
+	NodeBitWidth = 8
+)
+
+type KZGConfig struct {
 	modulus           *big.Int // Field's modulus
 	omegaIs           []bls.Fr // List of the root of unity
 	inverses          []bls.Fr // List of all 1 / (1 - ωⁱ)
 	nodeWidthInversed bls.Fr   // Inverse of node witdh in prime field
 	lg1               []bls.G1Point
-	// Threshold for using multi exponentiation when
-	// computing commitment. Number refers to non-zero
-	// children in a node.
-	multiExpThreshold int
 }
 
 var (
-	config    *TreeConfig
+	config    *KZGConfig
 	configMtx sync.Mutex
 )
 
-func GetTreeConfig() *TreeConfig {
+func GetKZGConfig() *KZGConfig {
 	configMtx.Lock()
 	defer configMtx.Unlock()
 
@@ -87,15 +87,13 @@ func GetTreeConfig() *TreeConfig {
 		panic(err)
 	}
 
-	config = initTreeConfig(lg1)
+	config = initKZGConfig(lg1)
 	return config
 }
 
-func initTreeConfig(lg1 []bls.G1Point) *TreeConfig {
-	tc := &TreeConfig{
-		width:             8,
-		lg1:               lg1,
-		multiExpThreshold: multiExpThreshold8,
+func initKZGConfig(lg1 []bls.G1Point) *KZGConfig {
+	tc := &KZGConfig{
+		lg1: lg1,
 	}
 	tc.omegaIs = make([]bls.Fr, NodeWidth)
 	tc.inverses = make([]bls.Fr, NodeWidth)
@@ -129,7 +127,7 @@ func initTreeConfig(lg1 []bls.G1Point) *TreeConfig {
 }
 
 // Compute a function in eval form at one of the points in the domain
-func (tc *TreeConfig) innerQuotients(f []bls.Fr, index int) []bls.Fr {
+func (tc *KZGConfig) innerQuotients(f []bls.Fr, index int) []bls.Fr {
 	q := make([]bls.Fr, NodeWidth)
 
 	y := f[index]
@@ -156,7 +154,7 @@ func (tc *TreeConfig) innerQuotients(f []bls.Fr, index int) []bls.Fr {
 }
 
 // Compute a function in eval form at a point outside of the domain
-func (tc *TreeConfig) outerQuotients(f []bls.Fr, z, y *bls.Fr) []bls.Fr {
+func (tc *KZGConfig) outerQuotients(f []bls.Fr, z, y *bls.Fr) []bls.Fr {
 	q := make([]bls.Fr, NodeWidth)
 
 	for i := 0; i < NodeWidth; i++ {
@@ -170,16 +168,16 @@ func (tc *TreeConfig) outerQuotients(f []bls.Fr, z, y *bls.Fr) []bls.Fr {
 }
 
 // Evaluate a polynomial in the lagrange basis
-func (tc *TreeConfig) evalPoly(poly []bls.Fr, emptyChildren int) *bls.G1Point {
-	if NodeWidth-emptyChildren >= tc.multiExpThreshold {
-		return bls.LinCombG1(tc.lg1, poly[:])
+func evalPoly(poly []bls.Fr, lg1 []bls.G1Point, emptyChildren int) *bls.G1Point {
+	if NodeWidth-emptyChildren >= multiExpThreshold8 {
+		return bls.LinCombG1(lg1, poly[:])
 	} else {
 		var comm bls.G1Point
 		bls.CopyG1(&comm, &bls.ZERO_G1)
 		for i := range poly {
 			if !bls.EqualZero(&poly[i]) {
 				var tmpG1, eval bls.G1Point
-				bls.MulG1(&eval, &tc.lg1[i], &poly[i])
+				bls.MulG1(&eval, &lg1[i], &poly[i])
 				bls.CopyG1(&tmpG1, &comm)
 				bls.AddG1(&comm, &tmpG1, &eval)
 			}
@@ -188,7 +186,7 @@ func (tc *TreeConfig) evalPoly(poly []bls.Fr, emptyChildren int) *bls.G1Point {
 	}
 }
 
-func (tc *TreeConfig) equalPaths(key1, key2 []byte) bool {
+func equalPaths(key1, key2 []byte) bool {
 	if len(key1) != len(key2) {
 		return false
 	}
@@ -198,6 +196,6 @@ func (tc *TreeConfig) equalPaths(key1, key2 []byte) bool {
 
 // offset2key extracts the n bits of a key that correspond to the
 // index of a child node.
-func (tc *TreeConfig) offset2key(key []byte, offset int) uint {
+func offset2key(key []byte, offset int) uint {
 	return uint(key[offset/8])
 }

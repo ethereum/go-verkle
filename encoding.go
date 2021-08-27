@@ -70,7 +70,7 @@ func ParseNode(serialized []byte, depth, width int) (VerkleNode, error) {
 		if err := rlp.DecodeBytes(rest, &values); err != nil {
 			return nil, err
 		}
-		tc := GetTreeConfig()
+		tc := GetKZGConfig()
 		if NodeWidth != len(values) {
 			return nil, fmt.Errorf("invalid number of nodes in decoded child expected %d, got %d", NodeWidth, len(values))
 		}
@@ -98,7 +98,7 @@ func ParseNode(serialized []byte, depth, width int) (VerkleNode, error) {
 func createInternalNode(bitlist []byte, raw []byte, depth int) (*InternalNode, error) {
 	// GetTreeConfig caches computation result, hence
 	// this op has low overhead
-	tc := GetTreeConfig()
+	tc := GetKZGConfig()
 	n := (newInternalNode(depth, tc)).(*InternalNode)
 	indices := indicesFromBitlist(bitlist)
 	if len(raw)/32 != len(indices) {
