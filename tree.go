@@ -215,10 +215,8 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 				lastNode.values[key[31]] = value
 				newBranch.children[nextWordInInsertedKey] = lastNode
 				newBranch.count++
-			} else {
-				if err := newBranch.Insert(key, value); err != nil {
-					return err
-				}
+			} else if err := newBranch.Insert(key, value); err != nil {
+				return err
 			}
 		}
 	default: // InternalNode
@@ -778,7 +776,7 @@ func (n *HashedNode) Copy() VerkleNode {
 	return h
 }
 
-func (e Empty) Insert(k []byte, value []byte) error {
+func (Empty) Insert(k []byte, value []byte) error {
 	return errors.New("an empty node should not be inserted directly into")
 }
 
@@ -786,27 +784,27 @@ func (e Empty) InsertOrdered(key []byte, value []byte, _ NodeFlushFn) error {
 	return e.Insert(key, value)
 }
 
-func (e Empty) Delete(k []byte) error {
+func (Empty) Delete(k []byte) error {
 	return errors.New("cant delete an empty node")
 }
 
-func (e Empty) Get(k []byte, _ NodeResolverFn) ([]byte, error) {
+func (Empty) Get(k []byte, _ NodeResolverFn) ([]byte, error) {
 	return nil, nil
 }
 
-func (e Empty) ComputeCommitment() *bls.Fr {
+func (Empty) ComputeCommitment() *bls.Fr {
 	return &bls.ZERO
 }
 
-func (e Empty) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []int, []*bls.Fr, [][]bls.Fr) {
+func (Empty) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []int, []*bls.Fr, [][]bls.Fr) {
 	panic("trying to produce a commitment for an empty subtree")
 }
 
-func (e Empty) Serialize() ([]byte, error) {
+func (Empty) Serialize() ([]byte, error) {
 	return nil, errors.New("can't encode empty node to RLP")
 }
 
-func (e Empty) Copy() VerkleNode {
+func (Empty) Copy() VerkleNode {
 	return Empty(struct{}{})
 }
 

@@ -1117,7 +1117,7 @@ func TestGetResolveFromHash(t *testing.T) {
 	if count != 1 {
 		t.Fatalf("error getting the correct number of nodes: 1 != %d", count)
 	}
-	if !bytes.Equal(data[:], zeroKeyTest[:]) {
+	if !bytes.Equal(data, zeroKeyTest[:]) {
 		t.Fatalf("invalid result: %x != %x", zeroKeyTest, data)
 	}
 }
