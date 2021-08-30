@@ -258,7 +258,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 				if flush != nil {
 					flush(child)
 				}
-				hashToFr(child.hash, common.BytesToHash(digest.Sum(nil)), n.treeConfig.modulus)
+				hashToFr(child.hash, common.BytesToHash(digest.Sum(nil)))
 				n.children[i] = child.toHashedNode()
 				break searchFirstNonEmptyChild
 			case *HashedNode:
@@ -314,7 +314,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 				if flush != nil {
 					flush(child)
 				}
-				hashToFr(child.hash, common.BytesToHash(digest.Sum(nil)), n.treeConfig.modulus)
+				hashToFr(child.hash, common.BytesToHash(digest.Sum(nil)))
 				newBranch.children[nextWordInExistingKey] = child.toHashedNode()
 				// Next word differs, so this was the last level.
 				// Insert it directly into its final slot.
@@ -446,11 +446,22 @@ func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 	}
 }
 
+var modulus *big.Int
+
+func init() {
+	var ok bool
+	modulus, ok = big.NewInt(0).SetString("52435875175126190479447740508185965837690552500527637822603658699938581184513", 10)
+	if !ok {
+		panic("could not get modulus")
+	}
+
+}
+
 // This function takes a hash and turns it into a bls.Fr integer, making
 // sure that this doesn't overflow the modulus.
 // This piece of code is really ugly, and probably a performance hog, it
 // needs to be rewritten more efficiently.
-func hashToFr(out *bls.Fr, h [32]byte, modulus *big.Int) {
+func hashToFr(out *bls.Fr, h [32]byte) {
 	h[31] &= 0x7F // mod 2^255
 
 	// reverse endianness (little -> big)
@@ -502,13 +513,13 @@ func (n *InternalNode) ComputeCommitment() *bls.Fr {
 			// special case: only one leaf node - then ignore the top
 			// branch node.
 			if n.count == 1 && n.depth == 0 {
-				hashToFr(n.hash, common.BytesToHash(digest.Sum(nil)), n.treeConfig.modulus)
+				hashToFr(n.hash, common.BytesToHash(digest.Sum(nil)))
 				// Set the commitment to nil, as there is no real commitment at this
 				// level - only the hash has significance.
 				n.commitment = nil
 				return n.hash
 			}
-			hashToFr(&poly[idx], common.BytesToHash(digest.Sum(nil)), n.treeConfig.modulus)
+			hashToFr(&poly[idx], common.BytesToHash(digest.Sum(nil)))
 		case *HashedNode:
 			bls.CopyFr(&poly[idx], child.ComputeCommitment())
 		default:
@@ -522,7 +533,7 @@ func (n *InternalNode) ComputeCommitment() *bls.Fr {
 	n.commitment = evalPoly(poly, n.treeConfig.lg1, emptyChildren)
 	serialized := bls.ToCompressedG1(n.commitment)
 	h := sha256.Sum256(serialized)
-	hashToFr(n.hash, h, n.treeConfig.modulus)
+	hashToFr(n.hash, h)
 
 	return n.hash
 }
@@ -545,7 +556,7 @@ func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []in
 			digest.Write(c.key[:31]) // Write the stem
 			tmp := bls.FrTo32(c.hash)
 			digest.Write(tmp[:])
-			hashToFr(&fi[i], common.BytesToHash(digest.Sum(nil)), n.treeConfig.modulus)
+			hashToFr(&fi[i], common.BytesToHash(digest.Sum(nil)))
 		} else {
 			bls.CopyFr(&fi[i], child.ComputeCommitment())
 		}
@@ -667,13 +678,13 @@ func (n *LeafNode) ComputeCommitment() *bls.Fr {
 			continue
 		}
 		h := sha256.Sum256(val)
-		hashToFr(&poly[idx], h, n.treeConfig.modulus)
+		hashToFr(&poly[idx], h)
 	}
 
 	n.commitment = evalPoly(poly, n.treeConfig.lg1, emptyChildren)
 
 	h := sha256.Sum256(bls.ToCompressedG1(n.commitment))
-	hashToFr(n.hash, h, n.treeConfig.modulus)
+	hashToFr(n.hash, h)
 	return n.hash
 }
 
@@ -683,7 +694,7 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []int, [
 	for i, val := range n.values {
 		if val != nil {
 			var fi bls.Fr
-			hashToFr(&fi, sha256.Sum256(val), n.treeConfig.modulus)
+			hashToFr(&fi, sha256.Sum256(val))
 			bls.CopyFr(&fis[i], &fi)
 		}
 	}

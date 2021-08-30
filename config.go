@@ -27,7 +27,6 @@ package verkle
 
 import (
 	"bytes"
-	"math/big"
 	"sync"
 
 	"github.com/protolambda/go-kzg"
@@ -42,7 +41,6 @@ const (
 )
 
 type KZGConfig struct {
-	modulus           *big.Int // Field's modulus
 	omegaIs           []bls.Fr // List of the root of unity
 	inverses          []bls.Fr // List of all 1 / (1 - ωⁱ)
 	nodeWidthInversed bls.Fr   // Inverse of node witdh in prime field
@@ -104,12 +102,6 @@ func initKZGConfig(lg1 []bls.G1Point) *KZGConfig {
 	for i := 0; i < NodeWidth; i++ {
 		bls.CopyFr(&tc.omegaIs[i], &tmp)
 		bls.MulModFr(&tmp, &tmp, &bls.Scale2RootOfUnity[8])
-	}
-
-	var ok bool
-	tc.modulus, ok = big.NewInt(0).SetString("52435875175126190479447740508185965837690552500527637822603658699938581184513", 10)
-	if !ok {
-		panic("could not get modulus")
 	}
 
 	// Compute all 1 / (1 - ωⁱ)
