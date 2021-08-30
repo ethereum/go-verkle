@@ -64,8 +64,8 @@ func TestInsertIntoRoot(t *testing.T) {
 		t.Fatalf("invalid leaf node type %v", root.(*InternalNode).children[0])
 	}
 
-	if !bytes.Equal(leaf.values[zeroKeyTest[31]][:], testValue) {
-		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaf.values[zeroKeyTest[31]][:])
+	if !bytes.Equal(leaf.values[zeroKeyTest[31]], testValue) {
+		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaf.values[zeroKeyTest[31]])
 	}
 }
 
@@ -84,12 +84,12 @@ func TestInsertTwoLeaves(t *testing.T) {
 		t.Fatalf("invalid leaf node type %v", root.(*InternalNode).children[255])
 	}
 
-	if !bytes.Equal(leaf0.values[zeroKeyTest[31]][:], testValue) {
-		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaf0.values[zeroKeyTest[31]][:])
+	if !bytes.Equal(leaf0.values[zeroKeyTest[31]], testValue) {
+		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaf0.values[zeroKeyTest[31]])
 	}
 
-	if !bytes.Equal(leaff.values[255][:], testValue) {
-		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaff.values[ffx32KeyTest[31]][:])
+	if !bytes.Equal(leaff.values[255], testValue) {
+		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaff.values[ffx32KeyTest[31]])
 	}
 }
 
@@ -103,10 +103,10 @@ func TestInsertTwoLeavesLastLevel(t *testing.T) {
 		t.Fatalf("invalid leaf node type %v", root.(*InternalNode).children[0])
 	}
 
-	if !bytes.Equal(leaf.values[1][:], testValue) {
+	if !bytes.Equal(leaf.values[1], testValue) {
 		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaf.values[1])
 	}
-	if !bytes.Equal(leaf.values[0][:], testValue) {
+	if !bytes.Equal(leaf.values[0], testValue) {
 		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaf.values[0])
 	}
 
@@ -284,7 +284,7 @@ func TestInsertVsOrdered(t *testing.T) {
 	value := []byte("value")
 	keys := randomKeys(n)
 	sortedKeys := make([][]byte, n)
-	copy(sortedKeys[:], keys[:])
+	copy(sortedKeys, keys)
 	sort.Slice(sortedKeys, func(i, j int) bool { return bytes.Compare(sortedKeys[i], sortedKeys[j]) < 0 })
 
 	root1 := New()
@@ -899,7 +899,6 @@ func TestMainnetStart(t *testing.T) {
 }
 
 func TestNodeSerde(t *testing.T) {
-	width := 8
 	tree := New()
 	tree.Insert(zeroKeyTest, testValue)
 	tree.Insert(fourtyKeyTest, testValue)
@@ -924,19 +923,19 @@ func TestNodeSerde(t *testing.T) {
 	}
 
 	// Now deserialize and re-construct tree
-	res, err := ParseNode(ls0, 1, width)
+	res, err := ParseNode(ls0, 1)
 	if err != nil {
 		t.Error(err)
 	}
 	resLeaf0 := res.(*LeafNode)
 
-	res, err = ParseNode(ls64, 1, width)
+	res, err = ParseNode(ls64, 1)
 	if err != nil {
 		t.Error(err)
 	}
 	resLeaf64 := res.(*LeafNode)
 
-	res, err = ParseNode(rs, 0, width)
+	res, err = ParseNode(rs, 0)
 	if err != nil {
 		t.Error(err)
 	}
@@ -1117,7 +1116,7 @@ func TestGetResolveFromHash(t *testing.T) {
 	if count != 1 {
 		t.Fatalf("error getting the correct number of nodes: 1 != %d", count)
 	}
-	if !bytes.Equal(data, zeroKeyTest[:]) {
+	if !bytes.Equal(data, zeroKeyTest) {
 		t.Fatalf("invalid result: %x != %x", zeroKeyTest, data)
 	}
 }

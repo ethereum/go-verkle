@@ -36,7 +36,7 @@ import (
 
 const ErrInvalidNodeEncoding = "invalid node encoding"
 
-func ParseNode(serialized []byte, depth, width int) (VerkleNode, error) {
+func ParseNode(serialized []byte, depth int) (VerkleNode, error) {
 	elems, _, err := rlp.SplitList(serialized)
 	if err != nil {
 		return nil, err

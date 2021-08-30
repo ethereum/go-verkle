@@ -9,10 +9,10 @@ import (
 )
 
 func main() {
-	benchmarkInsertInExisting(8)
+	benchmarkInsertInExisting()
 }
 
-func benchmarkInsertInExisting(width uint8) {
+func benchmarkInsertInExisting() {
 	rand.Seed(time.Now().UnixNano())
 
 	// Number of existing leaves in tree
