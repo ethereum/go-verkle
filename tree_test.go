@@ -727,9 +727,6 @@ func BenchmarkCommitLeaves(b *testing.B) {
 }
 
 func BenchmarkCommitFullNode(b *testing.B) {
-	benchmarkCommitFullNode(b)
-}
-func benchmarkCommitFullNode(b *testing.B) {
 	nChildren := 256
 	value := []byte("value")
 	keys := make([][]byte, nChildren)

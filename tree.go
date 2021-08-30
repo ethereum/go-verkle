@@ -464,9 +464,7 @@ func hashToFr(out *bls.Fr, h [32]byte) {
 
 	// reverse endianness (little -> big)
 	for i := 0; i < len(h)/2; i++ {
-		t := h[i]
-		h[i] = h[len(h)-i-1]
-		h[len(h)-i-1] = t
+		h[i], h[len(h)-i-1] = h[len(h)-i-1], h[i]
 	}
 
 	// Apply modulus
