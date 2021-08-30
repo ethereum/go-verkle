@@ -120,7 +120,7 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte) (d *bls.G1Point, y *bls
 		// rⁱ⁺¹ = r ⨯ rⁱ
 		bls.MulModFr(&powR, &powR, &r)
 	}
-	d = bls.LinCombG1(tc.lg1, g[:])
+	d = bls.LinCombG1(tc.lg1, g)
 
 	// Compute h(x)
 	t := calcT(&r, d)
@@ -174,7 +174,7 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte) (d *bls.G1Point, y *bls
 	rho := ComputeKZGProof(tc, g, &t, w)
 
 	// Compute E
-	e := kzg.CommitToEvalPoly(tc.lg1, h[:])
+	e := kzg.CommitToEvalPoly(tc.lg1, h)
 
 	// compute σ
 	sigma = new(bls.G1Point)
@@ -237,7 +237,7 @@ func MakeVerkleMultiProof(root VerkleNode, keys [][]byte) (d *bls.G1Point, y *bl
 		// rⁱ⁺¹ = r ⨯ rⁱ
 		bls.MulModFr(&powR, &powR, &r)
 	}
-	d = bls.LinCombG1(tc.lg1, g[:])
+	d = bls.LinCombG1(tc.lg1, g)
 
 	// Compute h(x)
 	t := calcT(&r, d)
@@ -291,7 +291,7 @@ func MakeVerkleMultiProof(root VerkleNode, keys [][]byte) (d *bls.G1Point, y *bl
 	rho := ComputeKZGProof(tc, g, &t, w)
 
 	// Compute E
-	e := kzg.CommitToEvalPoly(tc.lg1, h[:])
+	e := kzg.CommitToEvalPoly(tc.lg1, h)
 
 	// compute σ
 	σ = new(bls.G1Point)

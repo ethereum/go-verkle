@@ -142,7 +142,7 @@ func (tc *KZGConfig) innerQuotients(f []bls.Fr, index int) []bls.Fr {
 		}
 	}
 
-	return q[:]
+	return q
 }
 
 // Compute a function in eval form at a point outside of the domain
@@ -156,13 +156,13 @@ func (tc *KZGConfig) outerQuotients(f []bls.Fr, z, y *bls.Fr) []bls.Fr {
 		bls.DivModFr(&q[i], &tmp, &quo)
 	}
 
-	return q[:]
+	return q
 }
 
 // Evaluate a polynomial in the lagrange basis
 func evalPoly(poly []bls.Fr, lg1 []bls.G1Point, emptyChildren int) *bls.G1Point {
 	if NodeWidth-emptyChildren >= multiExpThreshold8 {
-		return bls.LinCombG1(lg1, poly[:])
+		return bls.LinCombG1(lg1, poly)
 	} else {
 		var comm bls.G1Point
 		bls.CopyG1(&comm, &bls.ZERO_G1)

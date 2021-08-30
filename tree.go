@@ -432,7 +432,7 @@ func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 		}
 
 		// deserialize the payload and set it as the child
-		c, err := ParseNode(payload, n.depth+NodeWidth, NodeWidth)
+		c, err := ParseNode(payload, n.depth+NodeWidth)
 		if err != nil {
 			return nil, err
 		}
@@ -631,7 +631,7 @@ func (n *LeafNode) Insert(k []byte, value []byte) error {
 	return nil
 }
 
-func (n *LeafNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn) error {
+func (n *LeafNode) InsertOrdered(key []byte, value []byte, _ NodeFlushFn) error {
 	// In the previous version, this value used to be flushed on insert.
 	// This is no longer the case, as all values at the last level get
 	// flushed at the same time.
@@ -725,7 +725,7 @@ func (n *LeafNode) Copy() VerkleNode {
 
 func (n *LeafNode) Key(i int) []byte {
 	var ret [32]byte
-	copy(ret[:], n.key[:])
+	copy(ret[:], n.key)
 	ret[31] = byte(i)
 	return ret[:]
 }
@@ -734,19 +734,19 @@ func (n *LeafNode) Value(i int) []byte {
 	return n.values[i]
 }
 
-func (n *HashedNode) Insert(k []byte, value []byte) error {
+func (*HashedNode) Insert([]byte, []byte) error {
 	return errInsertIntoHash
 }
 
-func (n *HashedNode) InsertOrdered(key []byte, value []byte, _ NodeFlushFn) error {
+func (*HashedNode) InsertOrdered([]byte, []byte, NodeFlushFn) error {
 	return errInsertIntoHash
 }
 
-func (n *HashedNode) Delete(k []byte) error {
+func (*HashedNode) Delete([]byte) error {
 	return errors.New("cant delete a hashed node in-place")
 }
 
-func (n *HashedNode) Get(k []byte, _ NodeResolverFn) ([]byte, error) {
+func (*HashedNode) Get([]byte, NodeResolverFn) ([]byte, error) {
 	return nil, errors.New("can not read from a hash node")
 }
 
@@ -754,11 +754,11 @@ func (n *HashedNode) ComputeCommitment() *bls.Fr {
 	return n.hash
 }
 
-func (n *HashedNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []int, []*bls.Fr, [][]bls.Fr) {
+func (*HashedNode) GetCommitmentsAlongPath([]byte) ([]*bls.G1Point, []int, []*bls.Fr, [][]bls.Fr) {
 	panic("can not get the full path, and there is no proof of absence")
 }
 
-func (n *HashedNode) Serialize() ([]byte, error) {
+func (*HashedNode) Serialize() ([]byte, error) {
 	return nil, errSerializeHashedNode
 }
 
@@ -776,7 +776,7 @@ func (n *HashedNode) Copy() VerkleNode {
 	return h
 }
 
-func (Empty) Insert(k []byte, value []byte) error {
+func (Empty) Insert([]byte, []byte) error {
 	return errors.New("an empty node should not be inserted directly into")
 }
 
@@ -784,11 +784,11 @@ func (e Empty) InsertOrdered(key []byte, value []byte, _ NodeFlushFn) error {
 	return e.Insert(key, value)
 }
 
-func (Empty) Delete(k []byte) error {
+func (Empty) Delete([]byte) error {
 	return errors.New("cant delete an empty node")
 }
 
-func (Empty) Get(k []byte, _ NodeResolverFn) ([]byte, error) {
+func (Empty) Get([]byte, NodeResolverFn) ([]byte, error) {
 	return nil, nil
 }
 
@@ -796,7 +796,7 @@ func (Empty) ComputeCommitment() *bls.Fr {
 	return &bls.ZERO
 }
 
-func (Empty) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []int, []*bls.Fr, [][]bls.Fr) {
+func (Empty) GetCommitmentsAlongPath([]byte) ([]*bls.G1Point, []int, []*bls.Fr, [][]bls.Fr) {
 	panic("trying to produce a commitment for an empty subtree")
 }
 
