@@ -242,14 +242,9 @@ func TestComputeRootCommitmentTwoLeavesLastLevel(t *testing.T) {
 }
 
 func TestHashToFrTrailingZeroBytes(t *testing.T) {
-	modulus, ok := big.NewInt(0).SetString("52435875175126190479447740508185965837690552500527637822603658699938581184513", 10)
-	if !ok {
-		panic("could not get modulus")
-	}
-
 	h := common.HexToHash("c79e576e0f534a5bbed66b32e5022a9d624b4415779b369a62b2e7a6c3d8e000")
 	var out bls.Fr
-	hashToFr(&out, h, modulus)
+	hashToFr(&out, h)
 
 	h2 := common.HexToHash("c79e576e0f534a5bbed66b32e5022a9d624b4415779b369a62b2e7a6c3d8e000")
 	var expected bls.Fr
@@ -1122,7 +1117,7 @@ func TestGetResolveFromHash(t *testing.T) {
 	if count != 1 {
 		t.Fatalf("error getting the correct number of nodes: 1 != %d", count)
 	}
-	if !bytes.Equal(data[:], zeroKeyTest[:]) {
+	if !bytes.Equal(data, zeroKeyTest[:]) {
 		t.Fatalf("invalid result: %x != %x", zeroKeyTest, data)
 	}
 }
