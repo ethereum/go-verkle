@@ -34,7 +34,7 @@ import (
 	"github.com/protolambda/go-kzg/bls"
 )
 
-const ErrInvalidNodeEncoding = "invalid node encoding"
+var ErrInvalidNodeEncoding = errors.New("invalid node encoding")
 
 func ParseNode(serialized []byte, depth int) (VerkleNode, error) {
 	elems, _, err := rlp.SplitList(serialized)
@@ -48,7 +48,7 @@ func ParseNode(serialized []byte, depth int) (VerkleNode, error) {
 
 	if c != 3 {
 		// hashed node decoding not supported
-		return nil, errors.New(ErrInvalidNodeEncoding)
+		return nil, ErrInvalidNodeEncoding
 	}
 
 	// either leaf or internal
@@ -57,7 +57,7 @@ func ParseNode(serialized []byte, depth int) (VerkleNode, error) {
 		return nil, err
 	}
 	if kind != rlp.Byte || len(typ) != 1 {
-		return nil, errors.New(ErrInvalidNodeEncoding)
+		return nil, ErrInvalidNodeEncoding
 	}
 
 	switch typ[0] {
@@ -91,7 +91,7 @@ func ParseNode(serialized []byte, depth int) (VerkleNode, error) {
 		}
 		return createInternalNode(bitlist, children, depth)
 	default:
-		return nil, errors.New(ErrInvalidNodeEncoding)
+		return nil, ErrInvalidNodeEncoding
 	}
 }
 
@@ -102,7 +102,7 @@ func createInternalNode(bitlist []byte, raw []byte, depth int) (*InternalNode, e
 	n := (newInternalNode(depth, tc)).(*InternalNode)
 	indices := indicesFromBitlist(bitlist)
 	if len(raw)/32 != len(indices) {
-		return nil, errors.New(ErrInvalidNodeEncoding)
+		return nil, ErrInvalidNodeEncoding
 	}
 	for i, index := range indices {
 		hashed := &HashedNode{hash: new(bls.Fr)}
