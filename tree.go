@@ -81,12 +81,9 @@ const (
 
 var (
 	errInsertIntoHash      = errors.New("trying to insert into hashed node")
-	errValueNotPresent     = errors.New("value not present in tree")
 	errDeleteNonExistent   = errors.New("trying to delete non-existent leaf")
 	errReadFromInvalid     = errors.New("trying to read from an invalid child")
 	errSerializeHashedNode = errors.New("trying to serialized a hashed node")
-
-	zeroHash = common.HexToHash("0000000000000000000000000000000000000000000000000000000000000000")
 )
 
 type (
@@ -109,7 +106,7 @@ type (
 		// Cache the commitment value
 		commitment *bls.G1Point
 
-		treeConfig *TreeConfig
+		treeConfig *KZGConfig
 	}
 
 	HashedNode struct {
@@ -123,15 +120,15 @@ type (
 
 		commitment *bls.G1Point
 		hash       *bls.Fr
-		treeConfig *TreeConfig
+		treeConfig *KZGConfig
 	}
 
 	Empty struct{}
 )
 
-func newInternalNode(depth int, tc *TreeConfig) VerkleNode {
+func newInternalNode(depth int, tc *KZGConfig) VerkleNode {
 	node := new(InternalNode)
-	node.children = make([]VerkleNode, tc.nodeWidth)
+	node.children = make([]VerkleNode, NodeWidth)
 	for idx := range node.children {
 		node.children[idx] = Empty(struct{}{})
 	}
@@ -143,7 +140,7 @@ func newInternalNode(depth int, tc *TreeConfig) VerkleNode {
 
 // New creates a new tree root
 func New() VerkleNode {
-	return newInternalNode(0, GetTreeConfig())
+	return newInternalNode(0, GetKZGConfig())
 }
 
 func (n *InternalNode) Depth() int {
@@ -154,16 +151,12 @@ func (n *InternalNode) SetDepth(depth int) {
 	n.depth = depth
 }
 
-func (n *InternalNode) Width() int {
-	return n.treeConfig.width
-}
-
 func (n *InternalNode) Children() []VerkleNode {
 	return n.children
 }
 
 func (n *InternalNode) SetChild(i int, c VerkleNode) error {
-	if i >= n.treeConfig.nodeWidth-1 {
+	if i >= NodeWidth-1 {
 		return errors.New("child index higher than node width")
 	}
 	n.children[i] = c
@@ -177,13 +170,13 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 		n.hash = nil
 	}
 
-	nChild := n.treeConfig.offset2key(key, n.depth)
+	nChild := offset2key(key, n.depth)
 
 	switch child := n.children[nChild].(type) {
 	case Empty:
 		lastNode := &LeafNode{
 			key:        key,
-			values:     make([][]byte, n.treeConfig.nodeWidth),
+			values:     make([][]byte, NodeWidth),
 			treeConfig: n.treeConfig,
 		}
 		lastNode.values[key[31]] = value
@@ -195,34 +188,36 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 		// Need to add a new branch node to differentiate
 		// between two keys, if the keys are different.
 		// Otherwise, just update the key.
-		if n.treeConfig.equalPaths(child.key, key) {
-			child.Insert(key, value)
+		if equalPaths(child.key, key) {
+			if err := child.Insert(key, value); err != nil {
+				return err
+			}
 		} else {
-			width := n.treeConfig.width
-
 			// A new branch node has to be inserted. Depending
 			// on the next word in both keys, a recursion into
 			// the moved leaf node can occur.
-			nextWordInExistingKey := n.treeConfig.offset2key(child.key, n.depth+width)
-			newBranch := newInternalNode(n.depth+width, n.treeConfig).(*InternalNode)
+			nextWordInExistingKey := offset2key(child.key, n.depth+NodeBitWidth)
+			newBranch := newInternalNode(n.depth+NodeBitWidth, n.treeConfig).(*InternalNode)
 			newBranch.count = 1
 			n.children[nChild] = newBranch
 			newBranch.children[nextWordInExistingKey] = child
 
-			nextWordInInsertedKey := n.treeConfig.offset2key(key, n.depth+width)
+			nextWordInInsertedKey := offset2key(key, n.depth+NodeBitWidth)
 			if nextWordInInsertedKey != nextWordInExistingKey {
 				// Next word differs, so this was the last level.
 				// Insert it directly into its final slot.
 				lastNode := &LeafNode{
 					key:        key,
-					values:     make([][]byte, n.treeConfig.nodeWidth),
+					values:     make([][]byte, NodeWidth),
 					treeConfig: n.treeConfig,
 				}
 				lastNode.values[key[31]] = value
 				newBranch.children[nextWordInInsertedKey] = lastNode
 				newBranch.count++
 			} else {
-				newBranch.Insert(key, value)
+				if err := newBranch.Insert(key, value); err != nil {
+					return err
+				}
 			}
 		}
 	default: // InternalNode
@@ -242,7 +237,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 		n.hash = nil
 	}
 
-	nChild := n.treeConfig.offset2key(key, n.depth)
+	nChild := offset2key(key, n.depth)
 
 	switch child := n.children[nChild].(type) {
 	case Empty:
@@ -276,7 +271,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 		// NOTE: these allocations are inducing a noticeable slowdown
 		lastNode := &LeafNode{
 			key:        key,
-			values:     make([][]byte, n.treeConfig.nodeWidth),
+			values:     make([][]byte, NodeWidth),
 			treeConfig: n.treeConfig,
 		}
 		lastNode.values[key[31]] = value
@@ -292,20 +287,18 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 		// Need to add a new branch node to differentiate
 		// between two keys, if the keys are different.
 		// Otherwise, just update the key.
-		if n.treeConfig.equalPaths(child.key, key) {
+		if equalPaths(child.key, key) {
 			child.values[key[31]] = value
 		} else {
-			width := n.treeConfig.width
-
 			// A new branch node has to be inserted. Depending
 			// on the next word in both keys, a recursion into
 			// the moved leaf node can occur.
-			nextWordInExistingKey := n.treeConfig.offset2key(child.key, n.depth+width)
-			newBranch := newInternalNode(n.depth+width, n.treeConfig).(*InternalNode)
+			nextWordInExistingKey := offset2key(child.key, n.depth+NodeBitWidth)
+			newBranch := newInternalNode(n.depth+NodeBitWidth, n.treeConfig).(*InternalNode)
 			newBranch.count = 1
 			n.children[nChild] = newBranch
 
-			nextWordInInsertedKey := n.treeConfig.offset2key(key, n.depth+width)
+			nextWordInInsertedKey := offset2key(key, n.depth+NodeBitWidth)
 			if nextWordInInsertedKey != nextWordInExistingKey {
 				// Directly hash the (left) node that was already
 				// inserted.
@@ -318,7 +311,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 				// Insert it directly into its final slot.
 				lastNode := &LeafNode{
 					key:        key,
-					values:     make([][]byte, n.treeConfig.nodeWidth),
+					values:     make([][]byte, NodeWidth),
 					treeConfig: n.treeConfig,
 				}
 				lastNode.values[key[31]] = value
@@ -327,7 +320,9 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 			} else {
 				// Reinsert the leaf in order to recurse
 				newBranch.children[nextWordInExistingKey] = child
-				newBranch.InsertOrdered(key, value, flush)
+				if err := newBranch.InsertOrdered(key, value, flush); err != nil {
+					return err
+				}
 			}
 		}
 	default: // InternalNode
@@ -341,14 +336,14 @@ func (n *InternalNode) Delete(key []byte) error {
 	n.commitment = nil
 	n.hash = nil
 
-	nChild := n.treeConfig.offset2key(key, n.depth)
+	nChild := offset2key(key, n.depth)
 	switch child := n.children[nChild].(type) {
 	case Empty:
 		return errDeleteNonExistent
 	case *HashedNode:
 		return errors.New("trying to delete from a hashed subtree")
 	case *LeafNode:
-		if !n.treeConfig.equalPaths(child.key, key) {
+		if !equalPaths(child.key, key) {
 			return errDeleteNonExistent
 		}
 		if err := child.Delete(key); err != nil {
@@ -408,7 +403,7 @@ func (n *InternalNode) Flush(flush NodeFlushFn) {
 }
 
 func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
-	nChild := n.treeConfig.offset2key(k, n.depth)
+	nChild := offset2key(k, n.depth)
 
 	switch child := n.children[nChild].(type) {
 	case Empty, nil:
@@ -430,7 +425,7 @@ func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 		}
 
 		// deserialize the payload and set it as the child
-		c, err := ParseNode(payload, n.depth+n.Width(), n.Width())
+		c, err := ParseNode(payload, n.depth+NodeWidth, NodeWidth)
 		if err != nil {
 			return nil, err
 		}
@@ -483,7 +478,7 @@ func (n *InternalNode) ComputeCommitment() *bls.Fr {
 	n.hash = new(bls.Fr)
 
 	emptyChildren := 0
-	poly := make([]bls.Fr, n.treeConfig.nodeWidth)
+	poly := make([]bls.Fr, NodeWidth)
 	for idx, childC := range n.children {
 		switch child := childC.(type) {
 		case Empty:
@@ -510,7 +505,7 @@ func (n *InternalNode) ComputeCommitment() *bls.Fr {
 
 	// All the coefficients have been computed, evaluate the polynomial,
 	// serialize and hash the resulting point - this is the commitment.
-	n.commitment = n.treeConfig.evalPoly(poly, emptyChildren)
+	n.commitment = evalPoly(poly, n.treeConfig.lg1, emptyChildren)
 	var serialized [32]byte
 	copy(serialized[:], bls.ToCompressedG1(n.commitment)[:])
 	bls.FrFrom32(n.hash, serialized)
@@ -519,7 +514,7 @@ func (n *InternalNode) ComputeCommitment() *bls.Fr {
 }
 
 func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []int, []*bls.Fr, [][]bls.Fr) {
-	childIdx := n.treeConfig.offset2key(key, n.depth)
+	childIdx := offset2key(key, n.depth)
 
 	// Special case, no commitment for the root if there is only one
 	// child in the tree.
@@ -529,7 +524,7 @@ func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []in
 
 	comms, zis, yis, fis := n.children[childIdx].GetCommitmentsAlongPath(key)
 	var yi bls.Fr
-	fi := make([]bls.Fr, n.treeConfig.nodeWidth)
+	fi := make([]bls.Fr, NodeWidth)
 	for i, child := range n.children {
 		bls.CopyFr(&fi[i], child.ComputeCommitment())
 
@@ -542,7 +537,7 @@ func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []in
 
 func (n *InternalNode) Serialize() ([]byte, error) {
 	var bitlist [128]uint8
-	children := make([]byte, 0, n.treeConfig.nodeWidth*32)
+	children := make([]byte, 0, NodeWidth*32)
 	for i, c := range n.children {
 		if _, ok := c.(Empty); !ok {
 			setBit(bitlist[:], i)
@@ -596,7 +591,7 @@ func (n *LeafNode) toHashedNode() *HashedNode {
 
 func (n *LeafNode) Insert(k []byte, value []byte) error {
 	// Sanity check: ensure the key header is the same:
-	if !n.treeConfig.equalPaths(k, n.key) {
+	if !equalPaths(k, n.key) {
 		return errors.New("split should not happen here")
 	}
 	n.values[k[31]] = value
@@ -614,7 +609,7 @@ func (n *LeafNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn) er
 
 func (n *LeafNode) Delete(k []byte) error {
 	// Sanity check: ensure the key header is the same:
-	if !n.treeConfig.equalPaths(k, n.key) {
+	if !equalPaths(k, n.key) {
 		return errors.New("trying to delete a non-existing key")
 	}
 
@@ -625,7 +620,7 @@ func (n *LeafNode) Delete(k []byte) error {
 }
 
 func (n *LeafNode) Get(k []byte, _ NodeResolverFn) ([]byte, error) {
-	if !n.treeConfig.equalPaths(k, n.key) {
+	if !equalPaths(k, n.key) {
 		// If keys differ, return nil in order to
 		// signal that the key isn't present in the
 		// tree. Do not return an error, thus matching
@@ -674,7 +669,7 @@ func (n *LeafNode) ComputeCommitment() *bls.Fr {
 	n.hash = new(bls.Fr)
 
 	emptyChildren := 0
-	poly := make([]bls.Fr, n.treeConfig.nodeWidth)
+	poly := make([]bls.Fr, NodeWidth)
 	for idx, val := range n.values {
 		if val == nil {
 			emptyChildren++
@@ -683,7 +678,7 @@ func (n *LeafNode) ComputeCommitment() *bls.Fr {
 		bls.CopyFr(&poly[idx], pedersenLeaf(n.treeConfig, n.key, val))
 	}
 
-	n.commitment = n.treeConfig.evalPoly(poly, emptyChildren)
+	n.commitment = evalPoly(poly, n.treeConfig.lg1, emptyChildren)
 
 	var tmp [32]byte
 	copy(tmp[:], bls.ToCompressedG1(n.commitment))
@@ -692,13 +687,8 @@ func (n *LeafNode) ComputeCommitment() *bls.Fr {
 }
 
 func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []int, []*bls.Fr, [][]bls.Fr) {
-	var slot uint64
-	if n.treeConfig.width == 10 {
-		slot = uint64(key[31]&0x3F) << 4
-	} else {
-		slot = uint64(key[31])
-	}
-	fis := make([]bls.Fr, n.treeConfig.nodeWidth)
+	slot := uint64(key[31])
+	fis := make([]bls.Fr, NodeWidth)
 	for i, val := range n.values {
 		if val != nil {
 			// XXX the commitment is recalculated here,

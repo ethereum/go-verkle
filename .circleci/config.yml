@@ -1,6 +1,6 @@
-version: 2
+version: 2.1
 jobs:
-  build:
+  lint_and_check:
     docker:
       - image: circleci/golang:1.15.8
     working_directory: /go/src/github.com/gballet/go-verkle
@@ -12,9 +12,35 @@ jobs:
           keys:
             - v1-pkg-cache
 
-      - run: go build
+      - run: wget -O- -nv https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s latest
+
+      - run:
+          name: Lint
+          command: ./bin/golangci-lint run
 
         #- run: go get honnef.co/go/tools/cmd/staticcheck
+
+      - run:
+          name: Run the static checkers
+          command: go vet
+            #   /go/bin/staticcheck
+
+      - save_cache: # Store cache in the /go/pkg directory
+          key: v1-pkg-cache
+          paths:
+            - "/go/pkg"
+
+  test_linux:
+    docker:
+      - image: circleci/golang:1.15.8
+    working_directory: /go/src/github.com/gballet/go-verkle
+
+    steps:
+      - checkout
+
+      - restore_cache:
+          keys:
+            - v1-pkg-cache
 
       - run:
           name: Run unit tests
@@ -22,15 +48,32 @@ jobs:
 
       - run:
           name: Run unit tests with kilic
-          command: go test -tags bignum_kilic ./...
+          command: go test -v -coverprofile=coverage.txt -covermode=count -tags bignum_kilic ./...
 
       - run:
-          name: Run the static checkers
-          command: |
-            go vet
-            #   /go/bin/staticcheck
+          name: Codecov upload
+          command: bash <(curl -s https://codecov.io/bash)
 
       - save_cache: # Store cache in the /go/pkg directory
           key: v1-pkg-cache
           paths:
             - "/go/pkg"
+
+  test_linux_arm:
+    machine:
+      image: ubuntu-2004:202101-01
+    resource_class: arm.medium
+
+    steps:
+      - checkout
+
+      - run:
+          name: Run unit tests with kilic
+          command: go test -tags bignum_kilic ./...
+
+workflows:
+  lint_and_test:
+    jobs:
+      - lint_and_check
+      - test_linux
+      - test_linux_arm
