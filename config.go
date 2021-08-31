@@ -160,7 +160,7 @@ func (tc *KZGConfig) outerQuotients(f []bls.Fr, z, y *bls.Fr) []bls.Fr {
 }
 
 // Evaluate a polynomial in the lagrange basis
-func evalPoly(poly []bls.Fr, lg1 []bls.G1Point, emptyChildren int) *bls.G1Point {
+func commitToPoly(poly []bls.Fr, lg1 []bls.G1Point, emptyChildren int) *bls.G1Point {
 	if NodeWidth-emptyChildren >= multiExpThreshold8 {
 		return bls.LinCombG1(lg1, poly)
 	} else {

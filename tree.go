@@ -526,7 +526,7 @@ func (n *InternalNode) ComputeCommitment() *bls.Fr {
 
 	// All the coefficients have been computed, evaluate the polynomial,
 	// serialize and hash the resulting point - this is the commitment.
-	n.commitment = evalPoly(poly, n.treeConfig.lg1, emptyChildren)
+	n.commitment = commitToPoly(poly, n.treeConfig.lg1, emptyChildren)
 	serialized := bls.ToCompressedG1(n.commitment)
 	h := sha256.Sum256(serialized)
 	hashToFr(n.hash, h)
@@ -677,7 +677,7 @@ func (n *LeafNode) ComputeCommitment() *bls.Fr {
 		hashToFr(&poly[idx], h)
 	}
 
-	n.commitment = evalPoly(poly, n.treeConfig.lg1, emptyChildren)
+	n.commitment = commitToPoly(poly, n.treeConfig.lg1, emptyChildren)
 
 	h := sha256.Sum256(bls.ToCompressedG1(n.commitment))
 	hashToFr(n.hash, h)
