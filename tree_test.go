@@ -1117,3 +1117,16 @@ func TestGetResolveFromHash(t *testing.T) {
 		t.Fatalf("invalid result: %x != %x", zeroKeyTest, data)
 	}
 }
+
+func TestGetKey(t *testing.T) {
+	root := &LeafNode{key: fourtyKeyTest}
+	for i := 0; i < NodeWidth; i++ {
+		k := root.Key(i)
+		if !bytes.Equal(k[:31], fourtyKeyTest[:31]) {
+			t.Fatal("invalid stem")
+		}
+		if int(k[31]) != i {
+			t.Fatal("invalid selector")
+		}
+	}
+}
