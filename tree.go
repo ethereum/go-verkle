@@ -763,6 +763,7 @@ func (*HashedNode) Serialize() ([]byte, error) {
 func (n *HashedNode) Copy() VerkleNode {
 	h := &HashedNode{
 		commitment: new(bls.G1Point),
+		hash:       new(bls.Fr),
 	}
 	if n.hash != nil {
 		bls.CopyFr(h.hash, n.hash)
