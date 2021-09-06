@@ -40,8 +40,8 @@ type NodeFlushFn func(VerkleNode)
 type NodeResolverFn func([]byte) ([]byte, error)
 
 type VerkleNode interface {
-	// Insert or Update value `v` at key `k`
-	Insert(k []byte, v []byte) error
+	// Insert or Update value into the tree
+	Insert([]byte, []byte, NodeResolverFn) error
 
 	// Insert "à la" Stacktrie. Same thing as insert, except that
 	// values are expected to be ordered, and the commitments and
@@ -164,7 +164,7 @@ func (n *InternalNode) SetChild(i int, c VerkleNode) error {
 	return nil
 }
 
-func (n *InternalNode) Insert(key []byte, value []byte) error {
+func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn) error {
 	// Clear cached commitment on modification
 	if n.commitment != nil {
 		n.commitment = nil
@@ -184,13 +184,25 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 		n.children[nChild] = lastNode
 		n.count++
 	case *HashedNode:
+		if resolver != nil {
+			serialized, err := resolver(key)
+			if err != nil {
+				return fmt.Errorf("verkle tree: error resolving node %x: %v", key, err)
+			}
+			resolved, err := ParseNode(serialized, n.depth+NodeBitWidth)
+			if err != nil {
+				return fmt.Errorf("verkle tree: error parsing resolved node %x: %v", key, err)
+			}
+			n.children[nChild] = resolved
+			return n.children[nChild].Insert(key, value, resolver)
+		}
 		return errInsertIntoHash
 	case *LeafNode:
 		// Need to add a new branch node to differentiate
 		// between two keys, if the keys are different.
 		// Otherwise, just update the key.
 		if equalPaths(child.key, key) {
-			if err := child.Insert(key, value); err != nil {
+			if err := child.Insert(key, value, resolver); err != nil {
 				return err
 			}
 		} else {
@@ -215,12 +227,12 @@ func (n *InternalNode) Insert(key []byte, value []byte) error {
 				lastNode.values[key[31]] = value
 				newBranch.children[nextWordInInsertedKey] = lastNode
 				newBranch.count++
-			} else if err := newBranch.Insert(key, value); err != nil {
+			} else if err := newBranch.Insert(key, value, resolver); err != nil {
 				return err
 			}
 		}
 	default: // InternalNode
-		return child.Insert(key, value)
+		return child.Insert(key, value, resolver)
 	}
 	return nil
 }
@@ -618,7 +630,7 @@ func (n *LeafNode) toHashedNode() *HashedNode {
 	return &HashedNode{n.hash, n.commitment}
 }
 
-func (n *LeafNode) Insert(k []byte, value []byte) error {
+func (n *LeafNode) Insert(k []byte, value []byte, _ NodeResolverFn) error {
 	// Sanity check: ensure the key header is the same:
 	if !equalPaths(k, n.key) {
 		return errors.New("split should not happen here")
@@ -633,7 +645,7 @@ func (n *LeafNode) InsertOrdered(key []byte, value []byte, _ NodeFlushFn) error 
 	// In the previous version, this value used to be flushed on insert.
 	// This is no longer the case, as all values at the last level get
 	// flushed at the same time.
-	return n.Insert(key, value)
+	return n.Insert(key, value, nil)
 }
 
 func (n *LeafNode) Delete(k []byte) error {
@@ -732,7 +744,7 @@ func (n *LeafNode) Value(i int) []byte {
 	return n.values[i]
 }
 
-func (*HashedNode) Insert([]byte, []byte) error {
+func (*HashedNode) Insert([]byte, []byte, NodeResolverFn) error {
 	return errInsertIntoHash
 }
 
@@ -775,12 +787,12 @@ func (n *HashedNode) Copy() VerkleNode {
 	return h
 }
 
-func (Empty) Insert([]byte, []byte) error {
+func (Empty) Insert([]byte, []byte, NodeResolverFn) error {
 	return errors.New("an empty node should not be inserted directly into")
 }
 
 func (e Empty) InsertOrdered(key []byte, value []byte, _ NodeFlushFn) error {
-	return e.Insert(key, value)
+	return e.Insert(key, value, nil)
 }
 
 func (Empty) Delete([]byte) error {

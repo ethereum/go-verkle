@@ -54,7 +54,7 @@ var lg1 []bls.G1Point
 
 func TestInsertIntoRoot(t *testing.T) {
 	root := New()
-	err := root.Insert(zeroKeyTest, testValue)
+	err := root.Insert(zeroKeyTest, testValue, nil)
 	if err != nil {
 		t.Fatalf("error inserting: %v", err)
 	}
@@ -71,8 +71,8 @@ func TestInsertIntoRoot(t *testing.T) {
 
 func TestInsertTwoLeaves(t *testing.T) {
 	root := New()
-	root.Insert(zeroKeyTest, testValue)
-	root.Insert(ffx32KeyTest, testValue)
+	root.Insert(zeroKeyTest, testValue, nil)
+	root.Insert(ffx32KeyTest, testValue, nil)
 
 	leaf0, ok := root.(*InternalNode).children[0].(*LeafNode)
 	if !ok {
@@ -95,8 +95,8 @@ func TestInsertTwoLeaves(t *testing.T) {
 
 func TestInsertTwoLeavesLastLevel(t *testing.T) {
 	root := New()
-	root.Insert(zeroKeyTest, testValue)
-	root.Insert(oneKeyTest, testValue)
+	root.Insert(zeroKeyTest, testValue, nil)
+	root.Insert(oneKeyTest, testValue, nil)
 
 	leaf, ok := root.(*InternalNode).children[0].(*LeafNode)
 	if !ok {
@@ -114,8 +114,8 @@ func TestInsertTwoLeavesLastLevel(t *testing.T) {
 
 func TestGetTwoLeaves(t *testing.T) {
 	root := New()
-	root.Insert(zeroKeyTest, testValue)
-	root.Insert(ffx32KeyTest, testValue)
+	root.Insert(zeroKeyTest, testValue, nil)
+	root.Insert(ffx32KeyTest, testValue, nil)
 
 	val, err := root.Get(zeroKeyTest, nil)
 	if err != nil {
@@ -141,9 +141,9 @@ func TestGetTwoLeaves(t *testing.T) {
 
 func TestComputeRootCommitmentThreeLeaves(t *testing.T) {
 	root := New()
-	root.Insert(zeroKeyTest, zeroKeyTest)
-	root.Insert(fourtyKeyTest, zeroKeyTest)
-	root.Insert(ffx32KeyTest, zeroKeyTest)
+	root.Insert(zeroKeyTest, zeroKeyTest, nil)
+	root.Insert(fourtyKeyTest, zeroKeyTest, nil)
+	root.Insert(ffx32KeyTest, zeroKeyTest, nil)
 
 	expected := common.Hex2Bytes("26664ee4292cccea11c029f1c833e6a2115490bf586a8189d7f6ef8e5a825204")
 
@@ -173,9 +173,9 @@ func TestComputeRootCommitmentOnlineThreeLeaves(t *testing.T) {
 
 func TestComputeRootCommitmentThreeLeavesDeep(t *testing.T) {
 	root := New()
-	root.Insert(zeroKeyTest, zeroKeyTest)
-	root.Insert(oneKeyTest, zeroKeyTest)
-	root.Insert(ffx32KeyTest, zeroKeyTest)
+	root.Insert(zeroKeyTest, zeroKeyTest, nil)
+	root.Insert(oneKeyTest, zeroKeyTest, nil)
+	root.Insert(ffx32KeyTest, zeroKeyTest, nil)
 
 	expected := common.Hex2Bytes("e7f96777a5425495f93dfb43960d39be2d5e97a86de2dd1bf2566032a478345f")
 
@@ -187,7 +187,7 @@ func TestComputeRootCommitmentThreeLeavesDeep(t *testing.T) {
 }
 func TestComputeRootCommitmentOneLeaf(t *testing.T) {
 	root := New()
-	root.Insert(zeroKeyTest, zeroKeyTest)
+	root.Insert(zeroKeyTest, zeroKeyTest, nil)
 
 	expected := common.Hex2Bytes("c65416142a960718ce12cc5ac11bb75b71dda1547bb3585a48e691286ba01200")
 
@@ -229,8 +229,8 @@ func TestComputeRootCommitmentOnlineThreeLeavesFlush(t *testing.T) {
 
 func TestComputeRootCommitmentTwoLeavesLastLevel(t *testing.T) {
 	root := New()
-	root.Insert(zeroKeyTest, testValue)
-	root.Insert(oneKeyTest, testValue)
+	root.Insert(zeroKeyTest, testValue, nil)
+	root.Insert(oneKeyTest, testValue, nil)
 
 	expected := common.Hex2Bytes("31a811b612e6946bcfbc54e6ee053f2f1797857eea8fd35eb07a6445b8127d53")
 
@@ -267,8 +267,8 @@ func TestOffset2key8BitsWide(t *testing.T) {
 
 func TestComputeRootCommitmentTwoLeaves256(t *testing.T) {
 	root := New()
-	root.Insert(zeroKeyTest, testValue)
-	root.Insert(ffx32KeyTest, testValue)
+	root.Insert(zeroKeyTest, testValue, nil)
+	root.Insert(ffx32KeyTest, testValue, nil)
 	expected := common.Hex2Bytes("f58c3e4b1bcbe877759674f63cf0c4a0c9487bf89bbbea94ea87ce6ac2ad9b71")
 
 	got := bls.FrTo32(root.ComputeCommitment())
@@ -289,7 +289,7 @@ func TestInsertVsOrdered(t *testing.T) {
 
 	root1 := New()
 	for _, k := range keys {
-		err := root1.Insert(k, value)
+		err := root1.Insert(k, value, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -354,9 +354,9 @@ func TestCopy(t *testing.T) {
 	key2 := common.Hex2Bytes("0107000000000000000000000000000000000000000000000000000000000000")
 	key3 := common.Hex2Bytes("0405000000000000000000000000000000000000000000000000000000000000")
 	tree := New()
-	tree.Insert(key1, value)
-	tree.Insert(key2, value)
-	tree.Insert(key3, value)
+	tree.Insert(key1, value, nil)
+	tree.Insert(key2, value, nil)
+	tree.Insert(key3, value, nil)
 	tree.ComputeCommitment()
 
 	copied := tree.Copy()
@@ -367,7 +367,7 @@ func TestCopy(t *testing.T) {
 	if !bytes.Equal(got1[:], got2[:]) {
 		t.Fatalf("error copying commitments %x != %x", got1, got2)
 	}
-	tree.Insert(key2, []byte("changed"))
+	tree.Insert(key2, []byte("changed"), nil)
 	tree.ComputeCommitment()
 	got2 = bls.FrTo32(tree.ComputeCommitment())
 	if bytes.Equal(got1[:], got2[:]) {
@@ -384,16 +384,16 @@ func TestCachedCommitment(t *testing.T) {
 	key3 := common.Hex2Bytes("0405000000000000000000000000000000000000000000000000000000000000")
 	key4 := common.Hex2Bytes("0407000000000000000000000000000000000000000000000000000000000000")
 	tree := New()
-	tree.Insert(key1, value)
-	tree.Insert(key2, value)
-	tree.Insert(key3, value)
+	tree.Insert(key1, value, nil)
+	tree.Insert(key2, value, nil)
+	tree.Insert(key3, value, nil)
 	tree.ComputeCommitment()
 
 	if tree.(*InternalNode).commitment == nil {
 		t.Error("root has not cached commitment")
 	}
 
-	tree.Insert(key4, value)
+	tree.Insert(key4, value, nil)
 
 	if tree.(*InternalNode).commitment != nil {
 		t.Error("root has stale commitment")
@@ -412,9 +412,9 @@ func TestClearCache(t *testing.T) {
 	key2 := common.Hex2Bytes("0107000000000000000000000000000000000000000000000000000000000000")
 	key3 := common.Hex2Bytes("0405000000000000000000000000000000000000000000000000000000000000")
 	tree := New()
-	tree.Insert(key1, value)
-	tree.Insert(key2, value)
-	tree.Insert(key3, value)
+	tree.Insert(key1, value, nil)
+	tree.Insert(key2, value, nil)
+	tree.Insert(key3, value, nil)
 	tree.ComputeCommitment()
 
 	root := tree.(*InternalNode)
@@ -435,11 +435,11 @@ func TestDelLeaf(t *testing.T) {
 	key2 := common.Hex2Bytes("0107000000000000000000000000000000000000000000000000000000000000")
 	key3 := common.Hex2Bytes("0405000000000000000000000000000000000000000000000000000000000000")
 	tree := New()
-	tree.Insert(key1, value)
-	tree.Insert(key2, value)
+	tree.Insert(key1, value, nil)
+	tree.Insert(key2, value, nil)
 	hash := tree.ComputeCommitment()
 
-	tree.Insert(key3, value)
+	tree.Insert(key3, value, nil)
 	if err := tree.Delete(key3); err != nil {
 		t.Error(err)
 	}
@@ -464,8 +464,8 @@ func TestDeleteNonExistent(t *testing.T) {
 	key2 := common.Hex2Bytes("0107000000000000000000000000000000000000000000000000000000000000")
 	key3 := common.Hex2Bytes("0405000000000000000000000000000000000000000000000000000000000000")
 	tree := New()
-	tree.Insert(key1, value)
-	tree.Insert(key2, value)
+	tree.Insert(key1, value, nil)
+	tree.Insert(key2, value, nil)
 	if err := tree.Delete(key3); err != errDeleteNonExistent {
 		t.Error("should fail to delete non-existent key")
 	}
@@ -478,13 +478,13 @@ func TestDeletePrune(t *testing.T) {
 	key3 := common.Hex2Bytes("0405000000000000000000000000000000000000000000000000000000000000")
 	key4 := common.Hex2Bytes("0407000000000000000000000000000000000000000000000000000000000000")
 	tree := New()
-	tree.Insert(key1, value)
-	tree.Insert(key2, value)
+	tree.Insert(key1, value, nil)
+	tree.Insert(key2, value, nil)
 
 	hash1 := tree.ComputeCommitment()
-	tree.Insert(key3, value)
+	tree.Insert(key3, value, nil)
 	hash2 := tree.ComputeCommitment()
-	tree.Insert(key4, value)
+	tree.Insert(key4, value, nil)
 
 	if err := tree.Delete(key4); err != nil {
 		t.Error(err)
@@ -510,13 +510,13 @@ func TestDeletePruneMultipleLevels(t *testing.T) {
 	key3 := common.Hex2Bytes("0405000000000000000000000000000000000000000000000000000000000000")
 	key4 := common.Hex2Bytes("0405010000000000000000000000000000000000000000000000000000000000")
 	tree := New()
-	tree.Insert(key1, value)
-	tree.Insert(key2, value)
+	tree.Insert(key1, value, nil)
+	tree.Insert(key2, value, nil)
 
 	hash1 := tree.ComputeCommitment()
-	tree.Insert(key3, value)
+	tree.Insert(key3, value, nil)
 	hash2 := tree.ComputeCommitment()
-	tree.Insert(key4, value)
+	tree.Insert(key4, value, nil)
 
 	if err := tree.Delete(key4); err != nil {
 		t.Error(err)
@@ -551,13 +551,13 @@ func TestDeletePruneExtensions(t *testing.T) {
 	key3 := common.Hex2Bytes("0405000000000000000000000000000000000000000000000000000000000000")
 	key4 := common.Hex2Bytes("0405000000000000000000000000000000000000000000000000000000000001")
 	tree := New()
-	tree.Insert(key1, value)
-	tree.Insert(key2, value)
+	tree.Insert(key1, value, nil)
+	tree.Insert(key2, value, nil)
 
 	hash1 := tree.ComputeCommitment()
-	tree.Insert(key3, value)
+	tree.Insert(key3, value, nil)
 	hash2 := tree.ComputeCommitment()
-	tree.Insert(key4, value)
+	tree.Insert(key4, value, nil)
 
 	node4 := tree.(*InternalNode).children[4]
 	leaf, ok := node4.(*LeafNode)
@@ -635,9 +635,9 @@ func TestDevnet0PostMortem(t *testing.T) {
 	tree := New()
 	rlp.Encode(&buf1, &account1)
 
-	tree.Insert(addr1, buf1.Bytes())
+	tree.Insert(addr1, buf1.Bytes(), nil)
 	rlp.Encode(&buf2, &account2)
-	tree.Insert(addr2, buf2.Bytes())
+	tree.Insert(addr2, buf2.Bytes(), nil)
 
 	tree.ComputeCommitment()
 
@@ -649,12 +649,12 @@ func TestDevnet0PostMortem(t *testing.T) {
 	buf1.Reset()
 	account1.Balance.SetString("199000000000000000000", 10)
 	rlp.Encode(&buf1, &account1)
-	tree.Insert(addr1, buf1.Bytes())
+	tree.Insert(addr1, buf1.Bytes(), nil)
 	buf2.Reset()
 	account2.Nonce = 4
 	account2.Balance.SetString("1000003587000000000000000000", 10)
 	rlp.Encode(&buf2, &account2)
-	tree.Insert(addr2, buf2.Bytes())
+	tree.Insert(addr2, buf2.Bytes(), nil)
 
 	tree.ComputeCommitment()
 
@@ -667,7 +667,7 @@ func TestDevnet0PostMortem(t *testing.T) {
 func TestConcurrentTrees(t *testing.T) {
 	value := []byte("value")
 	tree := New()
-	err := tree.Insert(zeroKeyTest, value)
+	err := tree.Insert(zeroKeyTest, value, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -677,7 +677,7 @@ func TestConcurrentTrees(t *testing.T) {
 	ch := make(chan *bls.Fr)
 	builder := func() {
 		tree := New()
-		tree.Insert(zeroKeyTest, value)
+		tree.Insert(zeroKeyTest, value, nil)
 		ch <- tree.ComputeCommitment()
 	}
 
@@ -742,7 +742,7 @@ func BenchmarkCommitFullNode(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		root := New()
 		for _, k := range keys {
-			if err := root.Insert(k, value); err != nil {
+			if err := root.Insert(k, value, nil); err != nil {
 				b.Fatal(err)
 			}
 		}
@@ -781,7 +781,7 @@ func benchmarkCommitNLeaves(b *testing.B, n int) {
 		for i := 0; i < b.N; i++ {
 			root := New()
 			for _, el := range kvs {
-				if err := root.Insert(el.k, el.v); err != nil {
+				if err := root.Insert(el.k, el.v, nil); err != nil {
 					b.Error(err)
 				}
 			}
@@ -817,7 +817,7 @@ func BenchmarkModifyLeaves(b *testing.B) {
 		key := make([]byte, 32)
 		rand.Read(key)
 		keys[i] = key
-		root.Insert(key, val)
+		root.Insert(key, val, nil)
 	}
 	root.ComputeCommitment()
 
@@ -829,7 +829,7 @@ func BenchmarkModifyLeaves(b *testing.B) {
 		binary.BigEndian.PutUint32(val, uint32(i))
 		for j := 0; j < toEdit; j++ {
 			k := keys[rand.Intn(n)]
-			if err := root.Insert(k, val); err != nil {
+			if err := root.Insert(k, val, nil); err != nil {
 				b.Error(err)
 			}
 		}
@@ -897,8 +897,8 @@ func TestMainnetStart(t *testing.T) {
 
 func TestNodeSerde(t *testing.T) {
 	tree := New()
-	tree.Insert(zeroKeyTest, testValue)
-	tree.Insert(fourtyKeyTest, testValue)
+	tree.Insert(zeroKeyTest, testValue, nil)
+	tree.Insert(fourtyKeyTest, testValue, nil)
 	root := tree.(*InternalNode)
 
 	// Serialize all the nodes
@@ -1000,8 +1000,8 @@ func isLeafEqual(a, b *LeafNode) bool {
 
 func TestTreeHashingPython(t *testing.T) {
 	root := New()
-	root.Insert(zeroKeyTest, zeroKeyTest)
-	root.Insert(oneKeyTest, zeroKeyTest)
+	root.Insert(zeroKeyTest, zeroKeyTest, nil)
+	root.Insert(oneKeyTest, zeroKeyTest, nil)
 
 	rootcomm := bls.FrTo32(root.ComputeCommitment())
 	expected := common.Hex2Bytes("5d2a77f5ab0ed54f61a1df01c01af3202f6975c4d071e4c0d04b3c1fe8126656")
@@ -1019,9 +1019,9 @@ func TestTreeHashingPython2(t *testing.T) {
 
 	x := common.Hex2Bytes("0100000000000000000000000000000000000000000000000000000000000000")
 
-	root.Insert(zeroKeyTest, zeroKeyTest)
-	root.Insert(oneKeyTest, zeroKeyTest)
-	root.Insert(x, zeroKeyTest)
+	root.Insert(zeroKeyTest, zeroKeyTest, nil)
+	root.Insert(oneKeyTest, zeroKeyTest, nil)
+	root.Insert(x, zeroKeyTest, nil)
 
 	got := bls.FrTo32(root.ComputeCommitment())
 	expected := common.Hex2Bytes("fd45a2b008eb4c973c6959656e9699d8a0c4b42004ee3e4bfd255637a0ca7142")
@@ -1038,9 +1038,9 @@ func TestTreeHashingPython3(t *testing.T) {
 
 	x := common.Hex2Bytes("0001000000000000000000000000000000000000000000000000000000000000")
 
-	root.Insert(zeroKeyTest, zeroKeyTest)
-	root.Insert(oneKeyTest, zeroKeyTest)
-	root.Insert(x, zeroKeyTest)
+	root.Insert(zeroKeyTest, zeroKeyTest, nil)
+	root.Insert(oneKeyTest, zeroKeyTest, nil)
+	root.Insert(x, zeroKeyTest, nil)
 
 	got := bls.FrTo32(root.ComputeCommitment())
 	expected := common.Hex2Bytes("9cc14a1a355b1d8012332773213e3448514ceae65a689546d78e7ab9aa34826f")
@@ -1057,9 +1057,9 @@ func TestTreeHashingPython4(t *testing.T) {
 
 	x := common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000100")
 
-	root.Insert(zeroKeyTest, zeroKeyTest)
-	root.Insert(oneKeyTest, zeroKeyTest)
-	root.Insert(x, zeroKeyTest)
+	root.Insert(zeroKeyTest, zeroKeyTest, nil)
+	root.Insert(oneKeyTest, zeroKeyTest, nil)
+	root.Insert(x, zeroKeyTest, nil)
 
 	got := bls.FrTo32(root.ComputeCommitment())
 	expected := common.Hex2Bytes("8755ef6cbe3392c6b646313c1566a41c67b90a40b45d9990965549ef5958d846")
@@ -1129,4 +1129,7 @@ func TestGetKey(t *testing.T) {
 			t.Fatal("invalid selector")
 		}
 	}
+}
+
+func TestInsertIntoHashedNode(t *testing.T) {
 }

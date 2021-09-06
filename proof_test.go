@@ -38,8 +38,8 @@ import (
 
 func TestProofGenerationTwoLeaves(t *testing.T) {
 	root := New()
-	root.Insert(zeroKeyTest, testValue)
-	root.Insert(ffx32KeyTest, testValue)
+	root.Insert(zeroKeyTest, testValue, nil)
+	root.Insert(ffx32KeyTest, testValue, nil)
 
 	var s bls.Fr
 	bls.SetFr(&s, "8927347823478352432985")
@@ -74,9 +74,9 @@ func TestProofVerifyTwoLeaves(t *testing.T) {
 	}
 
 	root := New()
-	root.Insert(zeroKeyTest, zeroKeyTest)
-	root.Insert(common.Hex2Bytes("0100000000000000000000000000000000000000000000000000000000000000"), zeroKeyTest)
-	root.Insert(ffx32KeyTest, zeroKeyTest)
+	root.Insert(zeroKeyTest, zeroKeyTest, nil)
+	root.Insert(common.Hex2Bytes("0100000000000000000000000000000000000000000000000000000000000000"), zeroKeyTest, nil)
+	root.Insert(ffx32KeyTest, zeroKeyTest, nil)
 
 	d, y, sigma := MakeVerkleProofOneLeaf(root, ffx32KeyTest)
 
@@ -104,7 +104,7 @@ func TestProofVerifyMultipleLeaves(t *testing.T) {
 		key := make([]byte, 32)
 		rand.Read(key)
 		keys[i] = key
-		root.Insert(key, value)
+		root.Insert(key, value, nil)
 	}
 
 	d, y, sigma := MakeVerkleProofOneLeaf(root, keys[0])
@@ -133,7 +133,7 @@ func TestMultiProofVerifyMultipleLeaves(t *testing.T) {
 		key := make([]byte, 32)
 		rand.Read(key)
 		keys[i] = key
-		root.Insert(key, value)
+		root.Insert(key, value, nil)
 	}
 
 	d, y, sigma := MakeVerkleMultiProof(root, keys[0:2])
@@ -162,7 +162,7 @@ func BenchmarkProofCalculation(b *testing.B) {
 		key := make([]byte, 32)
 		rand.Read(key)
 		keys[i] = key
-		root.Insert(key, value)
+		root.Insert(key, value, nil)
 	}
 
 	b.ResetTimer()
@@ -192,7 +192,7 @@ func BenchmarkProofVerification(b *testing.B) {
 		key := make([]byte, 32)
 		rand.Read(key)
 		keys[i] = key
-		root.Insert(key, value)
+		root.Insert(key, value, nil)
 	}
 
 	comms, zis, yis, _ := root.GetCommitmentsAlongPath(keys[len(keys)/2])
