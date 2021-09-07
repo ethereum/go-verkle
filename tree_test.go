@@ -1132,4 +1132,43 @@ func TestGetKey(t *testing.T) {
 }
 
 func TestInsertIntoHashedNode(t *testing.T) {
+	root := New()
+	root.Insert(zeroKeyTest, zeroKeyTest, nil)
+	root.InsertOrdered(fourtyKeyTest, zeroKeyTest, nil)
+
+	if err := root.Insert(zeroKeyTest, zeroKeyTest, nil); err != errInsertIntoHash {
+		t.Fatalf("incorrect error type: %v", err)
+	}
+
+	resolver := func(h []byte) ([]byte, error) {
+		node := &LeafNode{key: zeroKeyTest, values: make([][]byte, NodeWidth)}
+		node.values[0] = zeroKeyTest
+
+		return node.Serialize()
+	}
+	if err := root.Copy().Insert(zeroKeyTest, zeroKeyTest, resolver); err != nil {
+		t.Fatalf("error in node resolution: %v", err)
+	}
+
+	// Check that the proper error is raised if the RLP data is invalid and the
+	// node can not be parsed.
+	invalidRLPResolver := func(h []byte) ([]byte, error) {
+		node := &LeafNode{key: zeroKeyTest, values: make([][]byte, NodeWidth)}
+		node.values[0] = zeroKeyTest
+
+		rlp, _ := node.Serialize()
+		return rlp[:len(rlp)-10], nil
+	}
+	if err := root.Copy().Insert(zeroKeyTest, zeroKeyTest, invalidRLPResolver); !errors.Is(err, rlp.ErrValueTooLarge) {
+		t.Fatalf("error detecting a decoding error after resolution: %v", err)
+	}
+
+	var randomResolverError = errors.New("'clef' was mispronounced")
+	// Check that the proper error is raised if the resolver returns an error
+	erroringResolver := func(h []byte) ([]byte, error) {
+		return nil, randomResolverError
+	}
+	if err := root.Copy().Insert(zeroKeyTest, zeroKeyTest, erroringResolver); !errors.Is(err, randomResolverError) {
+		t.Fatalf("error detecting a resolution error: %v", err)
+	}
 }

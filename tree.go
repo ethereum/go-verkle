@@ -185,13 +185,14 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 		n.count++
 	case *HashedNode:
 		if resolver != nil {
-			serialized, err := resolver(key)
+			hash := bls.FrTo32(child.ComputeCommitment())
+			serialized, err := resolver(hash[:])
 			if err != nil {
-				return fmt.Errorf("verkle tree: error resolving node %x: %v", key, err)
+				return fmt.Errorf("verkle tree: error resolving node %x: %w", key, err)
 			}
 			resolved, err := ParseNode(serialized, n.depth+NodeBitWidth)
 			if err != nil {
-				return fmt.Errorf("verkle tree: error parsing resolved node %x: %v", key, err)
+				return fmt.Errorf("verkle tree: error parsing resolved node %x: %w", key, err)
 			}
 			n.children[nChild] = resolved
 			return n.children[nChild].Insert(key, value, resolver)
