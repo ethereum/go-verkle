@@ -449,6 +449,7 @@ func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
+		c.ComputeCommitment()
 		n.children[nChild] = c
 
 		return c.Get(k, getter)
