@@ -1,8 +1,8 @@
 package main
 
 import (
-	"fmt"
 	"crypto/rand"
+	"fmt"
 	"time"
 
 	"github.com/gballet/go-verkle"
