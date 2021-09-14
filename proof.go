@@ -90,14 +90,8 @@ func ComputeKZGProof(tc *KZGConfig, poly []bls.Fr, z, y *bls.Fr) *bls.G1Point {
 }
 
 func MakeVerkleProofOneLeaf(root VerkleNode, key []byte) (d *bls.G1Point, y *bls.Fr, sigma *bls.G1Point) {
-	var tc *KZGConfig
-	if root, ok := root.(*InternalNode); !ok {
-		panic("no tree config")
-	} else {
-		tc = root.treeConfig
-	}
-
 	root.ComputeCommitment()
+	tc := GetKZGConfig()
 
 	var fis [][]bls.Fr
 	commitments, indices, yis, fis := root.GetCommitmentsAlongPath(key)
@@ -110,7 +104,7 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte) (d *bls.G1Point, y *bls
 	bls.CopyFr(&powR, &bls.ONE)
 	for level, index := range indices {
 		f := fis[level]
-		quotients := tc.innerQuotients(f, index)
+		quotients := GetKZGConfig().innerQuotients(f, index)
 		var tmp bls.Fr
 		for i := 0; i < NodeWidth; i++ {
 			bls.MulModFr(&tmp, &powR, &quotients[i])
@@ -120,8 +114,7 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte) (d *bls.G1Point, y *bls
 		// rⁱ⁺¹ = r ⨯ rⁱ
 		bls.MulModFr(&powR, &powR, &r)
 	}
-	d = bls.LinCombG1(tc.lg1, g)
-
+	d = GetKZGConfig().CommitToPoly(g, len(g))
 	// Compute h(x)
 	t := calcT(&r, d)
 
@@ -206,16 +199,9 @@ func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte) ([]*bls.G1Point
 
 // Naive implementation, in which common keys are duplicated.
 func MakeVerkleMultiProof(root VerkleNode, keys [][]byte) (d *bls.G1Point, y *bls.Fr, σ *bls.G1Point) {
-	var (
-		tc   *KZGConfig
-		powR bls.Fr
-	)
-	if root, ok := root.(*InternalNode); !ok {
-		panic("no tree config")
-	} else {
-		tc = root.treeConfig
-	}
+	var powR bls.Fr
 
+	tc := GetKZGConfig()
 	root.ComputeCommitment()
 
 	commitments, indices, yis, fis := GetCommitmentsForMultiproof(root, keys)
