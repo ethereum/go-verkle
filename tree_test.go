@@ -27,11 +27,12 @@ package verkle
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"math/big"
-	"math/rand"
+	mRand "math/rand"
 	"sort"
 	"testing"
 	"time"
@@ -280,7 +281,6 @@ func TestComputeRootCommitmentTwoLeaves256(t *testing.T) {
 
 func TestInsertVsOrdered(t *testing.T) {
 	n := 10000
-	rand.Seed(time.Now().UnixNano())
 	value := []byte("value")
 	keys := randomKeys(n)
 	sortedKeys := make([][]byte, n)
@@ -312,7 +312,6 @@ func TestInsertVsOrdered(t *testing.T) {
 
 func TestFlush1kLeaves(t *testing.T) {
 	n := 1000
-	rand.Seed(time.Now().UnixNano())
 	keys := randomKeysSorted(n)
 	value := []byte("value")
 
@@ -758,7 +757,6 @@ func benchmarkCommitNLeaves(b *testing.B, n int) {
 	kvs := make([]kv, n)
 	sortedKVs := make([]kv, n)
 
-	rand.Seed(time.Now().UnixNano())
 	for i := 0; i < n; i++ {
 		key := make([]byte, 32)
 		val := make([]byte, 32)
@@ -806,7 +804,7 @@ func benchmarkCommitNLeaves(b *testing.B, n int) {
 }
 
 func BenchmarkModifyLeaves(b *testing.B) {
-	rand.Seed(time.Now().UnixNano())
+	mRand.Seed(time.Now().UnixNano())
 
 	n := 200000
 	toEdit := 10000
@@ -828,7 +826,7 @@ func BenchmarkModifyLeaves(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		binary.BigEndian.PutUint32(val, uint32(i))
 		for j := 0; j < toEdit; j++ {
-			k := keys[rand.Intn(n)]
+			k := keys[mRand.Intn(n)]
 			if err := root.Insert(k, val, nil); err != nil {
 				b.Error(err)
 			}

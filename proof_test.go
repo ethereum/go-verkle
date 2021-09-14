@@ -27,9 +27,8 @@ package verkle
 
 import (
 	"bytes"
-	"math/rand"
+	"crypto/rand"
 	"testing"
-	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/protolambda/go-kzg"
@@ -145,8 +144,6 @@ func TestMultiProofVerifyMultipleLeaves(t *testing.T) {
 }
 
 func BenchmarkProofCalculation(b *testing.B) {
-	rand.Seed(time.Now().UnixNano())
-
 	s1, _ := kzg.GenerateTestingSetup("8927347823478352432985", 256)
 	fftCfg := kzg.NewFFTSettings(8)
 	var err error
@@ -174,8 +171,6 @@ func BenchmarkProofCalculation(b *testing.B) {
 }
 
 func BenchmarkProofVerification(b *testing.B) {
-	rand.Seed(time.Now().UnixNano())
-
 	s1, s2 := kzg.GenerateTestingSetup("8927347823478352432985", 256)
 	fftCfg := kzg.NewFFTSettings(8)
 	ks := kzg.NewKZGSettings(fftCfg, s1, s2)

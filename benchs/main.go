@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"math/rand"
+	"crypto/rand"
 	"time"
 
 	"github.com/gballet/go-verkle"
@@ -13,8 +13,6 @@ func main() {
 }
 
 func benchmarkInsertInExisting() {
-	rand.Seed(time.Now().UnixNano())
-
 	// Number of existing leaves in tree
 	n := 1000000
 	// Leaves to be inserted afterwards
