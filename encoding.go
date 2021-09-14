@@ -70,14 +70,13 @@ func ParseNode(serialized []byte, depth int) (VerkleNode, error) {
 		if err := rlp.DecodeBytes(rest, &values); err != nil {
 			return nil, err
 		}
-		tc := GetKZGConfig()
 		if NodeWidth != len(values) {
 			return nil, fmt.Errorf("invalid number of nodes in decoded child expected %d, got %d", NodeWidth, len(values))
 		}
 		ln := &LeafNode{
-			key:        key,
-			values:     values,
-			treeConfig: tc,
+			key:       key,
+			values:    values,
+			committer: GetKZGConfig(),
 		}
 		return ln, nil
 	case internalRLPType:

@@ -39,6 +39,12 @@ import (
 type NodeFlushFn func(VerkleNode)
 type NodeResolverFn func([]byte) ([]byte, error)
 
+// Committer represents an object that is able to create the
+// commitment to a polynomial.
+type Committer interface {
+	CommitToPoly([]bls.Fr, int) *bls.G1Point
+}
+
 type VerkleNode interface {
 	// Insert or Update value into the tree
 	Insert([]byte, []byte, NodeResolverFn) error
@@ -107,7 +113,7 @@ type (
 		// Cache the commitment value
 		commitment *bls.G1Point
 
-		treeConfig *KZGConfig
+		committer Committer
 	}
 
 	HashedNode struct {
@@ -121,20 +127,20 @@ type (
 
 		commitment *bls.G1Point
 		hash       *bls.Fr
-		treeConfig *KZGConfig
+		committer  Committer
 	}
 
 	Empty struct{}
 )
 
-func newInternalNode(depth int, tc *KZGConfig) VerkleNode {
+func newInternalNode(depth int, cmtr Committer) VerkleNode {
 	node := new(InternalNode)
 	node.children = make([]VerkleNode, NodeWidth)
 	for idx := range node.children {
 		node.children[idx] = Empty(struct{}{})
 	}
 	node.depth = depth
-	node.treeConfig = tc
+	node.committer = cmtr
 	node.count = 0
 	return node
 }
@@ -176,9 +182,9 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 	switch child := n.children[nChild].(type) {
 	case Empty:
 		lastNode := &LeafNode{
-			key:        key,
-			values:     make([][]byte, NodeWidth),
-			treeConfig: n.treeConfig,
+			key:       key,
+			values:    make([][]byte, NodeWidth),
+			committer: n.committer,
 		}
 		lastNode.values[key[31]] = value
 		n.children[nChild] = lastNode
@@ -211,7 +217,7 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 			// on the next word in both keys, a recursion into
 			// the moved leaf node can occur.
 			nextWordInExistingKey := offset2key(child.key, n.depth+NodeBitWidth)
-			newBranch := newInternalNode(n.depth+NodeBitWidth, n.treeConfig).(*InternalNode)
+			newBranch := newInternalNode(n.depth+NodeBitWidth, n.committer).(*InternalNode)
 			newBranch.count = 1
 			n.children[nChild] = newBranch
 			newBranch.children[nextWordInExistingKey] = child
@@ -221,9 +227,9 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 				// Next word differs, so this was the last level.
 				// Insert it directly into its final slot.
 				lastNode := &LeafNode{
-					key:        key,
-					values:     make([][]byte, NodeWidth),
-					treeConfig: n.treeConfig,
+					key:       key,
+					values:    make([][]byte, NodeWidth),
+					committer: n.committer,
 				}
 				lastNode.values[key[31]] = value
 				newBranch.children[nextWordInInsertedKey] = lastNode
@@ -286,9 +292,9 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 
 		// NOTE: these allocations are inducing a noticeable slowdown
 		lastNode := &LeafNode{
-			key:        key,
-			values:     make([][]byte, NodeWidth),
-			treeConfig: n.treeConfig,
+			key:       key,
+			values:    make([][]byte, NodeWidth),
+			committer: n.committer,
 		}
 		lastNode.values[key[31]] = value
 		n.children[nChild] = lastNode
@@ -310,7 +316,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 			// on the next word in both keys, a recursion into
 			// the moved leaf node can occur.
 			nextWordInExistingKey := offset2key(child.key, n.depth+NodeBitWidth)
-			newBranch := newInternalNode(n.depth+NodeBitWidth, n.treeConfig).(*InternalNode)
+			newBranch := newInternalNode(n.depth+NodeBitWidth, n.committer).(*InternalNode)
 			newBranch.count = 1
 			n.children[nChild] = newBranch
 
@@ -330,9 +336,9 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 				// Next word differs, so this was the last level.
 				// Insert it directly into its final slot.
 				lastNode := &LeafNode{
-					key:        key,
-					values:     make([][]byte, NodeWidth),
-					treeConfig: n.treeConfig,
+					key:       key,
+					values:    make([][]byte, NodeWidth),
+					committer: n.committer,
 				}
 				lastNode.values[key[31]] = value
 				newBranch.children[nextWordInInsertedKey] = lastNode
@@ -540,7 +546,7 @@ func (n *InternalNode) ComputeCommitment() *bls.Fr {
 
 	// All the coefficients have been computed, evaluate the polynomial,
 	// serialize and hash the resulting point - this is the commitment.
-	n.commitment = commitToPoly(poly, n.treeConfig.lg1, emptyChildren)
+	n.commitment = n.committer.CommitToPoly(poly, emptyChildren)
 	serialized := bls.ToCompressedG1(n.commitment)
 	h := sha256.Sum256(serialized)
 	hashToFr(n.hash, h)
@@ -596,7 +602,7 @@ func (n *InternalNode) Copy() VerkleNode {
 		children:   make([]VerkleNode, len(n.children)),
 		commitment: new(bls.G1Point),
 		depth:      n.depth,
-		treeConfig: n.treeConfig,
+		committer:  n.committer,
 		count:      n.count,
 	}
 
@@ -691,7 +697,7 @@ func (n *LeafNode) ComputeCommitment() *bls.Fr {
 		hashToFr(&poly[idx], h)
 	}
 
-	n.commitment = commitToPoly(poly, n.treeConfig.lg1, emptyChildren)
+	n.commitment = n.committer.CommitToPoly(poly, emptyChildren)
 
 	h := sha256.Sum256(bls.ToCompressedG1(n.commitment))
 	hashToFr(n.hash, h)
@@ -719,7 +725,7 @@ func (n *LeafNode) Copy() VerkleNode {
 	l := &LeafNode{}
 	l.key = make([]byte, len(n.key))
 	l.values = make([][]byte, len(n.values))
-	l.treeConfig = n.treeConfig
+	l.committer = n.committer
 	copy(l.key, n.key)
 	for i, v := range n.values {
 		l.values[i] = make([]byte, len(v))
