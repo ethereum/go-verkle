@@ -1170,3 +1170,11 @@ func TestInsertIntoHashedNode(t *testing.T) {
 		t.Fatalf("error detecting a resolution error: %v", err)
 	}
 }
+
+func TestToDot(t *testing.T) {
+	root := New()
+	root.Insert(zeroKeyTest, zeroKeyTest, nil)
+	root.Insert(fourtyKeyTest, zeroKeyTest, nil)
+
+	fmt.Println(root.toDot("", ""))
+}

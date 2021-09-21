@@ -77,6 +77,9 @@ type VerkleNode interface {
 
 	// Copy a node and its children
 	Copy() VerkleNode
+
+	// toDot returns a string representing this subtree in DOT language
+	toDot(string, string) string
 }
 
 const (
@@ -634,6 +637,18 @@ func (n *InternalNode) clearCache() {
 	n.commitment = nil
 }
 
+func (n *InternalNode) toDot(parent, path string) string {
+	n.ComputeCommitment()
+	me := fmt.Sprintf("internal%s", path)
+	ret := fmt.Sprintf("%s [label=\"I: %x\"]\n", me, bls.ToCompressedG1(n.commitment))
+
+	for i, child := range n.children {
+		ret = fmt.Sprintf("%s%s", ret, child.toDot(me, fmt.Sprintf("%s%02x", path, i)))
+	}
+
+	return ret
+}
+
 func (n *LeafNode) toHashedNode() *HashedNode {
 	return &HashedNode{n.hash, n.commitment}
 }
@@ -752,6 +767,10 @@ func (n *LeafNode) Value(i int) []byte {
 	return n.values[i]
 }
 
+func (n *LeafNode) toDot(parent, path string) string {
+	return fmt.Sprintf("leaf%s [label=\"L: %x\"]\n%s -> leaf%s\n", path, bls.ToCompressedG1(n.commitment), parent, path)
+}
+
 func (*HashedNode) Insert([]byte, []byte, NodeResolverFn) error {
 	return errInsertIntoHash
 }
@@ -795,6 +814,10 @@ func (n *HashedNode) Copy() VerkleNode {
 	return h
 }
 
+func (n *HashedNode) toDot(parent, path string) string {
+	return fmt.Sprintf("hash%s [label=\"H: %x\"]\n%s -> hash%s\n", path, parent, bls.ToCompressedG1(n.commitment), path)
+}
+
 func (Empty) Insert([]byte, []byte, NodeResolverFn) error {
 	return errors.New("an empty node should not be inserted directly into")
 }
@@ -827,8 +850,16 @@ func (Empty) Copy() VerkleNode {
 	return Empty(struct{}{})
 }
 
+func (Empty) toDot(string, string) string {
+	return ""
+}
+
 func setBit(bitlist []uint8, index int) {
 	byt := index / 8
 	bit := index % 8
 	bitlist[byt] |= (uint8(1) << bit)
+}
+
+func ToDot(root VerkleNode) string {
+	return fmt.Sprintf("digraph D {\n%s}", root.toDot("", ""))
 }
