@@ -1171,10 +1171,10 @@ func TestInsertIntoHashedNode(t *testing.T) {
 	}
 }
 
-func TestToDot(t *testing.T) {
+func TestToDot(*testing.T) {
 	root := New()
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
-	root.Insert(fourtyKeyTest, zeroKeyTest, nil)
+	root.InsertOrdered(fourtyKeyTest, zeroKeyTest, nil)
 
 	fmt.Println(root.toDot("", ""))
 }

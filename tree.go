@@ -815,7 +815,7 @@ func (n *HashedNode) Copy() VerkleNode {
 }
 
 func (n *HashedNode) toDot(parent, path string) string {
-	return fmt.Sprintf("hash%s [label=\"H: %x\"]\n%s -> hash%s\n", path, parent, bls.ToCompressedG1(n.commitment)[:8], path)
+	return fmt.Sprintf("hash%s [label=\"H: %x\"]\n%s -> hash%s\n", path, bls.ToCompressedG1(n.commitment)[:8], parent, path)
 }
 
 func (Empty) Insert([]byte, []byte, NodeResolverFn) error {
