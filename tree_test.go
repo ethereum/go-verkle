@@ -1175,6 +1175,8 @@ func TestToDot(*testing.T) {
 	root := New()
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
 	root.InsertOrdered(fourtyKeyTest, zeroKeyTest, nil)
+	fourtytwoKeyTest := common.Hex2Bytes("4020000000000000000000000000000000000000000000000000000000000000")
+	root.Insert(fourtytwoKeyTest, zeroKeyTest, nil)
 
 	fmt.Println(root.toDot("", ""))
 }

@@ -641,6 +641,9 @@ func (n *InternalNode) toDot(parent, path string) string {
 	n.ComputeCommitment()
 	me := fmt.Sprintf("internal%s", path)
 	ret := fmt.Sprintf("%s [label=\"I: %x\"]\n", me, bls.ToCompressedG1(n.commitment)[:8])
+	if len(parent) > 0 {
+		ret = fmt.Sprintf("%s %s -> %s\n", ret, parent, me)
+	}
 
 	for i, child := range n.children {
 		ret = fmt.Sprintf("%s%s", ret, child.toDot(me, fmt.Sprintf("%s%02x", path, i)))
