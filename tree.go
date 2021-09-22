@@ -640,7 +640,7 @@ func (n *InternalNode) clearCache() {
 func (n *InternalNode) toDot(parent, path string) string {
 	n.ComputeCommitment()
 	me := fmt.Sprintf("internal%s", path)
-	ret := fmt.Sprintf("%s [label=\"I: %x\"]\n", me, bls.ToCompressedG1(n.commitment)[:8])
+	ret := fmt.Sprintf("%s [label=\"I: %x\"]\n", me, bls.FrTo32(n.hash))
 	if len(parent) > 0 {
 		ret = fmt.Sprintf("%s %s -> %s\n", ret, parent, me)
 	}
@@ -771,7 +771,7 @@ func (n *LeafNode) Value(i int) []byte {
 }
 
 func (n *LeafNode) toDot(parent, path string) string {
-	return fmt.Sprintf("leaf%s [label=\"L: %x\"]\n%s -> leaf%s\n", path, bls.ToCompressedG1(n.commitment)[:8], parent, path)
+	return fmt.Sprintf("leaf%s [label=\"L: %x\"]\n%s -> leaf%s\n", path, bls.FrTo32(n.hash), parent, path)
 }
 
 func (*HashedNode) Insert([]byte, []byte, NodeResolverFn) error {
@@ -818,7 +818,7 @@ func (n *HashedNode) Copy() VerkleNode {
 }
 
 func (n *HashedNode) toDot(parent, path string) string {
-	return fmt.Sprintf("hash%s [label=\"H: %x\"]\n%s -> hash%s\n", path, bls.ToCompressedG1(n.commitment)[:8], parent, path)
+	return fmt.Sprintf("hash%s [label=\"H: %x\"]\n%s -> hash%s\n", path, bls.FrTo32(n.hash), parent, path)
 }
 
 func (Empty) Insert([]byte, []byte, NodeResolverFn) error {
