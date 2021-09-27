@@ -110,7 +110,7 @@ func TestMultiProofVerifyMultipleLeaves(t *testing.T) {
 		root.Insert(key, value, nil)
 	}
 
-	d, y, sigma := MakeVerkleMultiProof(root, keys[0:2])
+	d, y, sigma, _, _, _ := MakeVerkleMultiProof(root, keys[0:2])
 
 	comms, zis, yis, _ := GetCommitmentsForMultiproof(root, keys[0:2])
 	if !VerifyVerkleProof(d, sigma, y, comms, zis, yis, GetKZGConfig()) {

@@ -121,13 +121,13 @@ func initKZGConfig(lg1 []bls.G1Point) *KZGConfig {
 }
 
 // Compute a function in eval form at one of the points in the domain
-func (kc *KZGConfig) innerQuotients(f []bls.Fr, index int) []bls.Fr {
+func (kc *KZGConfig) innerQuotients(f []bls.Fr, index uint) []bls.Fr {
 	q := make([]bls.Fr, NodeWidth)
 
 	y := f[index]
-	for i := 0; i < NodeWidth; i++ {
+	for i := uint(0); i < NodeWidth; i++ {
 		if i != index {
-			omegaIdx := (len(kc.omegaIs) - i) % len(kc.omegaIs)
+			omegaIdx := (len(kc.omegaIs) - int(i)) % len(kc.omegaIs)
 			invIdx := (index + NodeWidth - i) % NodeWidth
 			iMinIdx := (i - index + NodeWidth) % NodeWidth
 

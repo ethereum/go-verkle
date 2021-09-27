@@ -33,7 +33,7 @@ import (
 	"github.com/protolambda/go-kzg/bls"
 )
 
-func calcR(cs []*bls.G1Point, indices []int, ys []*bls.Fr, tc *KZGConfig) bls.Fr {
+func calcR(cs []*bls.G1Point, indices []uint, ys []*bls.Fr, tc *KZGConfig) bls.Fr {
 	digest := sha256.New()
 	for _, c := range cs {
 		h := sha256.Sum256(bls.ToCompressedG1(c))
@@ -178,11 +178,11 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte) (d *bls.G1Point, y *bls
 	return
 }
 
-func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte) ([]*bls.G1Point, []int, []*bls.Fr, [][]bls.Fr) {
+func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte) ([]*bls.G1Point, []uint, []*bls.Fr, [][]bls.Fr) {
 	var (
 		fis         [][]bls.Fr
 		commitments []*bls.G1Point
-		indices     []int
+		indices     []uint
 		yis         []*bls.Fr
 	)
 
@@ -198,13 +198,14 @@ func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte) ([]*bls.G1Point
 }
 
 // Naive implementation, in which common keys are duplicated.
-func MakeVerkleMultiProof(root VerkleNode, keys [][]byte) (d *bls.G1Point, y *bls.Fr, σ *bls.G1Point) {
+func MakeVerkleMultiProof(root VerkleNode, keys [][]byte) (d *bls.G1Point, y *bls.Fr, σ *bls.G1Point, commitments []*bls.G1Point, indices []uint, yis []*bls.Fr) {
 	var powR bls.Fr
 
 	tc := GetKZGConfig()
 	root.ComputeCommitment()
 
-	commitments, indices, yis, fis := GetCommitmentsForMultiproof(root, keys)
+	var fis [][]bls.Fr
+	commitments, indices, yis, fis = GetCommitmentsForMultiproof(root, keys)
 
 	// Construct g(x)
 	r := calcR(commitments, indices, yis, tc)
@@ -288,7 +289,7 @@ func MakeVerkleMultiProof(root VerkleNode, keys [][]byte) (d *bls.G1Point, y *bl
 	return
 }
 
-func VerifyVerkleProof(d, sigma *bls.G1Point, y *bls.Fr, commitments []*bls.G1Point, indices []int, yis []*bls.Fr, tc *KZGConfig) bool {
+func VerifyVerkleProof(d, sigma *bls.G1Point, y *bls.Fr, commitments []*bls.G1Point, indices []uint, yis []*bls.Fr, tc *KZGConfig) bool {
 	zis := make([]*bls.Fr, len(indices))
 	for i, index := range indices {
 		zis[i] = &tc.omegaIs[index]
