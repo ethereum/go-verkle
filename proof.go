@@ -288,7 +288,7 @@ func MakeVerkleMultiProof(root VerkleNode, keys [][]byte) (d *bls.G1Point, y *bl
 	return
 }
 
-func VerifyVerkleProof(ks *kzg.KZGSettings, d, sigma *bls.G1Point, y *bls.Fr, commitments []*bls.G1Point, indices []int, yis []*bls.Fr, tc *KZGConfig) bool {
+func VerifyVerkleProof(d, sigma *bls.G1Point, y *bls.Fr, commitments []*bls.G1Point, indices []int, yis []*bls.Fr, tc *KZGConfig) bool {
 	zis := make([]*bls.Fr, len(indices))
 	for i, index := range indices {
 		zis[i] = &tc.omegaIs[index]
@@ -336,5 +336,5 @@ func VerifyVerkleProof(ks *kzg.KZGSettings, d, sigma *bls.G1Point, y *bls.Fr, co
 	bls.MulModFr(&finalAt, &q, &w)
 	bls.AddModFr(&finalAt, &finalAt, y)
 
-	return ks.CheckProofSingle(&final, sigma, &t, &finalAt)
+	return tc.CheckProof(&final, sigma, &t, &finalAt)
 }

@@ -63,15 +63,6 @@ func TestProofGenerationTwoLeaves(t *testing.T) {
 }
 
 func TestProofVerifyTwoLeaves(t *testing.T) {
-	s1, s2 := kzg.GenerateTestingSetup("8927347823478352432985", 256)
-	fftCfg := kzg.NewFFTSettings(8)
-	ks := kzg.NewKZGSettings(fftCfg, s1, s2)
-	var err error
-	lg1, err = fftCfg.FFTG1(s1, true)
-	if err != nil {
-		panic(err)
-	}
-
 	root := New()
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
 	root.Insert(common.Hex2Bytes("0100000000000000000000000000000000000000000000000000000000000000"), zeroKeyTest, nil)
@@ -80,21 +71,13 @@ func TestProofVerifyTwoLeaves(t *testing.T) {
 	d, y, sigma := MakeVerkleProofOneLeaf(root, ffx32KeyTest)
 
 	comms, zis, yis, _ := root.GetCommitmentsAlongPath(ffx32KeyTest)
-	if !VerifyVerkleProof(ks, d, sigma, y, comms, zis, yis, GetKZGConfig()) {
+	if !VerifyVerkleProof(d, sigma, y, comms, zis, yis, GetKZGConfig()) {
 		t.Fatal("could not verify verkle proof")
 	}
 }
 
 func TestProofVerifyMultipleLeaves(t *testing.T) {
 	const leafCount = 1000
-	s1, s2 := kzg.GenerateTestingSetup("8927347823478352432985", 256)
-	fftCfg := kzg.NewFFTSettings(8)
-	ks := kzg.NewKZGSettings(fftCfg, s1, s2)
-	var err error
-	lg1, err = fftCfg.FFTG1(s1, true)
-	if err != nil {
-		panic(err)
-	}
 
 	value := []byte("value")
 	keys := make([][]byte, leafCount)
@@ -109,21 +92,13 @@ func TestProofVerifyMultipleLeaves(t *testing.T) {
 	d, y, sigma := MakeVerkleProofOneLeaf(root, keys[0])
 
 	comms, zis, yis, _ := root.GetCommitmentsAlongPath(keys[0])
-	if !VerifyVerkleProof(ks, d, sigma, y, comms, zis, yis, GetKZGConfig()) {
+	if !VerifyVerkleProof(d, sigma, y, comms, zis, yis, GetKZGConfig()) {
 		t.Fatal("could not verify verkle proof")
 	}
 }
 
 func TestMultiProofVerifyMultipleLeaves(t *testing.T) {
 	const leafCount = 1000
-	s1, s2 := kzg.GenerateTestingSetup("8927347823478352432985", 256)
-	fftCfg := kzg.NewFFTSettings(8)
-	ks := kzg.NewKZGSettings(fftCfg, s1, s2)
-	var err error
-	lg1, err = fftCfg.FFTG1(s1, true)
-	if err != nil {
-		panic(err)
-	}
 
 	value := []byte("value")
 	keys := make([][]byte, leafCount)
@@ -138,7 +113,7 @@ func TestMultiProofVerifyMultipleLeaves(t *testing.T) {
 	d, y, sigma := MakeVerkleMultiProof(root, keys[0:2])
 
 	comms, zis, yis, _ := GetCommitmentsForMultiproof(root, keys[0:2])
-	if !VerifyVerkleProof(ks, d, sigma, y, comms, zis, yis, GetKZGConfig()) {
+	if !VerifyVerkleProof(d, sigma, y, comms, zis, yis, GetKZGConfig()) {
 		t.Fatal("could not verify verkle proof")
 	}
 }
@@ -171,15 +146,6 @@ func BenchmarkProofCalculation(b *testing.B) {
 }
 
 func BenchmarkProofVerification(b *testing.B) {
-	s1, s2 := kzg.GenerateTestingSetup("8927347823478352432985", 256)
-	fftCfg := kzg.NewFFTSettings(8)
-	ks := kzg.NewKZGSettings(fftCfg, s1, s2)
-	var err error
-	lg1, err = fftCfg.FFTG1(s1, true)
-	if err != nil {
-		panic(err)
-	}
-
 	value := []byte("value")
 	keys := make([][]byte, 100000)
 	root := New()
@@ -197,6 +163,6 @@ func BenchmarkProofVerification(b *testing.B) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		VerifyVerkleProof(ks, d, sigma, y, comms, zis, yis, GetKZGConfig())
+		VerifyVerkleProof(d, sigma, y, comms, zis, yis, GetKZGConfig())
 	}
 }

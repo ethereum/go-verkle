@@ -45,6 +45,7 @@ type KZGConfig struct {
 	inverses          []bls.Fr // List of all 1 / (1 - ωⁱ)
 	nodeWidthInversed bls.Fr   // Inverse of node witdh in prime field
 	lg1               []bls.G1Point
+	ks                *kzg.KZGSettings
 }
 
 var (
@@ -86,6 +87,7 @@ func GetKZGConfig() *KZGConfig {
 	}
 
 	config = initKZGConfig(lg1)
+	config.ks = kzg.NewKZGSettings(fftCfg, s1Out, s2Out)
 	return config
 }
 
@@ -176,6 +178,10 @@ func (kc *KZGConfig) CommitToPoly(poly []bls.Fr, emptyChildren int) *bls.G1Point
 		}
 		return &comm
 	}
+}
+
+func (kc *KZGConfig) CheckProof(commitment *bls.G1Point, proof *bls.G1Point, x, y *bls.Fr) bool {
+	return kc.ks.CheckProofSingle(commitment, proof, x, y)
 }
 
 func equalPaths(key1, key2 []byte) bool {
