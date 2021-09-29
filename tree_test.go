@@ -51,8 +51,6 @@ var (
 	ffx32KeyTest  = common.Hex2Bytes("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
 )
 
-var lg1 []bls.G1Point
-
 func TestInsertIntoRoot(t *testing.T) {
 	root := New()
 	err := root.Insert(zeroKeyTest, testValue, nil)

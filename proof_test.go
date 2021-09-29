@@ -31,7 +31,6 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/protolambda/go-kzg"
 	"github.com/protolambda/go-kzg/bls"
 )
 
@@ -119,14 +118,6 @@ func TestMultiProofVerifyMultipleLeaves(t *testing.T) {
 }
 
 func BenchmarkProofCalculation(b *testing.B) {
-	s1, _ := kzg.GenerateTestingSetup("8927347823478352432985", 256)
-	fftCfg := kzg.NewFFTSettings(8)
-	var err error
-	lg1, err = fftCfg.FFTG1(s1, true)
-	if err != nil {
-		panic(err)
-	}
-
 	value := []byte("value")
 	keys := make([][]byte, 100000)
 	root := New()
