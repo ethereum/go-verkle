@@ -29,6 +29,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math/big"
@@ -37,7 +38,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/protolambda/go-kzg/bls"
 )
@@ -45,11 +45,21 @@ import (
 var testValue = []byte("hello")
 
 var (
-	zeroKeyTest   = common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000000")
-	oneKeyTest    = common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000001")
-	fourtyKeyTest = common.Hex2Bytes("4000000000000000000000000000000000000000000000000000000000000000")
-	ffx32KeyTest  = common.Hex2Bytes("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
+	zeroKeyTest, _   = hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000000")
+	oneKeyTest, _    = hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000001")
+	fourtyKeyTest, _ = hex.DecodeString("4000000000000000000000000000000000000000000000000000000000000000")
+	ffx32KeyTest, _  = hex.DecodeString("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
 )
+
+func hexToHash(str string) [32]byte {
+	b, err := hex.DecodeString(str)
+	if err != nil {
+		panic(err)
+	}
+	var ret [32]byte
+	copy(ret[:], b)
+	return ret
+}
 
 func TestInsertIntoRoot(t *testing.T) {
 	root := New()
@@ -144,7 +154,7 @@ func TestComputeRootCommitmentThreeLeaves(t *testing.T) {
 	root.Insert(fourtyKeyTest, zeroKeyTest, nil)
 	root.Insert(ffx32KeyTest, zeroKeyTest, nil)
 
-	expected := common.Hex2Bytes("26664ee4292cccea11c029f1c833e6a2115490bf586a8189d7f6ef8e5a825204")
+	expected, _ := hex.DecodeString("26664ee4292cccea11c029f1c833e6a2115490bf586a8189d7f6ef8e5a825204")
 
 	got := bls.FrTo32(root.ComputeCommitment())
 
@@ -163,7 +173,7 @@ func TestComputeRootCommitmentOnlineThreeLeaves(t *testing.T) {
 	// commitment is calculated.
 	got := bls.FrTo32(root.ComputeCommitment())
 
-	expected := common.Hex2Bytes("26664ee4292cccea11c029f1c833e6a2115490bf586a8189d7f6ef8e5a825204")
+	expected, _ := hex.DecodeString("26664ee4292cccea11c029f1c833e6a2115490bf586a8189d7f6ef8e5a825204")
 
 	if !bytes.Equal(got[:], expected) {
 		t.Fatalf("incorrect root commitment %x != %x", got, expected)
@@ -176,7 +186,7 @@ func TestComputeRootCommitmentThreeLeavesDeep(t *testing.T) {
 	root.Insert(oneKeyTest, zeroKeyTest, nil)
 	root.Insert(ffx32KeyTest, zeroKeyTest, nil)
 
-	expected := common.Hex2Bytes("e7f96777a5425495f93dfb43960d39be2d5e97a86de2dd1bf2566032a478345f")
+	expected, _ := hex.DecodeString("e7f96777a5425495f93dfb43960d39be2d5e97a86de2dd1bf2566032a478345f")
 
 	got := bls.FrTo32(root.ComputeCommitment())
 
@@ -188,7 +198,7 @@ func TestComputeRootCommitmentOneLeaf(t *testing.T) {
 	root := New()
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
 
-	expected := common.Hex2Bytes("c65416142a960718ce12cc5ac11bb75b71dda1547bb3585a48e691286ba01200")
+	expected, _ := hex.DecodeString("c65416142a960718ce12cc5ac11bb75b71dda1547bb3585a48e691286ba01200")
 
 	got := bls.FrTo32(root.ComputeCommitment())
 
@@ -231,7 +241,7 @@ func TestComputeRootCommitmentTwoLeavesLastLevel(t *testing.T) {
 	root.Insert(zeroKeyTest, testValue, nil)
 	root.Insert(oneKeyTest, testValue, nil)
 
-	expected := common.Hex2Bytes("31a811b612e6946bcfbc54e6ee053f2f1797857eea8fd35eb07a6445b8127d53")
+	expected, _ := hex.DecodeString("31a811b612e6946bcfbc54e6ee053f2f1797857eea8fd35eb07a6445b8127d53")
 
 	got := bls.FrTo32(root.ComputeCommitment())
 
@@ -241,11 +251,11 @@ func TestComputeRootCommitmentTwoLeavesLastLevel(t *testing.T) {
 }
 
 func TestHashToFrTrailingZeroBytes(t *testing.T) {
-	h := common.HexToHash("c79e576e0f534a5bbed66b32e5022a9d624b4415779b369a62b2e7a6c3d8e000")
+	h := hexToHash("c79e576e0f534a5bbed66b32e5022a9d624b4415779b369a62b2e7a6c3d8e000")
 	var out bls.Fr
 	hashToFr(&out, h[:])
 
-	h2 := common.HexToHash("c79e576e0f534a5bbed66b32e5022a9d624b4415779b369a62b2e7a6c3d8e000")
+	h2 := hexToHash("c79e576e0f534a5bbed66b32e5022a9d624b4415779b369a62b2e7a6c3d8e000")
 	var expected bls.Fr
 	bls.FrFrom32(&expected, h2)
 
@@ -255,7 +265,7 @@ func TestHashToFrTrailingZeroBytes(t *testing.T) {
 }
 
 func TestOffset2key8BitsWide(t *testing.T) {
-	key := common.Hex2Bytes("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
+	key, _ := hex.DecodeString("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
 	for i := 0; i < 32; i++ {
 		childId := offset2key(key, i*8)
 		if childId != uint(i) {
@@ -268,7 +278,7 @@ func TestComputeRootCommitmentTwoLeaves256(t *testing.T) {
 	root := New()
 	root.Insert(zeroKeyTest, testValue, nil)
 	root.Insert(ffx32KeyTest, testValue, nil)
-	expected := common.Hex2Bytes("f58c3e4b1bcbe877759674f63cf0c4a0c9487bf89bbbea94ea87ce6ac2ad9b71")
+	expected, _ := hex.DecodeString("f58c3e4b1bcbe877759674f63cf0c4a0c9487bf89bbbea94ea87ce6ac2ad9b71")
 
 	got := bls.FrTo32(root.ComputeCommitment())
 
@@ -347,9 +357,9 @@ func TestFlush1kLeaves(t *testing.T) {
 
 func TestCopy(t *testing.T) {
 	value := []byte("value")
-	key1 := common.Hex2Bytes("0105000000000000000000000000000000000000000000000000000000000000")
-	key2 := common.Hex2Bytes("0107000000000000000000000000000000000000000000000000000000000000")
-	key3 := common.Hex2Bytes("0405000000000000000000000000000000000000000000000000000000000000")
+	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
+	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
+	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
 	tree := New()
 	tree.Insert(key1, value, nil)
 	tree.Insert(key2, value, nil)
@@ -376,10 +386,10 @@ func TestCopy(t *testing.T) {
 
 func TestCachedCommitment(t *testing.T) {
 	value := []byte("value")
-	key1 := common.Hex2Bytes("0105000000000000000000000000000000000000000000000000000000000000")
-	key2 := common.Hex2Bytes("0107000000000000000000000000000000000000000000000000000000000000")
-	key3 := common.Hex2Bytes("0405000000000000000000000000000000000000000000000000000000000000")
-	key4 := common.Hex2Bytes("0407000000000000000000000000000000000000000000000000000000000000")
+	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
+	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
+	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
+	key4, _ := hex.DecodeString("0407000000000000000000000000000000000000000000000000000000000000")
 	tree := New()
 	tree.Insert(key1, value, nil)
 	tree.Insert(key2, value, nil)
@@ -405,9 +415,9 @@ func TestCachedCommitment(t *testing.T) {
 
 func TestClearCache(t *testing.T) {
 	value := []byte("value")
-	key1 := common.Hex2Bytes("0105000000000000000000000000000000000000000000000000000000000000")
-	key2 := common.Hex2Bytes("0107000000000000000000000000000000000000000000000000000000000000")
-	key3 := common.Hex2Bytes("0405000000000000000000000000000000000000000000000000000000000000")
+	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
+	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
+	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
 	tree := New()
 	tree.Insert(key1, value, nil)
 	tree.Insert(key2, value, nil)
@@ -428,9 +438,9 @@ func TestClearCache(t *testing.T) {
 
 func TestDelLeaf(t *testing.T) {
 	value := []byte("value")
-	key1 := common.Hex2Bytes("0105000000000000000000000000000000000000000000000000000000000000")
-	key2 := common.Hex2Bytes("0107000000000000000000000000000000000000000000000000000000000000")
-	key3 := common.Hex2Bytes("0405000000000000000000000000000000000000000000000000000000000000")
+	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
+	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
+	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
 	tree := New()
 	tree.Insert(key1, value, nil)
 	tree.Insert(key2, value, nil)
@@ -457,9 +467,9 @@ func TestDelLeaf(t *testing.T) {
 
 func TestDeleteNonExistent(t *testing.T) {
 	value := []byte("value")
-	key1 := common.Hex2Bytes("0105000000000000000000000000000000000000000000000000000000000000")
-	key2 := common.Hex2Bytes("0107000000000000000000000000000000000000000000000000000000000000")
-	key3 := common.Hex2Bytes("0405000000000000000000000000000000000000000000000000000000000000")
+	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
+	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
+	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
 	tree := New()
 	tree.Insert(key1, value, nil)
 	tree.Insert(key2, value, nil)
@@ -470,10 +480,10 @@ func TestDeleteNonExistent(t *testing.T) {
 
 func TestDeletePrune(t *testing.T) {
 	value := []byte("value")
-	key1 := common.Hex2Bytes("0105000000000000000000000000000000000000000000000000000000000000")
-	key2 := common.Hex2Bytes("0107000000000000000000000000000000000000000000000000000000000000")
-	key3 := common.Hex2Bytes("0405000000000000000000000000000000000000000000000000000000000000")
-	key4 := common.Hex2Bytes("0407000000000000000000000000000000000000000000000000000000000000")
+	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
+	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
+	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
+	key4, _ := hex.DecodeString("0407000000000000000000000000000000000000000000000000000000000000")
 	tree := New()
 	tree.Insert(key1, value, nil)
 	tree.Insert(key2, value, nil)
@@ -502,10 +512,10 @@ func TestDeletePrune(t *testing.T) {
 
 func TestDeletePruneMultipleLevels(t *testing.T) {
 	value := []byte("value")
-	key1 := common.Hex2Bytes("0105000000000000000000000000000000000000000000000000000000000000")
-	key2 := common.Hex2Bytes("0107000000000000000000000000000000000000000000000000000000000000")
-	key3 := common.Hex2Bytes("0405000000000000000000000000000000000000000000000000000000000000")
-	key4 := common.Hex2Bytes("0405010000000000000000000000000000000000000000000000000000000000")
+	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
+	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
+	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
+	key4, _ := hex.DecodeString("0405010000000000000000000000000000000000000000000000000000000000")
 	tree := New()
 	tree.Insert(key1, value, nil)
 	tree.Insert(key2, value, nil)
@@ -543,10 +553,10 @@ func TestDeletePruneMultipleLevels(t *testing.T) {
 
 func TestDeletePruneExtensions(t *testing.T) {
 	value := []byte("value")
-	key1 := common.Hex2Bytes("0105000000000000000000000000000000000000000000000000000000000000")
-	key2 := common.Hex2Bytes("0107000000000000000000000000000000000000000000000000000000000000")
-	key3 := common.Hex2Bytes("0405000000000000000000000000000000000000000000000000000000000000")
-	key4 := common.Hex2Bytes("0405000000000000000000000000000000000000000000000000000000000001")
+	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
+	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
+	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
+	key4, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000001")
 	tree := New()
 	tree.Insert(key1, value, nil)
 	tree.Insert(key2, value, nil)
@@ -598,21 +608,21 @@ func TestDeletePruneExtensions(t *testing.T) {
 }
 
 var (
-	emptyCodeHash = common.Hex2Bytes("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
-	emptyRootHash = common.HexToHash("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
+	emptyCodeHash, _ = hex.DecodeString("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
+	emptyRootHash    = hexToHash("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
 )
 
 type Account struct {
 	Nonce    uint64
 	Balance  *big.Int
-	Root     common.Hash // merkle root of the storage trie
+	Root     [32]byte // merkle root of the storage trie
 	CodeHash []byte
 }
 
 func TestDevnet0PostMortem(t *testing.T) {
 	t.Skip()
-	addr1 := common.Hex2Bytes("3e47cd08ea12b4dfcf5210e3ef3827471994d49b")
-	addr2 := common.Hex2Bytes("617661d148a52bef51a268c728b3a21b58f94306")
+	addr1, _ := hex.DecodeString("3e47cd08ea12b4dfcf5210e3ef3827471994d49b")
+	addr2, _ := hex.DecodeString("617661d148a52bef51a268c728b3a21b58f94306")
 	balance1, _ := big.NewInt(0).SetString("100000000000000000000", 10)
 	balance2, _ := big.NewInt(0).SetString("1000003506000000000000000000", 10)
 	account1 := Account{
@@ -639,7 +649,8 @@ func TestDevnet0PostMortem(t *testing.T) {
 	tree.ComputeCommitment()
 
 	block1803Hash := bls.FrTo32(tree.ComputeCommitment())
-	if !bytes.Equal(block1803Hash[:], common.Hex2Bytes("74eb37a063c4c8806716d59816487c32315861d32f5f7697a9aaef5cfe964b9c")) {
+	expected, _ := hex.DecodeString("74eb37a063c4c8806716d59816487c32315861d32f5f7697a9aaef5cfe964b9c")
+	if !bytes.Equal(block1803Hash[:], expected[:]) {
 		t.Fatalf("error, got %x != 74eb37a063c4c8806716d59816487c32315861d32f5f7697a9aaef5cfe964b9c", block1803Hash)
 	}
 
@@ -656,7 +667,8 @@ func TestDevnet0PostMortem(t *testing.T) {
 	tree.ComputeCommitment()
 
 	block1893Hash := bls.FrTo32(tree.ComputeCommitment())
-	if !bytes.Equal(block1893Hash[:], common.Hex2Bytes("55938f57d4211b306eb3a1404d4784b2e0a8fdb254f284834b3ccf74791e54ee")) {
+	expected, _ = hex.DecodeString("55938f57d4211b306eb3a1404d4784b2e0a8fdb254f284834b3ccf74791e54ee")
+	if !bytes.Equal(block1893Hash[:], expected[:]) {
 		t.Fatalf("error, got %x != 55938f57d4211b306eb3a1404d4784b2e0a8fdb254f284834b3ccf74791e54ee", block1803Hash)
 	}
 }
@@ -879,14 +891,14 @@ func TestMainnetStart(t *testing.T) {
 	}
 
 	for _, kv := range kvs {
-		key := common.Hex2Bytes(kv.key)
-		value := common.Hex2Bytes(kv.value)
+		key, _ := hex.DecodeString(kv.key)
+		value, _ := hex.DecodeString(kv.value)
 		tree.InsertOrdered(key, value, nil)
 	}
 
 	h := bls.FrTo32(tree.ComputeCommitment())
-
-	if !bytes.Equal(h[:], common.Hex2Bytes("61f23b37d460d8f3aee9d3a0b55c16194703de82ee971c9778ef6748df6ab42e")) {
+	expected, _ := hex.DecodeString("61f23b37d460d8f3aee9d3a0b55c16194703de82ee971c9778ef6748df6ab42e")
+	if !bytes.Equal(h[:], expected[:]) {
 		t.Fatalf("invalid hash: %x", h)
 	}
 }
@@ -1000,7 +1012,7 @@ func TestTreeHashingPython(t *testing.T) {
 	root.Insert(oneKeyTest, zeroKeyTest, nil)
 
 	rootcomm := bls.FrTo32(root.ComputeCommitment())
-	expected := common.Hex2Bytes("5d2a77f5ab0ed54f61a1df01c01af3202f6975c4d071e4c0d04b3c1fe8126656")
+	expected, _ := hex.DecodeString("5d2a77f5ab0ed54f61a1df01c01af3202f6975c4d071e4c0d04b3c1fe8126656")
 
 	if !bytes.Equal(rootcomm[:], expected) {
 		t.Fatalf("incorrect root commitment %x != %x", rootcomm, expected)
@@ -1013,14 +1025,14 @@ func TestTreeHashingPython(t *testing.T) {
 func TestTreeHashingPython2(t *testing.T) {
 	root := New()
 
-	x := common.Hex2Bytes("0100000000000000000000000000000000000000000000000000000000000000")
+	x, _ := hex.DecodeString("0100000000000000000000000000000000000000000000000000000000000000")
 
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
 	root.Insert(oneKeyTest, zeroKeyTest, nil)
 	root.Insert(x, zeroKeyTest, nil)
 
 	got := bls.FrTo32(root.ComputeCommitment())
-	expected := common.Hex2Bytes("fd45a2b008eb4c973c6959656e9699d8a0c4b42004ee3e4bfd255637a0ca7142")
+	expected, _ := hex.DecodeString("fd45a2b008eb4c973c6959656e9699d8a0c4b42004ee3e4bfd255637a0ca7142")
 
 	if !bytes.Equal(got[:], expected) {
 		t.Fatalf("incorrect root commitment %x != %x", got, expected)
@@ -1032,14 +1044,14 @@ func TestTreeHashingPython2(t *testing.T) {
 func TestTreeHashingPython3(t *testing.T) {
 	root := New()
 
-	x := common.Hex2Bytes("0001000000000000000000000000000000000000000000000000000000000000")
+	x, _ := hex.DecodeString("0001000000000000000000000000000000000000000000000000000000000000")
 
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
 	root.Insert(oneKeyTest, zeroKeyTest, nil)
 	root.Insert(x, zeroKeyTest, nil)
 
 	got := bls.FrTo32(root.ComputeCommitment())
-	expected := common.Hex2Bytes("9cc14a1a355b1d8012332773213e3448514ceae65a689546d78e7ab9aa34826f")
+	expected, _ := hex.DecodeString("9cc14a1a355b1d8012332773213e3448514ceae65a689546d78e7ab9aa34826f")
 
 	if !bytes.Equal(got[:], expected) {
 		t.Fatalf("incorrect root commitment %x != %x", got, expected)
@@ -1051,14 +1063,14 @@ func TestTreeHashingPython3(t *testing.T) {
 func TestTreeHashingPython4(t *testing.T) {
 	root := New()
 
-	x := common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000100")
+	x, _ := hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000100")
 
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
 	root.Insert(oneKeyTest, zeroKeyTest, nil)
 	root.Insert(x, zeroKeyTest, nil)
 
 	got := bls.FrTo32(root.ComputeCommitment())
-	expected := common.Hex2Bytes("8755ef6cbe3392c6b646313c1566a41c67b90a40b45d9990965549ef5958d846")
+	expected, _ := hex.DecodeString("8755ef6cbe3392c6b646313c1566a41c67b90a40b45d9990965549ef5958d846")
 
 	if !bytes.Equal(got[:], expected) {
 		t.Fatalf("incorrect root commitment %x != %x", got, expected)
@@ -1173,7 +1185,7 @@ func TestToDot(*testing.T) {
 	root := New()
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
 	root.InsertOrdered(fourtyKeyTest, zeroKeyTest, nil)
-	fourtytwoKeyTest := common.Hex2Bytes("4020000000000000000000000000000000000000000000000000000000000000")
+	fourtytwoKeyTest, _ := hex.DecodeString("4020000000000000000000000000000000000000000000000000000000000000")
 	root.Insert(fourtytwoKeyTest, zeroKeyTest, nil)
 
 	fmt.Println(root.toDot("", ""))

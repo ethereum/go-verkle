@@ -30,7 +30,6 @@ import (
 	"crypto/rand"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/protolambda/go-kzg/bls"
 )
 
@@ -43,7 +42,7 @@ func TestProofGenerationTwoLeaves(t *testing.T) {
 	bls.SetFr(&s, "8927347823478352432985")
 	d, y, sigma := MakeVerkleProofOneLeaf(root, zeroKeyTest)
 
-	expectedD := common.Hex2Bytes("b3211200ed8a8451542f15df2be105b6704bdf698427b6e81797965b84b89751fd9d85418a67cfa24d208ca32845775d")
+	expectedD := hex2Bytes("b3211200ed8a8451542f15df2be105b6704bdf698427b6e81797965b84b89751fd9d85418a67cfa24d208ca32845775d")
 
 	if !bytes.Equal(expectedD, bls.ToCompressedG1(d)) {
 		t.Fatalf("invalid D commitment, expected %x, got %x", expectedD, bls.ToCompressedG1(d))
@@ -55,7 +54,7 @@ func TestProofGenerationTwoLeaves(t *testing.T) {
 		t.Fatalf("invalid y, expected %s != %s", expectedY, gotY)
 	}
 
-	expectedSigma := common.Hex2Bytes("a4160820d50f00212fd276925f7aabf5919f3fa0c236fd34b2531ec01a115acf8ec32a49a39e10718d540d536618595f")
+	expectedSigma := hex2Bytes("a4160820d50f00212fd276925f7aabf5919f3fa0c236fd34b2531ec01a115acf8ec32a49a39e10718d540d536618595f")
 	if !bytes.Equal(expectedSigma, bls.ToCompressedG1(sigma)) {
 		t.Fatalf("invalid sigma, expected %x, got %x", expectedSigma, bls.ToCompressedG1(sigma))
 	}
@@ -64,7 +63,7 @@ func TestProofGenerationTwoLeaves(t *testing.T) {
 func TestProofVerifyTwoLeaves(t *testing.T) {
 	root := New()
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
-	root.Insert(common.Hex2Bytes("0100000000000000000000000000000000000000000000000000000000000000"), zeroKeyTest, nil)
+	root.Insert(hex2Bytes("0100000000000000000000000000000000000000000000000000000000000000"), zeroKeyTest, nil)
 	root.Insert(ffx32KeyTest, zeroKeyTest, nil)
 
 	d, y, sigma := MakeVerkleProofOneLeaf(root, ffx32KeyTest)
