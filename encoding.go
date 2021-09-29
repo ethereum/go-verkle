@@ -29,7 +29,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/protolambda/go-kzg/bls"
 )
@@ -105,7 +104,11 @@ func createInternalNode(bitlist []byte, raw []byte, depth int) (*InternalNode, e
 	}
 	for i, index := range indices {
 		hashed := &HashedNode{hash: new(bls.Fr)}
-		bls.FrFrom32(hashed.hash, common.BytesToHash(raw[i*32:(i+1)*32]))
+		// TODO(@gballet) use (*[32]byte)() when geth moves
+		// to deprecate pre-Go 1.17 compilers
+		var h [32]byte
+		copy(h[:], raw[i*32:(i+1)*32])
+		bls.FrFrom32(hashed.hash, h)
 		n.children[index] = hashed
 		n.count++
 	}

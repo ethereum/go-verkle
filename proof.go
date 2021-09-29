@@ -28,7 +28,6 @@ package verkle
 import (
 	"crypto/sha256"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/protolambda/go-kzg"
 	"github.com/protolambda/go-kzg/bls"
 )
@@ -49,7 +48,7 @@ func calcR(cs []*bls.G1Point, indices []uint, ys []*bls.Fr, tc *KZGConfig) bls.F
 	}
 
 	var tmp bls.Fr
-	hashToFr(&tmp, common.BytesToHash(digest.Sum(nil)))
+	hashToFr(&tmp, digest.Sum(nil))
 	return tmp
 
 }
@@ -63,7 +62,7 @@ func calcT(r *bls.Fr, d *bls.G1Point) bls.Fr {
 	digest.Write(tmpBytes[:])
 
 	var tmp bls.Fr
-	hashToFr(&tmp, common.BytesToHash(digest.Sum(nil)))
+	hashToFr(&tmp, digest.Sum(nil))
 	return tmp
 }
 
@@ -80,7 +79,7 @@ func calcQ(e, d *bls.G1Point, y, w *bls.Fr) bls.Fr {
 	digest.Write(tmpBytes[:])
 
 	var tmp bls.Fr
-	hashToFr(&tmp, common.BytesToHash(digest.Sum(nil)))
+	hashToFr(&tmp, digest.Sum(nil))
 	return tmp
 }
 

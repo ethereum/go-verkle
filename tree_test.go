@@ -245,7 +245,7 @@ func TestComputeRootCommitmentTwoLeavesLastLevel(t *testing.T) {
 func TestHashToFrTrailingZeroBytes(t *testing.T) {
 	h := common.HexToHash("c79e576e0f534a5bbed66b32e5022a9d624b4415779b369a62b2e7a6c3d8e000")
 	var out bls.Fr
-	hashToFr(&out, h)
+	hashToFr(&out, h[:])
 
 	h2 := common.HexToHash("c79e576e0f534a5bbed66b32e5022a9d624b4415779b369a62b2e7a6c3d8e000")
 	var expected bls.Fr

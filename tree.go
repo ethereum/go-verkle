@@ -31,7 +31,6 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/protolambda/go-kzg/bls"
 )
@@ -278,7 +277,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 				if flush != nil {
 					flush(child)
 				}
-				hashToFr(child.hash, common.BytesToHash(digest.Sum(nil)))
+				hashToFr(child.hash, digest.Sum(nil))
 				n.children[i] = child.toHashedNode()
 				break searchFirstNonEmptyChild
 			case *HashedNode:
@@ -334,7 +333,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 				if flush != nil {
 					flush(child)
 				}
-				hashToFr(child.hash, common.BytesToHash(digest.Sum(nil)))
+				hashToFr(child.hash, digest.Sum(nil))
 				newBranch.children[nextWordInExistingKey] = child.toHashedNode()
 				// Next word differs, so this was the last level.
 				// Insert it directly into its final slot.
@@ -482,7 +481,13 @@ func init() {
 // sure that this doesn't overflow the modulus.
 // This piece of code is really ugly, and probably a performance hog, it
 // needs to be rewritten more efficiently.
-func hashToFr(out *bls.Fr, h [32]byte) {
+func hashToFr(out *bls.Fr, h []byte) {
+	// Q&D check that the hash doesn't exceed 32 bytes. hashToFr
+	// should disappear in the short term, so a panic isn't a
+	// big problem here.
+	if len(h) != 32 {
+		panic("invalid hash length ≠ 32")
+	}
 	h[31] &= 0x7F // mod 2^255
 
 	// reverse endianness (little -> big)
@@ -500,14 +505,20 @@ func hashToFr(out *bls.Fr, h [32]byte) {
 	}
 
 	// back to original endianness
+	var processed [32]byte
 	converted := x.Bytes()
 	for i := 0; i < len(converted); i++ {
-		h[i] = converted[len(converted)-i-1]
+		processed[i] = converted[len(converted)-i-1]
 	}
 
-	if !bls.FrFrom32(out, h) {
-		panic(fmt.Sprintf("invalid Fr number %x", h))
+	if !bls.FrFrom32(out, processed) {
+		panic(fmt.Sprintf("invalid Fr number %x", processed))
 	}
+	// TODO(@gballet) activate when geth moves to Go 1.17
+	// in replacement of what is above.
+	//if !bls.FrFrom32(out, (*[32]byte)(h)) {
+	//panic(fmt.Sprintf("invalid Fr number %x", h))
+	//}
 }
 
 func (n *InternalNode) ComputeCommitment() *bls.Fr {
@@ -532,13 +543,13 @@ func (n *InternalNode) ComputeCommitment() *bls.Fr {
 			// special case: only one leaf node - then ignore the top
 			// branch node.
 			if n.count == 1 && n.depth == 0 {
-				hashToFr(n.hash, common.BytesToHash(digest.Sum(nil)))
+				hashToFr(n.hash, digest.Sum(nil))
 				// Set the commitment to nil, as there is no real commitment at this
 				// level - only the hash has significance.
 				n.commitment = nil
 				return n.hash
 			}
-			hashToFr(&poly[idx], common.BytesToHash(digest.Sum(nil)))
+			hashToFr(&poly[idx], digest.Sum(nil))
 		case *HashedNode:
 			bls.CopyFr(&poly[idx], child.ComputeCommitment())
 		default:
@@ -552,7 +563,7 @@ func (n *InternalNode) ComputeCommitment() *bls.Fr {
 	n.commitment = n.committer.CommitToPoly(poly, emptyChildren)
 	serialized := bls.ToCompressedG1(n.commitment)
 	h := sha256.Sum256(serialized)
-	hashToFr(n.hash, h)
+	hashToFr(n.hash, h[:])
 
 	return n.hash
 }
@@ -575,7 +586,7 @@ func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []ui
 			digest.Write(c.key[:31]) // Write the stem
 			tmp := bls.FrTo32(c.hash)
 			digest.Write(tmp[:])
-			hashToFr(&fi[i], common.BytesToHash(digest.Sum(nil)))
+			hashToFr(&fi[i], digest.Sum(nil))
 		} else {
 			bls.CopyFr(&fi[i], child.ComputeCommitment())
 		}
@@ -712,13 +723,13 @@ func (n *LeafNode) ComputeCommitment() *bls.Fr {
 			continue
 		}
 		h := sha256.Sum256(val)
-		hashToFr(&poly[idx], h)
+		hashToFr(&poly[idx], h[:])
 	}
 
 	n.commitment = n.committer.CommitToPoly(poly, emptyChildren)
 
 	h := sha256.Sum256(bls.ToCompressedG1(n.commitment))
-	hashToFr(n.hash, h)
+	hashToFr(n.hash, h[:])
 	return n.hash
 }
 
@@ -728,7 +739,8 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []uint, 
 	for i, val := range n.values {
 		if val != nil {
 			var fi bls.Fr
-			hashToFr(&fi, sha256.Sum256(val))
+			h := sha256.Sum256(val)
+			hashToFr(&fi, h[:])
 			bls.CopyFr(&fis[i], &fi)
 		}
 	}
