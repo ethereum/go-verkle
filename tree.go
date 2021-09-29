@@ -496,7 +496,7 @@ func hashToFr(out *bls.Fr, h []byte) {
 	}
 
 	// Apply modulus
-	x := big.NewInt(0).SetBytes(h[:])
+	x := big.NewInt(0).SetBytes(h)
 	x.Mod(x, modulus)
 
 	// clear the buffer in case the trailing bytes were 0

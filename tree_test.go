@@ -650,7 +650,7 @@ func TestDevnet0PostMortem(t *testing.T) {
 
 	block1803Hash := bls.FrTo32(tree.ComputeCommitment())
 	expected, _ := hex.DecodeString("74eb37a063c4c8806716d59816487c32315861d32f5f7697a9aaef5cfe964b9c")
-	if !bytes.Equal(block1803Hash[:], expected[:]) {
+	if !bytes.Equal(block1803Hash[:], expected) {
 		t.Fatalf("error, got %x != 74eb37a063c4c8806716d59816487c32315861d32f5f7697a9aaef5cfe964b9c", block1803Hash)
 	}
 
@@ -668,7 +668,7 @@ func TestDevnet0PostMortem(t *testing.T) {
 
 	block1893Hash := bls.FrTo32(tree.ComputeCommitment())
 	expected, _ = hex.DecodeString("55938f57d4211b306eb3a1404d4784b2e0a8fdb254f284834b3ccf74791e54ee")
-	if !bytes.Equal(block1893Hash[:], expected[:]) {
+	if !bytes.Equal(block1893Hash[:], expected) {
 		t.Fatalf("error, got %x != 55938f57d4211b306eb3a1404d4784b2e0a8fdb254f284834b3ccf74791e54ee", block1803Hash)
 	}
 }
@@ -898,7 +898,7 @@ func TestMainnetStart(t *testing.T) {
 
 	h := bls.FrTo32(tree.ComputeCommitment())
 	expected, _ := hex.DecodeString("61f23b37d460d8f3aee9d3a0b55c16194703de82ee971c9778ef6748df6ab42e")
-	if !bytes.Equal(h[:], expected[:]) {
+	if !bytes.Equal(h[:], expected) {
 		t.Fatalf("invalid hash: %x", h)
 	}
 }
