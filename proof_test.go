@@ -146,6 +146,7 @@ func BenchmarkProofVerification(b *testing.B) {
 		root.Insert(key, value, nil)
 	}
 
+	root.ComputeCommitment()
 	comms, zis, yis, _ := root.GetCommitmentsAlongPath(keys[len(keys)/2])
 	d, y, sigma := MakeVerkleProofOneLeaf(root, keys[len(keys)/2])
 
