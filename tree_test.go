@@ -32,13 +32,11 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"math/big"
 	mRand "math/rand"
 	"sort"
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/protolambda/go-kzg/bls"
 )
 
@@ -606,18 +604,6 @@ func TestDeletePruneExtensions(t *testing.T) {
 	if !bls.EqualFr(hash1, postHash) {
 		t.Error("deleting leaf resulted in unexpected tree")
 	}
-}
-
-var (
-	emptyCodeHash, _ = hex.DecodeString("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
-	emptyRootHash    = hexToHash("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
-)
-
-type Account struct {
-	Nonce    uint64
-	Balance  *big.Int
-	Root     [32]byte // merkle root of the storage trie
-	CodeHash []byte
 }
 
 func TestConcurrentTrees(t *testing.T) {
