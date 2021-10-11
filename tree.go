@@ -183,7 +183,7 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 	switch child := n.children[nChild].(type) {
 	case Empty:
 		lastNode := &LeafNode{
-			key:       key,
+			key:       key[:31],
 			values:    make([][]byte, NodeWidth),
 			committer: n.committer,
 		}
@@ -228,7 +228,7 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 				// Next word differs, so this was the last level.
 				// Insert it directly into its final slot.
 				lastNode := &LeafNode{
-					key:       key,
+					key:       key[:31],
 					values:    make([][]byte, NodeWidth),
 					committer: n.committer,
 				}
@@ -293,7 +293,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 
 		// NOTE: these allocations are inducing a noticeable slowdown
 		lastNode := &LeafNode{
-			key:       key,
+			key:       key[:31],
 			values:    make([][]byte, NodeWidth),
 			committer: n.committer,
 		}
@@ -337,7 +337,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 				// Next word differs, so this was the last level.
 				// Insert it directly into its final slot.
 				lastNode := &LeafNode{
-					key:       key,
+					key:       key[:31],
 					values:    make([][]byte, NodeWidth),
 					committer: n.committer,
 				}
@@ -877,9 +877,7 @@ func (Empty) toDot(string, string) string {
 }
 
 func setBit(bitlist []uint8, index int) {
-	byt := index / 8
-	bit := index % 8
-	bitlist[byt] |= (uint8(1) << bit)
+	bitlist[index/8] |= mask[index%8]
 }
 
 func ToDot(root VerkleNode) string {

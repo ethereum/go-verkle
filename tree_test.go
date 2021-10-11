@@ -951,7 +951,7 @@ func TestNodeSerde(t *testing.T) {
 	resRoot.children[64] = resLeaf64
 
 	if !isInternalEqual(root, resRoot) {
-		t.Error("parsed node not equal")
+		t.Errorf("parsed node not equal, %x != %x", root.hash, resRoot.hash)
 	}
 }
 
@@ -1168,7 +1168,7 @@ func TestInsertIntoHashedNode(t *testing.T) {
 		rlp, _ := node.Serialize()
 		return rlp[:len(rlp)-10], nil
 	}
-	if err := root.Copy().Insert(zeroKeyTest, zeroKeyTest, invalidRLPResolver); !errors.Is(err, rlp.ErrValueTooLarge) {
+	if err := root.Copy().Insert(zeroKeyTest, zeroKeyTest, invalidRLPResolver); !errors.Is(err, serializedPayloadTooShort) {
 		t.Fatalf("error detecting a decoding error after resolution: %v", err)
 	}
 

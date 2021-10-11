@@ -57,7 +57,7 @@ func ParseNode(serialized []byte, depth int) (VerkleNode, error) {
 		for i := 0; i < NodeWidth; i++ {
 			if bit(serialized[32:64], i) {
 				if offset+32 > len(serialized) {
-					return nil, fmt.Errorf("verkle payload is too short, need at least %d and only have %d, payload = %x", offset+32, len(serialized), serialized)
+					return nil, fmt.Errorf("verkle payload is too short, need at least %d and only have %d, payload = %x (%w)", offset+32, len(serialized), serialized, serializedPayloadTooShort)
 				}
 				values[i] = serialized[offset : offset+32]
 				offset += 32
@@ -103,16 +103,14 @@ func CreateInternalNode(bitlist []byte, raw []byte, depth int) (*InternalNode, e
 
 func indicesFromBitlist(bitlist []byte) []int {
 	indices := make([]int, 0)
-	for i, b := range bitlist {
+	for _, b := range bitlist {
 		if b == 0 {
 			continue
 		}
 		// the bitmap is little-endian, inside a big-endian byte list
 		for j := 0; j < 8; j++ {
-			mask := byte(1 << j)
-			if b&mask == mask {
-				index := i*8 + j
-				indices = append(indices, index)
+			if b&mask[j%8] != 0 {
+				indices = append(indices, j)
 			}
 		}
 	}
