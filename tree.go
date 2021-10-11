@@ -31,7 +31,6 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/protolambda/go-kzg/bls"
 )
 
@@ -184,7 +183,7 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 	switch child := n.children[nChild].(type) {
 	case Empty:
 		lastNode := &LeafNode{
-			key:       key,
+			key:       key[:31],
 			values:    make([][]byte, NodeWidth),
 			committer: n.committer,
 		}
@@ -229,7 +228,7 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 				// Next word differs, so this was the last level.
 				// Insert it directly into its final slot.
 				lastNode := &LeafNode{
-					key:       key,
+					key:       key[:31],
 					values:    make([][]byte, NodeWidth),
 					committer: n.committer,
 				}
@@ -294,7 +293,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 
 		// NOTE: these allocations are inducing a noticeable slowdown
 		lastNode := &LeafNode{
-			key:       key,
+			key:       key[:31],
 			values:    make([][]byte, NodeWidth),
 			committer: n.committer,
 		}
@@ -338,7 +337,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 				// Next word differs, so this was the last level.
 				// Insert it directly into its final slot.
 				lastNode := &LeafNode{
-					key:       key,
+					key:       key[:31],
 					values:    make([][]byte, NodeWidth),
 					committer: n.committer,
 				}
@@ -599,7 +598,7 @@ func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []ui
 }
 
 func (n *InternalNode) Serialize() ([]byte, error) {
-	var bitlist [128]uint8
+	var bitlist [32]uint8
 	children := make([]byte, 0, NodeWidth*32)
 	for i, c := range n.children {
 		if _, ok := c.(Empty); !ok {
@@ -608,7 +607,7 @@ func (n *InternalNode) Serialize() ([]byte, error) {
 			children = append(children, digits[:]...)
 		}
 	}
-	return rlp.EncodeToBytes([]interface{}{internalRLPType, bitlist, children})
+	return append(append([]byte{internalRLPType}, bitlist[:]...), children...), nil
 }
 
 func (n *InternalNode) Copy() VerkleNode {
@@ -748,7 +747,15 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []uint, 
 }
 
 func (n *LeafNode) Serialize() ([]byte, error) {
-	return rlp.EncodeToBytes([]interface{}{leafRLPType, n.key, n.values})
+	var bitlist [32]uint8
+	children := make([]byte, 0, NodeWidth*32)
+	for i, v := range n.values {
+		if v != nil {
+			setBit(bitlist[:], i)
+			children = append(children, v...)
+		}
+	}
+	return append(append(append([]byte{leafRLPType}, n.key...), bitlist[:]...), children...), nil
 }
 
 func (n *LeafNode) Copy() VerkleNode {
@@ -870,9 +877,7 @@ func (Empty) toDot(string, string) string {
 }
 
 func setBit(bitlist []uint8, index int) {
-	byt := index / 8
-	bit := index % 8
-	bitlist[byt] |= (uint8(1) << bit)
+	bitlist[index/8] |= mask[index%8]
 }
 
 func ToDot(root VerkleNode) string {

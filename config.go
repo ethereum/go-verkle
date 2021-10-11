@@ -185,7 +185,7 @@ func (kc *KZGConfig) CheckProof(commitment *bls.G1Point, proof *bls.G1Point, x, 
 }
 
 func equalPaths(key1, key2 []byte) bool {
-	if len(key1) != len(key2) {
+	if len(key1) < 31 || len(key2) < 31 {
 		return false
 	}
 

@@ -29,71 +29,57 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/protolambda/go-kzg/bls"
 )
 
 var ErrInvalidNodeEncoding = errors.New("invalid node encoding")
 
+var mask = [8]byte{0x80, 0x40, 0x20, 0x10, 0x8, 0x4, 0x2, 0x1}
+
+func bit(bitlist []byte, nr int) bool {
+	if len(bitlist)*8 <= nr {
+		return false
+	}
+	return bitlist[nr/8]&mask[nr%8] != 0
+}
+
+var serializedPayloadTooShort = errors.New("verkle payload is too short")
+
 func ParseNode(serialized []byte, depth int) (VerkleNode, error) {
-	elems, _, err := rlp.SplitList(serialized)
-	if err != nil {
-		return nil, err
-	}
-	c, err := rlp.CountValues(elems)
-	if err != nil {
-		return nil, err
+	if len(serialized) < 64 {
+		return nil, serializedPayloadTooShort
 	}
 
-	if c != 3 {
-		// hashed node decoding not supported
-		return nil, ErrInvalidNodeEncoding
-	}
-
-	// either leaf or internal
-	kind, typ, rest, err := rlp.Split(elems)
-	if err != nil {
-		return nil, err
-	}
-	if kind != rlp.Byte || len(typ) != 1 {
-		return nil, ErrInvalidNodeEncoding
-	}
-
-	switch typ[0] {
+	switch serialized[0] {
 	case leafRLPType:
-		key, rest, err := rlp.SplitString(rest)
-		if err != nil {
-			return nil, err
-		}
-		var values [][]byte
-		if err := rlp.DecodeBytes(rest, &values); err != nil {
-			return nil, err
+		var values [NodeWidth][]byte
+		offset := 64
+		for i := 0; i < NodeWidth; i++ {
+			if bit(serialized[32:64], i) {
+				if offset+32 > len(serialized) {
+					return nil, fmt.Errorf("verkle payload is too short, need at least %d and only have %d, payload = %x (%w)", offset+32, len(serialized), serialized, serializedPayloadTooShort)
+				}
+				values[i] = serialized[offset : offset+32]
+				offset += 32
+			}
 		}
 		if NodeWidth != len(values) {
 			return nil, fmt.Errorf("invalid number of nodes in decoded child expected %d, got %d", NodeWidth, len(values))
 		}
 		ln := &LeafNode{
-			key:       key,
-			values:    values,
+			key:       serialized[1:32],
+			values:    values[:],
 			committer: GetKZGConfig(),
 		}
 		return ln, nil
 	case internalRLPType:
-		bitlist, rest, err := rlp.SplitString(rest)
-		if err != nil {
-			return nil, err
-		}
-		children, _, err := rlp.SplitString(rest)
-		if err != nil {
-			return nil, err
-		}
-		return createInternalNode(bitlist, children, depth)
+		return CreateInternalNode(serialized[1:33], serialized[33:], depth)
 	default:
 		return nil, ErrInvalidNodeEncoding
 	}
 }
 
-func createInternalNode(bitlist []byte, raw []byte, depth int) (*InternalNode, error) {
+func CreateInternalNode(bitlist []byte, raw []byte, depth int) (*InternalNode, error) {
 	// GetTreeConfig caches computation result, hence
 	// this op has low overhead
 	tc := GetKZGConfig()
@@ -117,16 +103,14 @@ func createInternalNode(bitlist []byte, raw []byte, depth int) (*InternalNode, e
 
 func indicesFromBitlist(bitlist []byte) []int {
 	indices := make([]int, 0)
-	for i, b := range bitlist {
+	for _, b := range bitlist {
 		if b == 0 {
 			continue
 		}
 		// the bitmap is little-endian, inside a big-endian byte list
 		for j := 0; j < 8; j++ {
-			mask := byte(1 << j)
-			if b&mask == mask {
-				index := i*8 + j
-				indices = append(indices, index)
+			if b&mask[j%8] != 0 {
+				indices = append(indices, j)
 			}
 		}
 	}

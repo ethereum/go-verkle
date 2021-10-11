@@ -42,7 +42,8 @@ import (
 	"github.com/protolambda/go-kzg/bls"
 )
 
-var testValue = []byte("hello")
+// a 32 byte value, as expected in the tree structure
+var testValue = []byte("0123456789abcdef0123456789abcdef")
 
 var (
 	zeroKeyTest, _   = hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000000")
@@ -241,7 +242,7 @@ func TestComputeRootCommitmentTwoLeavesLastLevel(t *testing.T) {
 	root.Insert(zeroKeyTest, testValue, nil)
 	root.Insert(oneKeyTest, testValue, nil)
 
-	expected, _ := hex.DecodeString("31a811b612e6946bcfbc54e6ee053f2f1797857eea8fd35eb07a6445b8127d53")
+	expected, _ := hex.DecodeString("45342bbaaa5a5633642822086c5327d746f67a3d3bd8f0c851ee9c87454b5619")
 
 	got := bls.FrTo32(root.ComputeCommitment())
 
@@ -278,7 +279,7 @@ func TestComputeRootCommitmentTwoLeaves256(t *testing.T) {
 	root := New()
 	root.Insert(zeroKeyTest, testValue, nil)
 	root.Insert(ffx32KeyTest, testValue, nil)
-	expected, _ := hex.DecodeString("f58c3e4b1bcbe877759674f63cf0c4a0c9487bf89bbbea94ea87ce6ac2ad9b71")
+	expected, _ := hex.DecodeString("11b2d5403673a3a08fcb5a4ff71630a4253152a769d9b1d146b953eafd4ea469")
 
 	got := bls.FrTo32(root.ComputeCommitment())
 
@@ -950,7 +951,7 @@ func TestNodeSerde(t *testing.T) {
 	resRoot.children[64] = resLeaf64
 
 	if !isInternalEqual(root, resRoot) {
-		t.Error("parsed node not equal")
+		t.Errorf("parsed node not equal, %x != %x", root.hash, resRoot.hash)
 	}
 }
 
@@ -1122,7 +1123,7 @@ func TestGetResolveFromHash(t *testing.T) {
 		t.Fatalf("error getting the correct number of nodes: 1 != %d", count)
 	}
 	if !bytes.Equal(data, zeroKeyTest) {
-		t.Fatalf("invalid result: %x != %x", zeroKeyTest, data)
+		t.Fatalf("invalid result: %x != %x", zeroKeyTest, len(data))
 	}
 }
 
@@ -1167,7 +1168,7 @@ func TestInsertIntoHashedNode(t *testing.T) {
 		rlp, _ := node.Serialize()
 		return rlp[:len(rlp)-10], nil
 	}
-	if err := root.Copy().Insert(zeroKeyTest, zeroKeyTest, invalidRLPResolver); !errors.Is(err, rlp.ErrValueTooLarge) {
+	if err := root.Copy().Insert(zeroKeyTest, zeroKeyTest, invalidRLPResolver); !errors.Is(err, serializedPayloadTooShort) {
 		t.Fatalf("error detecting a decoding error after resolution: %v", err)
 	}
 
