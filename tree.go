@@ -117,11 +117,6 @@ type (
 		committer Committer
 	}
 
-	HashedNode struct {
-		hash       *bls.Fr
-		commitment *bls.G1Point
-	}
-
 	LeafNode struct {
 		key    []byte
 		values [][]byte
@@ -130,8 +125,6 @@ type (
 		hash       *bls.Fr
 		committer  Committer
 	}
-
-	Empty struct{}
 )
 
 func newInternalNode(depth int, cmtr Committer) VerkleNode {
@@ -791,89 +784,6 @@ func (n *LeafNode) Value(i int) []byte {
 
 func (n *LeafNode) toDot(parent, path string) string {
 	return fmt.Sprintf("leaf%s [label=\"L: %x\"]\n%s -> leaf%s\n", path, bls.FrTo32(n.hash), parent, path)
-}
-
-func (*HashedNode) Insert([]byte, []byte, NodeResolverFn) error {
-	return errInsertIntoHash
-}
-
-func (*HashedNode) InsertOrdered([]byte, []byte, NodeFlushFn) error {
-	return errInsertIntoHash
-}
-
-func (*HashedNode) Delete([]byte) error {
-	return errors.New("cant delete a hashed node in-place")
-}
-
-func (*HashedNode) Get([]byte, NodeResolverFn) ([]byte, error) {
-	return nil, errors.New("can not read from a hash node")
-}
-
-func (n *HashedNode) ComputeCommitment() *bls.Fr {
-	return n.hash
-}
-
-func (*HashedNode) GetCommitmentsAlongPath([]byte) ([]*bls.G1Point, []uint, []*bls.Fr, [][]bls.Fr) {
-	panic("can not get the full path, and there is no proof of absence")
-}
-
-func (*HashedNode) Serialize() ([]byte, error) {
-	return nil, errSerializeHashedNode
-}
-
-func (n *HashedNode) Copy() VerkleNode {
-	h := &HashedNode{
-		commitment: new(bls.G1Point),
-		hash:       new(bls.Fr),
-	}
-	if n.hash != nil {
-		bls.CopyFr(h.hash, n.hash)
-	}
-	if n.commitment != nil {
-		bls.CopyG1(h.commitment, n.commitment)
-	}
-
-	return h
-}
-
-func (n *HashedNode) toDot(parent, path string) string {
-	return fmt.Sprintf("hash%s [label=\"H: %x\"]\n%s -> hash%s\n", path, bls.FrTo32(n.hash), parent, path)
-}
-
-func (Empty) Insert([]byte, []byte, NodeResolverFn) error {
-	return errors.New("an empty node should not be inserted directly into")
-}
-
-func (e Empty) InsertOrdered(key []byte, value []byte, _ NodeFlushFn) error {
-	return e.Insert(key, value, nil)
-}
-
-func (Empty) Delete([]byte) error {
-	return errors.New("cant delete an empty node")
-}
-
-func (Empty) Get([]byte, NodeResolverFn) ([]byte, error) {
-	return nil, nil
-}
-
-func (Empty) ComputeCommitment() *bls.Fr {
-	return &bls.ZERO
-}
-
-func (Empty) GetCommitmentsAlongPath([]byte) ([]*bls.G1Point, []uint, []*bls.Fr, [][]bls.Fr) {
-	panic("trying to produce a commitment for an empty subtree")
-}
-
-func (Empty) Serialize() ([]byte, error) {
-	return nil, errors.New("can't encode empty node to RLP")
-}
-
-func (Empty) Copy() VerkleNode {
-	return Empty(struct{}{})
-}
-
-func (Empty) toDot(string, string) string {
-	return ""
 }
 
 func setBit(bitlist []uint8, index int) {
