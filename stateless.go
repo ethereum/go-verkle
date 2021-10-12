@@ -142,7 +142,7 @@ func (n *StatelessNode) Insert(key, value []byte, resolver NodeResolverFn) error
 // values are expected to be ordered, and the commitments and
 // hashes for each subtrie are computed online, as soon as it
 // is clear that no more values will be inserted in there.
-func (n *StatelessNode) InsertOrdered([]byte, []byte, NodeFlushFn) error {
+func (*StatelessNode) InsertOrdered([]byte, []byte, NodeFlushFn) error {
 	return errors.New("not supported")
 }
 
@@ -213,12 +213,12 @@ func (n *StatelessNode) ComputeCommitment() *bls.Fr {
 // traces through the tree, and collects the various
 // elements needed to build a proof. The order of elements
 // is from the bottom of the tree, up to the root.
-func (n *StatelessNode) GetCommitmentsAlongPath([]byte) ([]*bls.G1Point, []uint, []*bls.Fr, [][]bls.Fr) {
+func (*StatelessNode) GetCommitmentsAlongPath([]byte) ([]*bls.G1Point, []uint, []*bls.Fr, [][]bls.Fr) {
 	panic("trying to make a proof from a proof")
 }
 
 // Serialize encodes the node to RLP.
-func (n *StatelessNode) Serialize() ([]byte, error) {
+func (*StatelessNode) Serialize() ([]byte, error) {
 	return nil, errors.New("can't serialize a stateless node")
 }
 
