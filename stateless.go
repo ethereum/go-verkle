@@ -116,6 +116,9 @@ func (n *StatelessNode) Insert(key, value []byte, resolver NodeResolverFn) error
 	if child, ok := n.children[key[n.depth]]; ok {
 		// child exists, recurse
 		var diff, pre bls.G1Point
+		if child.commitment == nil {
+			return errors.New("child commitment was not calculated")
+		}
 		bls.CopyG1(&pre, child.commitment)
 		child.Insert(key, value, resolver)
 
@@ -127,9 +130,10 @@ func (n *StatelessNode) Insert(key, value []byte, resolver NodeResolverFn) error
 	} else {
 		// child does not exist, insert a new node
 		n.children[key[n.depth]] = &StatelessNode{
-			depth:  n.depth + 1,
-			values: map[byte][]byte{key[31]: value},
-			key:    key[:31],
+			depth:     n.depth + 1,
+			values:    map[byte][]byte{key[31]: value},
+			key:       key[:31],
+			committer: n.committer,
 		}
 
 		n.ComputeCommitment()
@@ -196,7 +200,7 @@ func (n *StatelessNode) ComputeCommitment() *bls.Fr {
 		} else {
 			for b, child := range n.children {
 				child.ComputeCommitment()
-				bls.CopyFr(&poly[b], n.hash)
+				bls.CopyFr(&poly[b], child.hash)
 			}
 		}
 

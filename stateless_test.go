@@ -27,17 +27,16 @@ package verkle
 
 import (
 	"bytes"
+	"encoding/hex"
+	"fmt"
 	"testing"
-
-	"github.com/protolambda/go-kzg/bls"
 )
 
 func TestStatelessInsertLeaf(t *testing.T) {
 	root := &StatelessNode{
-		commitment: new(bls.G1Point),
-		hash:       new(bls.Fr),
-		children:   make(map[byte]*StatelessNode),
-		depth:      0,
+		children:  make(map[byte]*StatelessNode),
+		depth:     0,
+		committer: GetKZGConfig(),
 	}
 
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
@@ -60,4 +59,19 @@ func TestStatelessInsertLeaf(t *testing.T) {
 	if len(child.key) != 31 || !bytes.Equal(child.key, zeroKeyTest[:31]) {
 		t.Fatalf("invalid key %x != %x", child.key, zeroKeyTest[:31])
 	}
+}
+
+func TestStatelessToDot(*testing.T) {
+	root := &StatelessNode{
+		children:  make(map[byte]*StatelessNode),
+		depth:     0,
+		committer: GetKZGConfig(),
+	}
+	root.Insert(zeroKeyTest, zeroKeyTest, nil)
+	root.Insert(fourtyKeyTest, zeroKeyTest, nil)
+	fourtytwoKeyTest, _ := hex.DecodeString("4020000000000000000000000000000000000000000000000000000000000000")
+	root.Insert(fourtytwoKeyTest, zeroKeyTest, nil)
+	root.ComputeCommitment()
+
+	fmt.Println(root.toDot("", ""))
 }
