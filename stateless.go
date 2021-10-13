@@ -26,6 +26,7 @@
 package verkle
 
 import (
+	"crypto/sha256"
 	"errors"
 	"fmt"
 
@@ -88,14 +89,14 @@ func (n *StatelessNode) insertIntoLeaf(key, value []byte) error {
 			}
 		}
 
+		n.values = nil
+		n.key = nil
 	} else {
 		n.values[key[31]] = value
 		//computeCommitment(n.hash, n.commitment, value)
 	}
 
 	// reclaculate the commitment
-	n.key = nil
-	n.values = nil
 	n.hash = nil
 	n.ComputeCommitment()
 
@@ -110,23 +111,39 @@ func (n *StatelessNode) insertIntoLeaf(key, value []byte) error {
 func (n *StatelessNode) Insert(key, value []byte, resolver NodeResolverFn) error {
 	// A leaf was reached, overwrite the value and update the commitment
 	if n.values != nil {
-		n.insertIntoLeaf(key, value)
+		err := n.insertIntoLeaf(key, value)
+		if err != nil {
+			return err
+		}
+		n.ComputeCommitment()
+		return nil
 	}
 
 	if child, ok := n.children[key[n.depth]]; ok {
 		// child exists, recurse
 		var diff, pre bls.G1Point
 		if child.commitment == nil {
+			// For stateless root commitment calculations to work,
+			// the initial commitments have to be available. Fail
+			// early if that isn't the case.
 			return errors.New("child commitment was not calculated")
 		}
 		bls.CopyG1(&pre, child.commitment)
 		child.Insert(key, value, resolver)
 
+		// Special case: if there is only one key, the top branch
+		// node is ignored.
+		if n.depth == 0 && len(n.children) == 1 {
+			n.hash = child.hash
+			return nil
+		}
+
 		// Update the commitment by applying the delta
 		bls.SubG1(&diff, &pre, child.commitment)
 		// TODO bls.MulG1
 		bls.AddG1(n.commitment, n.commitment, &diff)
-		hashToFr(n.hash, bls.ToCompressedG1(n.commitment))
+		h := sha256.Sum256(bls.ToCompressedG1(n.commitment))
+		hashToFr(n.hash, h[:])
 	} else {
 		// child does not exist, insert a new node
 		n.children[key[n.depth]] = &StatelessNode{
@@ -195,7 +212,11 @@ func (n *StatelessNode) ComputeCommitment() *bls.Fr {
 		var poly [NodeWidth]bls.Fr
 		if n.values != nil {
 			for b, val := range n.values {
-				hashToFr(&poly[b], val)
+				if val != nil {
+					fmt.Println(b, val)
+					h := sha256.Sum256(val)
+					hashToFr(&poly[b], h[:])
+				}
 			}
 		} else {
 			for b, child := range n.children {
@@ -207,8 +228,18 @@ func (n *StatelessNode) ComputeCommitment() *bls.Fr {
 		n.commitment = n.committer.CommitToPoly(poly[:], NodeWidth-len(n.children)-len(n.values))
 		n.hash = new(bls.Fr)
 		var serialized [32]byte
-		copy(serialized[:], bls.ToCompressedG1(n.commitment))
+		h := sha256.Sum256(bls.ToCompressedG1(n.commitment))
+		copy(serialized[:], h[:])
 		hashToFr(n.hash, serialized[:])
+
+		// Mix in the key if this is a leaf node
+		if n.values != nil {
+			digest := sha256.New()
+			digest.Write(n.key)
+			tmp := bls.FrTo32(n.hash)
+			digest.Write(tmp[:])
+			hashToFr(n.hash, digest.Sum(nil))
+		}
 	}
 	return n.hash
 }
