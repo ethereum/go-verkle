@@ -99,3 +99,29 @@ func TestStatelessInsertIntoLeaf(t *testing.T) {
 		t.Fatalf("invalid computed root: %s != %s", root.hash.String(), rootRef.ComputeCommitment().String())
 	}
 }
+
+func TestStatelessInsertIntoNode(t *testing.T) {
+	root := &StatelessNode{
+		children:  make(map[byte]*StatelessNode),
+		depth:     0,
+		committer: GetKZGConfig(),
+	}
+
+	root.Insert(zeroKeyTest, zeroKeyTest, nil)
+	root.Insert(oneKeyTest, zeroKeyTest, nil)
+	root.Insert(fourtyKeyTest, zeroKeyTest, nil)
+	root.ComputeCommitment()
+
+	rootRef := New()
+	rootRef.Insert(zeroKeyTest, zeroKeyTest, nil)
+	rootRef.Insert(oneKeyTest, zeroKeyTest, nil)
+	rootRef.Insert(fourtyKeyTest, zeroKeyTest, nil)
+	rootRef.ComputeCommitment()
+
+	fmt.Println(root.toDot("", ""))
+	fmt.Println(rootRef.toDot("", ""))
+
+	if root.hash.String() != rootRef.ComputeCommitment().String() {
+		t.Fatalf("invalid computed root: %s != %s", root.hash.String(), rootRef.ComputeCommitment().String())
+	}
+}

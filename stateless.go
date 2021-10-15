@@ -146,14 +146,15 @@ func (n *StatelessNode) Insert(key, value []byte, resolver NodeResolverFn) error
 		hashToFr(n.hash, h[:])
 	} else {
 		// child does not exist, insert a new node
-		n.children[key[n.depth]] = &StatelessNode{
+		child := &StatelessNode{
 			depth:     n.depth + 1,
 			values:    map[byte][]byte{key[31]: value},
 			key:       key[:31],
 			committer: n.committer,
 		}
+		n.children[key[n.depth]] = child
 
-		n.ComputeCommitment()
+		child.ComputeCommitment()
 	}
 
 	return nil
@@ -279,13 +280,16 @@ func (n *StatelessNode) Copy() VerkleNode {
 func (n *StatelessNode) toDot(parent, path string) string {
 	n.ComputeCommitment()
 	me := fmt.Sprintf("stateless%s", path)
-	ret := fmt.Sprintf("%s [label=\"I: %x\"]\n", me, bls.FrTo32(n.hash))
+	ret := fmt.Sprintf("%s [label=\"I: %x depth=%d count=%d,%d\"]\n", me, bls.FrTo32(n.hash), n.depth, len(n.children), len(n.values))
 	if len(parent) > 0 {
 		ret = fmt.Sprintf("%s %s -> %s\n", ret, parent, me)
 	}
 
 	for i, child := range n.children {
 		ret = fmt.Sprintf("%s%s", ret, child.toDot(me, fmt.Sprintf("%s%02x", path, i)))
+	}
+	for i, value := range n.values {
+		ret = fmt.Sprintf("%s\nvalue%s%d [label=\"%x\"]\n%s -> value%s%d\n", ret, path, i, value, me, path, i)
 	}
 
 	return ret
