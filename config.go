@@ -194,6 +194,6 @@ func equalPaths(key1, key2 []byte) bool {
 
 // offset2key extracts the n bits of a key that correspond to the
 // index of a child node.
-func offset2key(key []byte, offset int) uint {
-	return uint(key[offset/8])
+func offset2key(key []byte, offset int) byte {
+	return key[offset/8]
 }

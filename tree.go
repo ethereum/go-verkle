@@ -587,7 +587,7 @@ func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []ui
 			bls.CopyFr(&yi, &fi[i])
 		}
 	}
-	return append(comms, n.commitment), append(zis, childIdx), append(yis, &yi), append(fis, fi)
+	return append(comms, n.commitment), append(zis, uint(childIdx)), append(yis, &yi), append(fis, fi)
 }
 
 func (n *InternalNode) Serialize() ([]byte, error) {
