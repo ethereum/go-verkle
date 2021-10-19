@@ -180,6 +180,10 @@ func (kc *KZGConfig) CommitToPoly(poly []bls.Fr, emptyChildren int) *bls.G1Point
 	}
 }
 
+func (kc *KZGConfig) Delta(deltaG1 *bls.G1Point, deltaFr *bls.Fr, index byte) {
+	bls.MulG1(deltaG1, &kc.lg1[index], deltaFr)
+}
+
 func (kc *KZGConfig) CheckProof(commitment *bls.G1Point, proof *bls.G1Point, x, y *bls.Fr) bool {
 	return kc.ks.CheckProofSingle(commitment, proof, x, y)
 }

@@ -45,120 +45,226 @@ type StatelessNode struct {
 	values     map[byte][]byte
 	key        []byte
 	committer  Committer
+	count      int
 }
 
-func (n *StatelessNode) insertIntoLeaf(key, value []byte) error {
-	if len(value) != 32 {
-		return fmt.Errorf("invalid value size %d != 32", len(value))
+func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn) error {
+	// TODO(gballet) change signature to byte
+	nChild := byte(offset2key(key, n.depth))
+
+	child := n.children[nChild]
+	// save the child's commitment to calculate the delta
+	var oldComm bls.Fr
+	if child != nil && child.hash != nil {
+		bls.CopyFr(&oldComm, child.hash)
 	}
 
-	// need for a middle node?
-	if !equalPaths(n.key, key) {
-		// child corresponding to the initial value
-		initNode := &StatelessNode{
-			values:     n.values,
-			key:        n.key,
-			depth:      n.depth + 1,
-			hash:       n.hash,
-			commitment: n.commitment,
-			committer:  n.committer,
+	switch {
+	case child == nil:
+		lastNode := &StatelessNode{
+			key:       key[:31],
+			values:    map[byte][]byte{key[31]: value},
+			committer: n.committer,
+			count:     1,
 		}
-		n.children = map[byte]*StatelessNode{key[n.depth]: initNode}
-
-		// does the split happens at this depth?
-		if n.key[n.depth] != key[n.depth] {
-			// keys differ at one location, create an
-			// intermediate node, and recurse if needed.
-
-			// child corresponding to the new value
-			newNode := &StatelessNode{
-				values:     map[byte][]byte{key[31]: value},
-				key:        key[:31],
-				depth:      n.depth + 1,
-				hash:       new(bls.Fr),
-				commitment: new(bls.G1Point),
-				committer:  n.committer,
-			}
-			hashToFr(newNode.hash, value)
-			n.children[key[n.depth]] = newNode
+		n.children[nChild] = lastNode
+		child = lastNode
+	case child.values != nil:
+		// Need to add a new branch node to differentiate
+		// between two keys, if the keys are different.
+		// Otherwise, just update the key.
+		if equalPaths(child.key, key) {
+			child.values[key[31]] = value
+			child.ComputeCommitment()
 		} else {
-			// nope, so recurse into node
-			err := initNode.insertIntoLeaf(key, value)
-			if err != nil {
+			// A new branch node has to be inserted. Depending
+			// on the next word in both keys, a recursion into
+			// the moved leaf node can occur.
+			nextWordInExistingKey := byte(offset2key(child.key, n.depth+NodeBitWidth))
+			newBranch := &StatelessNode{
+				children:  make(map[byte]*StatelessNode),
+				committer: n.committer,
+				depth:     n.depth + NodeBitWidth,
+				count:     1,
+			}
+			//newInternalNode(n.depth+NodeBitWidth, n.committer).(*InternalNode)
+			n.children[nChild] = newBranch
+			newBranch.children[nextWordInExistingKey] = child
+
+			nextWordInInsertedKey := byte(offset2key(key, n.depth+NodeBitWidth))
+			if nextWordInInsertedKey != nextWordInExistingKey {
+				// Next word differs, so this was the last level.
+				// Insert it directly into its final slot.
+				lastNode := &StatelessNode{
+					key:       key[:31],
+					values:    map[byte][]byte{key[31]: value},
+					committer: n.committer,
+					count:     1,
+				}
+				newBranch.children[nextWordInInsertedKey] = lastNode
+				newBranch.count++
+			} else if err := newBranch.Insert(key, value, resolver); err != nil {
 				return err
 			}
 		}
+	default: // InternalNode
+		return child.Insert(key, value, resolver)
+	}
+	n.count++
 
-		n.values = nil
-		n.key = nil
-	} else {
-		n.values[key[31]] = value
-		//computeCommitment(n.hash, n.commitment, value)
+	if n.hash == nil {
+		n.commitment = new(bls.G1Point)
+		n.hash = new(bls.Fr)
+	}
+	child.ComputeCommitment()
+
+	// Special case: only one leaf in the tree
+	if n.count == 1 && n.depth == 0 {
+		digest := sha256.New()
+		digest.Write(child.key[:31]) // Write the stem
+		tmp := bls.FrTo32(child.hash)
+		digest.Write(tmp[:])
+		hashToFr(n.hash, digest.Sum(nil))
+		return nil
 	}
 
-	// reclaculate the commitment
-	n.hash = nil
-	n.ComputeCommitment()
+	// Update commitment based on the child's value
+	var valueChange bls.Fr
+	var delta bls.G1Point
+	bls.SubModFr(&valueChange, n.hash, &oldComm)
+	n.committer.Delta(&delta, &valueChange, nChild)
+	bls.AddG1(n.commitment, n.commitment, &delta)
+	h := sha256.Sum256(bls.ToCompressedG1(n.commitment))
+	hashToFr(n.hash, h[:])
 
 	return nil
 }
+
+//func (n *StatelessNode) insertIntoLeaf(key, value []byte) error {
+//if len(value) != 32 {
+//return fmt.Errorf("invalid value size %d != 32", len(value))
+//}
+
+//// need for a middle node?
+//if !equalPaths(n.key, key) {
+//// child corresponding to the initial value
+//initNode := &StatelessNode{
+//values:     n.values,
+//key:        n.key,
+//depth:      n.depth + 1,
+//hash:       n.hash,
+//commitment: n.commitment,
+//committer:  n.committer,
+//}
+//n.children = map[byte]*StatelessNode{key[n.depth]: initNode}
+
+//// does the split happens at this depth?
+//if n.key[n.depth] != key[n.depth] {
+//// keys differ at one location, create an
+//// intermediate node, and recurse if needed.
+
+//// child corresponding to the new value
+//newNode := &StatelessNode{
+//values:     map[byte][]byte{key[31]: value},
+//key:        key[:31],
+//depth:      n.depth + 1,
+//hash:       new(bls.Fr),
+//commitment: new(bls.G1Point),
+//committer:  n.committer,
+//}
+//hashToFr(newNode.hash, value)
+//n.children[key[n.depth]] = newNode
+//} else {
+//// nope, so recurse into node
+//err := initNode.insertIntoLeaf(key, value)
+//if err != nil {
+//return err
+//}
+//}
+
+//n.values = nil
+//n.key = nil
+//} else {
+//n.values[key[31]] = value
+////computeCommitment(n.hash, n.commitment, value)
+//}
+
+//// reclaculate the commitment
+//n.hash = nil
+//n.ComputeCommitment()
+
+//return nil
+//}
 
 // Insert or Update value into the tree. Compared to its stateful version, this
 // code assumes that the general structure has already been set from the proof,
 // and therefore that all changes in the structure correspond to an "overwrite"
 // of the pre-tree with the structure of the post-tree, in order to compute the
 // post-state transition root commitment.
-func (n *StatelessNode) Insert(key, value []byte, resolver NodeResolverFn) error {
-	// A leaf was reached, overwrite the value and update the commitment
-	if n.values != nil {
-		err := n.insertIntoLeaf(key, value)
-		if err != nil {
-			return err
-		}
-		n.ComputeCommitment()
-		return nil
-	}
+//func (n *StatelessNode) Insert(key, value []byte, resolver NodeResolverFn) error {
+//// A leaf was reached, overwrite the value and update the commitment
+//if n.values != nil {
+//err := n.insertIntoLeaf(key, value)
+//if err != nil {
+//return err
+//}
+//n.ComputeCommitment()
+//return nil
+//}
 
-	if child, ok := n.children[key[n.depth]]; ok {
-		// child exists, recurse
-		var diff, pre bls.G1Point
-		if child.commitment == nil {
-			// For stateless root commitment calculations to work,
-			// the initial commitments have to be available. Fail
-			// early if that isn't the case.
-			return errors.New("child commitment was not calculated")
-		}
-		bls.CopyG1(&pre, child.commitment)
-		child.Insert(key, value, resolver)
+//if child, ok := n.children[key[n.depth]]; ok {
+//// child exists, recurse
+//var diff, pre bls.G1Point
+//if child.commitment == nil {
+//// For stateless root commitment calculations to work,
+//// the initial commitments have to be available. Fail
+//// early if that isn't the case.
+//return errors.New("child commitment was not calculated")
+//}
+//bls.CopyG1(&pre, child.commitment)
+//child.Insert(key, value, resolver)
 
-		// Special case: if there is only one key, the top branch
-		// node is ignored.
-		if n.depth == 0 && len(n.children) == 1 {
-			n.hash = child.hash
-			return nil
-		}
+//// Special case: if there is only one key, the top branch
+//// node is ignored.
+//if n.depth == 0 && len(n.children) == 1 {
+//n.hash = child.hash
+//return nil
+//}
 
-		// Update the commitment by applying the delta
-		bls.SubG1(&diff, &pre, child.commitment)
-		// TODO bls.MulG1
-		bls.AddG1(n.commitment, n.commitment, &diff)
-		h := sha256.Sum256(bls.ToCompressedG1(n.commitment))
-		hashToFr(n.hash, h[:])
-	} else {
-		// child does not exist, insert a new node
-		child := &StatelessNode{
-			depth:     n.depth + 1,
-			values:    map[byte][]byte{key[31]: value},
-			key:       key[:31],
-			committer: n.committer,
-		}
-		n.children[key[n.depth]] = child
+//// Update the commitment by applying the delta
+//bls.SubG1(&diff, &pre, child.commitment)
+//// TODO bls.MulG1
+//bls.AddG1(n.commitment, n.commitment, &diff)
+//h := sha256.Sum256(bls.ToCompressedG1(n.commitment))
+//hashToFr(n.hash, h[:])
+//} else {
+//// child does not exist, insert a new node
+//child := &StatelessNode{
+//depth:     n.depth + 1,
+//values:    map[byte][]byte{key[31]: value},
+//key:       key[:31],
+//committer: n.committer,
+//}
+//n.children[key[n.depth]] = child
 
-		child.ComputeCommitment()
-	}
+//child.ComputeCommitment()
 
-	return nil
-}
+//// Update the commitment by applying the delta
+//if len(n.children) > 1 {
+//var diff bls.G1Point
+//bls.SubG1(&diff, &bls.ZERO_G1, child.commitment)
+//// TODO bls.MulG1
+//bls.AddG1(n.commitment, n.commitment, &diff)
+//h := sha256.Sum256(bls.ToCompressedG1(n.commitment))
+//hashToFr(n.hash, h[:])
+//} else {
+//n.hash = child.hash
+//n.commitment = child.commitment
+//}
+//}
+
+//return nil
+//}
 
 // Insert "à la" Stacktrie. Same thing as insert, except that
 // values are expected to be ordered, and the commitments and
@@ -208,40 +314,104 @@ func (n *StatelessNode) Get(key []byte, resolver NodeResolverFn) ([]byte, error)
 // ComputeCommitment computes the commitment of the node
 // The results (the curve point and the field element
 // representation of its hash) are cached.
+//func (n *StatelessNode) ComputeCommitment() *bls.Fr {
+//if n.hash == nil {
+//var poly [NodeWidth]bls.Fr
+//if n.values != nil {
+//for b, val := range n.values {
+//if val != nil {
+//h := sha256.Sum256(val)
+//hashToFr(&poly[b], h[:])
+//}
+//}
+//} else {
+//for b, child := range n.children {
+//child.ComputeCommitment()
+//bls.CopyFr(&poly[b], child.hash)
+//}
+//}
+
+//n.commitment = n.committer.CommitToPoly(poly[:], NodeWidth-len(n.children)-len(n.values))
+//n.hash = new(bls.Fr)
+//var serialized [32]byte
+//h := sha256.Sum256(bls.ToCompressedG1(n.commitment))
+//copy(serialized[:], h[:])
+//hashToFr(n.hash, serialized[:])
+
+//// Mix in the key if this is a leaf node
+//if n.values != nil {
+//digest := sha256.New()
+//digest.Write(n.key)
+//tmp := bls.FrTo32(n.hash)
+//digest.Write(tmp[:])
+//hashToFr(n.hash, digest.Sum(nil))
+//}
+//}
+//return n.hash
+//}
 func (n *StatelessNode) ComputeCommitment() *bls.Fr {
-	if n.hash == nil {
-		var poly [NodeWidth]bls.Fr
-		if n.values != nil {
-			for b, val := range n.values {
-				if val != nil {
-					fmt.Println(b, val)
-					h := sha256.Sum256(val)
-					hashToFr(&poly[b], h[:])
-				}
+	if n.hash != nil {
+		return n.hash
+	}
+	n.hash = new(bls.Fr)
+
+	// Special case: only one leaf in the tree
+	if n.values != nil {
+		emptyChildren := 0
+		poly := make([]bls.Fr, NodeWidth)
+		for idx, val := range n.values {
+			if val == nil {
+				emptyChildren++
+				continue
 			}
-		} else {
-			for b, child := range n.children {
-				child.ComputeCommitment()
-				bls.CopyFr(&poly[b], child.hash)
-			}
+			h := sha256.Sum256(val)
+			hashToFr(&poly[idx], h[:])
 		}
 
-		n.commitment = n.committer.CommitToPoly(poly[:], NodeWidth-len(n.children)-len(n.values))
-		n.hash = new(bls.Fr)
-		var serialized [32]byte
-		h := sha256.Sum256(bls.ToCompressedG1(n.commitment))
-		copy(serialized[:], h[:])
-		hashToFr(n.hash, serialized[:])
+		n.commitment = n.committer.CommitToPoly(poly, emptyChildren)
 
-		// Mix in the key if this is a leaf node
-		if n.values != nil {
+		h := sha256.Sum256(bls.ToCompressedG1(n.commitment))
+		hashToFr(n.hash, h[:])
+
+		return n.hash
+	}
+
+	emptyChildren := 0
+	poly := make([]bls.Fr, NodeWidth)
+	for idx, child := range n.children {
+		switch {
+		case child == nil:
+			emptyChildren++
+		case child.values != nil:
+			// Store the leaf node hash in the polynomial, even if
+			// the tree is free.
 			digest := sha256.New()
-			digest.Write(n.key)
-			tmp := bls.FrTo32(n.hash)
+			digest.Write(child.key[:31]) // Write the stem
+			tmp := bls.FrTo32(child.ComputeCommitment())
 			digest.Write(tmp[:])
-			hashToFr(n.hash, digest.Sum(nil))
+			// special case: only one leaf node - then ignore the top
+			// branch node.
+			if n.count == 1 && n.depth == 0 {
+				hashToFr(n.hash, digest.Sum(nil))
+				// Set the commitment to nil, as there is no real commitment at this
+				// level - only the hash has significance.
+				n.commitment = nil
+				return n.hash
+			}
+			hashToFr(&poly[idx], digest.Sum(nil))
+		default: // internal node
+			child.ComputeCommitment()
+			bls.CopyFr(&poly[idx], child.ComputeCommitment())
 		}
 	}
+
+	// All the coefficients have been computed, evaluate the polynomial,
+	// serialize and hash the resulting point - this is the commitment.
+	n.commitment = n.committer.CommitToPoly(poly, emptyChildren)
+	serialized := bls.ToCompressedG1(n.commitment)
+	h := sha256.Sum256(serialized)
+	hashToFr(n.hash, h[:])
+
 	return n.hash
 }
 

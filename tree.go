@@ -41,6 +41,8 @@ type NodeResolverFn func([]byte) ([]byte, error)
 // commitment to a polynomial.
 type Committer interface {
 	CommitToPoly([]bls.Fr, int) *bls.G1Point
+
+	Delta(*bls.G1Point, *bls.Fr, byte)
 }
 
 type VerkleNode interface {
