@@ -545,7 +545,6 @@ func (n *InternalNode) ComputeCommitment() *bls.Fr {
 		case *HashedNode:
 			bls.CopyFr(&poly[idx], child.ComputeCommitment())
 		default:
-			childC.ComputeCommitment()
 			bls.CopyFr(&poly[idx], child.ComputeCommitment())
 		}
 	}
