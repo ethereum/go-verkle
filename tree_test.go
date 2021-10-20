@@ -832,7 +832,7 @@ func TestMainnetStart(t *testing.T) {
 	h := bls.FrTo32(tree.ComputeCommitment())
 	expected, _ := hex.DecodeString("61f23b37d460d8f3aee9d3a0b55c16194703de82ee971c9778ef6748df6ab42e")
 	if !bytes.Equal(h[:], expected) {
-		t.Fatalf("invalid hash: %x", h)
+		t.Fatalf("invalid hash: %x != %x", h, expected)
 	}
 }
 

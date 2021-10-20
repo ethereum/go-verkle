@@ -517,6 +517,29 @@ func (n *InternalNode) ComputeCommitment() *bls.Fr {
 	if n.hash != nil {
 		return n.hash
 	}
+
+	if n.count == 0 {
+		if n.depth != 0 {
+			panic("empty node at non-zero depth")
+		}
+
+		n.hash = &bls.ZERO
+
+		return n.hash
+	}
+
+	// special case: only one leaf node - then ignore the top
+	// branch node.
+	if n.count == 1 && n.depth == 0 {
+		for _, child := range n.children {
+			if child, ok := child.(*LeafNode); ok {
+				n.hash = child.computeFullCommitment()
+				n.commitment = nil
+				return n.hash
+			}
+		}
+	}
+
 	n.hash = new(bls.Fr)
 
 	emptyChildren := 0
@@ -526,22 +549,10 @@ func (n *InternalNode) ComputeCommitment() *bls.Fr {
 		case Empty:
 			emptyChildren++
 		case *LeafNode:
+			fullcomm := child.computeFullCommitment()
 			// Store the leaf node hash in the polynomial, even if
 			// the tree is free.
-			digest := sha256.New()
-			digest.Write(child.key[:31]) // Write the stem
-			tmp := bls.FrTo32(child.ComputeCommitment())
-			digest.Write(tmp[:])
-			// special case: only one leaf node - then ignore the top
-			// branch node.
-			if n.count == 1 && n.depth == 0 {
-				hashToFr(n.hash, digest.Sum(nil))
-				// Set the commitment to nil, as there is no real commitment at this
-				// level - only the hash has significance.
-				n.commitment = nil
-				return n.hash
-			}
-			hashToFr(&poly[idx], digest.Sum(nil))
+			bls.CopyFr(&poly[idx], fullcomm)
 		case *HashedNode:
 			bls.CopyFr(&poly[idx], child.ComputeCommitment())
 		default:
@@ -723,6 +734,17 @@ func (n *LeafNode) ComputeCommitment() *bls.Fr {
 	h := sha256.Sum256(bls.ToCompressedG1(n.commitment))
 	hashToFr(n.hash, h[:])
 	return n.hash
+}
+
+func (n *LeafNode) computeFullCommitment() *bls.Fr {
+	x := n.ComputeCommitment()
+	digest := sha256.New()
+	digest.Write(n.key[:31]) // Write the stem
+	tmp := bls.FrTo32(x)
+	digest.Write(tmp[:])
+	var ret bls.Fr
+	hashToFr(&ret, digest.Sum(nil))
+	return &ret
 }
 
 func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []uint, []*bls.Fr, [][]bls.Fr) {
