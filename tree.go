@@ -262,14 +262,10 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 			case Empty:
 				continue
 			case *LeafNode:
-				digest := sha256.New()
-				digest.Write(child.key[:31]) // Write the stem
-				tmp := bls.FrTo32(child.ComputeCommitment())
-				digest.Write(tmp[:])
+				child.ComputeCommitment()
 				if flush != nil {
 					flush(child)
 				}
-				hashToFr(child.hash, digest.Sum(nil))
 				n.children[i] = child.toHashedNode()
 				break searchFirstNonEmptyChild
 			case *HashedNode:
@@ -318,14 +314,10 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 			if nextWordInInsertedKey != nextWordInExistingKey {
 				// Directly hash the (left) node that was already
 				// inserted.
-				digest := sha256.New()
-				digest.Write(child.key[:31]) // Write the stem
-				tmp := bls.FrTo32(child.ComputeCommitment())
-				digest.Write(tmp[:])
+				child.ComputeCommitment()
 				if flush != nil {
 					flush(child)
 				}
-				hashToFr(child.hash, digest.Sum(nil))
 				newBranch.children[nextWordInExistingKey] = child.toHashedNode()
 				// Next word differs, so this was the last level.
 				// Insert it directly into its final slot.
@@ -517,6 +509,29 @@ func (n *InternalNode) ComputeCommitment() *bls.Fr {
 	if n.hash != nil {
 		return n.hash
 	}
+
+	if n.count == 0 {
+		if n.depth != 0 {
+			panic("empty node at non-zero depth")
+		}
+
+		n.hash = &bls.ZERO
+
+		return n.hash
+	}
+
+	// special case: only one leaf node - then ignore the top
+	// branch node.
+	if n.count == 1 && n.depth == 0 {
+		for _, child := range n.children {
+			if child, ok := child.(*LeafNode); ok {
+				n.hash = child.ComputeCommitment()
+				n.commitment = nil
+				return n.hash
+			}
+		}
+	}
+
 	n.hash = new(bls.Fr)
 
 	emptyChildren := 0
@@ -526,22 +541,10 @@ func (n *InternalNode) ComputeCommitment() *bls.Fr {
 		case Empty:
 			emptyChildren++
 		case *LeafNode:
+			fullcomm := child.ComputeCommitment()
 			// Store the leaf node hash in the polynomial, even if
 			// the tree is free.
-			digest := sha256.New()
-			digest.Write(child.key[:31]) // Write the stem
-			tmp := bls.FrTo32(child.ComputeCommitment())
-			digest.Write(tmp[:])
-			// special case: only one leaf node - then ignore the top
-			// branch node.
-			if n.count == 1 && n.depth == 0 {
-				hashToFr(n.hash, digest.Sum(nil))
-				// Set the commitment to nil, as there is no real commitment at this
-				// level - only the hash has significance.
-				n.commitment = nil
-				return n.hash
-			}
-			hashToFr(&poly[idx], digest.Sum(nil))
+			bls.CopyFr(&poly[idx], fullcomm)
 		case *HashedNode:
 			bls.CopyFr(&poly[idx], child.ComputeCommitment())
 		default:
@@ -572,15 +575,7 @@ func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []ui
 	var yi bls.Fr
 	fi := make([]bls.Fr, NodeWidth)
 	for i, child := range n.children {
-		if c, ok := child.(*LeafNode); ok {
-			digest := sha256.New()
-			digest.Write(c.key[:31]) // Write the stem
-			tmp := bls.FrTo32(c.hash)
-			digest.Write(tmp[:])
-			hashToFr(&fi[i], digest.Sum(nil))
-		} else {
-			bls.CopyFr(&fi[i], child.ComputeCommitment())
-		}
+		bls.CopyFr(&fi[i], child.ComputeCommitment())
 
 		if i == int(childIdx) {
 			bls.CopyFr(&yi, &fi[i])
@@ -721,6 +716,12 @@ func (n *LeafNode) ComputeCommitment() *bls.Fr {
 
 	h := sha256.Sum256(bls.ToCompressedG1(n.commitment))
 	hashToFr(n.hash, h[:])
+
+	digest := sha256.New()
+	digest.Write(n.key[:31]) // Write the stem
+	tmp := bls.FrTo32(n.hash)
+	digest.Write(tmp[:])
+	hashToFr(n.hash, digest.Sum(nil))
 	return n.hash
 }
 
