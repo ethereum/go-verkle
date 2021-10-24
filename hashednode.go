@@ -28,13 +28,11 @@ package verkle
 import (
 	"errors"
 	"fmt"
-
-	"github.com/protolambda/go-kzg/bls"
 )
 
 type HashedNode struct {
-	hash       *bls.Fr
-	commitment *bls.G1Point
+	hash       *Fr
+	commitment *Point
 }
 
 func (*HashedNode) Insert([]byte, []byte, NodeResolverFn) error {
@@ -53,11 +51,11 @@ func (*HashedNode) Get([]byte, NodeResolverFn) ([]byte, error) {
 	return nil, errors.New("can not read from a hash node")
 }
 
-func (n *HashedNode) ComputeCommitment() *bls.Fr {
+func (n *HashedNode) ComputeCommitment() *Fr {
 	return n.hash
 }
 
-func (*HashedNode) GetCommitmentsAlongPath([]byte) ([]*bls.G1Point, []uint, []*bls.Fr, [][]bls.Fr) {
+func (*HashedNode) GetCommitmentsAlongPath([]byte) ([]*Point, []uint, []*Fr, [][]Fr) {
 	panic("can not get the full path, and there is no proof of absence")
 }
 
@@ -67,19 +65,19 @@ func (*HashedNode) Serialize() ([]byte, error) {
 
 func (n *HashedNode) Copy() VerkleNode {
 	h := &HashedNode{
-		commitment: new(bls.G1Point),
-		hash:       new(bls.Fr),
+		commitment: new(Point),
+		hash:       new(Fr),
 	}
 	if n.hash != nil {
-		bls.CopyFr(h.hash, n.hash)
+		CopyFr(h.hash, n.hash)
 	}
 	if n.commitment != nil {
-		bls.CopyG1(h.commitment, n.commitment)
+		CopyPoint(h.commitment, n.commitment)
 	}
 
 	return h
 }
 
 func (n *HashedNode) toDot(parent, path string) string {
-	return fmt.Sprintf("hash%s [label=\"H: %x\"]\n%s -> hash%s\n", path, bls.FrTo32(n.hash), parent, path)
+	return fmt.Sprintf("hash%s [label=\"H: %x\"]\n%s -> hash%s\n", path, to32(n.hash), parent, path)
 }

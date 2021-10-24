@@ -23,35 +23,46 @@
 //
 // For more information, please refer to <https://unlicense.org>
 
+// +build kzg
+
 package verkle
 
 import (
-	"bytes"
-	"sync"
+	"crypto/sha256"
+
+	"github.com/protolambda/go-kzg/bls"
 )
 
-const (
-	multiExpThreshold8 = 25
+type Fr = bls.Fr
+type Point = bls.G1Point
 
-	NodeWidth    = 256
-	NodeBitWidth = 8
-)
-
-var (
-	config    *Config
-	configMtx sync.Mutex
-)
-
-func equalPaths(key1, key2 []byte) bool {
-	if len(key1) < 31 || len(key2) < 31 {
-		return false
-	}
-
-	return bytes.Equal(key1[:31], key2[:31])
+func CopyFr(dst, src *Fr) {
+	bls.CopyFr(dst, src)
 }
 
-// offset2key extracts the n bits of a key that correspond to the
-// index of a child node.
-func offset2key(key []byte, offset int) byte {
-	return key[offset/8]
+func CopyPoint(dst, src *Point) {
+	bls.CopyG1(dst, src)
+}
+
+func toFr(fr *Fr, p *Point) {
+	h := sha256.Sum256(bls.ToCompressedG1(p))
+	hashToFr(fr, h[:])
+}
+
+var FrZero = bls.ZERO
+var FrOne = bls.ONE
+
+func fromBytes(fr *Fr, data []byte) {
+	if len(data) > 32 {
+		panic("invalid length")
+	}
+
+	if len(data) == 32 {
+		hashToFr(fr, data)
+		return
+	}
+
+	var tmp [32]byte
+	copy(tmp[32-len(data):], data)
+	hashToFr(fr, tmp)
 }

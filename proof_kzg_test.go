@@ -23,35 +23,41 @@
 //
 // For more information, please refer to <https://unlicense.org>
 
+// +build kzg
+
 package verkle
 
 import (
 	"bytes"
-	"sync"
+	"encoding/hex"
+	"testing"
+
+	"github.com/protolambda/go-kzg/bls"
 )
 
-const (
-	multiExpThreshold8 = 25
+func TestProofGenerationTwoLeaves(t *testing.T) {
+	root := New()
+	root.Insert(zeroKeyTest, testValue, nil)
+	root.Insert(ffx32KeyTest, testValue, nil)
 
-	NodeWidth    = 256
-	NodeBitWidth = 8
-)
+	var s bls.Fr
+	bls.SetFr(&s, "8927347823478352432985")
+	d, y, sigma := MakeVerkleProofOneLeaf(root, zeroKeyTest)
 
-var (
-	config    *Config
-	configMtx sync.Mutex
-)
+	expectedD, _ := hex.DecodeString("8447f1ef334970e0d08d2cdad6548580572d85c40a58860c3c414bd3cea98ee658e2ee4417e46c634703256e1e7b69d6")
 
-func equalPaths(key1, key2 []byte) bool {
-	if len(key1) < 31 || len(key2) < 31 {
-		return false
+	if !bytes.Equal(expectedD, bls.ToCompressedG1(d)) {
+		t.Fatalf("invalid D commitment, expected %x, got %x", expectedD, bls.ToCompressedG1(d))
 	}
 
-	return bytes.Equal(key1[:31], key2[:31])
-}
+	expectedY := "40177438954719495123245064484577777862352110120190834584872037449357612852120"
+	gotY := bls.FrStr(y)
+	if expectedY != gotY {
+		t.Fatalf("invalid y, expected %s != %s", expectedY, gotY)
+	}
 
-// offset2key extracts the n bits of a key that correspond to the
-// index of a child node.
-func offset2key(key []byte, offset int) byte {
-	return key[offset/8]
+	expectedSigma, _ := hex.DecodeString("987467e96b8ac71f99b1d92402bf4bb7b8a1ddba25531de0d8eeb9a1519501f7888f4561dae08dc206472b094dc291f5")
+	if !bytes.Equal(expectedSigma, bls.ToCompressedG1(sigma)) {
+		t.Fatalf("invalid sigma, expected %x, got %x", expectedSigma, bls.ToCompressedG1(sigma))
+	}
 }

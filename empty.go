@@ -25,11 +25,7 @@
 
 package verkle
 
-import (
-	"errors"
-
-	"github.com/protolambda/go-kzg/bls"
-)
+import "errors"
 
 type Empty struct{}
 
@@ -49,11 +45,11 @@ func (Empty) Get([]byte, NodeResolverFn) ([]byte, error) {
 	return nil, nil
 }
 
-func (Empty) ComputeCommitment() *bls.Fr {
-	return &bls.ZERO
+func (Empty) ComputeCommitment() *Fr {
+	return &FrZero
 }
 
-func (Empty) GetCommitmentsAlongPath([]byte) ([]*bls.G1Point, []uint, []*bls.Fr, [][]bls.Fr) {
+func (Empty) GetCommitmentsAlongPath([]byte) ([]*Point, []uint, []*Fr, [][]Fr) {
 	panic("trying to produce a commitment for an empty subtree")
 }
 

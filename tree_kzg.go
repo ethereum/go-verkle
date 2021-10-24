@@ -23,35 +23,50 @@
 //
 // For more information, please refer to <https://unlicense.org>
 
+// +build kzg
+
 package verkle
 
-import (
-	"bytes"
-	"sync"
-)
+// This function takes a hash and turns it into a Fr integer, making
+// sure that this doesn't overflow the modulus.
+// This piece of code is really ugly, and probably a performance hog, it
+// needs to be rewritten more efficiently.
+func hashToFr(out *Fr, h []byte) {
+	// Q&D check that the hash doesn't exceed 32 bytes. hashToFr
+	// should disappear in the short term, so a panic isn't a
+	// big problem here.
+	if len(h) != 32 {
+		panic("invalid hash length ≠ 32")
+	}
+	h[31] &= 0x7F // mod 2^255
 
-const (
-	multiExpThreshold8 = 25
-
-	NodeWidth    = 256
-	NodeBitWidth = 8
-)
-
-var (
-	config    *Config
-	configMtx sync.Mutex
-)
-
-func equalPaths(key1, key2 []byte) bool {
-	if len(key1) < 31 || len(key2) < 31 {
-		return false
+	// reverse endianness (little -> big)
+	for i := 0; i < len(h)/2; i++ {
+		h[i], h[len(h)-i-1] = h[len(h)-i-1], h[i]
 	}
 
-	return bytes.Equal(key1[:31], key2[:31])
-}
+	// Apply modulus
+	x := big.NewInt(0).SetBytes(h)
+	x.Mod(x, modulus)
 
-// offset2key extracts the n bits of a key that correspond to the
-// index of a child node.
-func offset2key(key []byte, offset int) byte {
-	return key[offset/8]
+	// clear the buffer in case the trailing bytes were 0
+	for i := 0; i < 32; i++ {
+		h[i] = 0
+	}
+
+	// back to original endianness
+	var processed [32]byte
+	converted := x.Bytes()
+	for i := 0; i < len(converted); i++ {
+		processed[i] = converted[len(converted)-i-1]
+	}
+
+	if !FrFrom32(out, processed) {
+		panic(fmt.Sprintf("invalid Fr number %x", processed))
+	}
+	// TODO(@gballet) activate when geth moves to Go 1.17
+	// in replacement of what is above.
+	//if !FrFrom32(out, (*[32]byte)(h)) {
+	//panic(fmt.Sprintf("invalid Fr number %x", h))
+	//}
 }

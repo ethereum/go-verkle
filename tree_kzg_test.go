@@ -23,35 +23,55 @@
 //
 // For more information, please refer to <https://unlicense.org>
 
+// +build kzg
+
 package verkle
 
 import (
-	"bytes"
-	"sync"
+	"crypto/rand"
+	"testing"
+
+	"github.com/protolambda/go-kzg/bls"
 )
 
-const (
-	multiExpThreshold8 = 25
+func TestHashToFrTrailingZeroBytes(t *testing.T) {
+	h := hexToHash("c79e576e0f534a5bbed66b32e5022a9d624b4415779b369a62b2e7a6c3d8e000")
+	var out bls.Fr
+	hashToFr(&out, h[:])
 
-	NodeWidth    = 256
-	NodeBitWidth = 8
-)
+	h2 := hexToHash("c79e576e0f534a5bbed66b32e5022a9d624b4415779b369a62b2e7a6c3d8e000")
+	var expected bls.Fr
+	bls.FrFrom32(&expected, h2)
 
-var (
-	config    *Config
-	configMtx sync.Mutex
-)
-
-func equalPaths(key1, key2 []byte) bool {
-	if len(key1) < 31 || len(key2) < 31 {
-		return false
+	if !bls.EqualFr(&out, &expected) {
+		t.Fatalf("incorrect value received, got %x != %x", out, expected)
 	}
-
-	return bytes.Equal(key1[:31], key2[:31])
 }
 
-// offset2key extracts the n bits of a key that correspond to the
-// index of a child node.
-func offset2key(key []byte, offset int) byte {
-	return key[offset/8]
+func TestConcurrentMulG1(t *testing.T) {
+	var fr bls.Fr
+	bls.AsFr(&fr, 2)
+	expected := new(bls.G1Point)
+	bls.MulG1(expected, &bls.GenG1, &fr)
+
+	threads := 10
+	ch := make(chan *bls.G1Point)
+	builder := func() {
+		var fr bls.Fr
+		bls.AsFr(&fr, 2)
+		dst := new(bls.G1Point)
+		bls.MulG1(dst, &bls.GenG1, &fr)
+		ch <- dst
+	}
+
+	for i := 0; i < threads; i++ {
+		go builder()
+	}
+
+	for i := 0; i < threads; i++ {
+		res := <-ch
+		if res.String() != expected.String() {
+			t.Error("Incorrect fr")
+		}
+	}
 }

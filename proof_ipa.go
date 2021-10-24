@@ -23,35 +23,46 @@
 //
 // For more information, please refer to <https://unlicense.org>
 
+// +build !kzg
+
 package verkle
 
 import (
-	"bytes"
-	"sync"
+	ipa "github.com/crate-crypto/go-ipa"
+	"github.com/crate-crypto/go-ipa/common"
 )
 
-const (
-	multiExpThreshold8 = 25
+type Proof = ipa.MultiProof
 
-	NodeWidth    = 256
-	NodeBitWidth = 8
-)
+func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte) ([]*Point, []uint, []*Fr, [][]Fr) {
+	var (
+		fis         [][]Fr
+		commitments []*Point
+		indices     []uint
+		yis         []*Fr
+	)
 
-var (
-	config    *Config
-	configMtx sync.Mutex
-)
-
-func equalPaths(key1, key2 []byte) bool {
-	if len(key1) < 31 || len(key2) < 31 {
-		return false
+	for _, key := range keys {
+		cs, idxs, ys, fs := root.GetCommitmentsAlongPath(key)
+		commitments = append(commitments, cs...)
+		indices = append(indices, idxs...)
+		yis = append(yis, ys...)
+		fis = append(fis, fs...)
 	}
 
-	return bytes.Equal(key1[:31], key2[:31])
+	return commitments, zs, ys, fis
 }
 
-// offset2key extracts the n bits of a key that correspond to the
-// index of a child node.
-func offset2key(key []byte, offset int) byte {
-	return key[offset/8]
+func MakeVerkleMultiProof(root VerkleNode, keys [][]byte) (proof *Proof, Cs []*Point, indices []uint, ys []*Fr) {
+	tr := common.NewTranscript("multiproof")
+	var fs [][]Fr
+	Cs, zs, ys, fs = GetCommitmentsForMultiproof(root, keys)
+
+	proof = ipa.CreateMultiProof(tr, GetConfig().conf, Cs, fs, zs)
+	return
+}
+
+func VerifyVerkleProof(proof *Proof, Cs []*Point, indices []uint, ys []*Fr, tc *Config) bool {
+	tr := common.NewTranscript("multiproof")
+	return ipa.CheckMultiProof(tr, tc.conf, proof, Cs, ys, indices)
 }

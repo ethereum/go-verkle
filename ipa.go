@@ -23,35 +23,41 @@
 //
 // For more information, please refer to <https://unlicense.org>
 
+// +build !kzg
+
 package verkle
 
 import (
-	"bytes"
-	"sync"
+	"github.com/crate-crypto/go-ipa/bandersnatch"
+	"github.com/crate-crypto/go-ipa/bandersnatch/fr"
 )
 
-const (
-	multiExpThreshold8 = 25
+type Fr = fr.Element
+type Point = bandersnatch.PointAffine
 
-	NodeWidth    = 256
-	NodeBitWidth = 8
-)
-
-var (
-	config    *Config
-	configMtx sync.Mutex
-)
-
-func equalPaths(key1, key2 []byte) bool {
-	if len(key1) < 31 || len(key2) < 31 {
-		return false
-	}
-
-	return bytes.Equal(key1[:31], key2[:31])
+func CopyFr(dst, src *Fr) {
+	copy(dst[:], src[:])
 }
 
-// offset2key extracts the n bits of a key that correspond to the
-// index of a child node.
-func offset2key(key []byte, offset int) byte {
-	return key[offset/8]
+func CopyPoint(dst, src *Point) {
+	bytes := src.Bytes()
+	dst.SetBytes(bytes[:])
+}
+
+func toFr(fr *Fr, p *Point) {
+	bytes := p.Bytes()
+	fr.SetBytes(bytes[:])
+}
+
+func to32(fr *Fr) [32]byte {
+	return fr.Bytes()
+}
+
+func from32(fr *Fr, data [32]byte) {
+	fr.SetBytes(data[:])
+
+}
+
+func fromBytes(fr *Fr, data []byte) {
+	fr.SetBytes(data)
 }

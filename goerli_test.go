@@ -23,6 +23,8 @@
 //
 // For more information, please refer to <https://unlicense.org>
 
+// +build kzg
+
 package verkle
 
 import (
@@ -32,14 +34,6 @@ import (
 
 	"github.com/protolambda/go-kzg/bls"
 )
-
-func hex2Bytes(str string) []byte {
-	ret, err := hex.DecodeString(str)
-	if err != nil {
-		panic(err)
-	}
-	return ret
-}
 
 func TestGoerliInsertBug(t *testing.T) {
 	root := New()
