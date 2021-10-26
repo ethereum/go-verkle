@@ -62,11 +62,11 @@ type VerkleNode interface {
 	// representation of its hash) are cached.
 	ComputeCommitment() *Fr
 
-	// GetCommitmentAlongPath follows the path that one key
+	// GetCommitmentsAlongPath follows the path that one key
 	// traces through the tree, and collects the various
 	// elements needed to build a proof. The order of elements
 	// is from the bottom of the tree, up to the root.
-	GetCommitmentsAlongPath([]byte) ([]*Point, []uint, []*Fr, [][]Fr)
+	GetCommitmentsAlongPath([]byte) ([]*Point, []uint8, []*Fr, [][]Fr)
 
 	// Serialize encodes the node to RLP.
 	Serialize() ([]byte, error)
@@ -465,26 +465,22 @@ func (n *InternalNode) ComputeCommitment() *Fr {
 	}
 
 	if n.count == 0 {
-		if n.depth != 0 {
-			panic("empty node at non-zero depth")
-		}
-
-		n.hash = &FrZero
-
-		return n.hash
+		panic("internal node should be empty")
 	}
 
 	// special case: only one leaf node - then ignore the top
 	// branch node.
-	if n.count == 1 && n.depth == 0 {
-		for _, child := range n.children {
-			if child, ok := child.(*LeafNode); ok {
-				n.hash = child.ComputeCommitment()
-				n.commitment = nil
-				return n.hash
-			}
-		}
-	}
+	// NOTE: this has been cancelled, although the EIP has not
+	// been updated, so I'm keeping the code for now.
+	//if n.count == 1 && n.depth == 0 {
+	//for _, child := range n.children {
+	//if child, ok := child.(*LeafNode); ok {
+	//n.hash = child.ComputeCommitment()
+	//n.commitment = nil
+	//return n.hash
+	//}
+	//}
+	//}
 
 	n.hash = new(Fr)
 
@@ -510,15 +506,12 @@ func (n *InternalNode) ComputeCommitment() *Fr {
 	// All the coefficients have been computed, evaluate the polynomial,
 	// serialize and hash the resulting point - this is the commitment.
 	n.commitment = n.committer.CommitToPoly(poly, emptyChildren)
-	//serialized := bls.ToCompressedG1(n.commitment)
-	//h := sha256.Sum256(serialized)
-	//hashToFr(n.hash, h[:])
 	toFr(n.hash, n.commitment)
 
 	return n.hash
 }
 
-func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*Point, []uint, []*Fr, [][]Fr) {
+func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*Point, []uint8, []*Fr, [][]Fr) {
 	childIdx := offset2key(key, n.depth)
 
 	// Special case, no commitment for the root if there is only one
@@ -537,7 +530,7 @@ func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*Point, []uint, []
 			CopyFr(&yi, &fi[i])
 		}
 	}
-	return append(comms, n.commitment), append(zis, uint(childIdx)), append(yis, &yi), append(fis, fi)
+	return append(comms, n.commitment), append(zis, childIdx), append(yis, &yi), append(fis, fi)
 }
 
 func (n *InternalNode) Serialize() ([]byte, error) {
@@ -659,19 +652,18 @@ func (n *LeafNode) ComputeCommitment() *Fr {
 
 	emptyChildren := 0
 	var poly, childPoly [256]Fr
-	CopyFr(&poly[0], &FrOne)
+	poly[0].SetBytes([]byte{1})
+	//CopyFr(&poly[0], &FrOne)
+	fromBytes(&poly[1], n.key)
 
-	var h [32]byte
 	for idx, val := range n.values {
 		if idx == 128 {
-			//n.commitment = n.committer.CommitToPoly(childPoly[:], emptyChildren)
-			//h := sha256.Sum256(bls.ToCompressedG1(n.commitment))
-			//hashToFr(&poly[2], h[:])
+			n.commitment = n.committer.CommitToPoly(childPoly[:], emptyChildren)
 			toFr(&poly[2], n.commitment)
 
 			emptyChildren = 0
-			for _, coeff := range childPoly {
-				CopyFr(&coeff, &FrZero)
+			for i := range childPoly {
+				CopyFr(&childPoly[i], &FrZero)
 			}
 
 		}
@@ -680,27 +672,25 @@ func (n *LeafNode) ComputeCommitment() *Fr {
 			continue
 		}
 
-		fromBytes(&poly[idx%128], h[:16])
-		fromBytes(&poly[idx%128+1], h[16:])
+		// TODO(@gballet) add 2**128
+		fromBytes(&childPoly[2*(idx%128)], val[:16])
+		fromBytes(&childPoly[2*(idx%128)+1], val[16:])
 	}
 
-	fromBytes(&poly[1], n.key)
-
 	n.commitment = n.committer.CommitToPoly(childPoly[:], emptyChildren)
-	//h2 := sha256.Sum256(bls.ToCompressedG1(n.commitment))
-	//hashToFr(&poly[3], h2[:])
 	toFr(&poly[3], n.commitment)
 
 	n.commitment = n.committer.CommitToPoly(poly[:], emptyChildren)
-	//h3 := sha256.Sum256(bls.ToCompressedG1(n.commitment))
-	//hashToFr(n.hash, h3[:])
 	toFr(n.hash, n.commitment)
+	var id Point
+	pid := &id
+	pid.Identity()
 
 	return n.hash
 }
 
-func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*Point, []uint, []*Fr, [][]Fr) {
-	slot := uint64(key[31])
+func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*Point, []uint8, []*Fr, [][]Fr) {
+	slot := key[31]
 	fis := make([]Fr, NodeWidth)
 	for i, val := range n.values {
 		if val != nil {
@@ -710,7 +700,7 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*Point, []uint, []*Fr,
 			CopyFr(&fis[i], &fi)
 		}
 	}
-	return []*Point{n.commitment}, []uint{uint(slot)}, []*Fr{&fis[slot]}, [][]Fr{fis}
+	return []*Point{n.commitment}, []byte{slot}, []*Fr{&fis[slot]}, [][]Fr{fis}
 }
 
 func (n *LeafNode) Serialize() ([]byte, error) {
@@ -757,7 +747,13 @@ func (n *LeafNode) Value(i int) []byte {
 }
 
 func (n *LeafNode) toDot(parent, path string) string {
-	return fmt.Sprintf("leaf%s [label=\"L: %x\"]\n%s -> leaf%s\n", path, to32(n.hash), parent, path)
+	ret := fmt.Sprintf("leaf%s [label=\"L: %x\nC: %x\"]\n%s -> leaf%s\n", path, to32(n.hash), n.commitment.Bytes(), parent, path)
+	for i, v := range n.values {
+		if v != nil {
+			ret = fmt.Sprintf("%sval%s%x [label=\"%x\"]\nleaf%s -> val%s%x\n", ret, path, i, v, path, path, i)
+		}
+	}
+	return ret
 }
 
 func setBit(bitlist []uint8, index int) {

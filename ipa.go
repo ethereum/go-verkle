@@ -55,9 +55,12 @@ func to32(fr *Fr) [32]byte {
 
 func from32(fr *Fr, data [32]byte) {
 	fr.SetBytes(data[:])
-
 }
 
 func fromBytes(fr *Fr, data []byte) {
 	fr.SetBytes(data)
+}
+
+func Equal(fr *Fr, other *Fr) bool {
+	return fr.Equal(other)
 }

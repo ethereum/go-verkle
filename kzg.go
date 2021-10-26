@@ -66,3 +66,7 @@ func fromBytes(fr *Fr, data []byte) {
 	copy(tmp[32-len(data):], data)
 	hashToFr(fr, tmp)
 }
+
+func Equal(fr *Fr, other *Equal) bool {
+	return bls.EqualFr(fr, other)
+}

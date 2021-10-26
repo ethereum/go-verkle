@@ -75,3 +75,73 @@ func TestConcurrentMulG1(t *testing.T) {
 		}
 	}
 }
+
+func TestTreeHashingPython(t *testing.T) {
+	root := New()
+	root.Insert(zeroKeyTest, zeroKeyTest, nil)
+	root.Insert(oneKeyTest, zeroKeyTest, nil)
+
+	rootcomm := to32(root.ComputeCommitment())
+	expected, _ := hex.DecodeString("e43eedf125a98aadded6d4e2522936cb6469cfb0e65a2aa529b1058b9018e34b")
+
+	if !bytes.Equal(rootcomm[:], expected) {
+		t.Fatalf("incorrect root commitment %x != %x", rootcomm, expected)
+	}
+
+}
+
+// Test root commitment calculation when two keys are in the same LeafNode and
+// a third one in a different leaf node, at the same root branch node.
+func TestTreeHashingPython2(t *testing.T) {
+	root := New()
+
+	x, _ := hex.DecodeString("0100000000000000000000000000000000000000000000000000000000000000")
+
+	root.Insert(zeroKeyTest, zeroKeyTest, nil)
+	root.Insert(oneKeyTest, zeroKeyTest, nil)
+	root.Insert(x, zeroKeyTest, nil)
+
+	got := to32(root.ComputeCommitment())
+	expected, _ := hex.DecodeString("0d7348e435f0064279359f82e568702c2ac328b3f0f96b080026a760ffc7bf00")
+
+	if !bytes.Equal(got[:], expected) {
+		t.Fatalf("incorrect root commitment %x != %x", got, expected)
+	}
+}
+
+// Test root commitment calculation when two keys are in the same LeafNode and
+// a third one in a different leaf node, with two levels of branch nodes.
+func TestTreeHashingPython3(t *testing.T) {
+	root := New()
+
+	x, _ := hex.DecodeString("0001000000000000000000000000000000000000000000000000000000000000")
+
+	root.Insert(zeroKeyTest, zeroKeyTest, nil)
+	root.Insert(oneKeyTest, zeroKeyTest, nil)
+	root.Insert(x, zeroKeyTest, nil)
+
+	got := to32(root.ComputeCommitment())
+	expected, _ := hex.DecodeString("67750288c4ae494c96c19327f42ca2ebafb58e7dd3f10b6265be8a091af67c09")
+
+	if !bytes.Equal(got[:], expected) {
+		t.Fatalf("incorrect root commitment %x != %x", got, expected)
+	}
+}
+
+// Test root commitment calculation when two keys are in the same LeafNode and
+// a third one in a different leaf node, with 31 levels of branch nodes.
+func TestTreeHashingPython4(t *testing.T) {
+	root := New()
+
+	x, _ := hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000100")
+
+	root.Insert(zeroKeyTest, zeroKeyTest, nil)
+	root.Insert(oneKeyTest, zeroKeyTest, nil)
+	root.Insert(x, zeroKeyTest, nil)
+
+	got := to32(root.ComputeCommitment())
+	expected, _ := hex.DecodeString("c12fd7ded4eb4e7a71a2b2bc4d04ba1d91373e58ab7694b572a13f46941f5772")
+	if !bytes.Equal(got[:], expected) {
+		t.Fatalf("incorrect root commitment %x != %x", got, expected)
+	}
+}

@@ -38,7 +38,7 @@ type IPAConfig struct {
 type Config = IPAConfig
 
 func (ipac *IPAConfig) CommitToPoly(poly []Fr, emptyChildren int) *Point {
-	ret := ipa.Commit(ipac.conf.SRS, poly)
+	ret := ipac.conf.Commit(poly)
 	return &ret
 }
 

@@ -55,7 +55,7 @@ func (n *HashedNode) ComputeCommitment() *Fr {
 	return n.hash
 }
 
-func (*HashedNode) GetCommitmentsAlongPath([]byte) ([]*Point, []uint, []*Fr, [][]Fr) {
+func (*HashedNode) GetCommitmentsAlongPath([]byte) ([]*Point, []uint8, []*Fr, [][]Fr) {
 	panic("can not get the full path, and there is no proof of absence")
 }
 
