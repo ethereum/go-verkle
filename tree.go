@@ -465,7 +465,15 @@ func (n *InternalNode) ComputeCommitment() *Fr {
 	}
 
 	if n.count == 0 {
-		panic("internal node should be empty")
+		if n.depth != 0 {
+			panic("internal node should be empty node")
+		}
+
+		n.commitment = new(Point)
+		n.commitment.Identity()
+		n.hash = new(Fr)
+		toFr(n.hash, n.commitment)
+		return n.hash
 	}
 
 	// special case: only one leaf node - then ignore the top
