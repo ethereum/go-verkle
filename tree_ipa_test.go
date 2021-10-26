@@ -205,3 +205,15 @@ func TestInsertKey1Val1Key2Val2(t *testing.T) {
 		t.Fatalf("invalid root commitment %v != %v", comm, &expected)
 	}
 }
+
+func TestEmptyTrie(t *testing.T) {
+	root := New()
+	comm := root.ComputeCommitment()
+
+	var expected Fr
+	toFr(&expected, identity)
+
+	if !comm.Equal(&expected) {
+		t.Fatalf("invalid root commitment %v != %v", comm, &expected)
+	}
+}
