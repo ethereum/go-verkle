@@ -571,7 +571,6 @@ func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []ui
 		return n.children[childIdx].GetCommitmentsAlongPath(key)
 	}
 
-	comms, zis, yis, fis := n.children[childIdx].GetCommitmentsAlongPath(key)
 	var yi bls.Fr
 	fi := make([]bls.Fr, NodeWidth)
 	for i, child := range n.children {
@@ -581,6 +580,12 @@ func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*bls.G1Point, []ui
 			bls.CopyFr(&yi, &fi[i])
 		}
 	}
+	// Special case of a proof of absence: return a zero commitment
+	if _, ok := n.children[childIdx].(Empty); ok {
+		fmt.Println(bls.GenG1)
+		return []*bls.G1Point{&bls.GenG1}, []uint{uint(childIdx)}, []*bls.Fr{&yi}, [][]bls.Fr{fi}
+	}
+	comms, zis, yis, fis := n.children[childIdx].GetCommitmentsAlongPath(key)
 	return append(comms, n.commitment), append(zis, uint(childIdx)), append(yis, &yi), append(fis, fi)
 }
 
