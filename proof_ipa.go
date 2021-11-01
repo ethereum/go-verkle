@@ -23,8 +23,6 @@
 //
 // For more information, please refer to <https://unlicense.org>
 
-// +build !kzg
-
 package verkle
 
 import (
