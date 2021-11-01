@@ -858,3 +858,25 @@ func TestToDot(*testing.T) {
 
 	fmt.Println(root.toDot("", ""))
 }
+
+func TestEmptyCommitment(t *testing.T) {
+	root := New()
+	root.Insert(zeroKeyTest, zeroKeyTest, nil)
+	root.ComputeCommitment()
+	comms, zis, yis, fis := root.GetCommitmentsAlongPath(ffx32KeyTest)
+	if len(comms) != 1 || len(zis) != 1 || len(yis) != 1 || len(fis) != 1 {
+		t.Fatalf("invalid parameter list length")
+	}
+
+	var id Point
+	id.Identity()
+	fmt.Println(comms)
+	if !comms[0].Equal(&id) {
+		t.Fatalf("invalid commitment %x %x", comms[0], id)
+	}
+
+	zero := new(Fr)
+	if !yis[0].Equal(zero) {
+		t.Fatalf("invalid yi %v %v", zero, yis[0])
+	}
+}

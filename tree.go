@@ -495,7 +495,7 @@ func (n *InternalNode) ComputeCommitment() *Fr {
 func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*Point, []uint8, []*Fr, [][]Fr) {
 	childIdx := offset2key(key, n.depth)
 
-	comms, zis, yis, fis := n.children[childIdx].GetCommitmentsAlongPath(key)
+	// Build the list of elements for this level
 	var yi Fr
 	fi := make([]Fr, NodeWidth)
 	for i, child := range n.children {
@@ -505,6 +505,15 @@ func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*Point, []uint8, [
 			CopyFr(&yi, &fi[i])
 		}
 	}
+
+	// Special case of a proof of absence: return a zero commitment
+	if _, ok := n.children[childIdx].(Empty); ok {
+		var p Point
+		p.Identity()
+		return []*Point{&p}, []uint8{childIdx}, []*Fr{&yi}, [][]Fr{fi}
+	}
+
+	comms, zis, yis, fis := n.children[childIdx].GetCommitmentsAlongPath(key)
 	return append(comms, n.commitment), append(zis, childIdx), append(yis, &yi), append(fis, fi)
 }
 
