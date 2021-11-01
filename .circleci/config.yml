@@ -48,7 +48,7 @@ jobs:
 
       - run:
           name: Run unit tests with kilic
-          command: go test -v -coverprofile=coverage.txt -covermode=count -tags bignum_kilic ./...
+          command: go test -v -coverprofile=coverage.txt -covermode=count ./...
 
       - run:
           name: Codecov upload
@@ -69,7 +69,7 @@ jobs:
 
       - run:
           name: Run unit tests with kilic
-          command: go test -tags bignum_kilic ./...
+          command: go test ./...
 
 workflows:
   lint_and_test:

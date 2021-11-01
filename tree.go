@@ -26,7 +26,6 @@
 package verkle
 
 import (
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"math/big"
@@ -476,20 +475,6 @@ func (n *InternalNode) ComputeCommitment() *Fr {
 		return n.hash
 	}
 
-	// special case: only one leaf node - then ignore the top
-	// branch node.
-	// NOTE: this has been cancelled, although the EIP has not
-	// been updated, so I'm keeping the code for now.
-	//if n.count == 1 && n.depth == 0 {
-	//for _, child := range n.children {
-	//if child, ok := child.(*LeafNode); ok {
-	//n.hash = child.ComputeCommitment()
-	//n.commitment = nil
-	//return n.hash
-	//}
-	//}
-	//}
-
 	n.hash = new(Fr)
 
 	emptyChildren := 0
@@ -521,12 +506,6 @@ func (n *InternalNode) ComputeCommitment() *Fr {
 
 func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*Point, []uint8, []*Fr, [][]Fr) {
 	childIdx := offset2key(key, n.depth)
-
-	// Special case, no commitment for the root if there is only one
-	// child in the tree.
-	if n.count == 1 {
-		return n.children[childIdx].GetCommitmentsAlongPath(key)
-	}
 
 	comms, zis, yis, fis := n.children[childIdx].GetCommitmentsAlongPath(key)
 	var yi Fr
@@ -660,8 +639,7 @@ func (n *LeafNode) ComputeCommitment() *Fr {
 
 	emptyChildren := 0
 	var poly, childPoly [256]Fr
-	poly[0].SetBytes([]byte{1})
-	//CopyFr(&poly[0], &FrOne)
+	poly[0].SetUint64(1)
 	fromBytes(&poly[1], n.key)
 
 	for idx, val := range n.values {
@@ -690,25 +668,12 @@ func (n *LeafNode) ComputeCommitment() *Fr {
 
 	n.commitment = n.committer.CommitToPoly(poly[:], emptyChildren)
 	toFr(n.hash, n.commitment)
-	var id Point
-	pid := &id
-	pid.Identity()
 
 	return n.hash
 }
 
 func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*Point, []uint8, []*Fr, [][]Fr) {
-	slot := key[31]
-	fis := make([]Fr, NodeWidth)
-	for i, val := range n.values {
-		if val != nil {
-			var fi Fr
-			h := sha256.Sum256(val)
-			fromBytes(&fi, h[:])
-			CopyFr(&fis[i], &fi)
-		}
-	}
-	return []*Point{n.commitment}, []byte{slot}, []*Fr{&fis[slot]}, [][]Fr{fis}
+	return nil, nil, nil, nil
 }
 
 func (n *LeafNode) Serialize() ([]byte, error) {
