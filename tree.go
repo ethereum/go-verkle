@@ -28,7 +28,6 @@ package verkle
 import (
 	"errors"
 	"fmt"
-	"math/big"
 )
 
 type NodeFlushFn func(VerkleNode)
@@ -447,17 +446,6 @@ func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 	}
 }
 
-var modulus *big.Int
-
-func init() {
-	var ok bool
-	modulus, ok = big.NewInt(0).SetString("52435875175126190479447740508185965837690552500527637822603658699938581184513", 10)
-	if !ok {
-		panic("could not get modulus")
-	}
-
-}
-
 func (n *InternalNode) ComputeCommitment() *Fr {
 	if n.hash != nil {
 		return n.hash
@@ -672,7 +660,7 @@ func (n *LeafNode) ComputeCommitment() *Fr {
 	return n.hash
 }
 
-func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*Point, []uint8, []*Fr, [][]Fr) {
+func (*LeafNode) GetCommitmentsAlongPath(_ []byte) ([]*Point, []uint8, []*Fr, [][]Fr) {
 	return nil, nil, nil, nil
 }
 

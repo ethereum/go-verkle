@@ -27,19 +27,11 @@ package verkle
 
 import (
 	"bytes"
-	"sync"
 )
 
 const (
-	multiExpThreshold8 = 25
-
 	NodeWidth    = 256
 	NodeBitWidth = 8
-)
-
-var (
-	config    *Config
-	configMtx sync.Mutex
 )
 
 func equalPaths(key1, key2 []byte) bool {

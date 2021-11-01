@@ -48,16 +48,6 @@ var (
 	ffx32KeyTest, _  = hex.DecodeString("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
 )
 
-func hexToHash(str string) [32]byte {
-	b, err := hex.DecodeString(str)
-	if err != nil {
-		panic(err)
-	}
-	var ret [32]byte
-	copy(ret[:], b)
-	return ret
-}
-
 func TestInsertIntoRoot(t *testing.T) {
 	root := New()
 	err := root.Insert(zeroKeyTest, testValue, nil)

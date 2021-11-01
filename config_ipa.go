@@ -35,7 +35,7 @@ type IPAConfig struct {
 
 type Config = IPAConfig
 
-func (ipac *IPAConfig) CommitToPoly(poly []Fr, emptyChildren int) *Point {
+func (ipac *IPAConfig) CommitToPoly(poly []Fr, _ int) *Point {
 	ret := ipac.conf.Commit(poly)
 	return &ret
 }
