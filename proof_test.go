@@ -85,6 +85,19 @@ func TestMultiProofVerifyMultipleLeaves(t *testing.T) {
 	}
 }
 
+func TestProofOfAbsenceInternalVerify(t *testing.T) {
+	root := New()
+	root.Insert(zeroKeyTest, zeroKeyTest, nil)
+	root.Insert(oneKeyTest, zeroKeyTest, nil)
+
+	proof := MakeVerkleProofOneLeaf(root, ffx32KeyTest)
+
+	comms, zis, yis, _ := root.GetCommitmentsAlongPath(ffx32KeyTest)
+	if !VerifyVerkleProof(proof, comms, zis, yis, GetConfig()) {
+		t.Fatal("could not verify verkle proof")
+	}
+}
+
 func TestProofOfAbsenceLeafVerify(t *testing.T) {
 	root := New()
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)

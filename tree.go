@@ -468,20 +468,13 @@ func (n *InternalNode) ComputeCommitment() *Fr {
 
 	emptyChildren := 0
 	poly := make([]Fr, NodeWidth)
-	for idx, childC := range n.children {
-		switch child := childC.(type) {
+	for idx, child := range n.children {
+		switch child.(type) {
 		case Empty:
 			emptyChildren++
-		case *LeafNode:
-			fullcomm := child.ComputeCommitment()
-			// Store the leaf node hash in the polynomial, even if
-			// the tree is free.
-			CopyFr(&poly[idx], fullcomm)
-		case *HashedNode:
-			CopyFr(&poly[idx], child.ComputeCommitment())
 		default:
-			childC.ComputeCommitment()
 			CopyFr(&poly[idx], child.ComputeCommitment())
+			fmt.Println("idx=", poly[idx])
 		}
 	}
 
@@ -509,9 +502,7 @@ func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*Point, []uint8, [
 
 	// Special case of a proof of absence: return a zero commitment
 	if _, ok := n.children[childIdx].(Empty); ok {
-		var p Point
-		p.Identity()
-		return []*Point{&p}, []uint8{childIdx}, []*Fr{&yi}, [][]Fr{fi}
+		return []*Point{n.commitment}, []uint8{childIdx}, []*Fr{&yi}, [][]Fr{fi}
 	}
 
 	comms, zis, yis, fis := n.children[childIdx].GetCommitmentsAlongPath(key)
@@ -636,15 +627,15 @@ func (n *LeafNode) ComputeCommitment() *Fr {
 	n.hash = new(Fr)
 
 	count := 0
-	var poly, childPoly [256]Fr
+	var poly, c1poly, c2poly [256]Fr
 	poly[0].SetUint64(1)
 	fromBytes(&poly[1], n.key)
 
-	count = fillSuffixTreePoly(childPoly[:], n.values[:128])
-	n.c1 = n.committer.CommitToPoly(childPoly[:], 256-count)
+	count = fillSuffixTreePoly(c1poly[:], n.values[:128])
+	n.c1 = n.committer.CommitToPoly(c2poly[:], 256-count)
 	toFr(&poly[2], n.c1)
-	count = fillSuffixTreePoly(childPoly[:], n.values[128:])
-	n.c2 = n.committer.CommitToPoly(childPoly[:], 256-count)
+	count = fillSuffixTreePoly(c2poly[:], n.values[128:])
+	n.c2 = n.committer.CommitToPoly(c2poly[:], 256-count)
 	toFr(&poly[3], n.c2)
 
 	n.commitment = n.committer.CommitToPoly(poly[:], 252)

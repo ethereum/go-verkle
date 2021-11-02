@@ -58,7 +58,7 @@ func extensionAndSuffixOneKey(key, value []byte, ret *Point) {
 
 	(&zero).Identity()
 	toFr(&v, &zero)
-	stemComm3.ScalarMul(&srs[3], &v)
+	stemComm3.ScalarMul(&srs[3], &FrZero)
 
 	t1.Add(&stemComm0, &stemComm1)
 	t2.Add(&stemComm2, &stemComm3)

@@ -868,11 +868,8 @@ func TestEmptyCommitment(t *testing.T) {
 		t.Fatalf("invalid parameter list length")
 	}
 
-	var id Point
-	id.Identity()
-	fmt.Println(comms)
-	if !comms[0].Equal(&id) {
-		t.Fatalf("invalid commitment %x %x", comms[0], id)
+	if !comms[0].Equal(root.(*InternalNode).commitment) {
+		t.Fatalf("invalid commitment %x %x", comms[0], root.(*InternalNode).commitment)
 	}
 
 	zero := new(Fr)
