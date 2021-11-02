@@ -118,6 +118,7 @@ type (
 		values [][]byte
 
 		commitment *Point
+		c1, c2     *Point
 		hash       *Fr
 		committer  Committer
 	}
@@ -634,43 +635,86 @@ func (n *LeafNode) ComputeCommitment() *Fr {
 	}
 	n.hash = new(Fr)
 
-	emptyChildren := 0
+	count := 0
 	var poly, childPoly [256]Fr
 	poly[0].SetUint64(1)
 	fromBytes(&poly[1], n.key)
 
-	for idx, val := range n.values {
-		if idx == 128 {
-			n.commitment = n.committer.CommitToPoly(childPoly[:], emptyChildren)
-			toFr(&poly[2], n.commitment)
+	count = fillSuffixTreePoly(childPoly[:], n.values[:128])
+	n.c1 = n.committer.CommitToPoly(childPoly[:], 256-count)
+	toFr(&poly[2], n.c1)
+	count = fillSuffixTreePoly(childPoly[:], n.values[128:])
+	n.c2 = n.committer.CommitToPoly(childPoly[:], 256-count)
+	toFr(&poly[3], n.c2)
 
-			emptyChildren = 0
-			for i := range childPoly {
-				CopyFr(&childPoly[i], &FrZero)
-			}
-
-		}
-		if val == nil {
-			emptyChildren++
-			continue
-		}
-
-		// TODO(@gballet) add 2**128
-		fromBytes(&childPoly[2*(idx%128)], val[:16])
-		fromBytes(&childPoly[2*(idx%128)+1], val[16:])
-	}
-
-	n.commitment = n.committer.CommitToPoly(childPoly[:], emptyChildren)
-	toFr(&poly[3], n.commitment)
-
-	n.commitment = n.committer.CommitToPoly(poly[:], emptyChildren)
+	n.commitment = n.committer.CommitToPoly(poly[:], 252)
 	toFr(n.hash, n.commitment)
 
 	return n.hash
 }
 
-func (*LeafNode) GetCommitmentsAlongPath(_ []byte) ([]*Point, []uint8, []*Fr, [][]Fr) {
-	return nil, nil, nil, nil
+// fillSuffixTreePoly takes one of the two suffix tree and
+// builds the associated polynomial, to be used to compute
+// the corresponding C{1,2} commitment.
+func fillSuffixTreePoly(poly []Fr, values [][]byte) int {
+	count := 0
+	for idx, val := range values {
+		if val == nil {
+			continue
+		}
+		count++
+
+		// TODO(@gballet) add 2**128
+		fromBytes(&poly[2*(idx%128)], val[:16])
+		fromBytes(&poly[2*(idx%128)+1], val[16:])
+	}
+	return count
+}
+
+func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*Point, []byte, []*Fr, [][]Fr) {
+	var (
+		slot     = key[31]
+		suffSlot = 2 + byte(slot/128)
+		poly     [256]Fr
+		count    int
+	)
+
+	if slot >= 128 {
+		count = fillSuffixTreePoly(poly[:], n.values[128:])
+	} else {
+		count = fillSuffixTreePoly(poly[:], n.values[:128])
+	}
+
+	// suffix tree is empty? Only return the extension-level
+	if count == 0 {
+		// TODO(gballet) maintain a count variable at LeafNode level
+		// so that we know not to build the polynomials in this case,
+		// as it needs to be recomputed.
+		return []*Point{n.commitment}, []byte{suffSlot}, []*Fr{&FrZero}, [][]Fr{poly[:]}
+	}
+
+	var extPoly [256]Fr
+	extPoly[0].SetUint64(1)
+	extPoly[1].SetBytes(n.key)
+	toFr(&extPoly[2], n.c1)
+	toFr(&extPoly[3], n.c2)
+
+	var scomm *Point
+	if slot < 128 {
+		scomm = n.c1
+	} else {
+		scomm = n.c2
+	}
+
+	// suffix tree is present, but does not contain the key
+	if n.values[slot] == nil {
+		return []*Point{n.commitment, scomm}, []byte{suffSlot, slot}, []*Fr{&extPoly[2+slot/128], &FrZero}, [][]Fr{extPoly[:], poly[:]}
+	}
+	//return nil, nil, nil, nil
+
+	// suffix tree is present and contains the key
+	// TODO(gballet) the interface must change in order to return two leaves
+	return []*Point{n.commitment, scomm}, []byte{suffSlot, slot}, []*Fr{&extPoly[2+slot/128], new(Fr).SetBytes(n.values[slot][16:])}, [][]Fr{extPoly[:], poly[:]}
 }
 
 func (n *LeafNode) Serialize() ([]byte, error) {

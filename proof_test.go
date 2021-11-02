@@ -27,6 +27,7 @@ package verkle
 
 import (
 	"crypto/rand"
+	"encoding/hex"
 	"testing"
 )
 
@@ -84,6 +85,18 @@ func TestMultiProofVerifyMultipleLeaves(t *testing.T) {
 	}
 }
 
+func TestProofOfAbsenceLeafVerify(t *testing.T) {
+	root := New()
+	root.Insert(zeroKeyTest, zeroKeyTest, nil)
+	root.Insert(ffx32KeyTest, zeroKeyTest, nil)
+
+	proof := MakeVerkleProofOneLeaf(root, oneKeyTest)
+
+	comms, zis, yis, _ := root.GetCommitmentsAlongPath(oneKeyTest)
+	if !VerifyVerkleProof(proof, comms, zis, yis, GetConfig()) {
+		t.Fatal("could not verify verkle proof")
+	}
+}
 func BenchmarkProofCalculation(b *testing.B) {
 	value := []byte("value")
 	keys := make([][]byte, 100000)
