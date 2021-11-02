@@ -97,6 +97,24 @@ func TestProofOfAbsenceLeafVerify(t *testing.T) {
 		t.Fatal("could not verify verkle proof")
 	}
 }
+func TestProofOfAbsenceLeafVerifyOtherSuffix(t *testing.T) {
+	root := New()
+	root.Insert(zeroKeyTest, zeroKeyTest, nil)
+	root.Insert(ffx32KeyTest, zeroKeyTest, nil)
+
+	key := func() []byte {
+		ret, _ := hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000080")
+		return ret
+	}()
+
+	proof := MakeVerkleProofOneLeaf(root, key)
+
+	comms, zis, yis, _ := root.GetCommitmentsAlongPath(key)
+	if !VerifyVerkleProof(proof, comms, zis, yis, GetConfig()) {
+		t.Fatal("could not verify verkle proof")
+	}
+}
+
 func BenchmarkProofCalculation(b *testing.B) {
 	value := []byte("value")
 	keys := make([][]byte, 100000)

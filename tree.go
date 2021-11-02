@@ -685,19 +685,20 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*Point, []byte, []*Fr,
 		count = fillSuffixTreePoly(poly[:], n.values[:128])
 	}
 
-	// suffix tree is empty? Only return the extension-level
-	if count == 0 {
-		// TODO(gballet) maintain a count variable at LeafNode level
-		// so that we know not to build the polynomials in this case,
-		// as it needs to be recomputed.
-		return []*Point{n.commitment}, []byte{suffSlot}, []*Fr{&FrZero}, [][]Fr{poly[:]}
-	}
-
 	var extPoly [256]Fr
 	extPoly[0].SetUint64(1)
 	extPoly[1].SetBytes(n.key)
 	toFr(&extPoly[2], n.c1)
 	toFr(&extPoly[3], n.c2)
+
+	// suffix tree is empty? Only return the extension-level
+	if count == 0 {
+		// TODO(gballet) maintain a count variable at LeafNode level
+		// so that we know not to build the polynomials in this case,
+		// as all the information is available before fillSuffixTreePoly
+		// has to be called, save the count.
+		return []*Point{n.commitment}, []byte{suffSlot}, []*Fr{&FrZero}, [][]Fr{extPoly[:]}
+	}
 
 	var scomm *Point
 	if slot < 128 {
@@ -710,7 +711,6 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*Point, []byte, []*Fr,
 	if n.values[slot] == nil {
 		return []*Point{n.commitment, scomm}, []byte{suffSlot, slot}, []*Fr{&extPoly[2+slot/128], &FrZero}, [][]Fr{extPoly[:], poly[:]}
 	}
-	//return nil, nil, nil, nil
 
 	// suffix tree is present and contains the key
 	// TODO(gballet) the interface must change in order to return two leaves
