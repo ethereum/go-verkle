@@ -665,7 +665,7 @@ func fillSuffixTreePoly(poly []Fr, values [][]byte) int {
 func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*Point, []byte, []*Fr, [][]Fr) {
 	var (
 		slot     = key[31]
-		suffSlot = 2 + byte(slot/128)
+		suffSlot = 2 + slot/128
 		poly     [256]Fr
 		count    int
 	)
