@@ -643,6 +643,26 @@ func (n *LeafNode) ComputeCommitment() *Fr {
 	return n.hash
 }
 
+// leafToComms turns a leaf into two commitments of the suffix
+// and extension tree.
+func leafToComms(poly []Fr, val []byte) {
+	if len(val) != 32 {
+		panic("invalid leaf length")
+	}
+	var (
+		valLoWithMarker [17]byte
+		valHi           [16]byte
+	)
+	valLoWithMarker[0] = 1 // 2**21
+	// swap bytes because bandersnatch uses big endian
+	for i := range valLoWithMarker[1:] {
+		valLoWithMarker[1+i] = val[15-i]
+		valHi[i] = val[31-i]
+	}
+	fromBytes(&poly[0], valLoWithMarker[:])
+	fromBytes(&poly[1], valHi[:])
+}
+
 // fillSuffixTreePoly takes one of the two suffix tree and
 // builds the associated polynomial, to be used to compute
 // the corresponding C{1,2} commitment.
@@ -654,9 +674,7 @@ func fillSuffixTreePoly(poly []Fr, values [][]byte) int {
 		}
 		count++
 
-		// TODO(@gballet) add 2**128
-		fromBytes(&poly[2*(idx%128)], val[:16])
-		fromBytes(&poly[2*(idx%128)+1], val[16:])
+		leafToComms(poly[(idx<<1)&0xFF:], val)
 	}
 	return count
 }
