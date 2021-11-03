@@ -25,21 +25,27 @@
 
 package verkle
 
-import (
-	"bytes"
-)
+import "testing"
 
-const (
-	NodeWidth    = 256
-	NodeBitWidth = 8
-)
-
-func equalPaths(key1, key2 []byte) bool {
-	return bytes.Equal(key1[:31], key2[:31])
-}
-
-// offset2key extracts the n bits of a key that correspond to the
-// index of a child node.
-func offset2key(key []byte, offset int) byte {
-	return key[offset/8]
+func TestEmptyFuncs(t *testing.T) {
+	var e Empty
+	err := e.Insert(zeroKeyTest, zeroKeyTest, nil)
+	if err == nil {
+		t.Fatal("got nil error when inserting into empty")
+	}
+	err = e.InsertOrdered(zeroKeyTest, zeroKeyTest, nil)
+	if err == nil {
+		t.Fatal("got nil error when inserting into empty")
+	}
+	err = e.Delete(zeroKeyTest)
+	if err == nil {
+		t.Fatal("got nil error when deleting from empty")
+	}
+	v, err := e.Get(zeroKeyTest, nil)
+	if err != nil {
+		t.Fatal("got non-nil error when getting from empty")
+	}
+	if v != nil {
+		t.Fatal("non-nil get from empty")
+	}
 }
