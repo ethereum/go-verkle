@@ -474,7 +474,6 @@ func (n *InternalNode) ComputeCommitment() *Fr {
 			emptyChildren++
 		default:
 			CopyFr(&poly[idx], child.ComputeCommitment())
-			fmt.Println("idx=", poly[idx])
 		}
 	}
 
@@ -632,7 +631,7 @@ func (n *LeafNode) ComputeCommitment() *Fr {
 	fromBytes(&poly[1], n.key)
 
 	count = fillSuffixTreePoly(c1poly[:], n.values[:128])
-	n.c1 = n.committer.CommitToPoly(c2poly[:], 256-count)
+	n.c1 = n.committer.CommitToPoly(c1poly[:], 256-count)
 	toFr(&poly[2], n.c1)
 	count = fillSuffixTreePoly(c2poly[:], n.values[128:])
 	n.c2 = n.committer.CommitToPoly(c2poly[:], 256-count)
