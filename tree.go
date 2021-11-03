@@ -141,14 +141,6 @@ func New() VerkleNode {
 	return newInternalNode(0, GetConfig())
 }
 
-func (n *InternalNode) Depth() int {
-	return n.depth
-}
-
-func (n *InternalNode) SetDepth(depth int) {
-	n.depth = depth
-}
-
 func (n *InternalNode) Children() []VerkleNode {
 	return n.children
 }
