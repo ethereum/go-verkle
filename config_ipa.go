@@ -26,24 +26,28 @@
 package verkle
 
 import (
-	"bytes"
+	"github.com/crate-crypto/go-ipa/ipa"
 )
 
-const (
-	NodeWidth    = 256
-	NodeBitWidth = 8
-)
-
-func equalPaths(key1, key2 []byte) bool {
-	if len(key1) < 31 || len(key2) < 31 {
-		return false
-	}
-
-	return bytes.Equal(key1[:31], key2[:31])
+type IPAConfig struct {
+	conf *ipa.IPAConfig
 }
 
-// offset2key extracts the n bits of a key that correspond to the
-// index of a child node.
-func offset2key(key []byte, offset int) byte {
-	return key[offset/8]
+type Config = IPAConfig
+
+func (ipac *IPAConfig) CommitToPoly(poly []Fr, _ int) *Point {
+	ret := ipac.conf.Commit(poly)
+	return &ret
+}
+
+func GetConfig() *Config {
+	return &IPAConfig{conf: ipa.NewIPASettingsUnsecure()}
+}
+
+var FrZero Fr
+var FrOne Fr
+
+func init() {
+	FrZero.SetZero()
+	FrOne.SetOne()
 }
