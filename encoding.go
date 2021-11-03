@@ -28,8 +28,6 @@ package verkle
 import (
 	"errors"
 	"fmt"
-
-	"github.com/protolambda/go-kzg/bls"
 )
 
 var ErrInvalidNodeEncoding = errors.New("invalid node encoding")
@@ -69,7 +67,7 @@ func ParseNode(serialized []byte, depth int) (VerkleNode, error) {
 		ln := &LeafNode{
 			key:       serialized[1:32],
 			values:    values[:],
-			committer: GetKZGConfig(),
+			committer: GetConfig(),
 		}
 		return ln, nil
 	case internalRLPType:
@@ -82,19 +80,19 @@ func ParseNode(serialized []byte, depth int) (VerkleNode, error) {
 func CreateInternalNode(bitlist []byte, raw []byte, depth int) (*InternalNode, error) {
 	// GetTreeConfig caches computation result, hence
 	// this op has low overhead
-	tc := GetKZGConfig()
+	tc := GetConfig()
 	n := (newInternalNode(depth, tc)).(*InternalNode)
 	indices := indicesFromBitlist(bitlist)
 	if len(raw)/32 != len(indices) {
 		return nil, ErrInvalidNodeEncoding
 	}
 	for i, index := range indices {
-		hashed := &HashedNode{hash: new(bls.Fr)}
+		hashed := &HashedNode{hash: new(Fr)}
 		// TODO(@gballet) use (*[32]byte)() when geth moves
 		// to deprecate pre-Go 1.17 compilers
 		var h [32]byte
 		copy(h[:], raw[i*32:(i+1)*32])
-		bls.FrFrom32(hashed.hash, h)
+		from32(hashed.hash, h)
 		n.children[index] = hashed
 		n.count++
 	}

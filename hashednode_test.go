@@ -25,21 +25,27 @@
 
 package verkle
 
-import (
-	"bytes"
-)
+import "testing"
 
-const (
-	NodeWidth    = 256
-	NodeBitWidth = 8
-)
-
-func equalPaths(key1, key2 []byte) bool {
-	return bytes.Equal(key1[:31], key2[:31])
-}
-
-// offset2key extracts the n bits of a key that correspond to the
-// index of a child node.
-func offset2key(key []byte, offset int) byte {
-	return key[offset/8]
+func TestHashedNodeFuncs(t *testing.T) {
+	e := HashedNode{hash: new(Fr), commitment: new(Point)}
+	err := e.Insert(zeroKeyTest, zeroKeyTest, nil)
+	if err == nil {
+		t.Fatal("got nil error when inserting into a hashed node")
+	}
+	err = e.InsertOrdered(zeroKeyTest, zeroKeyTest, nil)
+	if err == nil {
+		t.Fatal("got nil error when inserting into a hashed node")
+	}
+	err = e.Delete(zeroKeyTest)
+	if err == nil {
+		t.Fatal("got nil error when deleting from a hashed node")
+	}
+	v, err := e.Get(zeroKeyTest, nil)
+	if err == nil {
+		t.Fatal("got nil error when getting from a hashed node")
+	}
+	if v != nil {
+		t.Fatal("non-nil get from a hashed node")
+	}
 }

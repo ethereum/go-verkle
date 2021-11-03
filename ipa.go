@@ -26,31 +26,39 @@
 package verkle
 
 import (
-	"bytes"
-	"encoding/hex"
-	"testing"
-
-	"github.com/protolambda/go-kzg/bls"
+	"github.com/crate-crypto/go-ipa/bandersnatch"
+	"github.com/crate-crypto/go-ipa/bandersnatch/fr"
 )
 
-func hex2Bytes(str string) []byte {
-	ret, err := hex.DecodeString(str)
-	if err != nil {
-		panic(err)
-	}
-	return ret
+type Fr = fr.Element
+type Point = bandersnatch.PointAffine
+
+func CopyFr(dst, src *Fr) {
+	copy(dst[:], src[:])
 }
 
-func TestGoerliInsertBug(t *testing.T) {
-	root := New()
-	root.InsertOrdered(hex2Bytes("000c9f87eb59996c38b587bb3a5a49b85a64b8b6bb7dd76e87125fe1370071a2"), hex2Bytes("f84b018701d7c17cd98200a056e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421a0c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470"), nil)
-	root.InsertOrdered(hex2Bytes("000ca9506198b51956083dabde9b3c5c0c4251b56ea4741396ce02631c4be379"), hex2Bytes("f84b018701d7b0b950b200a056e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421a0c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470"), nil)
-	root.InsertOrdered(hex2Bytes("000ca9538ed7e9a5688464cc41c8c5f20af324c76ea78360abe7d57185c23834"), hex2Bytes("f8440180a01a67cc51538c651f63e8d55094b0ae7bca7f623f05a9ff77ca815dd44d5c8322a010b37de11f39e0a372615c70e1d4d7c613937e8f61823d59be9bea62112e175c"), nil)
-	expected := hex2Bytes("08deb1e229978cc0fe60ab00acbe75545d82871a6530a0564db4ac3b8f0e195b")
+func CopyPoint(dst, src *Point) {
+	bytes := src.Bytes()
+	dst.SetBytes(bytes[:])
+}
 
-	got := bls.FrTo32(root.ComputeCommitment())
+func toFr(fr *Fr, p *Point) {
+	bytes := p.Bytes()
+	fr.SetBytes(bytes[:])
+}
 
-	if !bytes.Equal(got[:], expected) {
-		t.Fatalf("incorrect root commitment %x != %x", got, expected)
-	}
+func to32(fr *Fr) [32]byte {
+	return fr.Bytes()
+}
+
+func from32(fr *Fr, data [32]byte) {
+	fr.SetBytes(data[:])
+}
+
+func fromBytes(fr *Fr, data []byte) {
+	fr.SetBytes(data)
+}
+
+func Equal(fr *Fr, other *Fr) bool {
+	return fr.Equal(other)
 }
