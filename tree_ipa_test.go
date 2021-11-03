@@ -41,7 +41,8 @@ func init() {
 
 func extensionAndSuffixOneKey(key, value []byte, ret *Point) {
 	var (
-		v, v1, v2                       Fr
+		v                               Fr
+		vs                              [2]Fr
 		srs                             = GetConfig().conf.SRS
 		stemComm1, stemComm3, stemComm2 Point
 		zero, t1, t2, c1                Point
@@ -50,9 +51,8 @@ func extensionAndSuffixOneKey(key, value []byte, ret *Point) {
 	fromBytes(&v, key[:31])
 	stemComm1.ScalarMul(&srs[1], &v)
 
-	fromBytes(&v1, value[:16])
-	fromBytes(&v2, value[16:])
-	c1.Add(t1.ScalarMul(&srs[2*key[31]], &v1), t2.ScalarMul(&srs[2*key[31]+1], &v2))
+	leafToComms(vs[:], value)
+	c1.Add(t1.ScalarMul(&srs[2*key[31]], &vs[0]), t2.ScalarMul(&srs[2*key[31]+1], &vs[1]))
 	toFr(&v, &c1)
 	stemComm2.ScalarMul(&srs[2], &v)
 
@@ -122,7 +122,8 @@ func TestInsertKey1Value1(t *testing.T) {
 
 func TestInsertSameStemTwoLeaves(t *testing.T) {
 	var (
-		v, v1, v2, expected             Fr
+		v, expected                     Fr
+		vs                              [2]Fr
 		root                            = New()
 		expectedP, c1, c2, t1, t2       Point
 		stemComm1, stemComm3, stemComm2 Point
@@ -144,15 +145,13 @@ func TestInsertSameStemTwoLeaves(t *testing.T) {
 	fromBytes(&v, key_a[:31])
 	stemComm1.ScalarMul(&srs[1], &v)
 
-	fromBytes(&v1, key_a[:16])
-	fromBytes(&v2, key_a[16:])
-	c1.Add(t1.ScalarMul(&srs[64], &v1), t2.ScalarMul(&srs[65], &v2))
+	leafToComms(vs[:], key_a)
+	c1.Add(t1.ScalarMul(&srs[64], &vs[0]), t2.ScalarMul(&srs[65], &vs[1]))
 	toFr(&v, &c1)
 	stemComm2.ScalarMul(&srs[2], &v)
 
-	fromBytes(&v1, key_b[:16])
-	fromBytes(&v2, key_b[16:])
-	c2.Add(t1.ScalarMul(&srs[0], &v1), t2.ScalarMul(&srs[1], &v2))
+	leafToComms(vs[:], key_b)
+	c2.Add(t1.ScalarMul(&srs[0], &vs[0]), t2.ScalarMul(&srs[1], &vs[1]))
 	toFr(&v, &c2)
 	stemComm3.ScalarMul(&srs[3], &v)
 
