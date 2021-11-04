@@ -354,9 +354,15 @@ func (n *InternalNode) Delete(key []byte) error {
 func (n *InternalNode) Flush(flush NodeFlushFn) {
 	for i, child := range n.children {
 		if c, ok := child.(*InternalNode); ok {
+			if c.commitment == nil {
+				c.ComputeCommitment()
+			}
 			c.Flush(flush)
 			n.children[i] = c.toHashedNode()
 		} else if c, ok := child.(*LeafNode); ok {
+			if c.commitment == nil {
+				c.ComputeCommitment()
+			}
 			flush(n.children[i])
 			n.children[i] = c.toHashedNode()
 		}
@@ -467,7 +473,7 @@ func (n *InternalNode) Serialize() ([]byte, error) {
 	for i, c := range n.children {
 		if _, ok := c.(Empty); !ok {
 			setBit(bitlist[:], i)
-			digits := to32(c.ComputeCommitment())
+			digits := c.ComputeCommitment().Bytes()
 			children = append(children, digits[:]...)
 		}
 	}
