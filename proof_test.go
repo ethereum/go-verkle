@@ -129,14 +129,13 @@ func TestProofOfAbsenceLeafVerifyOtherSuffix(t *testing.T) {
 }
 
 func BenchmarkProofCalculation(b *testing.B) {
-	value := []byte("value")
 	keys := make([][]byte, 100000)
 	root := New()
 	for i := 0; i < 100000; i++ {
 		key := make([]byte, 32)
 		rand.Read(key)
 		keys[i] = key
-		root.Insert(key, value, nil)
+		root.Insert(key, zeroKeyTest, nil)
 	}
 
 	b.ResetTimer()
@@ -148,14 +147,13 @@ func BenchmarkProofCalculation(b *testing.B) {
 }
 
 func BenchmarkProofVerification(b *testing.B) {
-	value := []byte("value")
 	keys := make([][]byte, 100000)
 	root := New()
 	for i := 0; i < 100000; i++ {
 		key := make([]byte, 32)
 		rand.Read(key)
 		keys[i] = key
-		root.Insert(key, value, nil)
+		root.Insert(key, zeroKeyTest, nil)
 	}
 
 	root.ComputeCommitment()
