@@ -333,7 +333,7 @@ func TestDelLeaf(t *testing.T) {
 	}
 
 	postHash := tree.ComputeCommitment()
-	if !Equal(hash, postHash) {
+	if Equal(hash, postHash) {
 		t.Error("deleting leaf resulted in unexpected tree")
 	}
 
@@ -341,7 +341,7 @@ func TestDelLeaf(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if res != nil {
+	if !bytes.Equal(res, zeroKeyTest) {
 		t.Error("leaf hasnt been deleted")
 	}
 }
@@ -376,111 +376,30 @@ func TestDeletePrune(t *testing.T) {
 		t.Error(err)
 	}
 	postHash := tree.ComputeCommitment()
-	if !Equal(hash2, postHash) {
+	if Equal(hash2, postHash) {
 		t.Error("deleting leaf #4 resulted in unexpected tree")
 	}
+	res, err := tree.Get(key4, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	if !bytes.Equal(res, zeroKeyTest) {
+		t.Error("leaf hasnt been deleted")
+	}
 
 	if err := tree.Delete(key3); err != nil {
 		t.Error(err)
 	}
 	postHash = tree.ComputeCommitment()
-	if !Equal(hash1, postHash) {
+	if Equal(hash1, postHash) {
 		t.Error("deleting leaf #3 resulted in unexpected tree")
 	}
-}
-
-func TestDeletePruneMultipleLevels(t *testing.T) {
-	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
-	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
-	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
-	key4, _ := hex.DecodeString("0405010000000000000000000000000000000000000000000000000000000000")
-	tree := New()
-	tree.Insert(key1, fourtyKeyTest, nil)
-	tree.Insert(key2, fourtyKeyTest, nil)
-
-	hash1 := tree.ComputeCommitment()
-	tree.Insert(key3, fourtyKeyTest, nil)
-	hash2 := tree.ComputeCommitment()
-	tree.Insert(key4, fourtyKeyTest, nil)
-
-	if err := tree.Delete(key4); err != nil {
+	res, err = tree.Get(key3, nil)
+	if err != nil {
 		t.Error(err)
 	}
-	postHash := tree.ComputeCommitment()
-	if !Equal(hash2, postHash) {
-		t.Error("deleting leaf resulted in unexpected tree")
-	}
-
-	tempNode := tree.(*InternalNode).children[4]
-	if _, ok := tempNode.(*LeafNode); !ok {
-		t.Fatal("did not collapse extension for 450")
-	}
-
-	if err := tree.Delete(key3); err != nil {
-		t.Error(err)
-	}
-	postHash = tree.ComputeCommitment()
-	if !Equal(hash1, postHash) {
-		t.Error("deleting leaf resulted in unexpected tree")
-	}
-
-	if _, ok := tree.(*InternalNode).children[4].(Empty); !ok {
-		t.Fatal("did not delete the right node")
-	}
-}
-
-func TestDeletePruneExtensions(t *testing.T) {
-	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
-	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
-	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
-	key4, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000001")
-	tree := New()
-	tree.Insert(key1, fourtyKeyTest, nil)
-	tree.Insert(key2, fourtyKeyTest, nil)
-
-	hash1 := tree.ComputeCommitment()
-	tree.Insert(key3, fourtyKeyTest, nil)
-	hash2 := tree.ComputeCommitment()
-	tree.Insert(key4, fourtyKeyTest, nil)
-
-	node4 := tree.(*InternalNode).children[4]
-	leaf, ok := node4.(*LeafNode)
-	if !ok {
-		t.Fatal("could not find expected leaf node")
-	}
-
-	if leaf.values[0] == nil || leaf.values[1] == nil {
-		t.Fatal("value isn't present where expected")
-	}
-	for i := 2; i < 256; i++ {
-		if leaf.values[i] != nil {
-			t.Fatalf("unexpected value at %d", i)
-		}
-	}
-
-	if err := tree.Delete(key4); err != nil {
-		t.Error(err)
-	}
-	postHash := tree.ComputeCommitment()
-	if !Equal(hash2, postHash) {
-		t.Error("deleting leaf resulted in unexpected tree")
-	}
-
-	if leaf.values[0] == nil {
-		t.Fatal("value isn't present where expected")
-	}
-	for i := 1; i < 256; i++ {
-		if leaf.values[i] != nil {
-			t.Fatalf("unexpected value at %d", i)
-		}
-	}
-
-	if err := tree.Delete(key3); err != nil {
-		t.Error(err)
-	}
-	postHash = tree.ComputeCommitment()
-	if !Equal(hash1, postHash) {
-		t.Error("deleting leaf resulted in unexpected tree")
+	if !bytes.Equal(res, zeroKeyTest) {
+		t.Error("leaf hasnt been deleted")
 	}
 }
 
