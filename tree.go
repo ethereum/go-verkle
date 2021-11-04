@@ -86,6 +86,7 @@ const (
 var (
 	errInsertIntoHash      = errors.New("trying to insert into hashed node")
 	errDeleteNonExistent   = errors.New("trying to delete non-existent leaf")
+	errDeleteHash          = errors.New("trying to delete from a hashed subtree")
 	errReadFromInvalid     = errors.New("trying to read from an invalid child")
 	errSerializeHashedNode = errors.New("trying to serialized a hashed node")
 )
@@ -342,50 +343,10 @@ func (n *InternalNode) Delete(key []byte) error {
 	case Empty:
 		return errDeleteNonExistent
 	case *HashedNode:
-		return errors.New("trying to delete from a hashed subtree")
-	case *LeafNode:
-		if !equalPaths(child.key, key) {
-			return errDeleteNonExistent
-		}
-		if err := child.Delete(key); err != nil {
-			return err
-		}
-		// Prune child if necessary
-		for _, v := range child.values {
-			if v != nil {
-				// bail if at least one child node have been found
-				return nil
-			}
-		}
-		// leaf node is now empty, prune it
-		n.children[nChild] = Empty{}
-		n.count--
-		return nil
-	case *InternalNode:
-		if err := child.Delete(key); err != nil {
-			return err
-		}
-		// Prune child if necessary
-		switch child.count {
-		case 0:
-			n.children[nChild] = Empty{}
-			n.count--
-		case 1:
-			// child node has only one child, and if that child
-			// is a LeafNode, then it needs to be removed since
-			// its key is covered by the extension. Other nodes
-			// with only one leaf could be the parent of a node
-			// with more than one leaf, and so they must remain
-			for i, v := range child.children {
-				if _, ok := v.(*LeafNode); ok {
-					n.children[nChild] = child.children[i]
-					break
-				}
-			}
-		default:
-		}
+		return errDeleteHash
+	default:
+		return child.Delete(key)
 	}
-	return nil
 }
 
 // Flush hashes the children of an internal node and replaces them
@@ -590,12 +551,13 @@ func (n *LeafNode) InsertOrdered(key []byte, value []byte, _ NodeFlushFn) error 
 func (n *LeafNode) Delete(k []byte) error {
 	// Sanity check: ensure the key header is the same:
 	if !equalPaths(k, n.key) {
-		return errors.New("trying to delete a non-existing key")
+		return errDeleteNonExistent
 	}
 
+	var zero [32]byte
 	n.commitment = nil
 	n.hash = nil
-	n.values[k[31]] = nil
+	n.values[k[31]] = zero[:]
 	return nil
 }
 
