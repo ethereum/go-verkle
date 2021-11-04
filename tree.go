@@ -597,26 +597,6 @@ func (n *LeafNode) ComputeCommitment() *Fr {
 	return n.hash
 }
 
-// leafToComms turns a leaf into two commitments of the suffix
-// and extension tree.
-func leafToComms(poly []Fr, val []byte) {
-	if len(val) != 32 {
-		panic("invalid leaf length")
-	}
-	var (
-		valLoWithMarker [17]byte
-		valHi           [16]byte
-	)
-	valLoWithMarker[0] = 1 // 2**21
-	// swap bytes because bandersnatch uses big endian
-	for i := range valLoWithMarker[1:] {
-		valLoWithMarker[1+i] = val[15-i]
-		valHi[i] = val[31-i]
-	}
-	fromBytes(&poly[0], valLoWithMarker[:])
-	fromBytes(&poly[1], valHi[:])
-}
-
 // fillSuffixTreePoly takes one of the two suffix tree and
 // builds the associated polynomial, to be used to compute
 // the corresponding C{1,2} commitment.
@@ -631,6 +611,30 @@ func fillSuffixTreePoly(poly []Fr, values [][]byte) int {
 		leafToComms(poly[(idx<<1)&0xFF:], val)
 	}
 	return count
+}
+
+// leafToComms turns a leaf into two commitments of the suffix
+// and extension tree.
+func leafToComms(poly []Fr, val []byte) {
+	if len(val) > 32 {
+		panic(fmt.Sprintf("invalid leaf length %d, %v", len(val), val))
+	}
+	var (
+		valLoWithMarker [17]byte
+		valHi           [16]byte
+	)
+	valLoWithMarker[0] = 1 // 2**21
+	// swap bytes because bandersnatch uses big endian
+	for i := range valLoWithMarker[1:] {
+		if len(val) > 16-i {
+			valLoWithMarker[1+i] = val[15-i]
+		}
+		if len(val) > 32-i {
+			valHi[i] = val[31-i]
+		}
+	}
+	fromBytes(&poly[0], valLoWithMarker[:])
+	fromBytes(&poly[1], valHi[:])
 }
 
 func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*Point, []byte, []*Fr, [][]Fr) {
@@ -676,7 +680,9 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*Point, []byte, []*Fr,
 
 	// suffix tree is present and contains the key
 	// TODO(gballet) the interface must change in order to return two leaves
-	return []*Point{n.commitment, scomm}, []byte{suffSlot, slot}, []*Fr{&extPoly[2+slot/128], new(Fr).SetBytes(n.values[slot][16:])}, [][]Fr{extPoly[:], poly[:]}
+	var leaves [2]Fr
+	leafToComms(leaves[:], n.values[slot])
+	return []*Point{n.commitment, scomm}, []byte{suffSlot, slot}, []*Fr{&extPoly[2+slot/128], &leaves[0]}, [][]Fr{extPoly[:], poly[:]}
 }
 
 func (n *LeafNode) Serialize() ([]byte, error) {
