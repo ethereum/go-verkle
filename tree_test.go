@@ -403,6 +403,34 @@ func TestDeletePrune(t *testing.T) {
 	}
 }
 
+func TestDeleteHash(t *testing.T) {
+	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
+	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
+	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
+	tree := New()
+	tree.Insert(key1, fourtyKeyTest, nil)
+	tree.InsertOrdered(key2, fourtyKeyTest, nil)
+	tree.InsertOrdered(key3, fourtyKeyTest, nil)
+	tree.ComputeCommitment()
+	if err := tree.Delete(key2); err != errDeleteHash {
+		t.Fatalf("did not report the correct error while deleting from a hash: %v", err)
+	}
+}
+
+func TestDeleteUnequalPath(t *testing.T) {
+	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
+	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
+	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
+	tree := New()
+	tree.Insert(key1, fourtyKeyTest, nil)
+	tree.Insert(key3, fourtyKeyTest, nil)
+	tree.ComputeCommitment()
+
+	if err := tree.Delete(key2); err != errDeleteNonExistent {
+		t.Fatalf("didn't catch the deletion of non-existing key, err =%v", err)
+	}
+}
+
 func TestConcurrentTrees(t *testing.T) {
 	tree := New()
 	err := tree.Insert(zeroKeyTest, fourtyKeyTest, nil)

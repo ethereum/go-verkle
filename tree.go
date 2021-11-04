@@ -86,6 +86,7 @@ const (
 var (
 	errInsertIntoHash      = errors.New("trying to insert into hashed node")
 	errDeleteNonExistent   = errors.New("trying to delete non-existent leaf")
+	errDeleteHash          = errors.New("trying to delete from a hashed subtree")
 	errReadFromInvalid     = errors.New("trying to read from an invalid child")
 	errSerializeHashedNode = errors.New("trying to serialized a hashed node")
 )
@@ -350,7 +351,7 @@ func (n *InternalNode) Delete(key []byte) error {
 	case Empty:
 		return errDeleteNonExistent
 	case *HashedNode:
-		return errors.New("trying to delete from a hashed subtree")
+		return errDeleteHash
 	default:
 		return child.Delete(key)
 	}
@@ -558,7 +559,7 @@ func (n *LeafNode) InsertOrdered(key []byte, value []byte, _ NodeFlushFn) error 
 func (n *LeafNode) Delete(k []byte) error {
 	// Sanity check: ensure the key header is the same:
 	if !equalPaths(k, n.key) {
-		return errors.New("trying to delete a non-existing key")
+		return errDeleteNonExistent
 	}
 
 	var zero [32]byte
