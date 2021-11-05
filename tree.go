@@ -688,7 +688,7 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*Point, []byte, []*Fr,
 	// TODO(gballet) the interface must change in order to return two leaves
 	var leaves [2]Fr
 	leafToComms(leaves[:], n.values[slot])
-	return []*Point{n.commitment, scomm}, []byte{suffSlot, slot}, []*Fr{&extPoly[2+slot/128], &leaves[0]}, [][]Fr{extPoly[:], poly[:]}
+	return []*Point{n.commitment, scomm}, []byte{suffSlot, slot}, []*Fr{&extPoly[2+slot/128], &leaves[1]}, [][]Fr{extPoly[:], poly[:]}
 }
 
 func (n *LeafNode) Serialize() ([]byte, error) {
