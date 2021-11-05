@@ -47,10 +47,6 @@ func toFr(fr *Fr, p *Point) {
 	fr.SetBytes(bytes[:])
 }
 
-func to32(fr *Fr) [32]byte {
-	return fr.Bytes()
-}
-
 func from32(fr *Fr, data [32]byte) {
 	fr.SetBytes(data[:])
 }

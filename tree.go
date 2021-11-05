@@ -175,7 +175,7 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 		n.count++
 	case *HashedNode:
 		if resolver != nil {
-			hash := to32(child.ComputeCommitment())
+			hash := child.ComputeCommitment().Bytes()
 			serialized, err := resolver(hash[:])
 			if err != nil {
 				return fmt.Errorf("verkle tree: error resolving node %x: %w", key, err)
@@ -386,7 +386,7 @@ func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 			return nil, errReadFromInvalid
 		}
 
-		commitment := to32(child.hash)
+		commitment := child.hash.Bytes()
 		payload, err := getter(commitment[:])
 		if err != nil {
 			return nil, err
@@ -520,7 +520,7 @@ func (n *InternalNode) clearCache() {
 func (n *InternalNode) toDot(parent, path string) string {
 	n.ComputeCommitment()
 	me := fmt.Sprintf("internal%s", path)
-	ret := fmt.Sprintf("%s [label=\"I: %x\"]\n", me, to32(n.hash))
+	ret := fmt.Sprintf("%s [label=\"I: %x\"]\n", me, n.hash.Bytes())
 	if len(parent) > 0 {
 		ret = fmt.Sprintf("%s %s -> %s\n", ret, parent, me)
 	}
@@ -735,7 +735,7 @@ func (n *LeafNode) Value(i int) []byte {
 }
 
 func (n *LeafNode) toDot(parent, path string) string {
-	ret := fmt.Sprintf("leaf%s [label=\"L: %x\nC: %x\"]\n%s -> leaf%s\n", path, to32(n.hash), n.commitment.Bytes(), parent, path)
+	ret := fmt.Sprintf("leaf%s [label=\"L: %x\nC: %x\"]\n%s -> leaf%s\n", path, n.hash.Bytes(), n.commitment.Bytes(), parent, path)
 	for i, v := range n.values {
 		if v != nil {
 			ret = fmt.Sprintf("%sval%s%x [label=\"%x\"]\nleaf%s -> val%s%x\n", ret, path, i, v, path, path, i)

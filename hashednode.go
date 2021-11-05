@@ -79,5 +79,5 @@ func (n *HashedNode) Copy() VerkleNode {
 }
 
 func (n *HashedNode) toDot(parent, path string) string {
-	return fmt.Sprintf("hash%s [label=\"H: %x\"]\n%s -> hash%s\n", path, to32(n.hash), parent, path)
+	return fmt.Sprintf("hash%s [label=\"H: %x\"]\n%s -> hash%s\n", path, n.hash.Bytes(), parent, path)
 }

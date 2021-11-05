@@ -196,8 +196,8 @@ func TestInsertVsOrdered(t *testing.T) {
 		}
 	}
 
-	h2 := to32(root2.ComputeCommitment())
-	h1 := to32(root1.ComputeCommitment())
+	h2 := root2.ComputeCommitment().Bytes()
+	h1 := root1.ComputeCommitment().Bytes()
 
 	if !bytes.Equal(h1[:], h2[:]) {
 		t.Errorf("Insert and InsertOrdered produce different trees %x != %x", h1, h2)
@@ -253,14 +253,14 @@ func TestCopy(t *testing.T) {
 	copied := tree.Copy()
 	copied.(*InternalNode).clearCache()
 
-	got1 := to32(copied.ComputeCommitment())
-	got2 := to32(tree.ComputeCommitment())
+	got1 := copied.ComputeCommitment().Bytes()
+	got2 := tree.ComputeCommitment().Bytes()
 	if !bytes.Equal(got1[:], got2[:]) {
 		t.Fatalf("error copying commitments %x != %x", got1, got2)
 	}
 	tree.Insert(key2, oneKeyTest, nil)
 	tree.ComputeCommitment()
-	got2 = to32(tree.ComputeCommitment())
+	got2 = tree.ComputeCommitment().Bytes()
 	if bytes.Equal(got1[:], got2[:]) {
 		t1, _ := tree.Get(key2, nil)
 		t2, _ := copied.Get(key2, nil)
