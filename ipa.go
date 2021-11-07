@@ -51,6 +51,12 @@ func from32(fr *Fr, data [32]byte) {
 	fr.SetBytes(data[:])
 }
 
+func fromLEBytes(fr *Fr, data []byte) {
+	for i := range data {
+		data[i], data[len(data)-1-i] = data[len(data)-1-i], data[i]
+	}
+	fr.SetBytes(data)
+}
 func fromBytes(fr *Fr, data []byte) {
 	fr.SetBytes(data)
 }
