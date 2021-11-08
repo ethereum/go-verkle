@@ -824,3 +824,29 @@ func TestEmptyCommitment(t *testing.T) {
 		t.Fatalf("invalid yi %v %v", zero, yis[0])
 	}
 }
+
+func TestLeafToCommsMoreThan32(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("didn't catch length error")
+		}
+	}()
+	var value [33]byte
+	leafToComms([]Fr{}, value[:])
+}
+
+func TestLeafToCommsLessThan32(*testing.T) {
+	var (
+		value [16]byte
+		p     [2]Fr
+	)
+	leafToComms(p[:], value[:])
+}
+
+func TestLeafToCommsLessThan16(*testing.T) {
+	var (
+		value [4]byte
+		p     [2]Fr
+	)
+	leafToComms(p[:], value[:])
+}

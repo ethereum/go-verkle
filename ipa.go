@@ -58,7 +58,7 @@ func fromLEBytes(fr *Fr, data []byte) {
 	fr.SetBytes(data)
 }
 func fromBytes(fr *Fr, data []byte) {
-	fr.SetBytes(data)
+	fromLEBytes(fr, data)
 }
 
 func Equal(fr *Fr, other *Fr) bool {

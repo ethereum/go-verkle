@@ -625,11 +625,19 @@ func leafToComms(poly []Fr, val []byte) {
 	if len(val) > 32 {
 		panic(fmt.Sprintf("invalid leaf length %d, %v", len(val), val))
 	}
-	var valLoWithMarker [17]byte
-	copy(valLoWithMarker[:16], val[:16])
+	var (
+		valLoWithMarker [17]byte
+		loEnd           = 16
+	)
+	if len(val) < loEnd {
+		loEnd = len(val)
+	}
+	copy(valLoWithMarker[:loEnd], val[:loEnd])
 	valLoWithMarker[16] = 1 // 2**128
 	fromLEBytes(&poly[0], valLoWithMarker[:])
-	fromLEBytes(&poly[1], val[16:])
+	if len(val) >= 16 {
+		fromLEBytes(&poly[1], val[16:])
+	}
 }
 
 func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*Point, []byte, []*Fr, [][]Fr) {
