@@ -695,6 +695,10 @@ func (n *LeafNode) Serialize() ([]byte, error) {
 		if v != nil {
 			setBit(bitlist[:], i)
 			children = append(children, v...)
+			if len(v) < 32 {
+				padding := make([]byte, 32-len(v))
+				children = append(children, padding...)
+			}
 		}
 	}
 	return append(append(append([]byte{leafRLPType}, n.key...), bitlist[:]...), children...), nil
