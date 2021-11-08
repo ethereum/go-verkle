@@ -627,20 +627,17 @@ func leafToComms(poly []Fr, val []byte) {
 	}
 	var (
 		valLoWithMarker [17]byte
-		valHi           [16]byte
+		loEnd           = 16
 	)
-	valLoWithMarker[0] = 1 // 2**21
-	// swap bytes because bandersnatch uses big endian
-	for i := range valLoWithMarker[1:] {
-		if len(val) > 16-i {
-			valLoWithMarker[1+i] = val[15-i]
-		}
-		if len(val) > 32-i {
-			valHi[i] = val[31-i]
-		}
+	if len(val) < loEnd {
+		loEnd = len(val)
 	}
-	fromBytes(&poly[0], valLoWithMarker[:])
-	fromBytes(&poly[1], valHi[:])
+	copy(valLoWithMarker[:loEnd], val[:loEnd])
+	valLoWithMarker[16] = 1 // 2**128
+	fromLEBytes(&poly[0], valLoWithMarker[:])
+	if len(val) >= 16 {
+		fromLEBytes(&poly[1], val[16:])
+	}
 }
 
 func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*Point, []byte, []*Fr, [][]Fr) {
