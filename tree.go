@@ -695,9 +695,16 @@ func (n *LeafNode) Serialize() ([]byte, error) {
 		if v != nil {
 			setBit(bitlist[:], i)
 			children = append(children, v...)
+			// Ensure that the written value is 32-byte aligned
+			if len(v) < 32 {
+				var filling = make([]byte, 32-len(v))
+				children = append(children, filling...)
+			}
 		}
 	}
-	return append(append(append([]byte{leafRLPType}, n.key...), bitlist[:]...), children...), nil
+	out := append(append(append([]byte{leafRLPType}, n.key...), bitlist[:]...), children...)
+	fmt.Printf("serialized leaf %x %x\n", n.key, out)
+	return out, nil
 }
 
 func (n *LeafNode) Copy() VerkleNode {
