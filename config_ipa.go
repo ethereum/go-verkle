@@ -41,7 +41,7 @@ func (ipac *IPAConfig) CommitToPoly(poly []Fr, _ int) *Point {
 }
 
 func GetConfig() *Config {
-	return &IPAConfig{conf: ipa.NewIPASettingsUnsecure()}
+	return &IPAConfig{conf: ipa.NewIPASettings()}
 }
 
 var FrZero Fr
