@@ -641,6 +641,18 @@ func leafToComms(poly []Fr, val []byte) {
 }
 
 func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*Point, []byte, []*Fr, [][]Fr) {
+	// Special case: a stem tree is present, but with a
+	// different stem; in this case, return a non-opened
+	// stem-level node, with an opening at 4.
+	if !equalPaths(n.key, key) {
+		var poly [256]Fr
+		poly[0].SetUint64(1)
+		poly[1].SetBytes(n.key)
+		toFr(&poly[2], n.c1)
+		toFr(&poly[3], n.c2)
+		return []*Point{n.commitment}, []byte{4}, []*Fr{&poly[4]}, [][]Fr{poly[:]}
+	}
+
 	var (
 		slot     = key[31]
 		suffSlot = 2 + slot/128
