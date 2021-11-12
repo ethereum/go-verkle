@@ -64,7 +64,7 @@ type VerkleNode interface {
 	// traces through the tree, and collects the various
 	// elements needed to build a proof. The order of elements
 	// is from the bottom of the tree, up to the root.
-	GetCommitmentsAlongPath([]byte) ([]*Point, []uint8, []*Fr, [][]Fr)
+	GetCommitmentsAlongPath([]byte) *ProofElements
 
 	// Serialize encodes the node to RLP.
 	Serialize() ([]byte, error)
@@ -74,6 +74,23 @@ type VerkleNode interface {
 
 	// toDot returns a string representing this subtree in DOT language
 	toDot(string, string) string
+}
+
+// ProofElements gathers the elements needed to build a proof.
+type ProofElements struct {
+	Cis []*Point
+	Zis []byte
+	Yis []*Fr
+	Fis [][]Fr
+}
+
+// Merge merges the elements of two proofs and removes duplicates.
+// XXX doesn't currently remove duplicates
+func (pe *ProofElements) Merge(other *ProofElements) {
+	pe.Cis = append(pe.Cis, other.Cis...)
+	pe.Zis = append(pe.Zis, other.Zis...)
+	pe.Yis = append(pe.Yis, other.Yis...)
+	pe.Fis = append(pe.Fis, other.Fis...)
 }
 
 const (
@@ -115,7 +132,7 @@ type (
 	}
 
 	LeafNode struct {
-		key    []byte
+		stem   []byte
 		values [][]byte
 
 		commitment *Point
@@ -166,7 +183,7 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 	switch child := n.children[nChild].(type) {
 	case Empty:
 		lastNode := &LeafNode{
-			key:       key[:31],
+			stem:      key[:31],
 			values:    make([][]byte, NodeWidth),
 			committer: n.committer,
 		}
@@ -192,7 +209,7 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 		// Need to add a new branch node to differentiate
 		// between two keys, if the keys are different.
 		// Otherwise, just update the key.
-		if equalPaths(child.key, key) {
+		if equalPaths(child.stem, key) {
 			if err := child.Insert(key, value, resolver); err != nil {
 				return err
 			}
@@ -200,7 +217,7 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 			// A new branch node has to be inserted. Depending
 			// on the next word in both keys, a recursion into
 			// the moved leaf node can occur.
-			nextWordInExistingKey := offset2key(child.key, n.depth+NodeBitWidth)
+			nextWordInExistingKey := offset2key(child.stem, n.depth+NodeBitWidth)
 			newBranch := newInternalNode(n.depth+NodeBitWidth, n.committer).(*InternalNode)
 			newBranch.count = 1
 			n.children[nChild] = newBranch
@@ -211,7 +228,7 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 				// Next word differs, so this was the last level.
 				// Insert it directly into its final slot.
 				lastNode := &LeafNode{
-					key:       key[:31],
+					stem:      key[:31],
 					values:    make([][]byte, NodeWidth),
 					committer: n.committer,
 				}
@@ -272,7 +289,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 
 		// NOTE: these allocations are inducing a noticeable slowdown
 		lastNode := &LeafNode{
-			key:       key[:31],
+			stem:      key[:31],
 			values:    make([][]byte, NodeWidth),
 			committer: n.committer,
 		}
@@ -289,13 +306,13 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 		// Need to add a new branch node to differentiate
 		// between two keys, if the keys are different.
 		// Otherwise, just update the key.
-		if equalPaths(child.key, key) {
+		if equalPaths(child.stem, key) {
 			child.values[key[31]] = value
 		} else {
 			// A new branch node has to be inserted. Depending
 			// on the next word in both keys, a recursion into
 			// the moved leaf node can occur.
-			nextWordInExistingKey := offset2key(child.key, n.depth+NodeBitWidth)
+			nextWordInExistingKey := offset2key(child.stem, n.depth+NodeBitWidth)
 			newBranch := newInternalNode(n.depth+NodeBitWidth, n.committer).(*InternalNode)
 			newBranch.count = 1
 			n.children[nChild] = newBranch
@@ -312,7 +329,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 				// Next word differs, so this was the last level.
 				// Insert it directly into its final slot.
 				lastNode := &LeafNode{
-					key:       key[:31],
+					stem:      key[:31],
 					values:    make([][]byte, NodeWidth),
 					committer: n.committer,
 				}
@@ -444,7 +461,7 @@ func (n *InternalNode) ComputeCommitment() *Fr {
 	return n.hash
 }
 
-func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*Point, []uint8, []*Fr, [][]Fr) {
+func (n *InternalNode) GetCommitmentsAlongPath(key []byte) *ProofElements {
 	childIdx := offset2key(key, n.depth)
 
 	// Build the list of elements for this level
@@ -458,13 +475,23 @@ func (n *InternalNode) GetCommitmentsAlongPath(key []byte) ([]*Point, []uint8, [
 		}
 	}
 
-	// Special case of a proof of absence: return a zero commitment
-	if _, ok := n.children[childIdx].(Empty); ok {
-		return []*Point{n.commitment}, []uint8{childIdx}, []*Fr{&yi}, [][]Fr{fi}
+	// The proof elements that are to be added at this level
+	pe := &ProofElements{
+		Cis: []*Point{n.commitment},
+		Zis: []uint8{childIdx},
+		Yis: []*Fr{&yi}, // Should be 0
+		Fis: [][]Fr{fi},
 	}
 
-	comms, zis, yis, fis := n.children[childIdx].GetCommitmentsAlongPath(key)
-	return append(comms, n.commitment), append(zis, childIdx), append(yis, &yi), append(fis, fi)
+	// Special case of a proof of absence: no children
+	// commitment, as the value is 0.
+	if _, ok := n.children[childIdx].(Empty); ok {
+		return pe
+	}
+
+	pec := n.children[childIdx].GetCommitmentsAlongPath(key)
+	pe.Merge(pec)
+	return pe
 }
 
 func (n *InternalNode) Serialize() ([]byte, error) {
@@ -538,7 +565,7 @@ func (n *LeafNode) toHashedNode() *HashedNode {
 
 func (n *LeafNode) Insert(k []byte, value []byte, _ NodeResolverFn) error {
 	// Sanity check: ensure the key header is the same:
-	if !equalPaths(k, n.key) {
+	if !equalPaths(k, n.stem) {
 		return errors.New("split should not happen here")
 	}
 	n.values[k[31]] = value
@@ -556,7 +583,7 @@ func (n *LeafNode) InsertOrdered(key []byte, value []byte, _ NodeFlushFn) error 
 
 func (n *LeafNode) Delete(k []byte) error {
 	// Sanity check: ensure the key header is the same:
-	if !equalPaths(k, n.key) {
+	if !equalPaths(k, n.stem) {
 		return errDeleteNonExistent
 	}
 
@@ -568,7 +595,7 @@ func (n *LeafNode) Delete(k []byte) error {
 }
 
 func (n *LeafNode) Get(k []byte, _ NodeResolverFn) ([]byte, error) {
-	if !equalPaths(k, n.key) {
+	if !equalPaths(k, n.stem) {
 		// If keys differ, return nil in order to
 		// signal that the key isn't present in the
 		// tree. Do not return an error, thus matching
@@ -588,7 +615,7 @@ func (n *LeafNode) ComputeCommitment() *Fr {
 	count := 0
 	var poly, c1poly, c2poly [256]Fr
 	poly[0].SetUint64(1)
-	fromBytes(&poly[1], n.key)
+	fromBytes(&poly[1], n.stem)
 
 	count = fillSuffixTreePoly(c1poly[:], n.values[:128])
 	n.c1 = n.committer.CommitToPoly(c1poly[:], 256-count)
@@ -640,7 +667,24 @@ func leafToComms(poly []Fr, val []byte) {
 	}
 }
 
-func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*Point, []byte, []*Fr, [][]Fr) {
+func (n *LeafNode) GetCommitmentsAlongPath(key []byte) *ProofElements {
+	// Proof of absence: case of a differing stem.
+	//
+	// Return an unopened stem-level node.
+	if !equalPaths(n.stem, key) {
+		var poly [256]Fr
+		poly[0].SetUint64(1)
+		poly[1].SetBytes(n.stem)
+		toFr(&poly[2], n.c1)
+		toFr(&poly[3], n.c2)
+		return &ProofElements{
+			Cis: []*Point{n.commitment, n.commitment},
+			Zis: []byte{0, 1},
+			Yis: []*Fr{&poly[0], &poly[1]},
+			Fis: [][]Fr{poly[:], poly[:]},
+		}
+	}
+
 	var (
 		slot     = key[31]
 		suffSlot = 2 + slot/128
@@ -656,17 +700,28 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*Point, []byte, []*Fr,
 
 	var extPoly [256]Fr
 	extPoly[0].SetUint64(1)
-	extPoly[1].SetBytes(n.key)
+	extPoly[1].SetBytes(n.stem)
 	toFr(&extPoly[2], n.c1)
 	toFr(&extPoly[3], n.c2)
 
-	// suffix tree is empty? Only return the extension-level
+	// Proof of absence: case of a missing suffix tree.
+	//
+	// The suffix tree for this value is missing, i.e. all
+	// values in the extension-and-suffix tree are grouped
+	// in the other suffix tree (e.g. C2 if we are looking
+	// at C1).
 	if count == 0 {
 		// TODO(gballet) maintain a count variable at LeafNode level
 		// so that we know not to build the polynomials in this case,
 		// as all the information is available before fillSuffixTreePoly
 		// has to be called, save the count.
-		return []*Point{n.commitment}, []byte{suffSlot}, []*Fr{&FrZero}, [][]Fr{extPoly[:]}
+		return &ProofElements{
+			// leaf marker, stem, path to child (which is 0)
+			Cis: []*Point{n.commitment, n.commitment, n.commitment},
+			Zis: []byte{0, 1, suffSlot},
+			Yis: []*Fr{&extPoly[0], &extPoly[1], &FrZero},
+			Fis: [][]Fr{extPoly[:], extPoly[:], extPoly[:]},
+		}
 	}
 
 	var scomm *Point
@@ -676,16 +731,33 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) ([]*Point, []byte, []*Fr,
 		scomm = n.c2
 	}
 
-	// suffix tree is present, but does not contain the key
+	// Proof of absence: case of a missing value.
+	//
+	// Suffix tree is present as a child of the extension,
+	// but does not contain the requested suffix. This can
+	// only happen when the leaf has never been written to
+	// since after deletion the value would be set to zero
+	// but still contain the leaf marker 2^128.
 	if n.values[slot] == nil {
-		return []*Point{n.commitment, scomm}, []byte{suffSlot, slot}, []*Fr{&extPoly[2+slot/128], &FrZero}, [][]Fr{extPoly[:], poly[:]}
+		return &ProofElements{
+			// leaf marker, stem, path to child, missing value (zero)
+			Cis: []*Point{n.commitment, n.commitment, n.commitment, scomm},
+			Zis: []byte{0, 1, suffSlot, slot},
+			Yis: []*Fr{&extPoly[0], &extPoly[1], &extPoly[2+slot/128], &FrZero},
+			Fis: [][]Fr{extPoly[:], extPoly[:], extPoly[:], poly[:]},
+		}
 	}
 
 	// suffix tree is present and contains the key
-	// TODO(gballet) the interface must change in order to return two leaves
 	var leaves [2]Fr
 	leafToComms(leaves[:], n.values[slot])
-	return []*Point{n.commitment, scomm}, []byte{suffSlot, slot}, []*Fr{&extPoly[2+slot/128], &leaves[1]}, [][]Fr{extPoly[:], poly[:]}
+	return &ProofElements{
+		// leaf marker, stem, path to child, C{1,2} lo, C{1,2} hi
+		Cis: []*Point{n.commitment, n.commitment, n.commitment, scomm, scomm},
+		Zis: []byte{0, 1, suffSlot, 2 * slot, 2*slot + 1},
+		Yis: []*Fr{&extPoly[0], &extPoly[1], &extPoly[2+slot/128], &leaves[0], &leaves[1]},
+		Fis: [][]Fr{extPoly[:], extPoly[:], extPoly[:], poly[:], poly[:]},
+	}
 }
 
 func (n *LeafNode) Serialize() ([]byte, error) {
@@ -701,15 +773,15 @@ func (n *LeafNode) Serialize() ([]byte, error) {
 			}
 		}
 	}
-	return append(append(append([]byte{leafRLPType}, n.key...), bitlist[:]...), children...), nil
+	return append(append(append([]byte{leafRLPType}, n.stem...), bitlist[:]...), children...), nil
 }
 
 func (n *LeafNode) Copy() VerkleNode {
 	l := &LeafNode{}
-	l.key = make([]byte, len(n.key))
+	l.stem = make([]byte, len(n.stem))
 	l.values = make([][]byte, len(n.values))
 	l.committer = n.committer
-	copy(l.key, n.key)
+	copy(l.stem, n.stem)
 	for i, v := range n.values {
 		l.values[i] = make([]byte, len(v))
 		copy(l.values[i], v)
@@ -726,7 +798,7 @@ func (n *LeafNode) Copy() VerkleNode {
 
 func (n *LeafNode) Key(i int) []byte {
 	var ret [32]byte
-	copy(ret[:], n.key)
+	copy(ret[:], n.stem)
 	ret[31] = byte(i)
 	return ret[:]
 }

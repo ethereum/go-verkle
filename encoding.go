@@ -65,7 +65,7 @@ func ParseNode(serialized []byte, depth int) (VerkleNode, error) {
 			return nil, fmt.Errorf("invalid number of nodes in decoded child expected %d, got %d", NodeWidth, len(values))
 		}
 		ln := &LeafNode{
-			key:       serialized[1:32],
+			stem:      serialized[1:32],
 			values:    values[:],
 			committer: GetConfig(),
 		}

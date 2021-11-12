@@ -35,39 +35,28 @@ type Proof = ipa.MultiProof
 func MakeVerkleProofOneLeaf(root VerkleNode, key []byte) *Proof {
 	tr := common.NewTranscript("multiproof")
 	root.ComputeCommitment()
-	Cs, zs, _, fs := root.GetCommitmentsAlongPath(key)
-	return ipa.CreateMultiProof(tr, GetConfig().conf, Cs, fs, zs)
+	pe := root.GetCommitmentsAlongPath(key)
+	return ipa.CreateMultiProof(tr, GetConfig().conf, pe.Cis, pe.Fis, pe.Zis)
 }
 
-func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte) ([]*Point, []uint8, []*Fr, [][]Fr) {
-	var (
-		fis         [][]Fr
-		commitments []*Point
-		zis         []uint8
-		yis         []*Fr
-	)
-
+func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte) *ProofElements {
+	p := &ProofElements{}
 	for _, key := range keys {
-		cs, idxs, ys, fs := root.GetCommitmentsAlongPath(key)
-		commitments = append(commitments, cs...)
-		zis = append(zis, idxs...)
-		yis = append(yis, ys...)
-		fis = append(fis, fs...)
+		pe := root.GetCommitmentsAlongPath(key)
+		p.Merge(pe)
 	}
 
-	return commitments, zis, yis, fis
+	return p
 }
 
-func MakeVerkleMultiProof(root VerkleNode, keys [][]byte) (proof *Proof, Cs []*Point, indices []uint8, ys []*Fr) {
+func MakeVerkleMultiProof(root VerkleNode, keys [][]byte) (*Proof, []*Point, []byte, []*Fr) {
 	tr := common.NewTranscript("multiproof")
 	root.ComputeCommitment()
 
-	var fs [][]Fr
-	var zs []uint8
-	Cs, zs, ys, fs = GetCommitmentsForMultiproof(root, keys)
+	pe := GetCommitmentsForMultiproof(root, keys)
 
-	proof = ipa.CreateMultiProof(tr, GetConfig().conf, Cs, fs, zs)
-	return
+	proof := ipa.CreateMultiProof(tr, GetConfig().conf, pe.Cis, pe.Fis, pe.Zis)
+	return proof, pe.Cis, pe.Zis, pe.Yis
 }
 
 func VerifyVerkleProof(proof *Proof, Cs []*Point, indices []uint8, ys []*Fr, tc *Config) bool {

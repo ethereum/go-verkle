@@ -49,7 +49,7 @@ func (Empty) ComputeCommitment() *Fr {
 	return &FrZero
 }
 
-func (Empty) GetCommitmentsAlongPath([]byte) ([]*Point, []uint8, []*Fr, [][]Fr) {
+func (Empty) GetCommitmentsAlongPath([]byte) *ProofElements {
 	panic("trying to produce a commitment for an empty subtree")
 }
 

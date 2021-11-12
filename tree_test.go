@@ -679,7 +679,7 @@ func isInternalEqual(a, b *InternalNode) bool {
 }
 
 func isLeafEqual(a, b *LeafNode) bool {
-	if !bytes.Equal(a.key, b.key) {
+	if !bytes.Equal(a.stem, b.stem) {
 		return false
 	}
 
@@ -742,7 +742,7 @@ func TestGetResolveFromHash(t *testing.T) {
 }
 
 func TestGetKey(t *testing.T) {
-	root := &LeafNode{key: fourtyKeyTest}
+	root := &LeafNode{stem: fourtyKeyTest}
 	for i := 0; i < NodeWidth; i++ {
 		k := root.Key(i)
 		if !bytes.Equal(k[:31], fourtyKeyTest[:31]) {
@@ -764,7 +764,7 @@ func TestInsertIntoHashedNode(t *testing.T) {
 	}
 
 	resolver := func(h []byte) ([]byte, error) {
-		node := &LeafNode{key: zeroKeyTest, values: make([][]byte, NodeWidth)}
+		node := &LeafNode{stem: zeroKeyTest, values: make([][]byte, NodeWidth)}
 		node.values[0] = zeroKeyTest
 
 		return node.Serialize()
@@ -776,7 +776,7 @@ func TestInsertIntoHashedNode(t *testing.T) {
 	// Check that the proper error is raised if the RLP data is invalid and the
 	// node can not be parsed.
 	invalidRLPResolver := func(h []byte) ([]byte, error) {
-		node := &LeafNode{key: zeroKeyTest, values: make([][]byte, NodeWidth)}
+		node := &LeafNode{stem: zeroKeyTest, values: make([][]byte, NodeWidth)}
 		node.values[0] = zeroKeyTest
 
 		rlp, _ := node.Serialize()
@@ -810,18 +810,18 @@ func TestEmptyCommitment(t *testing.T) {
 	root := New()
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
 	root.ComputeCommitment()
-	comms, zis, yis, fis := root.GetCommitmentsAlongPath(ffx32KeyTest)
-	if len(comms) != 1 || len(zis) != 1 || len(yis) != 1 || len(fis) != 1 {
+	pe := root.GetCommitmentsAlongPath(ffx32KeyTest)
+	if len(pe.Cis) != 1 || len(pe.Zis) != 1 || len(pe.Yis) != 1 || len(pe.Fis) != 1 {
 		t.Fatalf("invalid parameter list length")
 	}
 
-	if !comms[0].Equal(root.(*InternalNode).commitment) {
-		t.Fatalf("invalid commitment %x %x", comms[0], root.(*InternalNode).commitment)
+	if !pe.Cis[0].Equal(root.(*InternalNode).commitment) {
+		t.Fatalf("invalid commitment %x %x", pe.Cis[0], root.(*InternalNode).commitment)
 	}
 
 	zero := new(Fr)
-	if !yis[0].Equal(zero) {
-		t.Fatalf("invalid yi %v %v", zero, yis[0])
+	if !pe.Yis[0].Equal(zero) {
+		t.Fatalf("invalid yi %v %v", zero, pe.Yis[0])
 	}
 }
 
