@@ -82,15 +82,45 @@ type ProofElements struct {
 	Zis []byte
 	Yis []*Fr
 	Fis [][]Fr
+
+	// dedups flags the presence of each (Ci,zi) tuple
+	dedups map[*Point]map[byte]struct{}
 }
 
 // Merge merges the elements of two proofs and removes duplicates.
-// XXX doesn't currently remove duplicates
 func (pe *ProofElements) Merge(other *ProofElements) {
-	pe.Cis = append(pe.Cis, other.Cis...)
-	pe.Zis = append(pe.Zis, other.Zis...)
-	pe.Yis = append(pe.Yis, other.Yis...)
-	pe.Fis = append(pe.Fis, other.Fis...)
+	// Build the local map if it's missing
+	if pe.dedups == nil {
+		pe.dedups = make(map[*Point]map[byte]struct{})
+
+		for i, ci := range pe.Cis {
+			if _, ok := pe.dedups[ci]; !ok {
+				pe.dedups[ci] = make(map[byte]struct{})
+			}
+
+			pe.dedups[ci][pe.Zis[i]] = struct{}{}
+		}
+	}
+
+	for i, ci := range other.Cis {
+		if _, ok := pe.dedups[ci]; !ok {
+			// First time this commitment has been seen, create
+			// the map and flat the zi.
+			pe.dedups[ci] = make(map[byte]struct{})
+		}
+
+		if _, ok := pe.dedups[ci][other.Zis[i]]; ok {
+			// duplicate, skip
+			continue
+		}
+
+		pe.dedups[ci][other.Zis[i]] = struct{}{}
+
+		pe.Cis = append(pe.Cis, ci)
+		pe.Zis = append(pe.Zis, other.Zis[i])
+		pe.Yis = append(pe.Yis, other.Yis[i])
+		pe.Fis = append(pe.Fis, other.Fis[i])
+	}
 }
 
 const (
