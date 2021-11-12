@@ -680,7 +680,7 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) *ProofElements {
 		return &ProofElements{
 			Cis: []*Point{n.commitment, n.commitment},
 			Zis: []byte{0, 1},
-			Yis: []*Fr{&poly[1], &poly[1]},
+			Yis: []*Fr{&poly[0], &poly[1]},
 			Fis: [][]Fr{poly[:], poly[:]},
 		}
 	}

@@ -128,6 +128,23 @@ func TestProofOfAbsenceLeafVerifyOtherSuffix(t *testing.T) {
 	}
 }
 
+func TestProofOfAbsenceStemVerify(t *testing.T) {
+	root := New()
+	root.Insert(zeroKeyTest, zeroKeyTest, nil)
+
+	key := func() []byte {
+		ret, _ := hex.DecodeString("0000000000000000000000000000000000000000100000000000000000000000")
+		return ret
+	}()
+
+	proof := MakeVerkleProofOneLeaf(root, key)
+
+	pe := root.GetCommitmentsAlongPath(key)
+	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, GetConfig()) {
+		t.Fatal("could not verify verkle proof")
+	}
+}
+
 func BenchmarkProofCalculation(b *testing.B) {
 	keys := make([][]byte, 100000)
 	root := New()
