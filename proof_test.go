@@ -39,8 +39,8 @@ func TestProofVerifyTwoLeaves(t *testing.T) {
 
 	proof := MakeVerkleProofOneLeaf(root, ffx32KeyTest)
 
-	comms, zis, yis, _ := root.GetCommitmentsAlongPath(ffx32KeyTest)
-	if !VerifyVerkleProof(proof, comms, zis, yis, GetConfig()) {
+	pe := root.GetCommitmentsAlongPath(ffx32KeyTest)
+	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, GetConfig()) {
 		t.Fatal("could not verify verkle proof")
 	}
 }
@@ -59,8 +59,8 @@ func TestProofVerifyMultipleLeaves(t *testing.T) {
 
 	proof := MakeVerkleProofOneLeaf(root, keys[0])
 
-	comms, zis, yis, _ := root.GetCommitmentsAlongPath(keys[0])
-	if !VerifyVerkleProof(proof, comms, zis, yis, GetConfig()) {
+	pe := root.GetCommitmentsAlongPath(keys[0])
+	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, GetConfig()) {
 		t.Fatal("could not verify verkle proof")
 	}
 }
@@ -79,8 +79,8 @@ func TestMultiProofVerifyMultipleLeaves(t *testing.T) {
 
 	proof, _, _, _ := MakeVerkleMultiProof(root, keys[0:2])
 
-	comms, zis, yis, _ := GetCommitmentsForMultiproof(root, keys[0:2])
-	if !VerifyVerkleProof(proof, comms, zis, yis, GetConfig()) {
+	pe := GetCommitmentsForMultiproof(root, keys[0:2])
+	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, GetConfig()) {
 		t.Fatal("could not verify verkle proof")
 	}
 }
@@ -92,8 +92,8 @@ func TestProofOfAbsenceInternalVerify(t *testing.T) {
 
 	proof := MakeVerkleProofOneLeaf(root, ffx32KeyTest)
 
-	comms, zis, yis, _ := root.GetCommitmentsAlongPath(ffx32KeyTest)
-	if !VerifyVerkleProof(proof, comms, zis, yis, GetConfig()) {
+	pe := root.GetCommitmentsAlongPath(ffx32KeyTest)
+	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, GetConfig()) {
 		t.Fatal("could not verify verkle proof")
 	}
 }
@@ -105,8 +105,8 @@ func TestProofOfAbsenceLeafVerify(t *testing.T) {
 
 	proof := MakeVerkleProofOneLeaf(root, oneKeyTest)
 
-	comms, zis, yis, _ := root.GetCommitmentsAlongPath(oneKeyTest)
-	if !VerifyVerkleProof(proof, comms, zis, yis, GetConfig()) {
+	pe := root.GetCommitmentsAlongPath(oneKeyTest)
+	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, GetConfig()) {
 		t.Fatal("could not verify verkle proof")
 	}
 }
@@ -122,8 +122,8 @@ func TestProofOfAbsenceLeafVerifyOtherSuffix(t *testing.T) {
 
 	proof := MakeVerkleProofOneLeaf(root, key)
 
-	comms, zis, yis, _ := root.GetCommitmentsAlongPath(key)
-	if !VerifyVerkleProof(proof, comms, zis, yis, GetConfig()) {
+	pe := root.GetCommitmentsAlongPath(key)
+	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, GetConfig()) {
 		t.Fatal("could not verify verkle proof")
 	}
 }
@@ -157,13 +157,13 @@ func BenchmarkProofVerification(b *testing.B) {
 	}
 
 	root.ComputeCommitment()
-	comms, zis, yis, _ := root.GetCommitmentsAlongPath(keys[len(keys)/2])
+	pe := root.GetCommitmentsAlongPath(keys[len(keys)/2])
 	proof := MakeVerkleProofOneLeaf(root, keys[len(keys)/2])
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		VerifyVerkleProof(proof, comms, zis, yis, GetConfig())
+		VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, GetConfig())
 	}
 }
