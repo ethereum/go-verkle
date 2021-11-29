@@ -161,7 +161,9 @@ type (
 		committer Committer
 	}
 
-	LeafNode struct {
+	// Represents an "extension-and-suffix" node, that is,
+	// a node containing all leaves sharing the same "stem".
+	ExtNode struct {
 		stem   []byte
 		values [][]byte
 
@@ -212,7 +214,7 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 
 	switch child := n.children[nChild].(type) {
 	case Empty:
-		lastNode := &LeafNode{
+		lastNode := &ExtNode{
 			stem:      key[:31],
 			values:    make([][]byte, NodeWidth),
 			committer: n.committer,
@@ -235,7 +237,7 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 			return n.children[nChild].Insert(key, value, resolver)
 		}
 		return errInsertIntoHash
-	case *LeafNode:
+	case *ExtNode:
 		// Need to add a new branch node to differentiate
 		// between two keys, if the keys are different.
 		// Otherwise, just update the key.
@@ -257,7 +259,7 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 			if nextWordInInsertedKey != nextWordInExistingKey {
 				// Next word differs, so this was the last level.
 				// Insert it directly into its final slot.
-				lastNode := &LeafNode{
+				lastNode := &ExtNode{
 					stem:      key[:31],
 					values:    make([][]byte, NodeWidth),
 					committer: n.committer,
@@ -298,7 +300,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 			switch child := n.children[i].(type) {
 			case Empty:
 				continue
-			case *LeafNode:
+			case *ExtNode:
 				child.ComputeCommitment()
 				if flush != nil {
 					flush(child)
@@ -318,7 +320,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 		}
 
 		// NOTE: these allocations are inducing a noticeable slowdown
-		lastNode := &LeafNode{
+		lastNode := &ExtNode{
 			stem:      key[:31],
 			values:    make([][]byte, NodeWidth),
 			committer: n.committer,
@@ -332,7 +334,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 		// now more than one child in this node.
 	case *HashedNode:
 		return errInsertIntoHash
-	case *LeafNode:
+	case *ExtNode:
 		// Need to add a new branch node to differentiate
 		// between two keys, if the keys are different.
 		// Otherwise, just update the key.
@@ -358,7 +360,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 				newBranch.children[nextWordInExistingKey] = child.toHashedNode()
 				// Next word differs, so this was the last level.
 				// Insert it directly into its final slot.
-				lastNode := &LeafNode{
+				lastNode := &ExtNode{
 					stem:      key[:31],
 					values:    make([][]byte, NodeWidth),
 					committer: n.committer,
@@ -406,7 +408,7 @@ func (n *InternalNode) Flush(flush NodeFlushFn) {
 			}
 			c.Flush(flush)
 			n.children[i] = c.toHashedNode()
-		} else if c, ok := child.(*LeafNode); ok {
+		} else if c, ok := child.(*ExtNode); ok {
 			if c.commitment == nil {
 				c.ComputeCommitment()
 			}
@@ -589,11 +591,11 @@ func (n *InternalNode) toDot(parent, path string) string {
 	return ret
 }
 
-func (n *LeafNode) toHashedNode() *HashedNode {
+func (n *ExtNode) toHashedNode() *HashedNode {
 	return &HashedNode{n.hash, n.commitment}
 }
 
-func (n *LeafNode) Insert(k []byte, value []byte, _ NodeResolverFn) error {
+func (n *ExtNode) Insert(k []byte, value []byte, _ NodeResolverFn) error {
 	// Sanity check: ensure the key header is the same:
 	if !equalPaths(k, n.stem) {
 		return errors.New("split should not happen here")
@@ -604,14 +606,14 @@ func (n *LeafNode) Insert(k []byte, value []byte, _ NodeResolverFn) error {
 	return nil
 }
 
-func (n *LeafNode) InsertOrdered(key []byte, value []byte, _ NodeFlushFn) error {
+func (n *ExtNode) InsertOrdered(key []byte, value []byte, _ NodeFlushFn) error {
 	// In the previous version, this value used to be flushed on insert.
 	// This is no longer the case, as all values at the last level get
 	// flushed at the same time.
 	return n.Insert(key, value, nil)
 }
 
-func (n *LeafNode) Delete(k []byte) error {
+func (n *ExtNode) Delete(k []byte) error {
 	// Sanity check: ensure the key header is the same:
 	if !equalPaths(k, n.stem) {
 		return errDeleteNonExistent
@@ -624,7 +626,7 @@ func (n *LeafNode) Delete(k []byte) error {
 	return nil
 }
 
-func (n *LeafNode) Get(k []byte, _ NodeResolverFn) ([]byte, error) {
+func (n *ExtNode) Get(k []byte, _ NodeResolverFn) ([]byte, error) {
 	if !equalPaths(k, n.stem) {
 		// If keys differ, return nil in order to
 		// signal that the key isn't present in the
@@ -636,7 +638,7 @@ func (n *LeafNode) Get(k []byte, _ NodeResolverFn) ([]byte, error) {
 	return n.values[k[31]], nil
 }
 
-func (n *LeafNode) ComputeCommitment() *Fr {
+func (n *ExtNode) ComputeCommitment() *Fr {
 	if n.hash != nil {
 		return n.hash
 	}
@@ -697,7 +699,7 @@ func leafToComms(poly []Fr, val []byte) {
 	}
 }
 
-func (n *LeafNode) GetCommitmentsAlongPath(key []byte) *ProofElements {
+func (n *ExtNode) GetCommitmentsAlongPath(key []byte) *ProofElements {
 	// Proof of absence: case of a differing stem.
 	//
 	// Return an unopened stem-level node.
@@ -741,7 +743,7 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) *ProofElements {
 	// in the other suffix tree (e.g. C2 if we are looking
 	// at C1).
 	if count == 0 {
-		// TODO(gballet) maintain a count variable at LeafNode level
+		// TODO(gballet) maintain a count variable at ExtNode level
 		// so that we know not to build the polynomials in this case,
 		// as all the information is available before fillSuffixTreePoly
 		// has to be called, save the count.
@@ -790,7 +792,7 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) *ProofElements {
 	}
 }
 
-func (n *LeafNode) Serialize() ([]byte, error) {
+func (n *ExtNode) Serialize() ([]byte, error) {
 	var bitlist [32]uint8
 	children := make([]byte, 0, NodeWidth*32)
 	for i, v := range n.values {
@@ -806,8 +808,8 @@ func (n *LeafNode) Serialize() ([]byte, error) {
 	return append(append(append([]byte{leafRLPType}, n.stem...), bitlist[:]...), children...), nil
 }
 
-func (n *LeafNode) Copy() VerkleNode {
-	l := &LeafNode{}
+func (n *ExtNode) Copy() VerkleNode {
+	l := &ExtNode{}
 	l.stem = make([]byte, len(n.stem))
 	l.values = make([][]byte, len(n.values))
 	l.committer = n.committer
@@ -826,18 +828,18 @@ func (n *LeafNode) Copy() VerkleNode {
 	return l
 }
 
-func (n *LeafNode) Key(i int) []byte {
+func (n *ExtNode) Key(i int) []byte {
 	var ret [32]byte
 	copy(ret[:], n.stem)
 	ret[31] = byte(i)
 	return ret[:]
 }
 
-func (n *LeafNode) Value(i int) []byte {
+func (n *ExtNode) Value(i int) []byte {
 	return n.values[i]
 }
 
-func (n *LeafNode) toDot(parent, path string) string {
+func (n *ExtNode) toDot(parent, path string) string {
 	ret := fmt.Sprintf("leaf%s [label=\"L: %x\nC: %x\"]\n%s -> leaf%s\n", path, n.hash.Bytes(), n.commitment.Bytes(), parent, path)
 	for i, v := range n.values {
 		if v != nil {

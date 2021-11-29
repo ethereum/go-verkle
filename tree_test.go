@@ -55,7 +55,7 @@ func TestInsertIntoRoot(t *testing.T) {
 		t.Fatalf("error inserting: %v", err)
 	}
 
-	leaf, ok := root.(*InternalNode).children[0].(*LeafNode)
+	leaf, ok := root.(*InternalNode).children[0].(*ExtNode)
 	if !ok {
 		t.Fatalf("invalid leaf node type %v", root.(*InternalNode).children[0])
 	}
@@ -70,12 +70,12 @@ func TestInsertTwoLeaves(t *testing.T) {
 	root.Insert(zeroKeyTest, testValue, nil)
 	root.Insert(ffx32KeyTest, testValue, nil)
 
-	leaf0, ok := root.(*InternalNode).children[0].(*LeafNode)
+	leaf0, ok := root.(*InternalNode).children[0].(*ExtNode)
 	if !ok {
 		t.Fatalf("invalid leaf node type %v", root.(*InternalNode).children[0])
 	}
 
-	leaff, ok := root.(*InternalNode).children[255].(*LeafNode)
+	leaff, ok := root.(*InternalNode).children[255].(*ExtNode)
 	if !ok {
 		t.Fatalf("invalid leaf node type %v", root.(*InternalNode).children[255])
 	}
@@ -94,7 +94,7 @@ func TestInsertTwoLeavesLastLevel(t *testing.T) {
 	root.Insert(zeroKeyTest, testValue, nil)
 	root.Insert(oneKeyTest, testValue, nil)
 
-	leaf, ok := root.(*InternalNode).children[0].(*LeafNode)
+	leaf, ok := root.(*InternalNode).children[0].(*ExtNode)
 	if !ok {
 		t.Fatalf("invalid leaf node type %v", root.(*InternalNode).children[0])
 	}
@@ -151,7 +151,7 @@ func TestComputeRootCommitmentOnlineThreeLeavesFlush(t *testing.T) {
 
 	count := 0
 	for n := range flushCh {
-		_, isLeaf := n.(*LeafNode)
+		_, isLeaf := n.(*ExtNode)
 		_, isInternal := n.(*InternalNode)
 		if !isLeaf && !isInternal {
 			t.Fatal("invalid node type received, expected leaf")
@@ -224,7 +224,7 @@ func TestFlush1kLeaves(t *testing.T) {
 	count := 0
 	leaves := 0
 	for n := range flushCh {
-		_, isLeaf := n.(*LeafNode)
+		_, isLeaf := n.(*ExtNode)
 		_, isInternal := n.(*InternalNode)
 		if !isLeaf && !isInternal {
 			t.Fatal("invalid node type received, expected leaf")
@@ -596,13 +596,13 @@ func TestNodeSerde(t *testing.T) {
 	root := tree.(*InternalNode)
 
 	// Serialize all the nodes
-	leaf0 := (root.children[0]).(*LeafNode)
+	leaf0 := (root.children[0]).(*ExtNode)
 	ls0, err := leaf0.Serialize()
 	if err != nil {
 		t.Error(err)
 	}
 
-	leaf64 := (root.children[64]).(*LeafNode)
+	leaf64 := (root.children[64]).(*ExtNode)
 	ls64, err := leaf64.Serialize()
 	if err != nil {
 		t.Error(err)
@@ -618,13 +618,13 @@ func TestNodeSerde(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	resLeaf0 := res.(*LeafNode)
+	resLeaf0 := res.(*ExtNode)
 
 	res, err = ParseNode(ls64, 1)
 	if err != nil {
 		t.Error(err)
 	}
-	resLeaf64 := res.(*LeafNode)
+	resLeaf64 := res.(*ExtNode)
 
 	res, err = ParseNode(rs, 0)
 	if err != nil {
@@ -656,12 +656,12 @@ func isInternalEqual(a, b *InternalNode) bool {
 			if !Equal(c.(*HashedNode).hash, hn.hash) {
 				return false
 			}
-		case *LeafNode:
-			ln, ok := b.children[i].(*LeafNode)
+		case *ExtNode:
+			ln, ok := b.children[i].(*ExtNode)
 			if !ok {
 				return false
 			}
-			if !isLeafEqual(c.(*LeafNode), ln) {
+			if !isLeafEqual(c.(*ExtNode), ln) {
 				return false
 			}
 		case *InternalNode:
@@ -678,7 +678,7 @@ func isInternalEqual(a, b *InternalNode) bool {
 	return true
 }
 
-func isLeafEqual(a, b *LeafNode) bool {
+func isLeafEqual(a, b *ExtNode) bool {
 	if !bytes.Equal(a.stem, b.stem) {
 		return false
 	}
@@ -742,7 +742,7 @@ func TestGetResolveFromHash(t *testing.T) {
 }
 
 func TestGetKey(t *testing.T) {
-	root := &LeafNode{stem: fourtyKeyTest}
+	root := &ExtNode{stem: fourtyKeyTest}
 	for i := 0; i < NodeWidth; i++ {
 		k := root.Key(i)
 		if !bytes.Equal(k[:31], fourtyKeyTest[:31]) {
@@ -764,7 +764,7 @@ func TestInsertIntoHashedNode(t *testing.T) {
 	}
 
 	resolver := func(h []byte) ([]byte, error) {
-		node := &LeafNode{stem: zeroKeyTest, values: make([][]byte, NodeWidth)}
+		node := &ExtNode{stem: zeroKeyTest, values: make([][]byte, NodeWidth)}
 		node.values[0] = zeroKeyTest
 
 		return node.Serialize()
@@ -776,7 +776,7 @@ func TestInsertIntoHashedNode(t *testing.T) {
 	// Check that the proper error is raised if the RLP data is invalid and the
 	// node can not be parsed.
 	invalidRLPResolver := func(h []byte) ([]byte, error) {
-		node := &LeafNode{stem: zeroKeyTest, values: make([][]byte, NodeWidth)}
+		node := &ExtNode{stem: zeroKeyTest, values: make([][]byte, NodeWidth)}
 		node.values[0] = zeroKeyTest
 
 		rlp, _ := node.Serialize()
