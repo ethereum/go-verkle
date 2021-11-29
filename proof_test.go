@@ -85,6 +85,22 @@ func TestMultiProofVerifyMultipleLeaves(t *testing.T) {
 	}
 }
 
+func TestMultiProofVerifyMultipleLeavesCommitmentRedundancy(t *testing.T) {
+	keys := make([][]byte, 2)
+	root := New()
+	keys[0] = zeroKeyTest
+	root.Insert(keys[0], fourtyKeyTest, nil)
+	keys[1] = oneKeyTest
+	root.Insert(keys[1], fourtyKeyTest, nil)
+
+	proof, _, _, _ := MakeVerkleMultiProof(root, keys[:])
+
+	pe := GetCommitmentsForMultiproof(root, keys[:])
+	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, GetConfig()) {
+		t.Fatal("could not verify verkle proof")
+	}
+}
+
 func TestProofOfAbsenceInternalVerify(t *testing.T) {
 	root := New()
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)

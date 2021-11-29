@@ -105,7 +105,7 @@ func (pe *ProofElements) Merge(other *ProofElements) {
 	for i, ci := range other.Cis {
 		if _, ok := pe.dedups[ci]; !ok {
 			// First time this commitment has been seen, create
-			// the map and flat the zi.
+			// the map and flatten the zi.
 			pe.dedups[ci] = make(map[byte]struct{})
 		}
 
