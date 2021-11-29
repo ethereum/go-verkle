@@ -93,9 +93,9 @@ func TestMultiProofVerifyMultipleLeavesCommitmentRedundancy(t *testing.T) {
 	keys[1] = oneKeyTest
 	root.Insert(keys[1], fourtyKeyTest, nil)
 
-	proof, _, _, _ := MakeVerkleMultiProof(root, keys[:])
+	proof, _, _, _ := MakeVerkleMultiProof(root, keys)
 
-	pe := GetCommitmentsForMultiproof(root, keys[:])
+	pe := GetCommitmentsForMultiproof(root, keys)
 	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, GetConfig()) {
 		t.Fatal("could not verify verkle proof")
 	}
