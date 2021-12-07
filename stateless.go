@@ -30,30 +30,46 @@ import (
 	"fmt"
 )
 
-type (
-	InternalNodeStateless struct {
-		// List of available child nodes of this internal node.
-		children map[byte]VerkleNode
+// StatelessNode represents a node for execution in a stateless context,
+// i.e. that its children/values are not all known. It can represent both
+// an InternalNode or a LeafNode.
+type StatelessNode struct {
+	// List of available child nodes of this internal node,
+	// nil if this is an extension node.
+	children map[byte]*StatelessNode
 
-		// node depth in the tree, in bits
-		depth int
+	// List of values, nil if this is an internal node.
+	values map[byte][]byte
 
-		// child count, used for the special case in
-		// commitment calculations.
-		count uint
+	stem []byte
 
-		// Cache the field representation of the hash
-		// of the current node.
-		hash *Fr
+	// node depth in the tree, in bits
+	depth int
 
-		// Cache the commitment value
-		commitment *Point
+	// child count, used for the special case in
+	// commitment calculations.
+	count uint
 
-		committer Committer
+	// Cache the field representation of the hash
+	// of the current node.
+	hash *Fr
+
+	// Cache the commitment value
+	commitment, c1, c2 *Point
+
+	committer Committer
+}
+
+func NewStateless() *StatelessNode {
+	return &StatelessNode{
+		children:   make(map[byte]*StatelessNode),
+		hash:       &FrZero,
+		committer:  GetConfig(),
+		commitment: Generator(),
 	}
-)
+}
 
-func (n *InternalNodeStateless) Children() []VerkleNode {
+func (n *StatelessNode) Children() []VerkleNode {
 	var children []VerkleNode
 	for _, child := range n.children {
 		children = append(children, child)
@@ -61,93 +77,120 @@ func (n *InternalNodeStateless) Children() []VerkleNode {
 	return children
 }
 
-func (n *InternalNodeStateless) SetChild(i int, c VerkleNode) error {
+func (n *StatelessNode) SetChild(i int, v VerkleNode) error {
 	if i >= NodeWidth-1 {
 		return errors.New("child index higher than node width")
+	}
+	c, ok := v.(*StatelessNode)
+	if !ok {
+		return errors.New("inserting non-stateless node into a stateless node")
 	}
 	n.children[byte(i)] = c
 	return nil
 }
 
-func (n *InternalNodeStateless) Insert(key []byte, value []byte, resolver NodeResolverFn) error {
-	// Clear cached commitment on modification
-	if n.commitment != nil {
-		n.commitment = nil
-		n.hash = nil
-	}
+func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn) error {
+	// Save the value of the initial commitment
+	var pre Point
+	//CopyPoint(&pre, n.commitment)
 
-	nChild := offset2key(key, n.depth)
-
-	switch child := n.children[nChild].(type) {
-	case Empty:
-		lastNode := &LeafNode{
-			stem:      key[:31],
-			values:    make([][]byte, NodeWidth),
-			committer: n.committer,
-		}
-		lastNode.values[key[31]] = value
-		n.children[nChild] = lastNode
-		n.count++
-	case *HashedNode:
-		if resolver != nil {
-			hash := child.ComputeCommitment().Bytes()
-			serialized, err := resolver(hash[:])
-			if err != nil {
-				return fmt.Errorf("verkle tree: error resolving node %x: %w", key, err)
-			}
-			resolved, err := ParseNode(serialized, n.depth+NodeBitWidth)
-			if err != nil {
-				return fmt.Errorf("verkle tree: error parsing resolved node %x: %w", key, err)
-			}
-			n.children[nChild] = resolved
-			return n.children[nChild].Insert(key, value, resolver)
-		}
-		return errInsertIntoHash
-	case *LeafNode:
+	// if this is a leaf value and the stems are different, intermediate
+	// nodes need to be inserted.
+	if n.values != nil {
 		// Need to add a new branch node to differentiate
 		// between two keys, if the keys are different.
 		// Otherwise, just update the key.
-		if equalPaths(child.stem, key) {
-			if err := child.Insert(key, value, resolver); err != nil {
-				return err
+		if equalPaths(n.stem, key) {
+			if n.values[key[31]] == nil {
+				// only increase the count if no value is
+				// overwritten.
+				n.count++
 			}
+			n.values[key[31]] = value
+			// TODO: instead of invalidating the commitment
+			// and recalulating it entirely, compute the diff.
+			n.hash = nil
+			n.ComputeCommitment()
 		} else {
 			// A new branch node has to be inserted. Depending
 			// on the next word in both keys, a recursion into
 			// the moved leaf node can occur.
-			nextWordInExistingKey := offset2key(child.stem, n.depth+NodeBitWidth)
-			newBranch := newInternalNode(n.depth+NodeBitWidth, n.committer).(*InternalNodeStateless)
-			newBranch.count = 1
-			n.children[nChild] = newBranch
-			newBranch.children[nextWordInExistingKey] = child
+			nextWordInExistingKey := offset2key(n.stem, n.depth+NodeBitWidth)
+			oldExtNode := &StatelessNode{
+				depth:      n.depth + NodeBitWidth,
+				committer:  n.committer,
+				count:      n.count,
+				values:     n.values,
+				stem:       n.stem,
+				commitment: n.commitment,
+				hash:       n.hash,
+			}
+			n.children = map[byte]*StatelessNode{
+				nextWordInExistingKey: oldExtNode,
+			}
+			n.values = nil
+			n.stem = nil
 
 			nextWordInInsertedKey := offset2key(key, n.depth+NodeBitWidth)
 			if nextWordInInsertedKey != nextWordInExistingKey {
-				// Next word differs, so this was the last level.
-				// Insert it directly into its final slot.
-				lastNode := &LeafNode{
+				// Next word differs, so the branching point
+				// has been reached. Create the "new" child.
+				n.children[nextWordInInsertedKey] = &StatelessNode{
 					stem:      key[:31],
-					values:    make([][]byte, NodeWidth),
+					values:    make(map[byte][]byte, NodeWidth),
 					committer: n.committer,
+					count:     1,
 				}
-				lastNode.values[key[31]] = value
-				newBranch.children[nextWordInInsertedKey] = lastNode
-				newBranch.count++
-			} else if err := newBranch.Insert(key, value, resolver); err != nil {
+				n.count++
+			}
+
+			// recurse into the newly created child
+			if err := n.children[nextWordInInsertedKey].Insert(key, value, resolver); err != nil {
 				return err
 			}
+			n.children[nextWordInInsertedKey].ComputeCommitment()
+
+			n.commitment.Add(n.commitment, n.children[nextWordInInsertedKey].commitment.ScalarMul(&GetConfig().conf.SRS[nextWordInInsertedKey], n.children[nextWordInInsertedKey].hash))
 		}
-	default: // InternalNode
-		return child.Insert(key, value, resolver)
+	} else {
+		// internal node
+		nChild := offset2key(key, n.depth)
+
+		// special case: missing child, insert a leaf
+		if n.children[nChild] == nil {
+			n.children[nChild] = &StatelessNode{
+				depth:      n.depth + NodeBitWidth,
+				count:      1,
+				values:     map[byte][]byte{key[31]: value},
+				committer:  n.committer,
+				stem:       key[:31],
+				commitment: Generator(),
+			}
+			n.children[nChild].ComputeCommitment()
+			var diff Point
+			diff.ScalarMul(&GetConfig().conf.SRS[nChild], n.children[nChild].hash)
+			n.commitment.Add(n.commitment, &diff)
+			toFr(n.hash, n.commitment)
+			return nil
+		}
+		child := n.children[nChild]
+		// node is an internal node, pick the child and insert
+		if err := child.Insert(key, value, resolver); err != nil {
+			return err
+		}
+
+		// update the commitment
+		n.commitment.Add(n.commitment, pre.Sub(n.children[nChild].commitment, &pre))
 	}
+
+	toFr(n.hash, n.commitment)
 	return nil
 }
 
-func (n *InternalNodeStateless) toHashedNode() *HashedNode {
+func (n *StatelessNode) toHashedNode() *HashedNode {
 	return &HashedNode{n.hash, n.commitment}
 }
 
-func (n *InternalNodeStateless) InsertOrdered(key []byte, value []byte, flush NodeFlushFn) error {
 	// Clear cached commitment on modification
 	//if n.commitment != nil {
 	//n.commitment = nil
@@ -247,82 +290,47 @@ func (n *InternalNodeStateless) InsertOrdered(key []byte, value []byte, flush No
 	//}
 	//return nil
 	return errors.New("not implemented yet")
+func (n *StatelessNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn) error {
+	return errors.New("not implemented")
 }
 
-func (n *InternalNodeStateless) Delete(key []byte) error {
-	// Clear cached commitment on modification
-	n.commitment = nil
-	n.hash = nil
+func (n *StatelessNode) Delete(key []byte) error {
+	// Case of an ext node
+	if n.values != nil {
+		var zero [32]byte
+		// Set the value to 0, data can not be deleted
+		n.values[key[31]] = zero[:]
+		n.ComputeCommitment()
+		return nil
+	}
 
 	nChild := offset2key(key, n.depth)
-	switch child := n.children[nChild].(type) {
-	case Empty:
-		return errDeleteNonExistent
-	case *HashedNode:
-		return errDeleteHash
-	default:
-		return child.Delete(key)
+	child := n.children[nChild]
+	var pre Point
+	CopyPoint(&pre, child.commitment)
+	if err := child.Delete(key); err != nil {
+		return err
 	}
+
+	n.commitment.Add(n.commitment, pre.Sub(&pre, child.commitment))
+	return nil
 }
 
-// Flush hashes the children of an internal node and replaces them
-// with HashedNode. It also sends the current node on the flush channel.
-func (n *InternalNodeStateless) Flush(flush NodeFlushFn) {
-	for i, child := range n.children {
-		if c, ok := child.(*InternalNodeStateless); ok {
-			if c.commitment == nil {
-				c.ComputeCommitment()
-			}
-			c.Flush(flush)
-			n.children[i] = c.toHashedNode()
-		} else if c, ok := child.(*LeafNode); ok {
-			if c.commitment == nil {
-				c.ComputeCommitment()
-			}
-			flush(n.children[i])
-			n.children[i] = c.toHashedNode()
-		}
+func (n *StatelessNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
+	if n.values != nil {
+		return n.values[k[31]], nil
 	}
-	flush(n)
-}
 
-func (n *InternalNodeStateless) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 	nChild := offset2key(k, n.depth)
 
-	switch child := n.children[nChild].(type) {
-	case Empty, nil:
-		// Return nil as a signal that the value isn't
-		// present in the tree. This matches the behavior
-		// of SecureTrie in Geth.
+	child := n.children[nChild]
+	if child == nil {
 		return nil, nil
-	case *HashedNode:
-		// if a resolution function is set, resolve the
-		// current hash node.
-		if getter == nil {
-			return nil, errReadFromInvalid
-		}
-
-		commitment := child.hash.Bytes()
-		payload, err := getter(commitment[:])
-		if err != nil {
-			return nil, err
-		}
-
-		// deserialize the payload and set it as the child
-		c, err := ParseNode(payload, n.depth+NodeWidth)
-		if err != nil {
-			return nil, err
-		}
-		c.ComputeCommitment()
-		n.children[nChild] = c
-
-		return c.Get(k, getter)
-	default: // InternalNode
-		return child.Get(k, getter)
 	}
+	return child.Get(k, getter)
 }
 
-func (n *InternalNodeStateless) ComputeCommitment() *Fr {
+func (n *StatelessNode) ComputeCommitment() *Fr {
 	if n.hash != nil {
 		return n.hash
 	}
@@ -341,26 +349,48 @@ func (n *InternalNodeStateless) ComputeCommitment() *Fr {
 
 	n.hash = new(Fr)
 
-	emptyChildren := 0
-	poly := make([]Fr, NodeWidth)
-	for idx, child := range n.children {
-		switch child.(type) {
-		case Empty:
-			emptyChildren++
-		default:
+	if n.values != nil {
+		// leaf node: go over each value, and set them in the
+		// polynomial for the corresponding suffix node.
+		count1, count2 := 0, 0
+		var poly, c1poly, c2poly [256]Fr
+		poly[0].SetUint64(1)
+		fromBytes(&poly[1], n.stem)
+
+		for idx, val := range n.values {
+			if idx < 128 {
+				leafToComms(c1poly[idx<<1:], val)
+				count1++
+			} else {
+				leafToComms(c2poly[(idx<<1)&0xFF:], val)
+				count2++
+			}
+		}
+		n.c1 = n.committer.CommitToPoly(c1poly[:], 256-count1)
+		toFr(&poly[2], n.c1)
+		n.c2 = n.committer.CommitToPoly(c2poly[:], 256-count2)
+		toFr(&poly[3], n.c2)
+
+		n.commitment = n.committer.CommitToPoly(poly[:], 252)
+		toFr(n.hash, n.commitment)
+	} else {
+		// internal node
+		emptyChildren := 0
+		poly := make([]Fr, NodeWidth)
+		for idx, child := range n.children {
 			CopyFr(&poly[idx], child.ComputeCommitment())
 		}
-	}
 
-	// All the coefficients have been computed, evaluate the polynomial,
-	// serialize and hash the resulting point - this is the commitment.
-	n.commitment = n.committer.CommitToPoly(poly, emptyChildren)
-	toFr(n.hash, n.commitment)
+		// All the coefficients have been computed, evaluate the polynomial,
+		// serialize and hash the resulting point - this is the commitment.
+		n.commitment = n.committer.CommitToPoly(poly, emptyChildren)
+		toFr(n.hash, n.commitment)
+	}
 
 	return n.hash
 }
 
-func (n *InternalNodeStateless) GetCommitmentsAlongPath(key []byte) *ProofElements {
+func (n *StatelessNode) GetCommitmentsAlongPath(key []byte) *ProofElements {
 	childIdx := offset2key(key, n.depth)
 
 	// Build the list of elements for this level
@@ -384,7 +414,7 @@ func (n *InternalNodeStateless) GetCommitmentsAlongPath(key []byte) *ProofElemen
 
 	// Special case of a proof of absence: no children
 	// commitment, as the value is 0.
-	if _, ok := n.children[childIdx].(Empty); ok {
+	if n.children[childIdx] == nil {
 		return pe
 	}
 
@@ -393,20 +423,11 @@ func (n *InternalNodeStateless) GetCommitmentsAlongPath(key []byte) *ProofElemen
 	return pe
 }
 
-func (n *InternalNodeStateless) Serialize() ([]byte, error) {
-	var bitlist [32]uint8
-	children := make([]byte, 0, NodeWidth*32)
-	for i, c := range n.children {
-		if _, ok := c.(Empty); !ok {
-			setBit(bitlist[:], int(i))
-			digits := c.ComputeCommitment().Bytes()
-			children = append(children, digits[:]...)
-		}
-	}
-	return append(append([]byte{internalRLPType}, bitlist[:]...), children...), nil
+func (n *StatelessNode) Serialize() ([]byte, error) {
+	return nil, errors.New("not supported")
 }
 
-func (n *InternalNodeStateless) Copy() VerkleNode {
+func (n *StatelessNode) Copy() VerkleNode {
 	ret := &InternalNode{
 		children:   make([]VerkleNode, len(n.children)),
 		commitment: new(Point),
@@ -430,29 +451,26 @@ func (n *InternalNodeStateless) Copy() VerkleNode {
 	return ret
 }
 
-// clearCache sets the commitment field of node
-// and all of its children (recursively) to nil.
-func (n *InternalNodeStateless) clearCache() {
-	for _, c := range n.children {
-		in, ok := c.(*InternalNodeStateless)
-		if !ok {
-			continue
-		}
-		in.clearCache()
-	}
-	n.commitment = nil
-}
-
-func (n *InternalNodeStateless) toDot(parent, path string) string {
+func (n *StatelessNode) toDot(parent, path string) string {
 	n.ComputeCommitment()
 	me := fmt.Sprintf("internal%s", path)
-	ret := fmt.Sprintf("%s [label=\"I: %x\"]\n", me, n.hash.Bytes())
-	if len(parent) > 0 {
-		ret = fmt.Sprintf("%s %s -> %s\n", ret, parent, me)
-	}
+	var ret string
+	if n.values != nil {
+		ret = fmt.Sprintf("leaf%s [label=\"L: %x\nC: %x\nC₁: %x\nC₂:%x\"]\n%s -> leaf%s\n", path, n.hash.Bytes(), n.commitment.Bytes(), n.c1.Bytes(), n.c2.Bytes(), parent, path)
+		for i, v := range n.values {
+			if v != nil {
+				ret = fmt.Sprintf("%sval%s%x [label=\"%x\"]\nleaf%s -> val%s%x\n", ret, path, i, v, path, path, i)
+			}
+		}
+	} else {
+		ret = fmt.Sprintf("%s [label=\"I: %x\"]\n", me, n.hash.Bytes())
+		if len(parent) > 0 {
+			ret = fmt.Sprintf("%s %s -> %s\n", ret, parent, me)
+		}
 
-	for i, child := range n.children {
-		ret = fmt.Sprintf("%s%s", ret, child.toDot(me, fmt.Sprintf("%s%02x", path, i)))
+		for i, child := range n.children {
+			ret = fmt.Sprintf("%s%s", ret, child.toDot(me, fmt.Sprintf("%s%02x", path, i)))
+		}
 	}
 
 	return ret

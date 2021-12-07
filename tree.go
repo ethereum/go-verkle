@@ -472,11 +472,14 @@ func (n *InternalNode) ComputeCommitment() *Fr {
 		return n.hash
 	}
 
+	// Special cases of a node with no children: either it's
+	// an empty root, or it's an invalid node.
 	if n.count == 0 {
 		if n.depth != byte(0) {
 			panic("internal node should be empty node")
 		}
 
+		// case of an empty root
 		n.commitment = new(Point)
 		n.commitment.Identity()
 		n.hash = new(Fr)
