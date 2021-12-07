@@ -25,46 +25,29 @@
 
 package verkle
 
-import (
-	"github.com/crate-crypto/go-ipa/bandersnatch"
-	"github.com/crate-crypto/go-ipa/bandersnatch/fr"
-)
+import "testing"
 
-type Fr = fr.Element
-type Point = bandersnatch.PointAffine
+func TestStatelessInsertLeafIntoRoot(t *testing.T) {
+	root := NewStateless()
+	root.Insert(zeroKeyTest, fourtyKeyTest, nil)
 
-func CopyFr(dst, src *Fr) {
-	copy(dst[:], src[:])
-}
+	rootRef := New()
+	rootRef.Insert(zeroKeyTest, fourtyKeyTest, nil)
+	hash := rootRef.ComputeCommitment()
 
-func CopyPoint(dst, src *Point) {
-	bytes := src.Bytes()
-	dst.SetBytes(bytes[:])
-}
-
-func toFr(fr *Fr, p *Point) {
-	bytes := p.Bytes()
-	fr.SetBytes(bytes[:])
-}
-
-func from32(fr *Fr, data [32]byte) {
-	fr.SetBytes(data[:])
-}
-
-func fromLEBytes(fr *Fr, data []byte) {
-	for i := range data {
-		data[i], data[len(data)-1-i] = data[len(data)-1-i], data[i]
+	if !Equal(hash, root.hash) {
+		t.Fatalf("hashes differ after insertion %v %v", hash, root.hash)
 	}
-	fr.SetBytes(data)
-}
-func fromBytes(fr *Fr, data []byte) {
-	fromLEBytes(fr, data)
-}
 
-func Equal(fr *Fr, other *Fr) bool {
-	return fr.Equal(other)
-}
+	// Overwrite one leaf and check that the update
+	// is what is expected.
+	rootRef = New()
+	rootRef.Insert(zeroKeyTest, oneKeyTest, nil)
+	hash = rootRef.ComputeCommitment()
 
-func Generator() *Point {
-	return new(Point).Identity()
+	root.Insert(zeroKeyTest, oneKeyTest, nil)
+
+	if !Equal(hash, root.hash) {
+		t.Fatalf("hashes differ after update %v %v", hash, root.hash)
+	}
 }
