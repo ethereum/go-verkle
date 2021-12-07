@@ -90,10 +90,6 @@ func (n *StatelessNode) SetChild(i int, v VerkleNode) error {
 }
 
 func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn) error {
-	// Save the value of the initial commitment
-	var pre Point
-	//CopyPoint(&pre, n.commitment)
-
 	// if this is a leaf value and the stems are different, intermediate
 	// nodes need to be inserted.
 	if n.values != nil {
@@ -174,13 +170,20 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 			return nil
 		}
 		child := n.children[nChild]
+
+		// Save the value of the initial child commitment
+		var pre Fr
+		CopyFr(&pre, child.hash)
+
 		// node is an internal node, pick the child and insert
 		if err := child.Insert(key, value, resolver); err != nil {
 			return err
 		}
 
 		// update the commitment
-		n.commitment.Add(n.commitment, pre.Sub(n.children[nChild].commitment, &pre))
+		var diff Point
+		diff.ScalarMul(&GetConfig().conf.SRS[nChild], pre.Sub(child.hash, &pre))
+		n.commitment.Add(n.commitment, &diff)
 	}
 
 	toFr(n.hash, n.commitment)
