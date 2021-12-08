@@ -51,3 +51,29 @@ func TestStatelessInsertLeafIntoRoot(t *testing.T) {
 		t.Fatalf("hashes differ after update %v %v", hash, root.hash)
 	}
 }
+
+func TestStatelessInsertLeafIntoLeaf(t *testing.T) {
+	root := NewStateless()
+	root.Insert(zeroKeyTest, fourtyKeyTest, nil)
+	root.Insert(oneKeyTest, fourtyKeyTest, nil)
+
+	rootRef := New()
+	rootRef.Insert(zeroKeyTest, fourtyKeyTest, nil)
+	rootRef.Insert(oneKeyTest, fourtyKeyTest, nil)
+	hash := rootRef.ComputeCommitment()
+
+	if !Equal(hash, root.hash) {
+		t.Fatalf("hashes differ after insertion %v %v", hash, root.hash)
+	}
+
+	rootRef = New()
+	rootRef.Insert(zeroKeyTest, fourtyKeyTest, nil)
+	rootRef.Insert(oneKeyTest, oneKeyTest, nil)
+	hash = rootRef.ComputeCommitment()
+
+	root.Insert(oneKeyTest, oneKeyTest, nil)
+
+	if !Equal(hash, root.hash) {
+		t.Fatalf("hashes differ after update %v %v", hash, root.hash)
+	}
+}
