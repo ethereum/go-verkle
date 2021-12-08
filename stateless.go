@@ -111,7 +111,7 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 			// A new branch node has to be inserted. Depending
 			// on the next word in both keys, a recursion into
 			// the moved leaf node can occur.
-			nextWordInExistingKey := offset2key(n.stem, n.depth+NodeBitWidth)
+			nextWordInExistingKey := offset2key(n.stem, n.depth)
 			oldExtNode := &StatelessNode{
 				depth:      n.depth + NodeBitWidth,
 				committer:  n.committer,
@@ -120,33 +120,48 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 				stem:       n.stem,
 				commitment: n.commitment,
 				hash:       n.hash,
+				c1:         n.c1,
+				c2:         n.c2,
 			}
 			n.children = map[byte]*StatelessNode{
 				nextWordInExistingKey: oldExtNode,
 			}
 			n.values = nil
 			n.stem = nil
+			n.c1 = nil
+			n.c2 = nil
+			n.count++
+			n.commitment = new(Point)
+			n.commitment.ScalarMul(&GetConfig().conf.SRS[nextWordInExistingKey], oldExtNode.hash)
+			toFr(n.hash, n.commitment)
 
-			nextWordInInsertedKey := offset2key(key, n.depth+NodeBitWidth)
+			nextWordInInsertedKey := offset2key(key, n.depth)
 			if nextWordInInsertedKey != nextWordInExistingKey {
 				// Next word differs, so the branching point
 				// has been reached. Create the "new" child.
 				n.children[nextWordInInsertedKey] = &StatelessNode{
+					depth:     n.depth + NodeBitWidth,
 					stem:      key[:31],
-					values:    make(map[byte][]byte, NodeWidth),
+					values:    map[byte][]byte{key[31]: value},
 					committer: n.committer,
 					count:     1,
 				}
-				n.count++
+				n.children[nextWordInInsertedKey].ComputeCommitment()
 			}
+
+			child := n.children[nextWordInInsertedKey]
+			// Save the value of the initial child commitment
+			var pre Fr
+			CopyFr(&pre, child.hash)
 
 			// recurse into the newly created child
-			if err := n.children[nextWordInInsertedKey].Insert(key, value, resolver); err != nil {
+			if err := child.Insert(key, value, resolver); err != nil {
 				return err
 			}
-			n.children[nextWordInInsertedKey].ComputeCommitment()
 
-			n.commitment.Add(n.commitment, n.children[nextWordInInsertedKey].commitment.ScalarMul(&GetConfig().conf.SRS[nextWordInInsertedKey], n.children[nextWordInInsertedKey].hash))
+			var diff Point
+			diff.ScalarMul(&GetConfig().conf.SRS[nextWordInInsertedKey], pre.Sub(child.hash, &pre))
+			n.commitment.Add(n.commitment, &diff)
 		}
 	} else {
 		// internal node
@@ -169,20 +184,18 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 			toFr(n.hash, n.commitment)
 			return nil
 		}
-		child := n.children[nChild]
 
 		// Save the value of the initial child commitment
 		var pre Fr
-		CopyFr(&pre, child.hash)
+		CopyFr(&pre, n.children[nChild].hash)
 
-		// node is an internal node, pick the child and insert
-		if err := child.Insert(key, value, resolver); err != nil {
+		if err := n.children[nChild].Insert(key, value, resolver); err != nil {
 			return err
 		}
 
 		// update the commitment
 		var diff Point
-		diff.ScalarMul(&GetConfig().conf.SRS[nChild], pre.Sub(child.hash, &pre))
+		diff.ScalarMul(&GetConfig().conf.SRS[nChild], pre.Sub(n.children[nChild].hash, &pre))
 		n.commitment.Add(n.commitment, &diff)
 	}
 
@@ -194,105 +207,6 @@ func (n *StatelessNode) toHashedNode() *HashedNode {
 	return &HashedNode{n.hash, n.commitment}
 }
 
-	// Clear cached commitment on modification
-	//if n.commitment != nil {
-	//n.commitment = nil
-	//n.hash = nil
-	//}
-
-	//nChild := offset2key(key, n.depth)
-
-	//switch child := n.children[nChild].(type) {
-	//case Empty:
-	// Insert into a new subtrie, which means that the
-	// subtree directly preceding this new one, can
-	// safely be calculated.
-	//searchFirstNonEmptyChild:
-	//for i := int(nChild) - 1; i >= 0; i-- {
-	//switch child := n.children[i].(type) {
-	//case Empty:
-	//continue
-	//case *LeafNode:
-	//child.ComputeCommitment()
-	//if flush != nil {
-	//flush(child)
-	//}
-	//n.children[i] = child.toHashedNode()
-	//break searchFirstNonEmptyChild
-	//case *HashedNode:
-	//break searchFirstNonEmptyChild
-	//case *InternalNode:
-	//n.children[i].ComputeCommitment()
-	//if flush != nil {
-	//child.Flush(flush)
-	//}
-	//n.children[i] = child.toHashedNode()
-	//break searchFirstNonEmptyChild
-	//}
-	//}
-
-	// NOTE: these allocations are inducing a noticeable slowdown
-	//lastNode := &LeafNode{
-	//stem:      key[:31],
-	//values:    make([][]byte, NodeWidth),
-	//committer: n.committer,
-	//}
-	//lastNode.values[key[31]] = value
-	//n.children[nChild] = lastNode
-	//n.count++
-
-	// If the node was already created, then there was at least one
-	// child. As a result, inserting this new leaf means there are
-	// now more than one child in this node.
-	//case *HashedNode:
-	//return errInsertIntoHash
-	//case *LeafNode:
-	// Need to add a new branch node to differentiate
-	// between two keys, if the keys are different.
-	// Otherwise, just update the key.
-	//if equalPaths(child.stem, key) {
-	//child.values[key[31]] = value
-	//} else {
-	// A new branch node has to be inserted. Depending
-	// on the next word in both keys, a recursion into
-	// the moved leaf node can occur.
-	//nextWordInExistingKey := offset2key(child.stem, n.depth+NodeBitWidth)
-	//newBranch := newInternalNode(n.depth+NodeBitWidth, n.committer).(*InternalNodeStateless)
-	//newBranch.count = 1
-	//n.children[nChild] = newBranch
-
-	//nextWordInInsertedKey := offset2key(key, n.depth+NodeBitWidth)
-	//if nextWordInInsertedKey != nextWordInExistingKey {
-	// Directly hash the (left) node that was already
-	// inserted.
-	//child.ComputeCommitment()
-	//if flush != nil {
-	//flush(child)
-	//}
-	//newBranch.children[nextWordInExistingKey] = child.toHashedNode()
-	// Next word differs, so this was the last level.
-	// Insert it directly into its final slot.
-	//lastNode := &LeafNode{
-	//stem:      key[:31],
-	//values:    make([][]byte, NodeWidth),
-	//committer: n.committer,
-	//}
-	//lastNode.values[key[31]] = value
-	//newBranch.children[nextWordInInsertedKey] = lastNode
-	//newBranch.count++
-	//} else {
-	// Reinsert the leaf in order to recurse
-	//newBranch.children[nextWordInExistingKey] = child
-	//if err := newBranch.InsertOrdered(key, value, flush); err != nil {
-	//return err
-	//}
-	//}
-	//}
-	//default: // InternalNode
-	//return child.InsertOrdered(key, value, flush)
-	//}
-	//return nil
-	return errors.New("not implemented yet")
 func (n *StatelessNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn) error {
 	return errors.New("not implemented")
 }
