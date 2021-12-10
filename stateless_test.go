@@ -25,7 +25,10 @@
 
 package verkle
 
-import "testing"
+import (
+	"encoding/hex"
+	"testing"
+)
 
 func TestStatelessInsertLeafIntoRoot(t *testing.T) {
 	root := NewStateless()
@@ -75,5 +78,19 @@ func TestStatelessInsertLeafIntoLeaf(t *testing.T) {
 
 	if !Equal(hash, root.hash) {
 		t.Fatalf("hashes differ after update %v %v", hash, root.hash)
+	}
+}
+func TestStatelessInsertLeafIntoInternal(t *testing.T) {
+	key1, _ := hex.DecodeString("0000100000000000000000000000000000000000000000000000000000000000")
+	root := NewStateless()
+	root.Insert(zeroKeyTest, fourtyKeyTest, nil)
+	root.Insert(key1, fourtyKeyTest, nil)
+	rootRef := New()
+	rootRef.Insert(zeroKeyTest, fourtyKeyTest, nil)
+	rootRef.Insert(key1, fourtyKeyTest, nil)
+	hash := rootRef.ComputeCommitment()
+
+	if !Equal(hash, root.hash) {
+		t.Fatalf("hashes differ after insertion %v %v", hash, root.hash)
 	}
 }
