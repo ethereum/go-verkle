@@ -131,9 +131,6 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 			n.c1 = nil
 			n.c2 = nil
 			n.count++
-			n.commitment = new(Point)
-			n.commitment.ScalarMul(&GetConfig().conf.SRS[nextWordInExistingKey], oldExtNode.hash)
-			toFr(n.hash, n.commitment)
 
 			nextWordInInsertedKey := offset2key(key, n.depth)
 			if nextWordInInsertedKey != nextWordInExistingKey {
@@ -149,19 +146,18 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 				n.children[nextWordInInsertedKey].ComputeCommitment()
 			}
 
-			child := n.children[nextWordInInsertedKey]
-			// Save the value of the initial child commitment
-			var pre Fr
-			CopyFr(&pre, child.hash)
-
 			// recurse into the newly created child
-			if err := child.Insert(key, value, resolver); err != nil {
+			if err := n.children[nextWordInInsertedKey].Insert(key, value, resolver); err != nil {
 				return err
 			}
 
-			var diff Point
-			diff.ScalarMul(&GetConfig().conf.SRS[nextWordInInsertedKey], pre.Sub(child.hash, &pre))
-			n.commitment.Add(n.commitment, &diff)
+			var poly [NodeWidth]Fr
+			CopyFr(&poly[nextWordInExistingKey], oldExtNode.hash)
+			if nextWordInExistingKey != nextWordInInsertedKey {
+				CopyFr(&poly[nextWordInInsertedKey], n.children[nextWordInInsertedKey].hash)
+			}
+			n.commitment = n.committer.CommitToPoly(poly[:], NodeWidth-2)
+			toFr(n.hash, n.commitment)
 		}
 	} else {
 		// internal node

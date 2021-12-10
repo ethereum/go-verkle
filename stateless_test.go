@@ -25,7 +25,10 @@
 
 package verkle
 
-import "testing"
+import (
+	"encoding/hex"
+	"testing"
+)
 
 func TestStatelessInsertLeafIntoRoot(t *testing.T) {
 	root := NewStateless()
