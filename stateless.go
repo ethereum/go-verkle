@@ -199,11 +199,7 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 	return nil
 }
 
-func (n *StatelessNode) toHashedNode() *HashedNode {
-	return &HashedNode{n.hash, n.commitment}
-}
-
-func (n *StatelessNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn) error {
+func (*StatelessNode) InsertOrdered([]byte, []byte, NodeFlushFn) error {
 	return errors.New("not implemented")
 }
 
@@ -336,7 +332,7 @@ func (n *StatelessNode) GetCommitmentsAlongPath(key []byte) *ProofElements {
 	return pe
 }
 
-func (n *StatelessNode) Serialize() ([]byte, error) {
+func (*StatelessNode) Serialize() ([]byte, error) {
 	return nil, errors.New("not supported")
 }
 
