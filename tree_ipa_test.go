@@ -45,7 +45,7 @@ func extensionAndSuffixOneKey(key, value []byte, ret *Point) {
 		vs                              [2]Fr
 		srs                             = GetConfig().conf.SRS
 		stemComm1, stemComm3, stemComm2 Point
-		zero, t1, t2, c1                Point
+		t1, t2, c1                      Point
 	)
 	stemComm0 := srs[0]
 	fromBytes(&v, key[:31])
@@ -56,9 +56,8 @@ func extensionAndSuffixOneKey(key, value []byte, ret *Point) {
 	toFr(&v, &c1)
 	stemComm2.ScalarMul(&srs[2], &v)
 
-	(&zero).Identity()
-	toFr(&v, &zero)
-	stemComm3.ScalarMul(&srs[3], &FrZero)
+	v.SetZero()
+	stemComm3.ScalarMul(&srs[3], &v)
 
 	t1.Add(&stemComm0, &stemComm1)
 	t2.Add(&stemComm2, &stemComm3)
