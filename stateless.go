@@ -63,7 +63,7 @@ type StatelessNode struct {
 func NewStateless() *StatelessNode {
 	return &StatelessNode{
 		children:   make(map[byte]*StatelessNode),
-		hash:       &FrZero,
+		hash:       new(Fr).SetZero(),
 		committer:  GetConfig(),
 		commitment: Generator(),
 	}
