@@ -209,19 +209,25 @@ func (n *StatelessNode) Delete(key []byte) error {
 		var zero [32]byte
 		// Set the value to 0, data can not be deleted
 		n.values[key[31]] = zero[:]
+		n.hash = nil
 		n.ComputeCommitment()
 		return nil
 	}
 
 	nChild := offset2key(key, n.depth)
 	child := n.children[nChild]
-	var pre Point
-	CopyPoint(&pre, child.commitment)
+	var pre Fr
+	CopyFr(&pre, child.hash)
 	if err := child.Delete(key); err != nil {
 		return err
 	}
 
-	n.commitment.Add(n.commitment, pre.Sub(&pre, child.commitment))
+	pre.Sub(child.hash, &pre)
+
+	var tmp Point
+	tmp.ScalarMul(&GetConfig().conf.SRS[nChild], &pre)
+	n.commitment.Add(n.commitment, &tmp)
+	toFr(n.hash, n.commitment)
 	return nil
 }
 
