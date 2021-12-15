@@ -120,7 +120,7 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 				count:      n.count,
 				values:     n.values,
 				stem:       n.stem,
-				commitment: n.commitment,
+				commitment: new(Point),
 				hash:       n.hash,
 				c1:         n.c1,
 				c2:         n.c2,
@@ -133,6 +133,8 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 			n.c1 = nil
 			n.c2 = nil
 			n.count++
+			CopyPoint(oldExtNode.commitment, n.commitment)
+			n.hash = new(Fr)
 
 			nextWordInInsertedKey := offset2key(key, n.depth)
 			if nextWordInInsertedKey != nextWordInExistingKey {
