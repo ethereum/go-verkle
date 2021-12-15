@@ -28,6 +28,8 @@ package verkle
 import (
 	"bytes"
 	"encoding/hex"
+	"sort"
+	"strings"
 	"testing"
 )
 
@@ -158,5 +160,29 @@ func TestStatelessGet(t *testing.T) {
 	}
 	if data != nil {
 		t.Fatalf("error: got value %x, expected nil", data)
+	}
+}
+
+func TestStatelessToDot(t *testing.T) {
+	key1, _ := hex.DecodeString("0000100000000000000000000000000000000000000000000000000000000000")
+	root := NewStateless()
+	root.Insert(zeroKeyTest, fourtyKeyTest, nil)
+	root.Insert(oneKeyTest, fourtyKeyTest, nil)
+	root.Insert(key1, fourtyKeyTest, nil)
+	rootRef := New()
+	rootRef.Insert(zeroKeyTest, fourtyKeyTest, nil)
+	rootRef.Insert(oneKeyTest, fourtyKeyTest, nil)
+	rootRef.Insert(key1, fourtyKeyTest, nil)
+	rootRef.ComputeCommitment()
+
+	stl := strings.Split(root.toDot("", ""), "\n")
+	stf := strings.Split(rootRef.toDot("", ""), "\n")
+	sort.Strings(stl)
+	sort.Strings(stf)
+	stfJ := strings.Join(stf, "\n")
+	stlJ := strings.Join(stl, "\n")
+
+	if stfJ != stlJ {
+		t.Fatalf("hashes differ after insertion %v %v", stf, stl)
 	}
 }
