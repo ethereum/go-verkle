@@ -26,6 +26,7 @@
 package verkle
 
 import (
+	"bytes"
 	"encoding/hex"
 	"testing"
 )
@@ -137,5 +138,25 @@ func TestStatelessCopy(t *testing.T) {
 	root.Insert(oneKeyTest, fourtyKeyTest, nil)
 	if Equal(rootCopy.ComputeCommitment(), root.hash) {
 		t.Fatal("copy did not update the hash")
+	}
+}
+
+func TestStatelessGet(t *testing.T) {
+	root := NewStateless()
+	root.Insert(zeroKeyTest, fourtyKeyTest, nil)
+	data, err := root.Get(zeroKeyTest, nil)
+	if err != nil {
+		t.Fatalf("error while getting existing value %v", err)
+	}
+	if !bytes.Equal(data, fourtyKeyTest) {
+		t.Fatalf("error getting value, expected %x, got %x", fourtyKeyTest, data)
+	}
+
+	data, err = root.Get(oneKeyTest, nil)
+	if err != nil {
+		t.Fatalf("error while getting non-existing value %v", err)
+	}
+	if data != nil {
+		t.Fatalf("error: got value %x, expected nil", data)
 	}
 }
