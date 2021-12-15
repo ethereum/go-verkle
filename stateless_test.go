@@ -103,6 +103,7 @@ func TestStatelessInsertLeafIntoLeaf(t *testing.T) {
 		t.Fatalf("hashes differ after update %v %v", hash, root.hash)
 	}
 }
+
 func TestStatelessInsertLeafIntoInternal(t *testing.T) {
 	key1, _ := hex.DecodeString("0000100000000000000000000000000000000000000000000000000000000000")
 	root := NewStateless()
@@ -115,5 +116,13 @@ func TestStatelessInsertLeafIntoInternal(t *testing.T) {
 
 	if !Equal(hash, root.hash) {
 		t.Fatalf("hashes differ after insertion %v %v", hash, root.hash)
+	}
+}
+
+func TestStatelessInsertOrdered(t *testing.T) {
+	root := NewStateless()
+	err := root.InsertOrdered(zeroKeyTest, fourtyKeyTest, nil)
+	if err != errNotSupportedInStateless {
+		t.Fatalf("got the wrong error: expected %v, got %v", errNotSupportedInStateless, err)
 	}
 }
