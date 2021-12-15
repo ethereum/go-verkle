@@ -60,6 +60,8 @@ type StatelessNode struct {
 	committer Committer
 }
 
+var errNotSupportedInStateless = errors.New("not implemented in stateless")
+
 func NewStateless() *StatelessNode {
 	return &StatelessNode{
 		children:   make(map[byte]*StatelessNode),
@@ -200,7 +202,7 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 }
 
 func (*StatelessNode) InsertOrdered([]byte, []byte, NodeFlushFn) error {
-	return errors.New("not implemented")
+	return errNotSupportedInStateless
 }
 
 func (n *StatelessNode) Delete(key []byte) error {
