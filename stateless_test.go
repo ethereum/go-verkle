@@ -126,3 +126,16 @@ func TestStatelessInsertOrdered(t *testing.T) {
 		t.Fatalf("got the wrong error: expected %v, got %v", errNotSupportedInStateless, err)
 	}
 }
+
+func TestStatelessCopy(t *testing.T) {
+	root := NewStateless()
+	root.Insert(zeroKeyTest, fourtyKeyTest, nil)
+	rootCopy := root.Copy()
+	if !Equal(rootCopy.ComputeCommitment(), root.hash) {
+		t.Fatal("copy produced the wrong hash")
+	}
+	root.Insert(oneKeyTest, fourtyKeyTest, nil)
+	if Equal(rootCopy.ComputeCommitment(), root.hash) {
+		t.Fatal("copy did not update the hash")
+	}
+}
