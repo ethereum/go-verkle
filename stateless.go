@@ -310,36 +310,7 @@ func (n *StatelessNode) ComputeCommitment() *Fr {
 }
 
 func (n *StatelessNode) GetCommitmentsAlongPath(key []byte) *ProofElements {
-	childIdx := offset2key(key, n.depth)
-
-	// Build the list of elements for this level
-	var yi Fr
-	fi := make([]Fr, NodeWidth)
-	for i, child := range n.children {
-		CopyFr(&fi[i], child.ComputeCommitment())
-
-		if i == childIdx {
-			CopyFr(&yi, &fi[i])
-		}
-	}
-
-	// The proof elements that are to be added at this level
-	pe := &ProofElements{
-		Cis: []*Point{n.commitment},
-		Zis: []uint8{childIdx},
-		Yis: []*Fr{&yi}, // Should be 0
-		Fis: [][]Fr{fi},
-	}
-
-	// Special case of a proof of absence: no children
-	// commitment, as the value is 0.
-	if n.children[childIdx] == nil {
-		return pe
-	}
-
-	pec := n.children[childIdx].GetCommitmentsAlongPath(key)
-	pe.Merge(pec)
-	return pe
+	panic("not supported in stateless mode")
 }
 
 func (*StatelessNode) Serialize() ([]byte, error) {
