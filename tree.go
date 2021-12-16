@@ -130,14 +130,6 @@ const (
 	leafRLPType     byte = 2
 )
 
-var (
-	errInsertIntoHash      = errors.New("trying to insert into hashed node")
-	errDeleteNonExistent   = errors.New("trying to delete non-existent leaf")
-	errDeleteHash          = errors.New("trying to delete from a hashed subtree")
-	errReadFromInvalid     = errors.New("trying to read from an invalid child")
-	errSerializeHashedNode = errors.New("trying to serialized a hashed node")
-)
-
 type (
 	// Represents an internal node at any level
 	InternalNode struct {
