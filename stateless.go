@@ -70,11 +70,15 @@ func NewStateless() *StatelessNode {
 }
 
 func (n *StatelessNode) Children() []VerkleNode {
-	var children []VerkleNode
-	for _, child := range n.children {
-		children = append(children, child)
+	var children [256]VerkleNode
+	for i := range children {
+		if n.children[byte(i)] != nil {
+			children[i] = n.children[byte(i)]
+		} else {
+			children[i] = Empty(struct{}{})
+		}
 	}
-	return children
+	return children[:]
 }
 
 func (n *StatelessNode) SetChild(i int, v VerkleNode) error {

@@ -33,6 +33,38 @@ import (
 	"testing"
 )
 
+func TestStatelessChildren(t *testing.T) {
+	root := NewStateless()
+	root.Insert(zeroKeyTest, fourtyKeyTest, nil)
+	root.Insert(oneKeyTest, fourtyKeyTest, nil)
+
+	list := root.Children()
+	if len(list) != NodeWidth {
+		t.Fatal("invalid list length")
+	}
+
+	var emptycount = 0
+	for _, v := range list {
+		if _, ok := v.(Empty); ok {
+			emptycount++
+		}
+	}
+	if emptycount != NodeWidth-1 {
+		t.Fatal("invalid number of children")
+	}
+
+	if err := root.SetChild(72, Empty{}); err == nil {
+		t.Fatal("didn't catch a stateful node being inserted in a stateless node")
+	}
+	if err := root.SetChild(512, Empty{}); err == nil {
+		t.Fatal("didn't catch a node being inserted at an invalid index in a stateless node")
+	}
+
+	if err := root.SetChild(3, &StatelessNode{}); err != nil {
+		t.Fatal("error inserting stateless node")
+	}
+}
+
 func TestStatelessDelete(t *testing.T) {
 	root := NewStateless()
 	root.Insert(zeroKeyTest, fourtyKeyTest, nil)
