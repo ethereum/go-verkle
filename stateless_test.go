@@ -28,6 +28,7 @@ package verkle
 import (
 	"bytes"
 	"encoding/hex"
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
@@ -159,6 +160,26 @@ func TestStatelessInsertOrdered(t *testing.T) {
 	err := root.InsertOrdered(zeroKeyTest, fourtyKeyTest, nil)
 	if err != errNotSupportedInStateless {
 		t.Fatalf("got the wrong error: expected %v, got %v", errNotSupportedInStateless, err)
+	}
+}
+
+func TestStatelessGetCommitmentsAlongPath(t *testing.T) {
+	root := NewStateless()
+	root.Insert(zeroKeyTest, fourtyKeyTest, nil)
+	root.Insert(oneKeyTest, fourtyKeyTest, nil)
+	root.Insert(fourtyKeyTest, fourtyKeyTest, nil)
+
+	rootRef := New()
+	rootRef.Insert(zeroKeyTest, fourtyKeyTest, nil)
+	rootRef.Insert(oneKeyTest, fourtyKeyTest, nil)
+	rootRef.Insert(fourtyKeyTest, fourtyKeyTest, nil)
+	rootRef.ComputeCommitment()
+
+	stf := rootRef.GetCommitmentsAlongPath(oneKeyTest)
+	stl := root.GetCommitmentsAlongPath(oneKeyTest)
+
+	if !reflect.DeepEqual(stf, stl) {
+		t.Fatalf("commitments along path differ %v != %v", stf, stl)
 	}
 }
 
