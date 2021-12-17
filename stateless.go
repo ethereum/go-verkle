@@ -60,8 +60,6 @@ type StatelessNode struct {
 	committer Committer
 }
 
-var errNotSupportedInStateless = errors.New("not implemented in stateless")
-
 func NewStateless() *StatelessNode {
 	return &StatelessNode{
 		children:   make(map[byte]*StatelessNode),
@@ -314,7 +312,7 @@ func (*StatelessNode) GetCommitmentsAlongPath([]byte) *ProofElements {
 }
 
 func (*StatelessNode) Serialize() ([]byte, error) {
-	return nil, errors.New("not supported")
+	return nil, errNotSupportedInStateless
 }
 
 func (n *StatelessNode) Copy() VerkleNode {
