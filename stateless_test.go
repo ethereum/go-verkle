@@ -163,6 +163,25 @@ func TestStatelessGet(t *testing.T) {
 	}
 }
 
+func TestStatelessComputeCommitmentEmptyRoot(t *testing.T) {
+	root := &StatelessNode{}
+	root.ComputeCommitment()
+	if !Equal(root.hash, &FrZero) {
+		t.Fatal("invalid commitment for the empty root")
+	}
+
+	root.depth = 10
+	root.hash = nil
+	defer func() {
+		if err := recover(); err == nil {
+			t.Fatal("should have caught the computation of an invalid node")
+		}
+	}()
+	root.ComputeCommitment()
+
+	t.Fatal("should have panicked before")
+}
+
 func TestStatelessToDot(t *testing.T) {
 	key1, _ := hex.DecodeString("0000100000000000000000000000000000000000000000000000000000000000")
 	root := NewStateless()
