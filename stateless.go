@@ -44,7 +44,7 @@ type StatelessNode struct {
 	stem []byte
 
 	// node depth in the tree, in bits
-	depth int
+	depth byte
 
 	// child count, used for the special case in
 	// commitment calculations.
@@ -59,8 +59,6 @@ type StatelessNode struct {
 
 	committer Committer
 }
-
-var errNotSupportedInStateless = errors.New("not implemented in stateless")
 
 func NewStateless() *StatelessNode {
 	return &StatelessNode{
@@ -274,7 +272,7 @@ func (n *StatelessNode) ComputeCommitment() *Fr {
 		count1, count2 := 0, 0
 		var poly, c1poly, c2poly [256]Fr
 		poly[0].SetUint64(1)
-		fromBytes(&poly[1], n.stem)
+		FromBytes(&poly[1], n.stem)
 
 		for idx, val := range n.values {
 			if idx < 128 {
@@ -309,12 +307,12 @@ func (n *StatelessNode) ComputeCommitment() *Fr {
 	return n.hash
 }
 
-func (*StatelessNode) GetCommitmentsAlongPath([]byte) *ProofElements {
+func (*StatelessNode) GetCommitmentsAlongPath([]byte) (*ProofElements, byte, []byte) {
 	panic("not supported in stateless mode")
 }
 
 func (*StatelessNode) Serialize() ([]byte, error) {
-	return nil, errors.New("not supported")
+	return nil, errNotSupportedInStateless
 }
 
 func (n *StatelessNode) Copy() VerkleNode {
