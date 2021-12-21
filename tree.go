@@ -645,7 +645,7 @@ func (n *LeafNode) ComputeCommitment() *Fr {
 	count := 0
 	var poly, c1poly, c2poly [256]Fr
 	poly[0].SetUint64(1)
-	fromBytes(&poly[1], n.stem)
+	FromBytes(&poly[1], n.stem)
 
 	count = fillSuffixTreePoly(c1poly[:], n.values[:128])
 	n.c1 = n.committer.CommitToPoly(c1poly[:], 256-count)
@@ -691,9 +691,9 @@ func leafToComms(poly []Fr, val []byte) {
 	}
 	copy(valLoWithMarker[:loEnd], val[:loEnd])
 	valLoWithMarker[16] = 1 // 2**128
-	fromLEBytes(&poly[0], valLoWithMarker[:])
+	FromLEBytes(&poly[0], valLoWithMarker[:])
 	if len(val) >= 16 {
-		fromLEBytes(&poly[1], val[16:])
+		FromLEBytes(&poly[1], val[16:])
 	}
 }
 
