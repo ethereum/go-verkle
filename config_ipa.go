@@ -40,8 +40,13 @@ func (ipac *IPAConfig) CommitToPoly(poly []Fr, _ int) *Point {
 	return &ret
 }
 
+var cfg *Config
+
 func GetConfig() *Config {
-	return &IPAConfig{conf: ipa.NewIPASettings()}
+	if cfg == nil {
+		cfg = &IPAConfig{conf: ipa.NewIPASettings()}
+	}
+	return cfg
 }
 
 var FrZero Fr
@@ -50,4 +55,5 @@ var FrOne Fr
 func init() {
 	FrZero.SetZero()
 	FrOne.SetOne()
+	GetConfig()
 }
