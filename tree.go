@@ -63,8 +63,9 @@ type VerkleNode interface {
 	// GetCommitmentsAlongPath follows the path that one key
 	// traces through the tree, and collects the various
 	// elements needed to build a proof. The order of elements
-	// is from the bottom of the tree, up to the root.
-	GetCommitmentsAlongPath([]byte) *ProofElements
+	// is from the bottom of the tree, up to the root. It also
+	// returns the extension status.
+	GetCommitmentsAlongPath([]byte) (*ProofElements, byte)
 
 	// Serialize encodes the node to RLP.
 	Serialize() ([]byte, error)
@@ -136,6 +137,13 @@ var (
 	errDeleteHash          = errors.New("trying to delete from a hashed subtree")
 	errReadFromInvalid     = errors.New("trying to read from an invalid child")
 	errSerializeHashedNode = errors.New("trying to serialized a hashed node")
+)
+
+const (
+	// Extension status
+	extStatusPresent     = byte(iota)
+	extStatusAbsentEmpty // When reaching an empty node
+	extStatusAbsentOther // When a different extension is present
 )
 
 type (
@@ -491,7 +499,7 @@ func (n *InternalNode) ComputeCommitment() *Fr {
 	return n.hash
 }
 
-func (n *InternalNode) GetCommitmentsAlongPath(key []byte) *ProofElements {
+func (n *InternalNode) GetCommitmentsAlongPath(key []byte) (*ProofElements, byte) {
 	childIdx := offset2key(key, n.depth)
 
 	// Build the list of elements for this level
@@ -516,12 +524,12 @@ func (n *InternalNode) GetCommitmentsAlongPath(key []byte) *ProofElements {
 	// Special case of a proof of absence: no children
 	// commitment, as the value is 0.
 	if _, ok := n.children[childIdx].(Empty); ok {
-		return pe
+		return pe, extStatusAbsentEmpty
 	}
 
-	pec := n.children[childIdx].GetCommitmentsAlongPath(key)
+	pec, es := n.children[childIdx].GetCommitmentsAlongPath(key)
 	pe.Merge(pec)
-	return pe
+	return pe, es
 }
 
 func (n *InternalNode) Serialize() ([]byte, error) {
@@ -697,7 +705,7 @@ func leafToComms(poly []Fr, val []byte) {
 	}
 }
 
-func (n *LeafNode) GetCommitmentsAlongPath(key []byte) *ProofElements {
+func (n *LeafNode) GetCommitmentsAlongPath(key []byte) (*ProofElements, byte) {
 	// Proof of absence: case of a differing stem.
 	//
 	// Return an unopened stem-level node.
@@ -712,7 +720,7 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) *ProofElements {
 			Zis: []byte{0, 1},
 			Yis: []*Fr{&poly[0], &poly[1]},
 			Fis: [][]Fr{poly[:], poly[:]},
-		}
+		}, extStatusAbsentOther
 	}
 
 	var (
@@ -751,7 +759,7 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) *ProofElements {
 			Zis: []byte{0, 1, suffSlot},
 			Yis: []*Fr{&extPoly[0], &extPoly[1], &FrZero},
 			Fis: [][]Fr{extPoly[:], extPoly[:], extPoly[:]},
-		}
+		}, extStatusAbsentEmpty
 	}
 
 	var scomm *Point
@@ -775,7 +783,7 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) *ProofElements {
 			Zis: []byte{0, 1, suffSlot, slot},
 			Yis: []*Fr{&extPoly[0], &extPoly[1], &extPoly[2+slot/128], &FrZero},
 			Fis: [][]Fr{extPoly[:], extPoly[:], extPoly[:], poly[:]},
-		}
+		}, extStatusPresent // present, since the stem is present
 	}
 
 	// suffix tree is present and contains the key
@@ -787,7 +795,7 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) *ProofElements {
 		Zis: []byte{0, 1, suffSlot, 2 * slot, 2*slot + 1},
 		Yis: []*Fr{&extPoly[0], &extPoly[1], &extPoly[2+slot/128], &leaves[0], &leaves[1]},
 		Fis: [][]Fr{extPoly[:], extPoly[:], extPoly[:], poly[:], poly[:]},
-	}
+	}, extStatusPresent
 }
 
 func (n *LeafNode) Serialize() ([]byte, error) {

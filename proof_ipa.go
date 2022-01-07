@@ -30,36 +30,65 @@ import (
 	"github.com/crate-crypto/go-ipa/common"
 )
 
-type Proof = ipa.MultiProof
+type Proof struct {
+	multipoint  *ipa.MultiProof // multipoint argument
+	stemDepth   []byte          // the depth of each stem
+	extStatus   []byte          // the extension status of each stem
+	commitments []*Point        // commitments, sorted by their path in the tree
+	poaStems    [][]byte        // the stems used for the proof of absence
+}
 
 func MakeVerkleProofOneLeaf(root VerkleNode, key []byte) *Proof {
 	tr := common.NewTranscript("multiproof")
 	root.ComputeCommitment()
-	pe := root.GetCommitmentsAlongPath(key)
-	return ipa.CreateMultiProof(tr, GetConfig().conf, pe.Cis, pe.Fis, pe.Zis)
-}
-
-func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte) *ProofElements {
-	p := &ProofElements{}
-	for _, key := range keys {
-		pe := root.GetCommitmentsAlongPath(key)
-		p.Merge(pe)
+	pe, extStatus := root.GetCommitmentsAlongPath(key)
+	proof := &Proof{
+		multipoint:  ipa.CreateMultiProof(tr, GetConfig().conf, pe.Cis, pe.Fis, pe.Zis),
+		commitments: pe.Cis,
+		extStatus:   []byte{extStatus},
 	}
 
-	return p
+	if proof.extStatus[0] == extStatusPresent {
+		proof.poaStems = [][]byte{key[:31]}
+	}
+
+	return proof
+}
+
+func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte) (*ProofElements, []byte, [][]byte) {
+	p := &ProofElements{}
+	var extStatuses []byte
+	var poaStems [][]byte
+	for _, key := range keys {
+		pe, extStatus := root.GetCommitmentsAlongPath(key)
+		p.Merge(pe)
+		extStatuses = append(extStatuses, extStatus)
+
+		if extStatuses[len(extStatuses)-1] == extStatusPresent {
+			poaStems = append(poaStems, key[:31])
+		}
+	}
+
+	return p, extStatuses, poaStems
 }
 
 func MakeVerkleMultiProof(root VerkleNode, keys [][]byte) (*Proof, []*Point, []byte, []*Fr) {
 	tr := common.NewTranscript("multiproof")
 	root.ComputeCommitment()
 
-	pe := GetCommitmentsForMultiproof(root, keys)
+	pe, es, poas := GetCommitmentsForMultiproof(root, keys)
 
-	proof := ipa.CreateMultiProof(tr, GetConfig().conf, pe.Cis, pe.Fis, pe.Zis)
+	mpArg := ipa.CreateMultiProof(tr, GetConfig().conf, pe.Cis, pe.Fis, pe.Zis)
+	proof := &Proof{
+		multipoint:  mpArg,
+		commitments: pe.Cis,
+		extStatus:   es,
+		poaStems:    poas,
+	}
 	return proof, pe.Cis, pe.Zis, pe.Yis
 }
 
 func VerifyVerkleProof(proof *Proof, Cs []*Point, indices []uint8, ys []*Fr, tc *Config) bool {
 	tr := common.NewTranscript("multiproof")
-	return ipa.CheckMultiProof(tr, tc.conf, proof, Cs, ys, indices)
+	return ipa.CheckMultiProof(tr, tc.conf, proof.multipoint, Cs, ys, indices)
 }
