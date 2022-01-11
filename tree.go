@@ -141,9 +141,9 @@ var (
 
 const (
 	// Extension status
-	extStatusPresent     = byte(iota)
-	extStatusAbsentEmpty // When reaching an empty node
-	extStatusAbsentOther // When a different extension is present
+	extStatusAbsentEmpty = byte(iota) // missing child node along the path
+	extStatusAbsentOther              // path led to a node with a different stem
+	extStatusPresent                  // stem was present
 )
 
 type (
@@ -177,6 +177,8 @@ type (
 		c1, c2     *Point
 		hash       *Fr
 		committer  Committer
+
+		depth int
 	}
 )
 
@@ -224,6 +226,7 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 			stem:      key[:31],
 			values:    make([][]byte, NodeWidth),
 			committer: n.committer,
+			depth:     n.depth + 1,
 		}
 		lastNode.values[key[31]] = value
 		n.children[nChild] = lastNode
@@ -269,6 +272,7 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 					stem:      key[:31],
 					values:    make([][]byte, NodeWidth),
 					committer: n.committer,
+					depth:     n.depth + 1,
 				}
 				lastNode.values[key[31]] = value
 				newBranch.children[nextWordInInsertedKey] = lastNode
@@ -330,6 +334,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 			stem:      key[:31],
 			values:    make([][]byte, NodeWidth),
 			committer: n.committer,
+			depth:     n.depth + 1,
 		}
 		lastNode.values[key[31]] = value
 		n.children[nChild] = lastNode
@@ -370,6 +375,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 					stem:      key[:31],
 					values:    make([][]byte, NodeWidth),
 					committer: n.committer,
+					depth:     n.depth + 1,
 				}
 				lastNode.values[key[31]] = value
 				newBranch.children[nextWordInInsertedKey] = lastNode
@@ -524,7 +530,7 @@ func (n *InternalNode) GetCommitmentsAlongPath(key []byte) (*ProofElements, byte
 	// Special case of a proof of absence: no children
 	// commitment, as the value is 0.
 	if _, ok := n.children[childIdx].(Empty); ok {
-		return pe, extStatusAbsentEmpty
+		return pe, extStatusAbsentEmpty | byte(n.depth<<3)
 	}
 
 	pec, es := n.children[childIdx].GetCommitmentsAlongPath(key)
@@ -720,7 +726,7 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) (*ProofElements, byte) {
 			Zis: []byte{0, 1},
 			Yis: []*Fr{&poly[0], &poly[1]},
 			Fis: [][]Fr{poly[:], poly[:]},
-		}, extStatusAbsentOther
+		}, extStatusAbsentOther | byte(n.depth<<3)
 	}
 
 	var (
@@ -759,7 +765,7 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) (*ProofElements, byte) {
 			Zis: []byte{0, 1, suffSlot},
 			Yis: []*Fr{&extPoly[0], &extPoly[1], &FrZero},
 			Fis: [][]Fr{extPoly[:], extPoly[:], extPoly[:]},
-		}, extStatusAbsentEmpty
+		}, extStatusAbsentEmpty | byte(n.depth<<3)
 	}
 
 	var scomm *Point
@@ -783,7 +789,7 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) (*ProofElements, byte) {
 			Zis: []byte{0, 1, suffSlot, slot},
 			Yis: []*Fr{&extPoly[0], &extPoly[1], &extPoly[2+slot/128], &FrZero},
 			Fis: [][]Fr{extPoly[:], extPoly[:], extPoly[:], poly[:]},
-		}, extStatusPresent // present, since the stem is present
+		}, extStatusPresent | byte(n.depth<<3) // present, since the stem is present
 	}
 
 	// suffix tree is present and contains the key
@@ -795,7 +801,7 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) (*ProofElements, byte) {
 		Zis: []byte{0, 1, suffSlot, 2 * slot, 2*slot + 1},
 		Yis: []*Fr{&extPoly[0], &extPoly[1], &extPoly[2+slot/128], &leaves[0], &leaves[1]},
 		Fis: [][]Fr{extPoly[:], extPoly[:], extPoly[:], poly[:], poly[:]},
-	}, extStatusPresent
+	}, extStatusPresent | byte(n.depth<<3)
 }
 
 func (n *LeafNode) Serialize() ([]byte, error) {
@@ -819,6 +825,7 @@ func (n *LeafNode) Copy() VerkleNode {
 	l.stem = make([]byte, len(n.stem))
 	l.values = make([][]byte, len(n.values))
 	l.committer = n.committer
+	l.depth = n.depth
 	copy(l.stem, n.stem)
 	for i, v := range n.values {
 		l.values[i] = make([]byte, len(v))
