@@ -3,6 +3,8 @@ package main
 import (
 	"crypto/rand"
 	"fmt"
+	"os"
+	"runtime/pprof"
 	"time"
 
 	"github.com/gballet/go-verkle"
@@ -13,6 +15,11 @@ func main() {
 }
 
 func benchmarkInsertInExisting() {
+	f, _ := os.Create("cpu.prof")
+	g, _ := os.Create("mem.prof")
+	pprof.StartCPUProfile(f)
+	defer pprof.StopCPUProfile()
+	defer pprof.WriteHeapProfile(g)
 	// Number of existing leaves in tree
 	n := 1000000
 	// Leaves to be inserted afterwards
