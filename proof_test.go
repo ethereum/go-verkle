@@ -39,7 +39,7 @@ func TestProofVerifyTwoLeaves(t *testing.T) {
 
 	proof := MakeVerkleProofOneLeaf(root, ffx32KeyTest)
 
-	pe, _ := root.GetCommitmentsAlongPath(ffx32KeyTest)
+	pe, _, _ := root.GetCommitmentsAlongPath(ffx32KeyTest)
 	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, GetConfig()) {
 		t.Fatal("could not verify verkle proof")
 	}
@@ -59,7 +59,7 @@ func TestProofVerifyMultipleLeaves(t *testing.T) {
 
 	proof := MakeVerkleProofOneLeaf(root, keys[0])
 
-	pe, _ := root.GetCommitmentsAlongPath(keys[0])
+	pe, _, _ := root.GetCommitmentsAlongPath(keys[0])
 	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, GetConfig()) {
 		t.Fatal("could not verify verkle proof")
 	}
@@ -108,7 +108,7 @@ func TestProofOfAbsenceInternalVerify(t *testing.T) {
 
 	proof := MakeVerkleProofOneLeaf(root, ffx32KeyTest)
 
-	pe, _ := root.GetCommitmentsAlongPath(ffx32KeyTest)
+	pe, _, _ := root.GetCommitmentsAlongPath(ffx32KeyTest)
 	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, GetConfig()) {
 		t.Fatal("could not verify verkle proof")
 	}
@@ -121,7 +121,7 @@ func TestProofOfAbsenceLeafVerify(t *testing.T) {
 
 	proof := MakeVerkleProofOneLeaf(root, oneKeyTest)
 
-	pe, _ := root.GetCommitmentsAlongPath(oneKeyTest)
+	pe, _, _ := root.GetCommitmentsAlongPath(oneKeyTest)
 	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, GetConfig()) {
 		t.Fatal("could not verify verkle proof")
 	}
@@ -138,7 +138,7 @@ func TestProofOfAbsenceLeafVerifyOtherSuffix(t *testing.T) {
 
 	proof := MakeVerkleProofOneLeaf(root, key)
 
-	pe, _ := root.GetCommitmentsAlongPath(key)
+	pe, _, _ := root.GetCommitmentsAlongPath(key)
 	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, GetConfig()) {
 		t.Fatal("could not verify verkle proof")
 	}
@@ -155,7 +155,7 @@ func TestProofOfAbsenceStemVerify(t *testing.T) {
 
 	proof := MakeVerkleProofOneLeaf(root, key)
 
-	pe, _ := root.GetCommitmentsAlongPath(key)
+	pe, _, _ := root.GetCommitmentsAlongPath(key)
 	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, GetConfig()) {
 		t.Fatal("could not verify verkle proof")
 	}
@@ -190,7 +190,7 @@ func BenchmarkProofVerification(b *testing.B) {
 	}
 
 	root.ComputeCommitment()
-	pe, _ := root.GetCommitmentsAlongPath(keys[len(keys)/2])
+	pe, _, _ := root.GetCommitmentsAlongPath(keys[len(keys)/2])
 	proof := MakeVerkleProofOneLeaf(root, keys[len(keys)/2])
 
 	b.ResetTimer()

@@ -35,21 +35,21 @@ type Proof struct {
 	stemDepth   []byte          // the depth of each stem
 	extStatus   []byte          // the extension status of each stem
 	commitments []*Point        // commitments, sorted by their path in the tree
-	poaStems    [][]byte        // the stems used for the proof of absence
+	poaStems    [][]byte        // stems proving another stem is absent
 }
 
 func MakeVerkleProofOneLeaf(root VerkleNode, key []byte) *Proof {
 	tr := common.NewTranscript("multiproof")
 	root.ComputeCommitment()
-	pe, extStatus := root.GetCommitmentsAlongPath(key)
+	pe, extStatus, alt := root.GetCommitmentsAlongPath(key)
 	proof := &Proof{
 		multipoint:  ipa.CreateMultiProof(tr, GetConfig().conf, pe.Cis, pe.Fis, pe.Zis),
 		commitments: pe.Cis,
 		extStatus:   []byte{extStatus},
 	}
 
-	if proof.extStatus[0]&0xFA == extStatusPresent {
-		proof.poaStems = [][]byte{key[:31]}
+	if alt != nil {
+		proof.poaStems = [][]byte{alt}
 	}
 
 	return proof
@@ -60,12 +60,12 @@ func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte) (*ProofElements
 	var extStatuses []byte
 	var poaStems [][]byte
 	for _, key := range keys {
-		pe, extStatus := root.GetCommitmentsAlongPath(key)
+		pe, extStatus, alt := root.GetCommitmentsAlongPath(key)
 		p.Merge(pe)
 		extStatuses = append(extStatuses, extStatus)
 
-		if extStatuses[len(extStatuses)-1] == extStatusPresent {
-			poaStems = append(poaStems, key[:31])
+		if alt != nil {
+			poaStems = append(poaStems, alt)
 		}
 	}
 
