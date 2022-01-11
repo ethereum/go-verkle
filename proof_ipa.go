@@ -48,7 +48,7 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte) *Proof {
 		extStatus:   []byte{extStatus},
 	}
 
-	if proof.extStatus[0] == extStatusPresent {
+	if proof.extStatus[0]&0xFA == extStatusPresent {
 		proof.poaStems = [][]byte{key[:31]}
 	}
 
