@@ -26,6 +26,7 @@
 package verkle
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"testing"
@@ -80,6 +81,43 @@ func TestMultiProofVerifyMultipleLeaves(t *testing.T) {
 	proof, _, _, _ := MakeVerkleMultiProof(root, keys[0:2])
 
 	pe, _, _ := GetCommitmentsForMultiproof(root, keys[0:2])
+	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, GetConfig()) {
+		t.Fatal("could not verify verkle proof")
+	}
+}
+
+func TestMultiProofVerifyMultipleLeavesWithAbsentStem(t *testing.T) {
+	const leafCount = 10
+
+	var keys [][]byte
+	var absentstem [31]byte
+	root := New()
+	for i := 0; i < leafCount; i++ {
+		key := make([]byte, 32)
+		key[2] = byte(i)
+		root.Insert(key, fourtyKeyTest, nil)
+		if i%2 == 0 {
+			keys = append(keys, key)
+		}
+		if i == 3 {
+			copy(absentstem[:], key[:31])
+		}
+	}
+	absent := make([]byte, 32)
+	absent[2] = 3 // not in the proof, but leads to a stem
+	absent[3] = 1 // and the stem differs
+	keys = append(keys, absent)
+
+	proof, _, _, _ := MakeVerkleMultiProof(root, keys)
+
+	pe, _, isabsent := GetCommitmentsForMultiproof(root, keys)
+	if len(isabsent) == 0 {
+		t.Fatal("should have detected an absent stem")
+	}
+	if !bytes.Equal(isabsent[0], absentstem[:]) {
+		t.Fatalf("returning the wrong absent stem: %x != %x", isabsent[0], absentstem)
+	}
+
 	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, GetConfig()) {
 		t.Fatal("could not verify verkle proof")
 	}
