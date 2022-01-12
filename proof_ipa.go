@@ -32,7 +32,6 @@ import (
 
 type Proof struct {
 	multipoint  *ipa.MultiProof // multipoint argument
-	stemDepth   []byte          // the depth of each stem
 	extStatus   []byte          // the extension status of each stem
 	commitments []*Point        // commitments, sorted by their path in the tree
 	poaStems    [][]byte        // stems proving another stem is absent
