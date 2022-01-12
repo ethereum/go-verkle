@@ -784,13 +784,13 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) (*ProofElements, byte, []
 	// but still contain the leaf marker 2^128.
 	if n.values[slot] == nil {
 		return &ProofElements{
-			// leaf marker, stem, path to child, missing value (zero)
-			Cis: []*Point{n.commitment, n.commitment, n.commitment, scomm},
-			Zis: []byte{0, 1, suffSlot, slot},
-			Yis: []*Fr{&extPoly[0], &extPoly[1], &extPoly[2+slot/128], &FrZero},
-			Fis: [][]Fr{extPoly[:], extPoly[:], extPoly[:], poly[:]},
-		}, extStatusPresent | byte(n.depth<<3), // present, since the stem is present
-		nil
+				// leaf marker, stem, path to child, missing value (zero)
+				Cis: []*Point{n.commitment, n.commitment, n.commitment, scomm},
+				Zis: []byte{0, 1, suffSlot, slot},
+				Yis: []*Fr{&extPoly[0], &extPoly[1], &extPoly[2+slot/128], &FrZero},
+				Fis: [][]Fr{extPoly[:], extPoly[:], extPoly[:], poly[:]},
+			}, extStatusPresent | byte(n.depth<<3), // present, since the stem is present
+			nil
 	}
 
 	// suffix tree is present and contains the key
