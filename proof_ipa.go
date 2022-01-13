@@ -28,15 +28,9 @@ package verkle
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 
 	ipa "github.com/crate-crypto/go-ipa"
 	"github.com/crate-crypto/go-ipa/common"
-)
-
-var (
-	errInvalidStemSerializationSize = errors.New("error during stem serialization: stem size != 31")
-	errInvalidCommSerializationSize = errors.New("error during commitment serialization: serialized size != 32")
 )
 
 type Proof struct {
@@ -111,12 +105,9 @@ func SerializeProof(proof *Proof) ([]byte, error) {
 
 	binary.Write(&buf, binary.LittleEndian, uint32(len(proof.poaStems)))
 	for _, stem := range proof.poaStems {
-		n, err := buf.Write(stem)
+		_, err := buf.Write(stem)
 		if err != nil {
 			return nil, err
-		}
-		if n != 31 {
-			return nil, errInvalidStemSerializationSize
 		}
 	}
 
@@ -131,12 +122,9 @@ func SerializeProof(proof *Proof) ([]byte, error) {
 	binary.Write(&buf, binary.LittleEndian, uint32(len(proof.commitments)))
 	for _, C := range proof.commitments {
 		serialized := C.Bytes()
-		n, err := buf.Write(serialized[:])
+		_, err := buf.Write(serialized[:])
 		if err != nil {
 			return nil, err
-		}
-		if n != 32 {
-			return nil, errInvalidCommSerializationSize
 		}
 	}
 
