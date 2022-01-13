@@ -26,8 +26,17 @@
 package verkle
 
 import (
+	"bytes"
+	"encoding/binary"
+	"errors"
+
 	ipa "github.com/crate-crypto/go-ipa"
 	"github.com/crate-crypto/go-ipa/common"
+)
+
+var (
+	errInvalidStemSerializationSize = errors.New("error during stem serialization: stem size != 31")
+	errInvalidCommSerializationSize = errors.New("error during commitment serialization: serialized size != 32")
 )
 
 type Proof struct {
@@ -90,4 +99,48 @@ func MakeVerkleMultiProof(root VerkleNode, keys [][]byte) (*Proof, []*Point, []b
 func VerifyVerkleProof(proof *Proof, Cs []*Point, indices []uint8, ys []*Fr, tc *Config) bool {
 	tr := common.NewTranscript("multiproof")
 	return ipa.CheckMultiProof(tr, tc.conf, proof.multipoint, Cs, ys, indices)
+}
+
+// SerializeProof serializes the proof in the rust-verkle format:
+// * len(Proof of absence stem) || Proof of absence stems
+// * len(depths) || serialize(depthi || ext statusi)
+// * len(commitments) || serialize(commitment)
+// * Multipoint proof
+func SerializeProof(proof *Proof) ([]byte, error) {
+	var buf bytes.Buffer
+
+	binary.Write(&buf, binary.LittleEndian, uint32(len(proof.poaStems)))
+	for _, stem := range proof.poaStems {
+		n, err := buf.Write(stem)
+		if err != nil {
+			return nil, err
+		}
+		if n != 31 {
+			return nil, errInvalidStemSerializationSize
+		}
+	}
+
+	binary.Write(&buf, binary.LittleEndian, uint32(len(proof.extStatus)))
+	for _, daes := range proof.extStatus {
+		err := buf.WriteByte(daes)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	binary.Write(&buf, binary.LittleEndian, uint32(len(proof.commitments)))
+	for _, C := range proof.commitments {
+		serialized := C.Bytes()
+		n, err := buf.Write(serialized[:])
+		if err != nil {
+			return nil, err
+		}
+		if n != 32 {
+			return nil, errInvalidCommSerializationSize
+		}
+	}
+
+	proof.multipoint.Write(&buf)
+
+	return buf.Bytes(), nil
 }
