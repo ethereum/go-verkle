@@ -147,7 +147,7 @@ func DeserializeProof(proofSerialized []byte) (*Proof, error) {
 	if err := binary.Read(reader, binary.LittleEndian, &numPoaStems); err != nil {
 		return nil, err
 	}
-	poaStems = make([][]byte, numPoaStems, numPoaStems)
+	poaStems = make([][]byte, numPoaStems)
 	for i := 0; i < int(numPoaStems); i++ {
 		var poaStem [31]byte
 		if err := binary.Read(reader, binary.LittleEndian, &poaStem); err != nil {
@@ -160,7 +160,7 @@ func DeserializeProof(proofSerialized []byte) (*Proof, error) {
 	if err := binary.Read(reader, binary.LittleEndian, &numExtStatus); err != nil {
 		return nil, err
 	}
-	extStatus = make([]byte, numExtStatus, numExtStatus)
+	extStatus = make([]byte, numExtStatus)
 	for i := 0; i < int(numExtStatus); i++ {
 		var e byte
 		if err := binary.Read(reader, binary.LittleEndian, &e); err != nil {
@@ -172,8 +172,8 @@ func DeserializeProof(proofSerialized []byte) (*Proof, error) {
 	if err := binary.Read(reader, binary.LittleEndian, &numCommitments); err != nil {
 		return nil, err
 	}
-	commitments = make([]*Point, numCommitments, numCommitments)
-	commitmentBytes := make([]byte, fp.Bytes, fp.Bytes)
+	commitments = make([]*Point, numCommitments)
+	commitmentBytes := make([]byte, fp.Bytes)
 	for i := 0; i < int(numCommitments); i++ {
 		var commitment Point
 		if err := binary.Read(reader, binary.LittleEndian, commitmentBytes); err != nil {
