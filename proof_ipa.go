@@ -31,6 +31,7 @@ import (
 
 	ipa "github.com/crate-crypto/go-ipa"
 	"github.com/crate-crypto/go-ipa/common"
+	"github.com/crate-crypto/go-ipa/bandersnatch/fp"
 )
 
 type Proof struct {
@@ -131,4 +132,67 @@ func SerializeProof(proof *Proof) ([]byte, error) {
 	proof.multipoint.Write(&buf)
 
 	return buf.Bytes(), nil
+}
+
+func DeserializeProof(proofSerialized []byte) (*Proof, error) {
+	var (
+		numPoaStems, numExtStatus, numCommitments uint32
+		poaStems [][]byte
+		extStatus []byte
+		commitments []*Point
+		multipoint ipa.MultiProof
+	)
+	reader := bytes.NewReader(proofSerialized)
+
+	if err := binary.Read(reader, binary.LittleEndian, &numPoaStems); err != nil {
+		return nil, err
+	}
+	poaStems = make([][]byte, numPoaStems, numPoaStems)
+	for i := 0; i < int(numPoaStems); i++ {
+		var poaStem [31]byte
+		if err := binary.Read(reader, binary.LittleEndian, &poaStem); err != nil {
+			return nil, err
+		}
+
+		poaStems[i] = poaStem[:]
+	}
+
+	if err := binary.Read(reader, binary.LittleEndian, &numExtStatus); err != nil {
+		return nil, err
+	}
+	extStatus = make([]byte, numExtStatus, numExtStatus)
+	for i := 0; i < int(numExtStatus); i++ {
+		var e byte
+		if err := binary.Read(reader, binary.LittleEndian, &e); err != nil {
+			return nil, err
+		}
+		extStatus[i] = e
+	}
+
+	if err := binary.Read(reader, binary.LittleEndian, &numCommitments); err != nil {
+		return nil, err
+	}
+	commitments = make([]*Point, numCommitments, numCommitments)
+	commitmentBytes := make([]byte, fp.Bytes, fp.Bytes)
+	for i := 0; i < int(numCommitments); i++ {
+		var commitment Point
+		if err := binary.Read(reader, binary.LittleEndian, commitmentBytes); err != nil {
+			return nil, err
+		}
+		if err := commitment.Unmarshal(commitmentBytes); err != nil {
+			return nil, err
+		}
+
+		commitments[i] = &commitment
+	}
+
+	// TODO submit PR to go-ipa to make this return an error if it fails to Read
+	multipoint.Read(reader)
+	proof :=  Proof {
+		&multipoint,
+		extStatus,
+		commitments,
+		poaStems,
+	}
+	return &proof, nil
 }

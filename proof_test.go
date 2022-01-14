@@ -310,3 +310,44 @@ func TestProofSerializationWithAbsentStem(t *testing.T) {
 	}
 	// TODO keep checking the serialized values here, they should be the same as in the previous test
 }
+
+func TestProofDeserialize(t *testing.T) {
+	const leafCount = 1000
+
+	keys := make([][]byte, leafCount)
+	root := New()
+	for i := 0; i < leafCount; i++ {
+		key := make([]byte, 32)
+		key[2] = byte(i)
+		keys[i] = key
+		root.Insert(key, fourtyKeyTest, nil)
+	}
+
+	// Create stem  0x0000020100000.... that is not present in the tree,
+	// however stem 0x0000020000000.... is present and will be returned
+	// as a proof of absence.
+	var absentkey [32]byte
+	absentkey[2] = 2
+	absentkey[3] = 1
+
+	proof := MakeVerkleProofOneLeaf(root, absentkey[:])
+
+	serialized, err := SerializeProof(proof)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(serialized) == 0 {
+		t.Fatal("zero-length serialized proof payload")
+	}
+
+	deserialized, err := DeserializeProof(serialized)
+	if err != nil {
+		t.Fatal("could not deserialize verkle proof")
+	}
+	_ = deserialized
+
+	pe, _, _ := root.GetCommitmentsAlongPath(absentkey[:])
+	if !VerifyVerkleProof(deserialized, pe.Cis, pe.Zis, pe.Yis, GetConfig()) {
+		t.Fatal("could not verify verkle proof")
+	}
+}
