@@ -508,7 +508,7 @@ func (n *InternalNode) GetCommitmentsAlongPath(key []byte) *ProofElements {
 	// The proof elements that are to be added at this level
 	pe := &ProofElements{
 		Cis: []*Point{n.commitment},
-		Zis: []uint8{childIdx},
+		Zis: []byte{childIdx},
 		Yis: []*Fr{&yi}, // Should be 0
 		Fis: [][]Fr{fi},
 	}
@@ -525,7 +525,7 @@ func (n *InternalNode) GetCommitmentsAlongPath(key []byte) *ProofElements {
 }
 
 func (n *InternalNode) Serialize() ([]byte, error) {
-	var bitlist [32]uint8
+	var bitlist [32]byte
 	children := make([]byte, 0, NodeWidth*32)
 	for i, c := range n.children {
 		if _, ok := c.(Empty); !ok {
@@ -791,7 +791,7 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) *ProofElements {
 }
 
 func (n *LeafNode) Serialize() ([]byte, error) {
-	var bitlist [32]uint8
+	var bitlist [32]byte
 	children := make([]byte, 0, NodeWidth*32)
 	for i, v := range n.values {
 		if v != nil {
@@ -847,7 +847,7 @@ func (n *LeafNode) toDot(parent, path string) string {
 	return ret
 }
 
-func setBit(bitlist []uint8, index int) {
+func setBit(bitlist []byte, index int) {
 	bitlist[index/8] |= mask[index%8]
 }
 
