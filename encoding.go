@@ -43,7 +43,7 @@ func bit(bitlist []byte, nr int) bool {
 
 var serializedPayloadTooShort = errors.New("verkle payload is too short")
 
-func ParseNode(serialized []byte, depth int) (VerkleNode, error) {
+func ParseNode(serialized []byte, depth byte) (VerkleNode, error) {
 	if len(serialized) < 64 {
 		return nil, serializedPayloadTooShort
 	}
@@ -77,7 +77,7 @@ func ParseNode(serialized []byte, depth int) (VerkleNode, error) {
 	}
 }
 
-func CreateInternalNode(bitlist []byte, raw []byte, depth int) (*InternalNode, error) {
+func CreateInternalNode(bitlist []byte, raw []byte, depth byte) (*InternalNode, error) {
 	// GetTreeConfig caches computation result, hence
 	// this op has low overhead
 	tc := GetConfig()

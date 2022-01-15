@@ -145,7 +145,7 @@ type (
 		children []VerkleNode
 
 		// node depth in the tree, in bits
-		depth int
+		depth byte
 
 		// child count, used for the special case in
 		// commitment calculations.
@@ -172,7 +172,7 @@ type (
 	}
 )
 
-func newInternalNode(depth int, cmtr Committer) VerkleNode {
+func newInternalNode(depth byte, cmtr Committer) VerkleNode {
 	node := new(InternalNode)
 	node.children = make([]VerkleNode, NodeWidth)
 	for idx := range node.children {
@@ -440,7 +440,7 @@ func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 		}
 
 		// deserialize the payload and set it as the child
-		c, err := ParseNode(payload, n.depth+NodeWidth)
+		c, err := ParseNode(payload, n.depth+NodeBitWidth)
 		if err != nil {
 			return nil, err
 		}
@@ -459,7 +459,7 @@ func (n *InternalNode) ComputeCommitment() *Fr {
 	}
 
 	if n.count == 0 {
-		if n.depth != 0 {
+		if n.depth != byte(0) {
 			panic("internal node should be empty node")
 		}
 

@@ -30,8 +30,8 @@ import (
 )
 
 const (
-	NodeWidth    = 256
-	NodeBitWidth = 8
+	NodeWidth         = 256
+	NodeBitWidth byte = 8
 )
 
 func equalPaths(key1, key2 []byte) bool {
@@ -40,6 +40,6 @@ func equalPaths(key1, key2 []byte) bool {
 
 // offset2key extracts the n bits of a key that correspond to the
 // index of a child node.
-func offset2key(key []byte, offset int) byte {
-	return key[offset/8]
+func offset2key(key []byte, offset byte) byte {
+	return key[int(offset)/8]
 }
