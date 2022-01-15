@@ -166,9 +166,9 @@ func TestComputeRootCommitmentOnlineThreeLeavesFlush(t *testing.T) {
 
 func TestOffset2key8BitsWide(t *testing.T) {
 	key, _ := hex.DecodeString("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
-	for i := 0; i < 32; i++ {
+	for i := byte(0); i < 32; i++ {
 		childId := offset2key(key, i*8)
-		if childId != byte(i) {
+		if childId != i {
 			t.Fatalf("error getting child number in key %d != %d", childId, i)
 		}
 	}
