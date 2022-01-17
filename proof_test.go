@@ -342,7 +342,7 @@ func TestProofDeserialize(t *testing.T) {
 
 	deserialized, err := DeserializeProof(serialized)
 	if err != nil {
-		t.Fatal("could not deserialize verkle proof")
+		t.Fatalf("could not deserialize verkle proof: %v", err)
 	}
 	_ = deserialized
 
