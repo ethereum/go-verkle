@@ -351,3 +351,38 @@ func TestProofDeserialize(t *testing.T) {
 		t.Fatal("could not verify verkle proof")
 	}
 }
+
+func TestProofDeserializeErrors(t *testing.T) {
+
+	deserialized, err := DeserializeProof([]byte{0})
+	if err == nil {
+		t.Fatal("deserializing invalid proof didn't cause an error")
+	}
+	if deserialized != nil {
+		t.Fatalf("non-nil deserialized data returned %v", deserialized)
+	}
+
+	deserialized, err = DeserializeProof([]byte{1, 0, 0, 0})
+	if err == nil {
+		t.Fatal("deserializing invalid proof didn't cause an error")
+	}
+	if deserialized != nil {
+		t.Fatalf("non-nil deserialized data returned %v", deserialized)
+	}
+
+	deserialized, err = DeserializeProof([]byte{0, 0, 0, 0, 0})
+	if err == nil {
+		t.Fatal("deserializing invalid proof didn't cause an error")
+	}
+	if deserialized != nil {
+		t.Fatalf("non-nil deserialized data returned %v", deserialized)
+	}
+
+	deserialized, err = DeserializeProof([]byte{0, 0, 0, 0, 0, 0, 0, 0, 0})
+	if err == nil {
+		t.Fatal("deserializing invalid proof didn't cause an error")
+	}
+	if deserialized != nil {
+		t.Fatalf("non-nil deserialized data returned %v", deserialized)
+	}
+}
