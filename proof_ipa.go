@@ -30,8 +30,8 @@ import (
 	"encoding/binary"
 
 	ipa "github.com/crate-crypto/go-ipa"
-	"github.com/crate-crypto/go-ipa/common"
 	"github.com/crate-crypto/go-ipa/bandersnatch/fp"
+	"github.com/crate-crypto/go-ipa/common"
 )
 
 type Proof struct {
@@ -137,10 +137,10 @@ func SerializeProof(proof *Proof) ([]byte, error) {
 func DeserializeProof(proofSerialized []byte) (*Proof, error) {
 	var (
 		numPoaStems, numExtStatus, numCommitments uint32
-		poaStems [][]byte
-		extStatus []byte
-		commitments []*Point
-		multipoint ipa.MultiProof
+		poaStems                                  [][]byte
+		extStatus                                 []byte
+		commitments                               []*Point
+		multipoint                                ipa.MultiProof
 	)
 	reader := bytes.NewReader(proofSerialized)
 
@@ -188,7 +188,7 @@ func DeserializeProof(proofSerialized []byte) (*Proof, error) {
 
 	// TODO submit PR to go-ipa to make this return an error if it fails to Read
 	multipoint.Read(reader)
-	proof :=  Proof {
+	proof := Proof{
 		&multipoint,
 		extStatus,
 		commitments,
