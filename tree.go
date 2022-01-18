@@ -178,7 +178,7 @@ type (
 		hash       *Fr
 		committer  Committer
 
-		depth int
+		depth byte
 	}
 )
 
