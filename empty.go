@@ -49,7 +49,7 @@ func (Empty) ComputeCommitment() *Fr {
 	return &FrZero
 }
 
-func (Empty) GetCommitmentsAlongPath([]byte) *ProofElements {
+func (Empty) GetCommitmentsAlongPath([]byte) (*ProofElements, byte, []byte) {
 	panic("trying to produce a commitment for an empty subtree")
 }
 

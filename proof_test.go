@@ -26,7 +26,9 @@
 package verkle
 
 import (
+	"bytes"
 	"crypto/rand"
+	"encoding/binary"
 	"encoding/hex"
 	"testing"
 )
@@ -39,7 +41,7 @@ func TestProofVerifyTwoLeaves(t *testing.T) {
 
 	proof := MakeVerkleProofOneLeaf(root, ffx32KeyTest)
 
-	pe := root.GetCommitmentsAlongPath(ffx32KeyTest)
+	pe, _, _ := root.GetCommitmentsAlongPath(ffx32KeyTest)
 	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, GetConfig()) {
 		t.Fatal("could not verify verkle proof")
 	}
@@ -59,7 +61,7 @@ func TestProofVerifyMultipleLeaves(t *testing.T) {
 
 	proof := MakeVerkleProofOneLeaf(root, keys[0])
 
-	pe := root.GetCommitmentsAlongPath(keys[0])
+	pe, _, _ := root.GetCommitmentsAlongPath(keys[0])
 	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, GetConfig()) {
 		t.Fatal("could not verify verkle proof")
 	}
@@ -79,7 +81,44 @@ func TestMultiProofVerifyMultipleLeaves(t *testing.T) {
 
 	proof, _, _, _ := MakeVerkleMultiProof(root, keys[0:2])
 
-	pe := GetCommitmentsForMultiproof(root, keys[0:2])
+	pe, _, _ := GetCommitmentsForMultiproof(root, keys[0:2])
+	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, GetConfig()) {
+		t.Fatal("could not verify verkle proof")
+	}
+}
+
+func TestMultiProofVerifyMultipleLeavesWithAbsentStem(t *testing.T) {
+	const leafCount = 10
+
+	var keys [][]byte
+	var absentstem [31]byte
+	root := New()
+	for i := 0; i < leafCount; i++ {
+		key := make([]byte, 32)
+		key[2] = byte(i)
+		root.Insert(key, fourtyKeyTest, nil)
+		if i%2 == 0 {
+			keys = append(keys, key)
+		}
+		if i == 3 {
+			copy(absentstem[:], key[:31])
+		}
+	}
+	absent := make([]byte, 32)
+	absent[2] = 3 // not in the proof, but leads to a stem
+	absent[3] = 1 // and the stem differs
+	keys = append(keys, absent)
+
+	proof, _, _, _ := MakeVerkleMultiProof(root, keys)
+
+	pe, _, isabsent := GetCommitmentsForMultiproof(root, keys)
+	if len(isabsent) == 0 {
+		t.Fatal("should have detected an absent stem")
+	}
+	if !bytes.Equal(isabsent[0], absentstem[:]) {
+		t.Fatalf("returning the wrong absent stem: %x != %x", isabsent[0], absentstem)
+	}
+
 	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, GetConfig()) {
 		t.Fatal("could not verify verkle proof")
 	}
@@ -95,7 +134,7 @@ func TestMultiProofVerifyMultipleLeavesCommitmentRedundancy(t *testing.T) {
 
 	proof, _, _, _ := MakeVerkleMultiProof(root, keys)
 
-	pe := GetCommitmentsForMultiproof(root, keys)
+	pe, _, _ := GetCommitmentsForMultiproof(root, keys)
 	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, GetConfig()) {
 		t.Fatal("could not verify verkle proof")
 	}
@@ -108,7 +147,7 @@ func TestProofOfAbsenceInternalVerify(t *testing.T) {
 
 	proof := MakeVerkleProofOneLeaf(root, ffx32KeyTest)
 
-	pe := root.GetCommitmentsAlongPath(ffx32KeyTest)
+	pe, _, _ := root.GetCommitmentsAlongPath(ffx32KeyTest)
 	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, GetConfig()) {
 		t.Fatal("could not verify verkle proof")
 	}
@@ -121,7 +160,7 @@ func TestProofOfAbsenceLeafVerify(t *testing.T) {
 
 	proof := MakeVerkleProofOneLeaf(root, oneKeyTest)
 
-	pe := root.GetCommitmentsAlongPath(oneKeyTest)
+	pe, _, _ := root.GetCommitmentsAlongPath(oneKeyTest)
 	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, GetConfig()) {
 		t.Fatal("could not verify verkle proof")
 	}
@@ -138,7 +177,7 @@ func TestProofOfAbsenceLeafVerifyOtherSuffix(t *testing.T) {
 
 	proof := MakeVerkleProofOneLeaf(root, key)
 
-	pe := root.GetCommitmentsAlongPath(key)
+	pe, _, _ := root.GetCommitmentsAlongPath(key)
 	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, GetConfig()) {
 		t.Fatal("could not verify verkle proof")
 	}
@@ -155,7 +194,7 @@ func TestProofOfAbsenceStemVerify(t *testing.T) {
 
 	proof := MakeVerkleProofOneLeaf(root, key)
 
-	pe := root.GetCommitmentsAlongPath(key)
+	pe, _, _ := root.GetCommitmentsAlongPath(key)
 	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, GetConfig()) {
 		t.Fatal("could not verify verkle proof")
 	}
@@ -190,7 +229,7 @@ func BenchmarkProofVerification(b *testing.B) {
 	}
 
 	root.ComputeCommitment()
-	pe := root.GetCommitmentsAlongPath(keys[len(keys)/2])
+	pe, _, _ := root.GetCommitmentsAlongPath(keys[len(keys)/2])
 	proof := MakeVerkleProofOneLeaf(root, keys[len(keys)/2])
 
 	b.ResetTimer()
@@ -198,5 +237,152 @@ func BenchmarkProofVerification(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, GetConfig())
+	}
+}
+
+func TestProofSerializationNoAbsentStem(t *testing.T) {
+	const leafCount = 1000
+
+	keys := make([][]byte, leafCount)
+	root := New()
+	for i := 0; i < leafCount; i++ {
+		key := make([]byte, 32)
+		rand.Read(key)
+		keys[i] = key
+		root.Insert(key, fourtyKeyTest, nil)
+	}
+
+	proof := MakeVerkleProofOneLeaf(root, keys[0])
+
+	serialized, err := SerializeProof(proof)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(serialized) == 0 {
+		t.Fatal("zero-length serialized proof payload")
+	}
+	stemsize := binary.LittleEndian.Uint32(serialized[:4])
+	if stemsize != 0 {
+		t.Fatalf("first byte indicates that there are %d stems that should not be here", stemsize)
+	}
+	extsize := binary.LittleEndian.Uint32(serialized[4:8])
+	if extsize != 1 {
+		t.Fatalf("second byte indicates that there are %d extension statuses, should be 1", extsize)
+	}
+	// TODO keep checking the serialized values here
+}
+
+func TestProofSerializationWithAbsentStem(t *testing.T) {
+	const leafCount = 1000
+
+	keys := make([][]byte, leafCount)
+	root := New()
+	for i := 0; i < leafCount; i++ {
+		key := make([]byte, 32)
+		key[2] = byte(i)
+		keys[i] = key
+		root.Insert(key, fourtyKeyTest, nil)
+	}
+
+	// Create stem  0x0000020100000.... that is not present in the tree,
+	// however stem 0x0000020000000.... is present and will be returned
+	// as a proof of absence.
+	var absentkey [32]byte
+	absentkey[2] = 2
+	absentkey[3] = 1
+
+	proof := MakeVerkleProofOneLeaf(root, absentkey[:])
+
+	serialized, err := SerializeProof(proof)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(serialized) == 0 {
+		t.Fatal("zero-length serialized proof payload")
+	}
+	stemsize := binary.LittleEndian.Uint32(serialized[:4])
+	if stemsize != 1 {
+		t.Fatalf("first byte indicates that there are %d stems that should not be here", stemsize)
+	}
+	extsize := binary.LittleEndian.Uint32(serialized[4+stemsize*31 : 4+stemsize*31+4])
+	if extsize != 1 {
+		t.Fatalf("second byte indicates that there are %d extension statuses, should be 1", extsize)
+	}
+	// TODO keep checking the serialized values here, they should be the same as in the previous test
+}
+
+func TestProofDeserialize(t *testing.T) {
+	const leafCount = 1000
+
+	keys := make([][]byte, leafCount)
+	root := New()
+	for i := 0; i < leafCount; i++ {
+		key := make([]byte, 32)
+		key[2] = byte(i)
+		keys[i] = key
+		root.Insert(key, fourtyKeyTest, nil)
+	}
+
+	// Create stem  0x0000020100000.... that is not present in the tree,
+	// however stem 0x0000020000000.... is present and will be returned
+	// as a proof of absence.
+	var absentkey [32]byte
+	absentkey[2] = 2
+	absentkey[3] = 1
+
+	proof := MakeVerkleProofOneLeaf(root, absentkey[:])
+
+	serialized, err := SerializeProof(proof)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(serialized) == 0 {
+		t.Fatal("zero-length serialized proof payload")
+	}
+
+	deserialized, err := DeserializeProof(serialized)
+	if err != nil {
+		t.Fatalf("could not deserialize verkle proof: %v", err)
+	}
+	_ = deserialized
+
+	pe, _, _ := root.GetCommitmentsAlongPath(absentkey[:])
+	if !VerifyVerkleProof(deserialized, pe.Cis, pe.Zis, pe.Yis, GetConfig()) {
+		t.Fatal("could not verify verkle proof")
+	}
+}
+
+func TestProofDeserializeErrors(t *testing.T) {
+
+	deserialized, err := DeserializeProof([]byte{0})
+	if err == nil {
+		t.Fatal("deserializing invalid proof didn't cause an error")
+	}
+	if deserialized != nil {
+		t.Fatalf("non-nil deserialized data returned %v", deserialized)
+	}
+
+	deserialized, err = DeserializeProof([]byte{1, 0, 0, 0})
+	if err == nil {
+		t.Fatal("deserializing invalid proof didn't cause an error")
+	}
+	if deserialized != nil {
+		t.Fatalf("non-nil deserialized data returned %v", deserialized)
+	}
+
+	deserialized, err = DeserializeProof([]byte{0, 0, 0, 0, 0})
+	if err == nil {
+		t.Fatal("deserializing invalid proof didn't cause an error")
+	}
+	if deserialized != nil {
+		t.Fatalf("non-nil deserialized data returned %v", deserialized)
+	}
+
+	deserialized, err = DeserializeProof([]byte{0, 0, 0, 0, 0, 0, 0, 0, 0})
+	if err == nil {
+		t.Fatal("deserializing invalid proof didn't cause an error")
+	}
+	if deserialized != nil {
+		t.Fatalf("non-nil deserialized data returned %v", deserialized)
 	}
 }
