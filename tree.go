@@ -530,7 +530,7 @@ func (n *InternalNode) GetCommitmentsAlongPath(key []byte) (*ProofElements, byte
 	// Special case of a proof of absence: no children
 	// commitment, as the value is 0.
 	if _, ok := n.children[childIdx].(Empty); ok {
-		return pe, extStatusAbsentEmpty | byte(n.depth<<3), nil
+		return pe, extStatusAbsentEmpty | (n.depth << 3), nil
 	}
 
 	pec, es, other := n.children[childIdx].GetCommitmentsAlongPath(key)
@@ -726,7 +726,7 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) (*ProofElements, byte, []
 			Zis: []byte{0, 1},
 			Yis: []*Fr{&poly[0], &poly[1]},
 			Fis: [][]Fr{poly[:], poly[:]},
-		}, extStatusAbsentOther | byte(n.depth<<3), n.stem
+		}, extStatusAbsentOther | (n.depth << 3), n.stem
 	}
 
 	var (
@@ -765,7 +765,7 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) (*ProofElements, byte, []
 			Zis: []byte{0, 1, suffSlot},
 			Yis: []*Fr{&extPoly[0], &extPoly[1], &FrZero},
 			Fis: [][]Fr{extPoly[:], extPoly[:], extPoly[:]},
-		}, extStatusAbsentEmpty | byte(n.depth<<3), nil
+		}, extStatusAbsentEmpty | (n.depth << 3), nil
 	}
 
 	var scomm *Point
@@ -789,7 +789,7 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) (*ProofElements, byte, []
 				Zis: []byte{0, 1, suffSlot, slot},
 				Yis: []*Fr{&extPoly[0], &extPoly[1], &extPoly[2+slot/128], &FrZero},
 				Fis: [][]Fr{extPoly[:], extPoly[:], extPoly[:], poly[:]},
-			}, extStatusPresent | byte(n.depth<<3), // present, since the stem is present
+			}, extStatusPresent | (n.depth << 3), // present, since the stem is present
 			nil
 	}
 
@@ -802,7 +802,7 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) (*ProofElements, byte, []
 		Zis: []byte{0, 1, suffSlot, 2 * slot, 2*slot + 1},
 		Yis: []*Fr{&extPoly[0], &extPoly[1], &extPoly[2+slot/128], &leaves[0], &leaves[1]},
 		Fis: [][]Fr{extPoly[:], extPoly[:], extPoly[:], poly[:], poly[:]},
-	}, extStatusPresent | byte(n.depth<<3), nil
+	}, extStatusPresent | (n.depth << 3), nil
 }
 
 func (n *LeafNode) Serialize() ([]byte, error) {
