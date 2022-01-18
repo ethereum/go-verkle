@@ -35,10 +35,10 @@ import (
 )
 
 type Proof struct {
-	multipoint  *ipa.MultiProof // multipoint argument
-	extStatus   []byte          // the extension status of each stem
-	commitments []*Point        // commitments, sorted by their path in the tree
-	poaStems    [][]byte        // stems proving another stem is absent
+	Multipoint *ipa.MultiProof // multipoint argument
+	ExtStatus  []byte          // the extension status of each stem
+	Cs         []*Point        // commitments, sorted by their path in the tree
+	PoaStems   [][]byte        // stems proving another stem is absent
 }
 
 func MakeVerkleProofOneLeaf(root VerkleNode, key []byte) *Proof {
@@ -46,13 +46,13 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte) *Proof {
 	root.ComputeCommitment()
 	pe, extStatus, alt := root.GetCommitmentsAlongPath(key)
 	proof := &Proof{
-		multipoint:  ipa.CreateMultiProof(tr, GetConfig().conf, pe.Cis, pe.Fis, pe.Zis),
-		commitments: pe.Cis,
-		extStatus:   []byte{extStatus},
+		Multipoint: ipa.CreateMultiProof(tr, GetConfig().conf, pe.Cis, pe.Fis, pe.Zis),
+		Cs:         pe.Cis,
+		ExtStatus:  []byte{extStatus},
 	}
 
 	if alt != nil {
-		proof.poaStems = [][]byte{alt}
+		proof.PoaStems = [][]byte{alt}
 	}
 
 	return proof
@@ -83,17 +83,17 @@ func MakeVerkleMultiProof(root VerkleNode, keys [][]byte) (*Proof, []*Point, []b
 
 	mpArg := ipa.CreateMultiProof(tr, GetConfig().conf, pe.Cis, pe.Fis, pe.Zis)
 	proof := &Proof{
-		multipoint:  mpArg,
-		commitments: pe.Cis,
-		extStatus:   es,
-		poaStems:    poas,
+		Multipoint: mpArg,
+		Cs:         pe.Cis,
+		ExtStatus:  es,
+		PoaStems:   poas,
 	}
 	return proof, pe.Cis, pe.Zis, pe.Yis
 }
 
 func VerifyVerkleProof(proof *Proof, Cs []*Point, indices []uint8, ys []*Fr, tc *Config) bool {
 	tr := common.NewTranscript("multiproof")
-	return ipa.CheckMultiProof(tr, tc.conf, proof.multipoint, Cs, ys, indices)
+	return ipa.CheckMultiProof(tr, tc.conf, proof.Multipoint, Cs, ys, indices)
 }
 
 // SerializeProof serializes the proof in the rust-verkle format:
@@ -104,24 +104,24 @@ func VerifyVerkleProof(proof *Proof, Cs []*Point, indices []uint8, ys []*Fr, tc 
 func SerializeProof(proof *Proof) ([]byte, error) {
 	var buf bytes.Buffer
 
-	binary.Write(&buf, binary.LittleEndian, uint32(len(proof.poaStems)))
-	for _, stem := range proof.poaStems {
+	binary.Write(&buf, binary.LittleEndian, uint32(len(proof.PoaStems)))
+	for _, stem := range proof.PoaStems {
 		_, err := buf.Write(stem)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	binary.Write(&buf, binary.LittleEndian, uint32(len(proof.extStatus)))
-	for _, daes := range proof.extStatus {
+	binary.Write(&buf, binary.LittleEndian, uint32(len(proof.ExtStatus)))
+	for _, daes := range proof.ExtStatus {
 		err := buf.WriteByte(daes)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	binary.Write(&buf, binary.LittleEndian, uint32(len(proof.commitments)))
-	for _, C := range proof.commitments {
+	binary.Write(&buf, binary.LittleEndian, uint32(len(proof.Cs)))
+	for _, C := range proof.Cs {
 		serialized := C.Bytes()
 		_, err := buf.Write(serialized[:])
 		if err != nil {
@@ -129,7 +129,7 @@ func SerializeProof(proof *Proof) ([]byte, error) {
 		}
 	}
 
-	proof.multipoint.Write(&buf)
+	proof.Multipoint.Write(&buf)
 
 	return buf.Bytes(), nil
 }
