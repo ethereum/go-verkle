@@ -564,6 +564,7 @@ func BenchmarkModifyLeaves(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		binary.BigEndian.PutUint32(val, uint32(i))
 		for j := 0; j < toEdit; j++ {
+			// skipcq: GSC-G404
 			k := keys[mRand.Intn(n)]
 			if err := root.Insert(k, val, nil); err != nil {
 				b.Error(err)
