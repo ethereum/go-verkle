@@ -69,6 +69,19 @@ func NewStateless() *StatelessNode {
 	}
 }
 
+func NewStatelessWithCommitment(point *Point) *StatelessNode {
+	var (
+		xfr Fr
+	)
+	toFr(&xfr, point)
+	return &StatelessNode{
+		children:   make(map[byte]*StatelessNode),
+		hash:       &xfr,
+		committer:  GetConfig(),
+		commitment: point,
+	}
+}
+
 func (n *StatelessNode) Children() []VerkleNode {
 	var children [256]VerkleNode
 	for i := range children {
@@ -91,6 +104,10 @@ func (n *StatelessNode) SetChild(i int, v VerkleNode) error {
 	}
 	n.children[byte(i)] = c
 	return nil
+}
+
+func (n *StatelessNode) SetStem(stem []byte) {
+	n.stem = stem
 }
 
 func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn) error {
