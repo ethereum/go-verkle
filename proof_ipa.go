@@ -47,10 +47,13 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte) *Proof {
 	tr := common.NewTranscript("multiproof")
 	root.ComputeCommitment()
 	pe, extStatus, alt := root.GetCommitmentsAlongPath(key)
+	val, _ := root.Get(key, nil)
 	proof := &Proof{
 		Multipoint: ipa.CreateMultiProof(tr, GetConfig().conf, pe.Cis, pe.Fis, pe.Zis),
 		Cs:         pe.Cis,
 		ExtStatus:  []byte{extStatus},
+		Keys:       [][]byte{key},
+		Values:     [][]byte{val},
 	}
 
 	if alt != nil {
@@ -83,12 +86,20 @@ func MakeVerkleMultiProof(root VerkleNode, keys [][]byte) (*Proof, []*Point, []b
 
 	pe, es, poas := GetCommitmentsForMultiproof(root, keys)
 
+	var vals [][]byte
+	for _, k := range keys {
+		val, _ := root.Get(k, nil)
+		vals = append(vals, val)
+	}
+
 	mpArg := ipa.CreateMultiProof(tr, GetConfig().conf, pe.Cis, pe.Fis, pe.Zis)
 	proof := &Proof{
 		Multipoint: mpArg,
 		Cs:         pe.Cis,
 		ExtStatus:  es,
 		PoaStems:   poas,
+		Keys:       keys,
+		Values:     vals,
 	}
 	return proof, pe.Cis, pe.Zis, pe.Yis
 }
