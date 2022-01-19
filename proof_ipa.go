@@ -117,18 +117,6 @@ func VerifyVerkleProof(proof *Proof, Cs []*Point, indices []uint8, ys []*Fr, tc 
 func SerializeProof(proof *Proof) ([]byte, error) {
 	var buf bytes.Buffer
 
-	// Temporary: add the keys and values to the proof
-	binary.Write(&buf, binary.LittleEndian, uint32(len(proof.Keys)))
-	for i, key := range proof.Keys {
-		buf.Write(key)
-		if proof.Values[i] != nil {
-			buf.WriteByte(1)
-			buf.Write(proof.Values[i])
-		} else {
-			buf.WriteByte(0)
-		}
-	}
-
 	binary.Write(&buf, binary.LittleEndian, uint32(len(proof.PoaStems)))
 	for _, stem := range proof.PoaStems {
 		_, err := buf.Write(stem)
@@ -156,6 +144,18 @@ func SerializeProof(proof *Proof) ([]byte, error) {
 
 	proof.Multipoint.Write(&buf)
 
+	// Temporary: add the keys and values to the proof
+	binary.Write(&buf, binary.LittleEndian, uint32(len(proof.Keys)))
+	for i, key := range proof.Keys {
+		buf.Write(key)
+		if proof.Values[i] != nil {
+			buf.WriteByte(1)
+			buf.Write(proof.Values[i])
+		} else {
+			buf.WriteByte(0)
+		}
+	}
+
 	return buf.Bytes(), nil
 }
 
@@ -169,23 +169,6 @@ func DeserializeProof(proofSerialized []byte) (*Proof, error) {
 		multipoint                ipa.MultiProof
 	)
 	reader := bytes.NewReader(proofSerialized)
-
-	// Temporary: read the keys and values, serialized as binary data
-	if err := binary.Read(reader, binary.LittleEndian, &numKeys); err != nil {
-		return nil, err
-	}
-	for i := 0; i < int(numKeys); i++ {
-		var key, value [32]byte
-		reader.Read(key[:])
-		keys = append(keys, key[:])
-		b, _ := reader.ReadByte()
-		if b == 1 {
-			reader.Read(value[:])
-			values = append(values, value[:])
-		} else {
-			values = append(values, nil)
-		}
-	}
 
 	if err := binary.Read(reader, binary.LittleEndian, &numPoaStems); err != nil {
 		return nil, err
@@ -231,6 +214,24 @@ func DeserializeProof(proofSerialized []byte) (*Proof, error) {
 
 	// TODO submit PR to go-ipa to make this return an error if it fails to Read
 	multipoint.Read(reader)
+
+	// Temporary: read the keys and values, serialized as binary data
+	if err := binary.Read(reader, binary.LittleEndian, &numKeys); err != nil {
+		return nil, err
+	}
+	for i := 0; i < int(numKeys); i++ {
+		var key, value [32]byte
+		reader.Read(key[:])
+		keys = append(keys, key[:])
+		b, _ := reader.ReadByte()
+		if b == 1 {
+			reader.Read(value[:])
+			values = append(values, value[:])
+		} else {
+			values = append(values, nil)
+		}
+	}
+
 	proof := Proof{
 		&multipoint,
 		extStatus,
