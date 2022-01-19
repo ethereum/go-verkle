@@ -39,16 +39,21 @@ type Proof struct {
 	ExtStatus  []byte          // the extension status of each stem
 	Cs         []*Point        // commitments, sorted by their path in the tree
 	PoaStems   [][]byte        // stems proving another stem is absent
+	Keys       [][]byte
+	Values     [][]byte
 }
 
 func MakeVerkleProofOneLeaf(root VerkleNode, key []byte) *Proof {
 	tr := common.NewTranscript("multiproof")
 	root.ComputeCommitment()
 	pe, extStatus, alt := root.GetCommitmentsAlongPath(key)
+	val, _ := root.Get(key, nil)
 	proof := &Proof{
 		Multipoint: ipa.CreateMultiProof(tr, GetConfig().conf, pe.Cis, pe.Fis, pe.Zis),
 		Cs:         pe.Cis,
 		ExtStatus:  []byte{extStatus},
+		Keys:       [][]byte{key},
+		Values:     [][]byte{val},
 	}
 
 	if alt != nil {
@@ -81,12 +86,20 @@ func MakeVerkleMultiProof(root VerkleNode, keys [][]byte) (*Proof, []*Point, []b
 
 	pe, es, poas := GetCommitmentsForMultiproof(root, keys)
 
+	var vals [][]byte
+	for _, k := range keys {
+		val, _ := root.Get(k, nil)
+		vals = append(vals, val)
+	}
+
 	mpArg := ipa.CreateMultiProof(tr, GetConfig().conf, pe.Cis, pe.Fis, pe.Zis)
 	proof := &Proof{
 		Multipoint: mpArg,
 		Cs:         pe.Cis,
 		ExtStatus:  es,
 		PoaStems:   poas,
+		Keys:       keys,
+		Values:     vals,
 	}
 	return proof, pe.Cis, pe.Zis, pe.Yis
 }
@@ -131,16 +144,29 @@ func SerializeProof(proof *Proof) ([]byte, error) {
 
 	proof.Multipoint.Write(&buf)
 
+	// Temporary: add the keys and values to the proof
+	binary.Write(&buf, binary.LittleEndian, uint32(len(proof.Keys)))
+	for i, key := range proof.Keys {
+		buf.Write(key)
+		if proof.Values[i] != nil {
+			buf.WriteByte(1)
+			buf.Write(proof.Values[i])
+		} else {
+			buf.WriteByte(0)
+		}
+	}
+
 	return buf.Bytes(), nil
 }
 
 func DeserializeProof(proofSerialized []byte) (*Proof, error) {
 	var (
-		numPoaStems, numExtStatus, numCommitments uint32
-		poaStems                                  [][]byte
-		extStatus                                 []byte
-		commitments                               []*Point
-		multipoint                                ipa.MultiProof
+		numPoaStems, numExtStatus uint32
+		numCommitments, numKeys   uint32
+		poaStems, keys, values    [][]byte
+		extStatus                 []byte
+		commitments               []*Point
+		multipoint                ipa.MultiProof
 	)
 	reader := bytes.NewReader(proofSerialized)
 
@@ -188,11 +214,31 @@ func DeserializeProof(proofSerialized []byte) (*Proof, error) {
 
 	// TODO submit PR to go-ipa to make this return an error if it fails to Read
 	multipoint.Read(reader)
+
+	// Temporary: read the keys and values, serialized as binary data
+	if err := binary.Read(reader, binary.LittleEndian, &numKeys); err != nil {
+		return nil, err
+	}
+	for i := 0; i < int(numKeys); i++ {
+		var key, value [32]byte
+		reader.Read(key[:])
+		keys = append(keys, key[:])
+		b, _ := reader.ReadByte()
+		if b == 1 {
+			reader.Read(value[:])
+			values = append(values, value[:])
+		} else {
+			values = append(values, nil)
+		}
+	}
+
 	proof := Proof{
 		&multipoint,
 		extStatus,
 		commitments,
 		poaStems,
+		keys,
+		values,
 	}
 	return &proof, nil
 }
