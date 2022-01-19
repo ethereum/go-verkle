@@ -25,47 +25,20 @@
 
 package verkle
 
-import (
-	"github.com/crate-crypto/go-ipa/bandersnatch"
-	"github.com/crate-crypto/go-ipa/bandersnatch/fr"
+import "errors"
+
+var (
+	errInsertIntoHash          = errors.New("trying to insert into hashed node")
+	errDeleteNonExistent       = errors.New("trying to delete non-existent leaf")
+	errDeleteHash              = errors.New("trying to delete from a hashed subtree")
+	errReadFromInvalid         = errors.New("trying to read from an invalid child")
+	errSerializeHashedNode     = errors.New("trying to serialized a hashed node")
+	errNotSupportedInStateless = errors.New("not implemented in stateless")
 )
 
-type Fr = fr.Element
-type Point = bandersnatch.PointAffine
-
-func CopyFr(dst, src *Fr) {
-	copy(dst[:], src[:])
-}
-
-func CopyPoint(dst, src *Point) {
-	bytes := src.Bytes()
-	dst.SetBytes(bytes[:])
-}
-
-func toFr(fr *Fr, p *Point) {
-	bytes := p.Bytes()
-	fr.SetBytes(bytes[:])
-}
-
-func from32(fr *Fr, data [32]byte) {
-	fr.SetBytes(data[:])
-}
-
-func FromLEBytes(fr *Fr, data []byte) {
-	for i := range data {
-		data[i], data[len(data)-1-i] = data[len(data)-1-i], data[i]
-	}
-	fr.SetBytes(data)
-}
-
-func FromBytes(fr *Fr, data []byte) {
-	FromLEBytes(fr, data)
-}
-
-func Equal(fr *Fr, other *Fr) bool {
-	return fr.Equal(other)
-}
-
-func Generator() *Point {
-	return new(Point).Identity()
-}
+const (
+	// Extension status
+	extStatusAbsentEmpty = byte(iota) // missing child node along the path
+	extStatusAbsentOther              // path led to a node with a different stem
+	extStatusPresent                  // stem was present
+)

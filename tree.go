@@ -131,21 +131,6 @@ const (
 	leafRLPType     byte = 2
 )
 
-var (
-	errInsertIntoHash      = errors.New("trying to insert into hashed node")
-	errDeleteNonExistent   = errors.New("trying to delete non-existent leaf")
-	errDeleteHash          = errors.New("trying to delete from a hashed subtree")
-	errReadFromInvalid     = errors.New("trying to read from an invalid child")
-	errSerializeHashedNode = errors.New("trying to serialized a hashed node")
-)
-
-const (
-	// Extension status
-	extStatusAbsentEmpty = byte(iota) // missing child node along the path
-	extStatusAbsentOther              // path led to a node with a different stem
-	extStatusPresent                  // stem was present
-)
-
 type (
 	// Represents an internal node at any level
 	InternalNode struct {
@@ -472,11 +457,14 @@ func (n *InternalNode) ComputeCommitment() *Fr {
 		return n.hash
 	}
 
+	// Special cases of a node with no children: either it's
+	// an empty root, or it's an invalid node.
 	if n.count == 0 {
-		if n.depth != byte(0) {
+		if n.depth != 0 {
 			panic("internal node should be empty node")
 		}
 
+		// case of an empty root
 		n.commitment = new(Point)
 		n.commitment.Identity()
 		n.hash = new(Fr)
