@@ -26,6 +26,7 @@
 package verkle
 
 import (
+	"github.com/crate-crypto/go-ipa/bandersnatch"
 	"github.com/crate-crypto/go-ipa/ipa"
 )
 
@@ -45,6 +46,13 @@ var cfg *Config
 func GetConfig() *Config {
 	if cfg == nil {
 		cfg = &IPAConfig{conf: ipa.NewIPASettings()}
+	}
+	return cfg
+}
+
+func GetConfigWithPrecomputed(pcl *bandersnatch.PrecomputeLagrange) *Config {
+	if cfg == nil {
+		cfg = &IPAConfig{conf: ipa.NewIPASettingsWithPrecomputedLagrange(pcl)}
 	}
 	return cfg
 }
