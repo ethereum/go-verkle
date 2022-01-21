@@ -55,5 +55,4 @@ var FrOne Fr
 func init() {
 	FrZero.SetZero()
 	FrOne.SetOne()
-	GetConfig()
 }
