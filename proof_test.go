@@ -254,7 +254,7 @@ func TestProofSerializationNoAbsentStem(t *testing.T) {
 
 	proof := MakeVerkleProofOneLeaf(root, keys[0])
 
-	serialized, err := SerializeProof(proof)
+	serialized, _, err := SerializeProof(proof)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -293,7 +293,7 @@ func TestProofSerializationWithAbsentStem(t *testing.T) {
 
 	proof := MakeVerkleProofOneLeaf(root, absentkey[:])
 
-	serialized, err := SerializeProof(proof)
+	serialized, _, err := SerializeProof(proof)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -332,7 +332,7 @@ func TestProofDeserialize(t *testing.T) {
 
 	proof := MakeVerkleProofOneLeaf(root, absentkey[:])
 
-	serialized, err := SerializeProof(proof)
+	serialized, _, err := SerializeProof(proof)
 	if err != nil {
 		t.Fatal(err)
 	}

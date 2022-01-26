@@ -114,49 +114,50 @@ func VerifyVerkleProof(proof *Proof, Cs []*Point, indices []uint8, ys []*Fr, tc 
 // * len(depths) || serialize(depthi || ext statusi)
 // * len(commitments) || serialize(commitment)
 // * Multipoint proof
-func SerializeProof(proof *Proof) ([]byte, error) {
-	var buf bytes.Buffer
+// it also returns the serialized keys and values
+func SerializeProof(proof *Proof) ([]byte, []byte, error) {
+	var bufProof, bufKV bytes.Buffer
 
-	binary.Write(&buf, binary.LittleEndian, uint32(len(proof.PoaStems)))
+	binary.Write(&bufProof, binary.LittleEndian, uint32(len(proof.PoaStems)))
 	for _, stem := range proof.PoaStems {
-		_, err := buf.Write(stem)
+		_, err := bufProof.Write(stem)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
-	binary.Write(&buf, binary.LittleEndian, uint32(len(proof.ExtStatus)))
+	binary.Write(&bufProof, binary.LittleEndian, uint32(len(proof.ExtStatus)))
 	for _, daes := range proof.ExtStatus {
-		err := buf.WriteByte(daes)
+		err := bufProof.WriteByte(daes)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
-	binary.Write(&buf, binary.LittleEndian, uint32(len(proof.Cs)))
+	binary.Write(&bufProof, binary.LittleEndian, uint32(len(proof.Cs)))
 	for _, C := range proof.Cs {
 		serialized := C.Bytes()
-		_, err := buf.Write(serialized[:])
+		_, err := bufProof.Write(serialized[:])
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
-	proof.Multipoint.Write(&buf)
+	proof.Multipoint.Write(&bufProof)
 
 	// Temporary: add the keys and values to the proof
-	binary.Write(&buf, binary.LittleEndian, uint32(len(proof.Keys)))
+	binary.Write(&bufKV, binary.LittleEndian, uint32(len(proof.Keys)))
 	for i, key := range proof.Keys {
-		buf.Write(key)
+		bufKV.Write(key)
 		if proof.Values[i] != nil {
-			buf.WriteByte(1)
-			buf.Write(proof.Values[i])
+			bufKV.WriteByte(1)
+			bufKV.Write(proof.Values[i])
 		} else {
-			buf.WriteByte(0)
+			bufKV.WriteByte(0)
 		}
 	}
 
-	return buf.Bytes(), nil
+	return bufProof.Bytes(), bufKV.Bytes(), nil
 }
 
 func DeserializeProof(proofSerialized []byte) (*Proof, error) {
