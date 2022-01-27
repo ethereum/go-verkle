@@ -246,6 +246,7 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 			nextWordInExistingKey := offset2key(child.stem, n.depth+1)
 			newBranch := newInternalNode(n.depth+1, n.committer).(*InternalNode)
 			newBranch.count = 1
+			n.count++
 			n.children[nChild] = newBranch
 			newBranch.children[nextWordInExistingKey] = child
 			child.depth += 1
