@@ -223,7 +223,7 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 			if err != nil {
 				return fmt.Errorf("verkle tree: error resolving node %x: %w", key, err)
 			}
-			resolved, err := ParseNode(serialized, n.depth+NodeBitWidth)
+			resolved, err := ParseNode(serialized, n.depth+1)
 			if err != nil {
 				return fmt.Errorf("verkle tree: error parsing resolved node %x: %w", key, err)
 			}
@@ -243,13 +243,14 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 			// A new branch node has to be inserted. Depending
 			// on the next word in both keys, a recursion into
 			// the moved leaf node can occur.
-			nextWordInExistingKey := offset2key(child.stem, n.depth+NodeBitWidth)
-			newBranch := newInternalNode(n.depth+NodeBitWidth, n.committer).(*InternalNode)
+			nextWordInExistingKey := offset2key(child.stem, n.depth+1)
+			newBranch := newInternalNode(n.depth+1, n.committer).(*InternalNode)
 			newBranch.count = 1
 			n.children[nChild] = newBranch
 			newBranch.children[nextWordInExistingKey] = child
+			child.depth += 1
 
-			nextWordInInsertedKey := offset2key(key, n.depth+NodeBitWidth)
+			nextWordInInsertedKey := offset2key(key, n.depth+1)
 			if nextWordInInsertedKey != nextWordInExistingKey {
 				// Next word differs, so this was the last level.
 				// Insert it directly into its final slot.
@@ -257,7 +258,7 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 					stem:      key[:31],
 					values:    make([][]byte, NodeWidth),
 					committer: n.committer,
-					depth:     n.depth + 1,
+					depth:     n.depth + 2,
 				}
 				lastNode.values[key[31]] = value
 				newBranch.children[nextWordInInsertedKey] = lastNode
@@ -340,12 +341,12 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 			// A new branch node has to be inserted. Depending
 			// on the next word in both keys, a recursion into
 			// the moved leaf node can occur.
-			nextWordInExistingKey := offset2key(child.stem, n.depth+NodeBitWidth)
-			newBranch := newInternalNode(n.depth+NodeBitWidth, n.committer).(*InternalNode)
+			nextWordInExistingKey := offset2key(child.stem, n.depth+1)
+			newBranch := newInternalNode(n.depth+1, n.committer).(*InternalNode)
 			newBranch.count = 1
 			n.children[nChild] = newBranch
 
-			nextWordInInsertedKey := offset2key(key, n.depth+NodeBitWidth)
+			nextWordInInsertedKey := offset2key(key, n.depth+1)
 			if nextWordInInsertedKey != nextWordInExistingKey {
 				// Directly hash the (left) node that was already
 				// inserted.
@@ -439,7 +440,7 @@ func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 		}
 
 		// deserialize the payload and set it as the child
-		c, err := ParseNode(payload, n.depth+NodeBitWidth)
+		c, err := ParseNode(payload, n.depth+1)
 		if err != nil {
 			return nil, err
 		}

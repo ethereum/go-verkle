@@ -134,7 +134,7 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 			// the moved leaf node can occur.
 			nextWordInExistingKey := offset2key(n.stem, n.depth)
 			oldExtNode := &StatelessNode{
-				depth:      n.depth + NodeBitWidth,
+				depth:      n.depth + 1,
 				committer:  n.committer,
 				count:      n.count,
 				values:     n.values,
@@ -160,7 +160,7 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 				// Next word differs, so the branching point
 				// has been reached. Create the "new" child.
 				n.children[nextWordInInsertedKey] = &StatelessNode{
-					depth:     n.depth + NodeBitWidth,
+					depth:     n.depth + 1,
 					stem:      key[:31],
 					values:    map[byte][]byte{key[31]: value},
 					committer: n.committer,
@@ -189,7 +189,7 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 		// special case: missing child, insert a leaf
 		if n.children[nChild] == nil {
 			n.children[nChild] = &StatelessNode{
-				depth:      n.depth + NodeBitWidth,
+				depth:      n.depth + 1,
 				count:      1,
 				values:     map[byte][]byte{key[31]: value},
 				committer:  n.committer,
