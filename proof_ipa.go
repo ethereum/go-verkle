@@ -28,6 +28,7 @@ package verkle
 import (
 	"bytes"
 	"encoding/binary"
+	"sort"
 
 	ipa "github.com/crate-crypto/go-ipa"
 	"github.com/crate-crypto/go-ipa/bandersnatch/fp"
@@ -64,7 +65,7 @@ func MakeVerkleProofOneLeaf(root VerkleNode, key []byte) *Proof {
 }
 
 func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte) (*ProofElements, []byte, [][]byte) {
-	p := &ProofElements{}
+	p := &ProofElements{ByPath: make(map[string]*Point)}
 	var extStatuses []byte
 	var poaStems [][]byte
 	for _, key := range keys {
@@ -93,9 +94,26 @@ func MakeVerkleMultiProof(root VerkleNode, keys [][]byte) (*Proof, []*Point, []b
 	}
 
 	mpArg := ipa.CreateMultiProof(tr, GetConfig().conf, pe.Cis, pe.Fis, pe.Zis)
+
+	// It's wheel-reinvention time again 🎉: reimplement a basic
+	// feature that should be part of the stdlib.
+	// "But golang is a high-productivity language!!!" 🤪
+	// len()-1, because the root is already present in the
+	// parent block, so we don't keep it in the proof.
+	paths := make([]string, 0, len(pe.ByPath)-1)
+	for path := range pe.ByPath {
+		if len(path) > 0 {
+			paths = append(paths, path)
+		}
+	}
+	sort.Strings(paths)
+	cis := make([]*Point, len(pe.ByPath)-1)
+	for i, path := range paths {
+		cis[i] = pe.ByPath[path]
+	}
 	proof := &Proof{
 		Multipoint: mpArg,
-		Cs:         pe.Cis,
+		Cs:         cis,
 		ExtStatus:  es,
 		PoaStems:   poas,
 		Keys:       keys,
