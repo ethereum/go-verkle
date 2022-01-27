@@ -68,6 +68,7 @@ func ParseNode(serialized []byte, depth byte) (VerkleNode, error) {
 			stem:      serialized[1:32],
 			values:    values[:],
 			committer: GetConfig(),
+			depth:     depth,
 		}
 		return ln, nil
 	case internalRLPType:
