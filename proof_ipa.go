@@ -160,10 +160,11 @@ func SerializeProof(proof *Proof) ([]byte, []byte, error) {
 	return bufProof.Bytes(), bufKV.Bytes(), nil
 }
 
+// TODO add keys and values to the signature
 func DeserializeProof(proofSerialized []byte) (*Proof, error) {
 	var (
 		numPoaStems, numExtStatus uint32
-		numCommitments, numKeys   uint32
+		numCommitments            uint32
 		poaStems, keys, values    [][]byte
 		extStatus                 []byte
 		commitments               []*Point
@@ -215,23 +216,6 @@ func DeserializeProof(proofSerialized []byte) (*Proof, error) {
 
 	// TODO submit PR to go-ipa to make this return an error if it fails to Read
 	multipoint.Read(reader)
-
-	// Temporary: read the keys and values, serialized as binary data
-	if err := binary.Read(reader, binary.LittleEndian, &numKeys); err != nil {
-		return nil, err
-	}
-	for i := 0; i < int(numKeys); i++ {
-		var key, value [32]byte
-		reader.Read(key[:])
-		keys = append(keys, key[:])
-		b, _ := reader.ReadByte()
-		if b == 1 {
-			reader.Read(value[:])
-			values = append(values, value[:])
-		} else {
-			values = append(values, nil)
-		}
-	}
 
 	proof := Proof{
 		&multipoint,
