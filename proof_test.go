@@ -71,15 +71,17 @@ func TestMultiProofVerifyMultipleLeaves(t *testing.T) {
 	const leafCount = 1000
 
 	keys := make([][]byte, leafCount)
+	kv := make(map[string][]byte)
 	root := New()
 	for i := 0; i < leafCount; i++ {
 		key := make([]byte, 32)
 		rand.Read(key)
 		keys[i] = key
 		root.Insert(key, fourtyKeyTest, nil)
+		kv[string(key)] = fourtyKeyTest
 	}
 
-	proof, _, _, _ := MakeVerkleMultiProof(root, keys[0:2])
+	proof, _, _, _ := MakeVerkleMultiProof(root, keys[0:2], kv)
 
 	pe, _, _ := GetCommitmentsForMultiproof(root, keys[0:2])
 	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, GetConfig()) {
@@ -92,10 +94,12 @@ func TestMultiProofVerifyMultipleLeavesWithAbsentStem(t *testing.T) {
 
 	var keys [][]byte
 	var absentstem [31]byte
+	kv := make(map[string][]byte)
 	root := New()
 	for i := 0; i < leafCount; i++ {
 		key := make([]byte, 32)
 		key[2] = byte(i)
+		kv[string(key)] = fourtyKeyTest
 		root.Insert(key, fourtyKeyTest, nil)
 		if i%2 == 0 {
 			keys = append(keys, key)
@@ -109,7 +113,7 @@ func TestMultiProofVerifyMultipleLeavesWithAbsentStem(t *testing.T) {
 	absent[3] = 1 // and the stem differs
 	keys = append(keys, absent)
 
-	proof, _, _, _ := MakeVerkleMultiProof(root, keys)
+	proof, _, _, _ := MakeVerkleMultiProof(root, keys, kv)
 
 	pe, _, isabsent := GetCommitmentsForMultiproof(root, keys)
 	if len(isabsent) == 0 {
@@ -125,14 +129,17 @@ func TestMultiProofVerifyMultipleLeavesWithAbsentStem(t *testing.T) {
 }
 
 func TestMultiProofVerifyMultipleLeavesCommitmentRedundancy(t *testing.T) {
+	kv := make(map[string][]byte)
 	keys := make([][]byte, 2)
 	root := New()
 	keys[0] = zeroKeyTest
+	kv[string(zeroKeyTest)] = fourtyKeyTest
 	root.Insert(keys[0], fourtyKeyTest, nil)
 	keys[1] = oneKeyTest
+	kv[string(oneKeyTest)] = fourtyKeyTest
 	root.Insert(keys[1], fourtyKeyTest, nil)
 
-	proof, _, _, _ := MakeVerkleMultiProof(root, keys)
+	proof, _, _, _ := MakeVerkleMultiProof(root, keys, kv)
 
 	pe, _, _ := GetCommitmentsForMultiproof(root, keys)
 	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, GetConfig()) {
@@ -254,7 +261,7 @@ func TestProofSerializationNoAbsentStem(t *testing.T) {
 
 	proof := MakeVerkleProofOneLeaf(root, keys[0])
 
-	serialized, err := SerializeProof(proof)
+	serialized, _, err := SerializeProof(proof)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -293,7 +300,7 @@ func TestProofSerializationWithAbsentStem(t *testing.T) {
 
 	proof := MakeVerkleProofOneLeaf(root, absentkey[:])
 
-	serialized, err := SerializeProof(proof)
+	serialized, _, err := SerializeProof(proof)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -332,7 +339,7 @@ func TestProofDeserialize(t *testing.T) {
 
 	proof := MakeVerkleProofOneLeaf(root, absentkey[:])
 
-	serialized, err := SerializeProof(proof)
+	serialized, _, err := SerializeProof(proof)
 	if err != nil {
 		t.Fatal(err)
 	}

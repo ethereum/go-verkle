@@ -79,10 +79,11 @@ type VerkleNode interface {
 
 // ProofElements gathers the elements needed to build a proof.
 type ProofElements struct {
-	Cis []*Point
-	Zis []byte
-	Yis []*Fr
-	Fis [][]Fr
+	Cis    []*Point
+	Zis    []byte
+	Yis    []*Fr
+	Fis    [][]Fr
+	ByPath map[string]*Point // Gather commitments by path
 
 	// dedups flags the presence of each (Ci,zi) tuple
 	dedups map[*Point]map[byte]struct{}
@@ -121,6 +122,12 @@ func (pe *ProofElements) Merge(other *ProofElements) {
 		pe.Zis = append(pe.Zis, other.Zis[i])
 		pe.Yis = append(pe.Yis, other.Yis[i])
 		pe.Fis = append(pe.Fis, other.Fis[i])
+	}
+
+	for path, C := range other.ByPath {
+		if _, ok := pe.ByPath[path]; !ok {
+			pe.ByPath[path] = C
+		}
 	}
 }
 
@@ -246,6 +253,7 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 			nextWordInExistingKey := offset2key(child.stem, n.depth+1)
 			newBranch := newInternalNode(n.depth+1, n.committer).(*InternalNode)
 			newBranch.count = 1
+			n.count++
 			n.children[nChild] = newBranch
 			newBranch.children[nextWordInExistingKey] = child
 			child.depth += 1
@@ -510,10 +518,11 @@ func (n *InternalNode) GetCommitmentsAlongPath(key []byte) (*ProofElements, byte
 
 	// The proof elements that are to be added at this level
 	pe := &ProofElements{
-		Cis: []*Point{n.commitment},
-		Zis: []byte{childIdx},
-		Yis: []*Fr{&yi}, // Should be 0
-		Fis: [][]Fr{fi},
+		Cis:    []*Point{n.commitment},
+		Zis:    []byte{childIdx},
+		Yis:    []*Fr{&yi}, // Should be 0
+		Fis:    [][]Fr{fi},
+		ByPath: map[string]*Point{string(key[:n.depth]): n.commitment},
 	}
 
 	// Special case of a proof of absence: no children
@@ -711,10 +720,11 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) (*ProofElements, byte, []
 		toFr(&poly[2], n.c1)
 		toFr(&poly[3], n.c2)
 		return &ProofElements{
-			Cis: []*Point{n.commitment, n.commitment},
-			Zis: []byte{0, 1},
-			Yis: []*Fr{&poly[0], &poly[1]},
-			Fis: [][]Fr{poly[:], poly[:]},
+			Cis:    []*Point{n.commitment, n.commitment},
+			Zis:    []byte{0, 1},
+			Yis:    []*Fr{&poly[0], &poly[1]},
+			Fis:    [][]Fr{poly[:], poly[:]},
+			ByPath: map[string]*Point{string(key[:n.depth]): n.commitment},
 		}, extStatusAbsentOther | (n.depth << 3), n.stem
 	}
 
@@ -750,10 +760,11 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) (*ProofElements, byte, []
 		// has to be called, save the count.
 		return &ProofElements{
 			// leaf marker, stem, path to child (which is 0)
-			Cis: []*Point{n.commitment, n.commitment, n.commitment},
-			Zis: []byte{0, 1, suffSlot},
-			Yis: []*Fr{&extPoly[0], &extPoly[1], &FrZero},
-			Fis: [][]Fr{extPoly[:], extPoly[:], extPoly[:]},
+			Cis:    []*Point{n.commitment, n.commitment, n.commitment},
+			Zis:    []byte{0, 1, suffSlot},
+			Yis:    []*Fr{&extPoly[0], &extPoly[1], &FrZero},
+			Fis:    [][]Fr{extPoly[:], extPoly[:], extPoly[:]},
+			ByPath: map[string]*Point{string(key[:n.depth]): n.commitment},
 		}, extStatusAbsentEmpty | (n.depth << 3), nil
 	}
 
@@ -763,6 +774,8 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) (*ProofElements, byte, []
 	} else {
 		scomm = n.c2
 	}
+
+	slotPath := string(key[:n.depth]) + string([]byte{suffSlot})
 
 	// Proof of absence: case of a missing value.
 	//
@@ -774,10 +787,11 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) (*ProofElements, byte, []
 	if n.values[slot] == nil {
 		return &ProofElements{
 				// leaf marker, stem, path to child, missing value (zero)
-				Cis: []*Point{n.commitment, n.commitment, n.commitment, scomm},
-				Zis: []byte{0, 1, suffSlot, slot},
-				Yis: []*Fr{&extPoly[0], &extPoly[1], &extPoly[2+slot/128], &FrZero},
-				Fis: [][]Fr{extPoly[:], extPoly[:], extPoly[:], poly[:]},
+				Cis:    []*Point{n.commitment, n.commitment, n.commitment, scomm},
+				Zis:    []byte{0, 1, suffSlot, slot},
+				Yis:    []*Fr{&extPoly[0], &extPoly[1], &extPoly[suffSlot], &FrZero},
+				Fis:    [][]Fr{extPoly[:], extPoly[:], extPoly[:], poly[:]},
+				ByPath: map[string]*Point{string(key[:n.depth]): n.commitment, slotPath: scomm},
 			}, extStatusPresent | (n.depth << 3), // present, since the stem is present
 			nil
 	}
@@ -787,10 +801,11 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) (*ProofElements, byte, []
 	leafToComms(leaves[:], n.values[slot])
 	return &ProofElements{
 		// leaf marker, stem, path to child, C{1,2} lo, C{1,2} hi
-		Cis: []*Point{n.commitment, n.commitment, n.commitment, scomm, scomm},
-		Zis: []byte{0, 1, suffSlot, 2 * slot, 2*slot + 1},
-		Yis: []*Fr{&extPoly[0], &extPoly[1], &extPoly[2+slot/128], &leaves[0], &leaves[1]},
-		Fis: [][]Fr{extPoly[:], extPoly[:], extPoly[:], poly[:], poly[:]},
+		Cis:    []*Point{n.commitment, n.commitment, n.commitment, scomm, scomm},
+		Zis:    []byte{0, 1, suffSlot, 2 * slot, 2*slot + 1},
+		Yis:    []*Fr{&extPoly[0], &extPoly[1], &extPoly[suffSlot], &leaves[0], &leaves[1]},
+		Fis:    [][]Fr{extPoly[:], extPoly[:], extPoly[:], poly[:], poly[:]},
+		ByPath: map[string]*Point{string(key[:n.depth]): n.commitment, slotPath: scomm},
 	}, extStatusPresent | (n.depth << 3), nil
 }
 
