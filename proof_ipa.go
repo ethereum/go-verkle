@@ -81,7 +81,7 @@ func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte) (*ProofElements
 	return p, extStatuses, poaStems
 }
 
-func MakeVerkleMultiProof(root VerkleNode, keys [][]byte) (*Proof, []*Point, []byte, []*Fr) {
+func MakeVerkleMultiProof(root VerkleNode, keys [][]byte, keyvals map[string][]byte) (*Proof, []*Point, []byte, []*Fr) {
 	tr := common.NewTranscript("multiproof")
 	root.ComputeCommitment()
 
@@ -89,8 +89,10 @@ func MakeVerkleMultiProof(root VerkleNode, keys [][]byte) (*Proof, []*Point, []b
 
 	var vals [][]byte
 	for _, k := range keys {
-		val, _ := root.Get(k, nil)
-		vals = append(vals, val)
+		// TODO at the moment, do not include the post-data
+		//val, _ := root.Get(k, nil)
+		//vals = append(vals, val)
+		vals = append(vals, keyvals[string(k)])
 	}
 
 	mpArg := ipa.CreateMultiProof(tr, GetConfig().conf, pe.Cis, pe.Fis, pe.Zis)
@@ -127,14 +129,20 @@ func VerifyVerkleProof(proof *Proof, Cs []*Point, indices []uint8, ys []*Fr, tc 
 	return ipa.CheckMultiProof(tr, tc.conf, proof.Multipoint, Cs, ys, indices)
 }
 
+// A structure representing a tuple
+type KeyValuePair struct {
+	Key   []byte
+	Value []byte
+}
+
 // SerializeProof serializes the proof in the rust-verkle format:
 // * len(Proof of absence stem) || Proof of absence stems
 // * len(depths) || serialize(depthi || ext statusi)
 // * len(commitments) || serialize(commitment)
 // * Multipoint proof
 // it also returns the serialized keys and values
-func SerializeProof(proof *Proof) ([]byte, []byte, error) {
-	var bufProof, bufKV bytes.Buffer
+func SerializeProof(proof *Proof) ([]byte, []KeyValuePair, error) {
+	var bufProof bytes.Buffer
 
 	binary.Write(&bufProof, binary.LittleEndian, uint32(len(proof.PoaStems)))
 	for _, stem := range proof.PoaStems {
@@ -164,18 +172,12 @@ func SerializeProof(proof *Proof) ([]byte, []byte, error) {
 	proof.Multipoint.Write(&bufProof)
 
 	// Temporary: add the keys and values to the proof
-	binary.Write(&bufKV, binary.LittleEndian, uint32(len(proof.Keys)))
+	keyvals := make([]KeyValuePair, 0, len(proof.Keys))
 	for i, key := range proof.Keys {
-		bufKV.Write(key)
-		if proof.Values[i] != nil {
-			bufKV.WriteByte(1)
-			bufKV.Write(proof.Values[i])
-		} else {
-			bufKV.WriteByte(0)
-		}
+		keyvals = append(keyvals, KeyValuePair{key, proof.Values[i]})
 	}
 
-	return bufProof.Bytes(), bufKV.Bytes(), nil
+	return bufProof.Bytes(), keyvals, nil
 }
 
 // TODO add keys and values to the signature
