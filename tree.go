@@ -775,6 +775,8 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) (*ProofElements, byte, []
 		scomm = n.c2
 	}
 
+	slotPath := string(key[:n.depth]) + string([]byte{suffSlot})
+
 	// Proof of absence: case of a missing value.
 	//
 	// Suffix tree is present as a child of the extension,
@@ -789,7 +791,7 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) (*ProofElements, byte, []
 				Zis:    []byte{0, 1, suffSlot, slot},
 				Yis:    []*Fr{&extPoly[0], &extPoly[1], &extPoly[suffSlot], &FrZero},
 				Fis:    [][]Fr{extPoly[:], extPoly[:], extPoly[:], poly[:]},
-				ByPath: map[string]*Point{string(key[:n.depth]): n.commitment, string(append(key[:n.depth], suffSlot)): scomm},
+				ByPath: map[string]*Point{string(key[:n.depth]): n.commitment, slotPath: scomm},
 			}, extStatusPresent | (n.depth << 3), // present, since the stem is present
 			nil
 	}
@@ -803,7 +805,7 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) (*ProofElements, byte, []
 		Zis:    []byte{0, 1, suffSlot, 2 * slot, 2*slot + 1},
 		Yis:    []*Fr{&extPoly[0], &extPoly[1], &extPoly[suffSlot], &leaves[0], &leaves[1]},
 		Fis:    [][]Fr{extPoly[:], extPoly[:], extPoly[:], poly[:], poly[:]},
-		ByPath: map[string]*Point{string(key[:n.depth]): n.commitment, string(append(key[:n.depth], suffSlot)): scomm},
+		ByPath: map[string]*Point{string(key[:n.depth]): n.commitment, slotPath: scomm},
 	}, extStatusPresent | (n.depth << 3), nil
 }
 
