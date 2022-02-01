@@ -68,10 +68,21 @@ func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte) (*ProofElements
 	p := &ProofElements{ByPath: make(map[string]*Point)}
 	var extStatuses []byte
 	var poaStems [][]byte
+	dedupES := make(map[string]struct{})
 	for _, key := range keys {
 		pe, extStatus, alt := root.GetCommitmentsAlongPath(key)
 		p.Merge(pe)
-		extStatuses = append(extStatuses, extStatus)
+
+		// Deduplicate extstatuses based on their stems
+		// keys might not be sorted, use the presence of a stem to
+		// check if it has.
+		// TODO change the GetCommitmentsAlongPath api in order to
+		// receive multiple, sorted keys. This is a hack.
+		depth := extStatus >> 3
+		if _, ok := dedupES[string(key[:depth])]; !ok {
+			dedupES[string(key[:depth])] = struct{}{}
+			extStatuses = append(extStatuses, extStatus)
+		}
 
 		if alt != nil {
 			poaStems = append(poaStems, alt)
