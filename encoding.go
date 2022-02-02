@@ -102,14 +102,14 @@ func CreateInternalNode(bitlist []byte, raw []byte, depth byte) (*InternalNode, 
 
 func indicesFromBitlist(bitlist []byte) []int {
 	indices := make([]int, 0)
-	for _, b := range bitlist {
+	for i, b := range bitlist {
 		if b == 0 {
 			continue
 		}
 		// the bitmap is little-endian, inside a big-endian byte list
 		for j := 0; j < 8; j++ {
 			if b&mask[j%8] != 0 {
-				indices = append(indices, j)
+				indices = append(indices, i*8+j)
 			}
 		}
 	}
