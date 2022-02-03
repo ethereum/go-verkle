@@ -47,7 +47,7 @@ type Proof struct {
 func MakeVerkleProofOneLeaf(root VerkleNode, key []byte) *Proof {
 	tr := common.NewTranscript("multiproof")
 	root.ComputeCommitment()
-	pe, extStatus, alt := root.GetCommitmentsAlongPath(key)
+	pe, extStatus, alt := root.GetCommitmentsAlongPath(key, true)
 	val, _ := root.Get(key, nil)
 	proof := &Proof{
 		Multipoint: ipa.CreateMultiProof(tr, GetConfig().conf, pe.Cis, pe.Fis, pe.Zis),
@@ -70,7 +70,7 @@ func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte) (*ProofElements
 	var poaStems [][]byte
 	dedupES := make(map[string]struct{})
 	for _, key := range keys {
-		pe, extStatus, alt := root.GetCommitmentsAlongPath(key)
+		pe, extStatus, alt := root.GetCommitmentsAlongPath(key, true)
 		p.Merge(pe)
 
 		// Deduplicate extstatuses based on their stems

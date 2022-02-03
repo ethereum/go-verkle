@@ -811,7 +811,7 @@ func TestEmptyCommitment(t *testing.T) {
 	root := New()
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
 	root.ComputeCommitment()
-	pe, _, _ := root.GetCommitmentsAlongPath(ffx32KeyTest)
+	pe, _, _ := root.GetCommitmentsAlongPath(ffx32KeyTest, false)
 	if len(pe.Cis) != 1 || len(pe.Zis) != 1 || len(pe.Yis) != 1 || len(pe.Fis) != 1 {
 		t.Fatalf("invalid parameter list length")
 	}

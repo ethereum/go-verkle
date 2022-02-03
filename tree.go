@@ -65,7 +65,7 @@ type VerkleNode interface {
 	// elements needed to build a proof. The order of elements
 	// is from the bottom of the tree, up to the root. It also
 	// returns the extension status.
-	GetCommitmentsAlongPath([]byte) (*ProofElements, byte, []byte)
+	GetCommitmentsAlongPath([]byte, bool) (*ProofElements, byte, []byte)
 
 	// Serialize encodes the node to RLP.
 	Serialize() ([]byte, error)
@@ -158,6 +158,9 @@ type (
 		// Cache the commitment value
 		commitment *Point
 
+		// Cache the *original* commitment value
+		cowC *Point
+
 		committer Committer
 	}
 
@@ -169,6 +172,10 @@ type (
 		c1, c2     *Point
 		hash       *Fr
 		committer  Committer
+
+		// used to save the original values in a copy-on-write
+		// context: 0: C, 1: C1, 2: C2
+		cowC [3]*Point
 
 		depth byte
 	}
@@ -288,6 +295,11 @@ func (n *InternalNode) toHashedNode() *HashedNode {
 func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn) error {
 	// Clear cached commitment on modification
 	if n.commitment != nil {
+		// copy-on-write: save the original value of the commitment if this
+		// is the first time that it's overwritten.
+		if n.cowC == nil {
+			n.cowC = n.commitment
+		}
 		n.commitment = nil
 		n.hash = nil
 	}
@@ -502,14 +514,26 @@ func (n *InternalNode) ComputeCommitment() *Fr {
 	return n.hash
 }
 
-func (n *InternalNode) GetCommitmentsAlongPath(key []byte) (*ProofElements, byte, []byte) {
+func (n *InternalNode) cachedC(orig bool) *Point {
+	if orig {
+		return n.cowC
+	}
+	return n.commitment
+}
+
+func (n *InternalNode) GetCommitmentsAlongPath(key []byte, orig bool) (*ProofElements, byte, []byte) {
 	childIdx := offset2key(key, n.depth)
 
 	// Build the list of elements for this level
 	var yi Fr
 	fi := make([]Fr, NodeWidth)
 	for i, child := range n.children {
-		CopyFr(&fi[i], child.ComputeCommitment())
+		if !orig {
+			CopyFr(&fi[i], child.ComputeCommitment())
+		} else {
+			// XXX
+			//CopyFr(&fi[i], child.ComputeCommitment())
+		}
 
 		if i == int(childIdx) {
 			CopyFr(&yi, &fi[i])
@@ -518,20 +542,24 @@ func (n *InternalNode) GetCommitmentsAlongPath(key []byte) (*ProofElements, byte
 
 	// The proof elements that are to be added at this level
 	pe := &ProofElements{
-		Cis:    []*Point{n.commitment},
+		Cis:    []*Point{n.cachedC(orig)},
 		Zis:    []byte{childIdx},
 		Yis:    []*Fr{&yi}, // Should be 0
 		Fis:    [][]Fr{fi},
-		ByPath: map[string]*Point{string(key[:n.depth]): n.commitment},
+		ByPath: map[string]*Point{string(key[:n.depth]): n.cachedC(orig)},
 	}
 
 	// Special case of a proof of absence: no children
 	// commitment, as the value is 0.
-	if _, ok := n.children[childIdx].(Empty); ok {
+	if _, ok := n.children[childIdx].(Empty); ok && !orig {
+		return pe, extStatusAbsentEmpty | (n.depth << 3), nil
+	}
+	// same thing for the original case
+	if orig && n.cowC.IsZero() {
 		return pe, extStatusAbsentEmpty | (n.depth << 3), nil
 	}
 
-	pec, es, other := n.children[childIdx].GetCommitmentsAlongPath(key)
+	pec, es, other := n.children[childIdx].GetCommitmentsAlongPath(key, orig)
 	pe.Merge(pec)
 	return pe, es, other
 }
@@ -611,6 +639,11 @@ func (n *LeafNode) Insert(k []byte, value []byte, _ NodeResolverFn) error {
 		return errors.New("split should not happen here")
 	}
 	n.values[k[31]] = value
+	if n.cowC[0] == nil {
+		n.cowC[0] = n.commitment
+		n.cowC[1] = n.c1
+		n.cowC[2] = n.c2
+	}
 	n.commitment = nil
 	n.hash = nil
 	return nil
@@ -709,7 +742,29 @@ func leafToComms(poly []Fr, val []byte) {
 	}
 }
 
-func (n *LeafNode) GetCommitmentsAlongPath(key []byte) (*ProofElements, byte, []byte) {
+func (n *LeafNode) cachedC(orig bool) *Point {
+	if orig {
+		return n.cowC[0]
+	}
+	return n.commitment
+}
+
+// Same function as above, but used for the C{1,2} commitments
+func (n *LeafNode) cachedCn(index int, orig bool) *Point {
+	if orig {
+		return n.cowC[index]
+	}
+	switch index {
+	case 1:
+		return n.c1
+	case 2:
+		return n.c2
+	default:
+		panic("invalid index")
+	}
+}
+
+func (n *LeafNode) GetCommitmentsAlongPath(key []byte, orig bool) (*ProofElements, byte, []byte) {
 	// Proof of absence: case of a differing stem.
 	//
 	// Return an unopened stem-level node.
@@ -717,14 +772,14 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) (*ProofElements, byte, []
 		var poly [256]Fr
 		poly[0].SetUint64(1)
 		poly[1].SetBytes(n.stem)
-		toFr(&poly[2], n.c1)
-		toFr(&poly[3], n.c2)
+		toFr(&poly[2], n.cachedCn(1, orig))
+		toFr(&poly[3], n.cachedCn(2, orig))
 		return &ProofElements{
-			Cis:    []*Point{n.commitment, n.commitment},
+			Cis:    []*Point{n.cachedC(orig), n.cachedC(orig)},
 			Zis:    []byte{0, 1},
 			Yis:    []*Fr{&poly[0], &poly[1]},
 			Fis:    [][]Fr{poly[:], poly[:]},
-			ByPath: map[string]*Point{string(key[:n.depth]): n.commitment},
+			ByPath: map[string]*Point{string(key[:n.depth]): n.cachedC(orig)},
 		}, extStatusAbsentOther | (n.depth << 3), n.stem
 	}
 
@@ -744,8 +799,8 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) (*ProofElements, byte, []
 	var extPoly [256]Fr
 	extPoly[0].SetUint64(1)
 	extPoly[1].SetBytes(n.stem)
-	toFr(&extPoly[2], n.c1)
-	toFr(&extPoly[3], n.c2)
+	toFr(&extPoly[2], n.cachedCn(1, orig))
+	toFr(&extPoly[3], n.cachedCn(2, orig))
 
 	// Proof of absence: case of a missing suffix tree.
 	//
@@ -760,19 +815,19 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) (*ProofElements, byte, []
 		// has to be called, save the count.
 		return &ProofElements{
 			// leaf marker, stem, path to child (which is 0)
-			Cis:    []*Point{n.commitment, n.commitment, n.commitment},
+			Cis:    []*Point{n.cachedC(orig), n.cachedC(orig), n.cachedC(orig)},
 			Zis:    []byte{0, 1, suffSlot},
 			Yis:    []*Fr{&extPoly[0], &extPoly[1], &FrZero},
 			Fis:    [][]Fr{extPoly[:], extPoly[:], extPoly[:]},
-			ByPath: map[string]*Point{string(key[:n.depth]): n.commitment},
+			ByPath: map[string]*Point{string(key[:n.depth]): n.cachedC(orig)},
 		}, extStatusAbsentEmpty | (n.depth << 3), nil
 	}
 
 	var scomm *Point
 	if slot < 128 {
-		scomm = n.c1
+		scomm = n.cachedCn(1, orig)
 	} else {
-		scomm = n.c2
+		scomm = n.cachedCn(2, orig)
 	}
 
 	slotPath := string(key[:n.depth]) + string([]byte{suffSlot})
@@ -787,11 +842,11 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) (*ProofElements, byte, []
 	if n.values[slot] == nil {
 		return &ProofElements{
 				// leaf marker, stem, path to child, missing value (zero)
-				Cis:    []*Point{n.commitment, n.commitment, n.commitment, scomm},
+				Cis:    []*Point{n.cachedC(orig), n.cachedC(orig), n.cachedC(orig), scomm},
 				Zis:    []byte{0, 1, suffSlot, slot},
 				Yis:    []*Fr{&extPoly[0], &extPoly[1], &extPoly[suffSlot], &FrZero},
 				Fis:    [][]Fr{extPoly[:], extPoly[:], extPoly[:], poly[:]},
-				ByPath: map[string]*Point{string(key[:n.depth]): n.commitment, slotPath: scomm},
+				ByPath: map[string]*Point{string(key[:n.depth]): n.cachedC(orig), slotPath: scomm},
 			}, extStatusPresent | (n.depth << 3), // present, since the stem is present
 			nil
 	}
@@ -801,11 +856,11 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) (*ProofElements, byte, []
 	leafToComms(leaves[:], n.values[slot])
 	return &ProofElements{
 		// leaf marker, stem, path to child, C{1,2} lo, C{1,2} hi
-		Cis:    []*Point{n.commitment, n.commitment, n.commitment, scomm, scomm},
+		Cis:    []*Point{n.cachedC(orig), n.cachedC(orig), n.cachedC(orig), scomm, scomm},
 		Zis:    []byte{0, 1, suffSlot, 2 * slot, 2*slot + 1},
 		Yis:    []*Fr{&extPoly[0], &extPoly[1], &extPoly[suffSlot], &leaves[0], &leaves[1]},
 		Fis:    [][]Fr{extPoly[:], extPoly[:], extPoly[:], poly[:], poly[:]},
-		ByPath: map[string]*Point{string(key[:n.depth]): n.commitment, slotPath: scomm},
+		ByPath: map[string]*Point{string(key[:n.depth]): n.cachedC(orig), slotPath: scomm},
 	}, extStatusPresent | (n.depth << 3), nil
 }
 
