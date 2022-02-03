@@ -6,7 +6,7 @@
 
 # go-verkle
 
-An **experimental** implementation of [Verkle trees](https://notes.ethereum.org/nrQqhVpQRi6acQckwm1Ryg). When production-ready, the code is to be split between go-kzg and go-ethereum.
+An implementation of [Verkle trees](https://notes.ethereum.org/nrQqhVpQRi6acQckwm1Ryg). When production-ready, the code is to be merged back into go-ethereum.
 
 Node width is set to 256 children.
 
