@@ -657,7 +657,7 @@ func (n *LeafNode) ComputeCommitment() *Fr {
 	count := 0
 	var poly, c1poly, c2poly [256]Fr
 	poly[0].SetUint64(1)
-	FromBytes(&poly[1], n.stem)
+	StemFromBytes(&poly[1], n.stem)
 
 	count = fillSuffixTreePoly(c1poly[:], n.values[:128])
 	n.c1 = n.committer.CommitToPoly(c1poly[:], 256-count)
@@ -716,7 +716,7 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) (*ProofElements, byte, []
 	if !equalPaths(n.stem, key) {
 		var poly [256]Fr
 		poly[0].SetUint64(1)
-		poly[1].SetBytes(n.stem)
+		StemFromBytes(&poly[1], n.stem)
 		toFr(&poly[2], n.c1)
 		toFr(&poly[3], n.c2)
 		return &ProofElements{
@@ -743,7 +743,7 @@ func (n *LeafNode) GetCommitmentsAlongPath(key []byte) (*ProofElements, byte, []
 
 	var extPoly [256]Fr
 	extPoly[0].SetUint64(1)
-	extPoly[1].SetBytes(n.stem)
+	StemFromBytes(&extPoly[1], n.stem)
 	toFr(&extPoly[2], n.c1)
 	toFr(&extPoly[3], n.c2)
 

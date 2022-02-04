@@ -293,7 +293,7 @@ func (n *StatelessNode) ComputeCommitment() *Fr {
 		count1, count2 := 0, 0
 		var poly, c1poly, c2poly [256]Fr
 		poly[0].SetUint64(1)
-		FromBytes(&poly[1], n.stem)
+		StemFromBytes(&poly[1], n.stem)
 
 		for idx, val := range n.values {
 			if idx < 128 {

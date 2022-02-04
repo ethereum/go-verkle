@@ -59,8 +59,10 @@ func FromLEBytes(fr *Fr, data []byte) {
 	fr.SetBytes(aligned[:])
 }
 
-func FromBytes(fr *Fr, data []byte) {
-	FromLEBytes(fr, data)
+func StemFromBytes(fr *Fr, data []byte) {
+	bytes := make([]byte, len(data))
+	copy(bytes, data)
+	fr.SetBytesLE(bytes)
 }
 
 func Equal(fr *Fr, other *Fr) bool {
