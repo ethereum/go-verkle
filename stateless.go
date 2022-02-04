@@ -372,7 +372,7 @@ func (n *StatelessNode) toDot(parent, path string) string {
 			}
 		}
 	} else {
-		ret = fmt.Sprintf("%s [label=\"I: %x\"]\n", me, n.hash.Bytes())
+		ret = fmt.Sprintf("%s [label=\"I: %x\"]\n", me, n.hash.BytesLE())
 		if len(parent) > 0 {
 			ret = fmt.Sprintf("%s %s -> %s\n", ret, parent, me)
 		}
