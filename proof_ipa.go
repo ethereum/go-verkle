@@ -44,26 +44,6 @@ type Proof struct {
 	Values     [][]byte
 }
 
-func MakeVerkleProofOneLeaf(root VerkleNode, key []byte) *Proof {
-	tr := common.NewTranscript("multiproof")
-	root.ComputeCommitment()
-	pe, extStatus, alt := root.GetCommitmentsAlongPath(key)
-	val, _ := root.Get(key, nil)
-	proof := &Proof{
-		Multipoint: ipa.CreateMultiProof(tr, GetConfig().conf, pe.Cis, pe.Fis, pe.Zis),
-		Cs:         pe.Cis,
-		ExtStatus:  []byte{extStatus},
-		Keys:       [][]byte{key},
-		Values:     [][]byte{val},
-	}
-
-	if alt != nil {
-		proof.PoaStems = [][]byte{alt}
-	}
-
-	return proof
-}
-
 func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte) (*ProofElements, []byte, [][]byte) {
 	p := &ProofElements{ByPath: make(map[string]*Point)}
 	var extStatuses []byte
@@ -182,7 +162,6 @@ func SerializeProof(proof *Proof) ([]byte, []KeyValuePair, error) {
 
 	proof.Multipoint.Write(&bufProof)
 
-	// Temporary: add the keys and values to the proof
 	keyvals := make([]KeyValuePair, 0, len(proof.Keys))
 	for i, key := range proof.Keys {
 		keyvals = append(keyvals, KeyValuePair{key, proof.Values[i]})

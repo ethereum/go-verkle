@@ -234,6 +234,6 @@ func TestStatelessToDot(t *testing.T) {
 	stlJ := strings.Join(stl, "\n")
 
 	if stfJ != stlJ {
-		t.Fatalf("hashes differ after insertion %v %v", stf, stl)
+		t.Fatalf("hashes differ after insertion %v ||| %v", stf, stl)
 	}
 }

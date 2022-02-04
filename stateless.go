@@ -293,7 +293,7 @@ func (n *StatelessNode) ComputeCommitment() *Fr {
 		count1, count2 := 0, 0
 		var poly, c1poly, c2poly [256]Fr
 		poly[0].SetUint64(1)
-		FromBytes(&poly[1], n.stem)
+		StemFromBytes(&poly[1], n.stem)
 
 		for idx, val := range n.values {
 			if idx < 128 {
@@ -372,7 +372,7 @@ func (n *StatelessNode) toDot(parent, path string) string {
 			}
 		}
 	} else {
-		ret = fmt.Sprintf("%s [label=\"I: %x\"]\n", me, n.hash.Bytes())
+		ret = fmt.Sprintf("%s [label=\"I: %x\"]\n", me, n.hash.BytesLE())
 		if len(parent) > 0 {
 			ret = fmt.Sprintf("%s %s -> %s\n", ret, parent, me)
 		}
