@@ -73,7 +73,7 @@ func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte) (*ProofElements
 }
 
 func MakeVerkleMultiProof(root VerkleNode, keys [][]byte, keyvals map[string][]byte) (*Proof, []*Point, []byte, []*Fr) {
-	tr := common.NewTranscript("multiproof")
+	tr := common.NewTranscript("vt")
 	root.ComputeCommitment()
 
 	pe, es, poas := GetCommitmentsForMultiproof(root, keys)
@@ -116,7 +116,7 @@ func MakeVerkleMultiProof(root VerkleNode, keys [][]byte, keyvals map[string][]b
 }
 
 func VerifyVerkleProof(proof *Proof, Cs []*Point, indices []uint8, ys []*Fr, tc *Config) bool {
-	tr := common.NewTranscript("multiproof")
+	tr := common.NewTranscript("vt")
 	return ipa.CheckMultiProof(tr, tc.conf, proof.Multipoint, Cs, ys, indices)
 }
 
