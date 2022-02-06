@@ -502,7 +502,24 @@ func (n *InternalNode) ComputeCommitment() *Fr {
 	return n.hash
 }
 
-func (n *InternalNode) GetCommitmentsAlongPath(key []byte) (*ProofElements, byte, []byte) {
+type keylist = [][]byte
+
+func groupKeys(keys [][]byte, depth int) []keylist {
+	groups := make([]keylist, 0, len(keys))
+	firstkey := 0
+	lastkey := 0
+
+	for firstkey, lastkey := 0, 0; lastkey < len(keys); lastkey++ {
+		if keys[lastkey][depth] != key[depth] {
+			groups = append(groups, keys[firstkey:lastkey])
+			firstkey = lastkey
+		}
+	}
+	
+	return groups
+}
+
+func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, byte, []byte) {
 	childIdx := offset2key(key, n.depth)
 
 	// Build the list of elements for this level
