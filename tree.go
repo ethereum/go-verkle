@@ -39,6 +39,8 @@ type Committer interface {
 	CommitToPoly([]Fr, int) *Point
 }
 
+type keylist = [][]byte
+
 type VerkleNode interface {
 	// Insert or Update value into the tree
 	Insert([]byte, []byte, NodeResolverFn) error
@@ -502,20 +504,23 @@ func (n *InternalNode) ComputeCommitment() *Fr {
 	return n.hash
 }
 
-type keylist = [][]byte
+func groupKeys(keys [][]byte, depth byte) []keylist {
+	if len(keys) == 1 {
+		return []keylist{keys}
+	}
 
-func groupKeys(keys [][]byte, depth int) []keylist {
 	groups := make([]keylist, 0, len(keys))
-	firstkey := 0
-	lastkey := 0
+	for firstkey, lastkey := 0, 1; lastkey < len(keys); lastkey++ {
+		key := keys[lastkey][:]
+		keyidx := offset2key(key, depth)
+		previdx := offset2key(keys[lastkey-1], depth)
 
-	for firstkey, lastkey := 0, 0; lastkey < len(keys); lastkey++ {
-		if keys[lastkey][depth] != key[depth] {
+		if lastkey == len(keys)-1 || keyidx != previdx {
 			groups = append(groups, keys[firstkey:lastkey])
 			firstkey = lastkey
 		}
 	}
-	
+
 	return groups
 }
 
