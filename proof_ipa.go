@@ -50,7 +50,7 @@ func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte) (*ProofElements
 	var poaStems [][]byte
 	dedupES := make(map[string]struct{})
 	for _, key := range keys {
-		pe, extStatus, alt := root.GetCommitmentsAlongPath(key)
+		pe, extStatus, alt := root.GetProofItems(keylist{key})
 		p.Merge(pe)
 
 		// Deduplicate extstatuses based on their stems

@@ -62,12 +62,12 @@ type VerkleNode interface {
 	// representation of its hash) are cached.
 	ComputeCommitment() *Fr
 
-	// GetCommitmentsAlongPath follows the path that one key
+	// GetProofItems follows the path that one key
 	// traces through the tree, and collects the various
 	// elements needed to build a proof. The order of elements
 	// is from the bottom of the tree, up to the root. It also
 	// returns the extension status.
-	GetCommitmentsAlongPath([]byte) (*ProofElements, byte, []byte)
+	GetProofItems(keylist) (*ProofElements, byte, []byte)
 
 	// Serialize encodes the node to RLP.
 	Serialize() ([]byte, error)
@@ -525,7 +525,7 @@ func groupKeys(keys [][]byte, depth byte) []keylist {
 }
 
 func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, byte, []byte) {
-	childIdx := offset2key(key, n.depth)
+	groups := groupKeys(keys, n.depth)
 
 	// Build the list of elements for this level
 	var yi Fr
@@ -553,7 +553,7 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, byte, []byte
 		return pe, extStatusAbsentEmpty | (n.depth << 3), nil
 	}
 
-	pec, es, other := n.children[childIdx].GetCommitmentsAlongPath(key)
+	pec, es, other := n.children[childIdx].GetProofItems(key)
 	pe.Merge(pec)
 	return pe, es, other
 }
@@ -731,7 +731,7 @@ func leafToComms(poly []Fr, val []byte) {
 	}
 }
 
-func (n *LeafNode) GetCommitmentsAlongPath(key []byte) (*ProofElements, byte, []byte) {
+func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, byte, []byte) {
 	// Proof of absence: case of a differing stem.
 	//
 	// Return an unopened stem-level node.
