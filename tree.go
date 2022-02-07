@@ -26,6 +26,7 @@
 package verkle
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 )
@@ -39,7 +40,19 @@ type Committer interface {
 	CommitToPoly([]Fr, int) *Point
 }
 
-type keylist = [][]byte
+type keylist [][]byte
+
+func (kl keylist) Len() int {
+	return len(kl)
+}
+
+func (kl keylist) Less(i, j int) bool {
+	return bytes.Compare(kl[i], kl[j]) == -1
+}
+
+func (kl keylist) Swap(i, j int) {
+	kl[i], kl[j] = kl[j], kl[i]
+}
 
 type VerkleNode interface {
 	// Insert or Update value into the tree
@@ -62,12 +75,11 @@ type VerkleNode interface {
 	// representation of its hash) are cached.
 	ComputeCommitment() *Fr
 
-	// GetProofItems follows the path that one key
-	// traces through the tree, and collects the various
-	// elements needed to build a proof. The order of elements
-	// is from the bottom of the tree, up to the root. It also
-	// returns the extension status.
-	GetProofItems(keylist) (*ProofElements, byte, []byte)
+	// GetProofItems collects the various proof elements, and
+	// returns them breadth-first. On top of that, it returns
+	// one "extension status" per stem, and an alternate stem
+	// if the key is missing but another stem has been found.
+	GetProofItems(keylist) (*ProofElements, []byte, [][]byte)
 
 	// Serialize encodes the node to RLP.
 	Serialize() ([]byte, error)
@@ -504,13 +516,17 @@ func (n *InternalNode) ComputeCommitment() *Fr {
 	return n.hash
 }
 
-func groupKeys(keys [][]byte, depth byte) []keylist {
+// groupKeys groups a set of keys based on their byte at a given depth.
+func groupKeys(keys keylist, depth byte) []keylist {
+	// special case: only one key left
 	if len(keys) == 1 {
 		return []keylist{keys}
 	}
 
+	// there are at least two keys left in the list at this depth
 	groups := make([]keylist, 0, len(keys))
-	for firstkey, lastkey := 0, 1; lastkey < len(keys); lastkey++ {
+	firstkey, lastkey := 0, 1
+	for ; lastkey < len(keys); lastkey++ {
 		key := keys[lastkey][:]
 		keyidx := offset2key(key, depth)
 		previdx := offset2key(keys[lastkey-1], depth)
@@ -521,41 +537,64 @@ func groupKeys(keys [][]byte, depth byte) []keylist {
 		}
 	}
 
+	groups = append(groups, keys[firstkey:lastkey])
+
 	return groups
 }
 
-func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, byte, []byte) {
-	groups := groupKeys(keys, n.depth)
+func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte) {
+	var (
+		groups = groupKeys(keys, n.depth)
+		pe     = &ProofElements{
+			Cis:    []*Point{},
+			Zis:    []byte{},
+			Yis:    []*Fr{}, // Should be 0
+			Fis:    [][]Fr{},
+			ByPath: map[string]*Point{},
+		}
 
-	// Build the list of elements for this level
-	var yi Fr
+		esses []byte   = nil // list of extension statuses
+		poass [][]byte       // list of proof-of-absence stems
+	)
+
+	// fill in the polynomial for this node
 	fi := make([]Fr, NodeWidth)
 	for i, child := range n.children {
 		CopyFr(&fi[i], child.ComputeCommitment())
+	}
 
-		if i == int(childIdx) {
-			CopyFr(&yi, &fi[i])
+	for _, group := range groups {
+		childIdx := offset2key(group[0], n.depth)
+
+		// Build the list of elements for this level
+		var yi Fr
+		CopyFr(&yi, &fi[childIdx])
+		pe.Cis = append(pe.Cis, n.commitment)
+		pe.Zis = append(pe.Zis, childIdx)
+		pe.Yis = append(pe.Yis, &yi)
+		pe.Fis = append(pe.Fis, fi)
+		pe.ByPath[string(group[0][:n.depth])] = n.commitment
+	}
+
+	// Loop over again, collecting the children's proof elements
+	// This is because the order is breadth-first.
+	for _, group := range groups {
+		childIdx := offset2key(group[0], n.depth)
+
+		// Special case of a proof of absence: no children
+		// commitment, as the value is 0.
+		if _, ok := n.children[childIdx].(Empty); ok {
+			esses = append(esses, extStatusAbsentEmpty|(n.depth<<3))
+			continue
 		}
+
+		pec, es, other := n.children[childIdx].GetProofItems(group)
+		pe.Merge(pec)
+		poass = append(poass, other...)
+		esses = append(esses, es...)
 	}
 
-	// The proof elements that are to be added at this level
-	pe := &ProofElements{
-		Cis:    []*Point{n.commitment},
-		Zis:    []byte{childIdx},
-		Yis:    []*Fr{&yi}, // Should be 0
-		Fis:    [][]Fr{fi},
-		ByPath: map[string]*Point{string(key[:n.depth]): n.commitment},
-	}
-
-	// Special case of a proof of absence: no children
-	// commitment, as the value is 0.
-	if _, ok := n.children[childIdx].(Empty); ok {
-		return pe, extStatusAbsentEmpty | (n.depth << 3), nil
-	}
-
-	pec, es, other := n.children[childIdx].GetProofItems(key)
-	pe.Merge(pec)
-	return pe, es, other
+	return pe, esses, poass
 }
 
 func (n *InternalNode) Serialize() ([]byte, error) {
@@ -731,104 +770,112 @@ func leafToComms(poly []Fr, val []byte) {
 	}
 }
 
-func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, byte, []byte) {
-	// Proof of absence: case of a differing stem.
-	//
-	// Return an unopened stem-level node.
-	if !equalPaths(n.stem, key) {
-		var poly [256]Fr
-		poly[0].SetUint64(1)
-		StemFromBytes(&poly[1], n.stem)
-		toFr(&poly[2], n.c1)
-		toFr(&poly[3], n.c2)
-		return &ProofElements{
+func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte) {
+	var (
+		poly [256]Fr // top-level polynomial
+		pe           = &ProofElements{
 			Cis:    []*Point{n.commitment, n.commitment},
 			Zis:    []byte{0, 1},
-			Yis:    []*Fr{&poly[0], &poly[1]},
+			Yis:    []*Fr{&poly[0], &poly[1]}, // Should be 0
 			Fis:    [][]Fr{poly[:], poly[:]},
-			ByPath: map[string]*Point{string(key[:n.depth]): n.commitment},
-		}, extStatusAbsentOther | (n.depth << 3), n.stem
-	}
+			ByPath: map[string]*Point{},
+		}
 
-	var (
-		slot     = key[31]
-		suffSlot = 2 + slot/128
-		poly     [256]Fr
-		count    int
+		esses []byte   = nil // list of extension statuses
+		poass [][]byte       // list of proof-of-absence stems
 	)
 
-	if slot >= 128 {
-		count = fillSuffixTreePoly(poly[:], n.values[128:])
-	} else {
-		count = fillSuffixTreePoly(poly[:], n.values[:128])
+	// Initialize the top-level polynomial with 1 + stem + C1 + C2
+	poly[0].SetUint64(1)
+	StemFromBytes(&poly[1], n.stem)
+	toFr(&poly[2], n.c1)
+	toFr(&poly[3], n.c2)
+
+	for _, key := range keys {
+		pe.ByPath[string(key[:n.depth])] = n.commitment
+
+		// Proof of absence: case of a differing stem.
+		// Add an unopened stem-level node.
+		if !equalPaths(n.stem, key) {
+			// Deduplicate the missing stems - keys must
+			// be sorted.
+			if len(poass) == 0 || !equalPaths(poass[len(poass)], key) {
+				esses = append(esses, extStatusAbsentOther|(n.depth<<3))
+				poass = append(poass, n.stem)
+			}
+			continue
+		}
+
+		var (
+			suffix   = key[31]
+			suffSlot = 2 + suffix/128 // slot in suffix tree
+			suffPoly [256]Fr          // suffix-level polynomial
+			count    int
+		)
+
+		if suffix >= 128 {
+			count = fillSuffixTreePoly(suffPoly[:], n.values[128:])
+		} else {
+			count = fillSuffixTreePoly(suffPoly[:], n.values[:128])
+		}
+
+		// Proof of absence: case of a missing suffix tree.
+		//
+		// The suffix tree for this value is missing, i.e. all
+		// values in the extension-and-suffix tree are grouped
+		// in the other suffix tree (e.g. C2 if we are looking
+		// at C1).
+		if count == 0 {
+			// TODO(gballet) maintain a count variable at LeafNode level
+			// so that we know not to build the polynomials in this case,
+			// as all the information is available before fillSuffixTreePoly
+			// has to be called, save the count.
+			pe.Cis = append(pe.Cis, n.commitment)
+			pe.Zis = append(pe.Zis, suffSlot)
+			pe.Yis = append(pe.Yis, &FrZero)
+			pe.Fis = append(pe.Fis, poly[:])
+			esses = append(esses, extStatusAbsentEmpty|(n.depth<<3))
+			continue
+		}
+
+		var scomm *Point
+		if suffix < 128 {
+			scomm = n.c1
+		} else {
+			scomm = n.c2
+		}
+
+		slotPath := string(key[:n.depth]) + string([]byte{suffSlot})
+
+		// Proof of absence: case of a missing value.
+		//
+		// Suffix tree is present as a child of the extension,
+		// but does not contain the requested suffix. This can
+		// only happen when the leaf has never been written to
+		// since after deletion the value would be set to zero
+		// but still contain the leaf marker 2^128.
+		if n.values[suffix] == nil {
+			pe.Cis = append(pe.Cis, n.commitment, scomm)
+			pe.Zis = append(pe.Zis, suffSlot, suffix)
+			pe.Yis = append(pe.Yis, &poly[suffSlot], &FrZero)
+			pe.Fis = append(pe.Fis, poly[:], suffPoly[:])
+			esses = append(esses, extStatusPresent|(n.depth<<3))
+			pe.ByPath[slotPath] = scomm
+			continue
+		}
+
+		// suffix tree is present and contains the key
+		var leaves [2]Fr
+		leafToComms(leaves[:], n.values[suffix])
+		pe.Cis = append(pe.Cis, n.commitment, scomm, scomm)
+		pe.Zis = append(pe.Zis, suffSlot, 2*suffix, 2*suffix+1)
+		pe.Yis = append(pe.Yis, &poly[suffSlot], &leaves[0], &leaves[1])
+		pe.Fis = append(pe.Fis, poly[:], suffPoly[:], suffPoly[:])
+		esses = append(esses, extStatusPresent|(n.depth<<3))
+		pe.ByPath[slotPath] = scomm
 	}
 
-	var extPoly [256]Fr
-	extPoly[0].SetUint64(1)
-	StemFromBytes(&extPoly[1], n.stem)
-	toFr(&extPoly[2], n.c1)
-	toFr(&extPoly[3], n.c2)
-
-	// Proof of absence: case of a missing suffix tree.
-	//
-	// The suffix tree for this value is missing, i.e. all
-	// values in the extension-and-suffix tree are grouped
-	// in the other suffix tree (e.g. C2 if we are looking
-	// at C1).
-	if count == 0 {
-		// TODO(gballet) maintain a count variable at LeafNode level
-		// so that we know not to build the polynomials in this case,
-		// as all the information is available before fillSuffixTreePoly
-		// has to be called, save the count.
-		return &ProofElements{
-			// leaf marker, stem, path to child (which is 0)
-			Cis:    []*Point{n.commitment, n.commitment, n.commitment},
-			Zis:    []byte{0, 1, suffSlot},
-			Yis:    []*Fr{&extPoly[0], &extPoly[1], &FrZero},
-			Fis:    [][]Fr{extPoly[:], extPoly[:], extPoly[:]},
-			ByPath: map[string]*Point{string(key[:n.depth]): n.commitment},
-		}, extStatusAbsentEmpty | (n.depth << 3), nil
-	}
-
-	var scomm *Point
-	if slot < 128 {
-		scomm = n.c1
-	} else {
-		scomm = n.c2
-	}
-
-	slotPath := string(key[:n.depth]) + string([]byte{suffSlot})
-
-	// Proof of absence: case of a missing value.
-	//
-	// Suffix tree is present as a child of the extension,
-	// but does not contain the requested suffix. This can
-	// only happen when the leaf has never been written to
-	// since after deletion the value would be set to zero
-	// but still contain the leaf marker 2^128.
-	if n.values[slot] == nil {
-		return &ProofElements{
-				// leaf marker, stem, path to child, missing value (zero)
-				Cis:    []*Point{n.commitment, n.commitment, n.commitment, scomm},
-				Zis:    []byte{0, 1, suffSlot, slot},
-				Yis:    []*Fr{&extPoly[0], &extPoly[1], &extPoly[suffSlot], &FrZero},
-				Fis:    [][]Fr{extPoly[:], extPoly[:], extPoly[:], poly[:]},
-				ByPath: map[string]*Point{string(key[:n.depth]): n.commitment, slotPath: scomm},
-			}, extStatusPresent | (n.depth << 3), // present, since the stem is present
-			nil
-	}
-
-	// suffix tree is present and contains the key
-	var leaves [2]Fr
-	leafToComms(leaves[:], n.values[slot])
-	return &ProofElements{
-		// leaf marker, stem, path to child, C{1,2} lo, C{1,2} hi
-		Cis:    []*Point{n.commitment, n.commitment, n.commitment, scomm, scomm},
-		Zis:    []byte{0, 1, suffSlot, 2 * slot, 2*slot + 1},
-		Yis:    []*Fr{&extPoly[0], &extPoly[1], &extPoly[suffSlot], &leaves[0], &leaves[1]},
-		Fis:    [][]Fr{extPoly[:], extPoly[:], extPoly[:], poly[:], poly[:]},
-		ByPath: map[string]*Point{string(key[:n.depth]): n.commitment, slotPath: scomm},
-	}, extStatusPresent | (n.depth << 3), nil
+	return pe, esses, poass
 }
 
 func (n *LeafNode) Serialize() ([]byte, error) {

@@ -49,7 +49,7 @@ func (Empty) ComputeCommitment() *Fr {
 	return &FrZero
 }
 
-func (Empty) GetProofItems(keylist) (*ProofElements, byte, []byte) {
+func (Empty) GetProofItems(keylist) (*ProofElements, []byte, [][]byte) {
 	panic("trying to produce a commitment for an empty subtree")
 }
 
