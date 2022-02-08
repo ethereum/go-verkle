@@ -65,8 +65,8 @@ func StemFromBytes(fr *Fr, data []byte) {
 	fr.SetBytesLE(bytes)
 }
 
-func Equal(fr *Fr, other *Fr) bool {
-	return fr.Equal(other)
+func Equal(self *Point, other *Point) bool {
+	return other.Equal(self)
 }
 
 func Generator() *Point {

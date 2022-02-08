@@ -268,9 +268,9 @@ func (n *StatelessNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 	return child.Get(k, getter)
 }
 
-func (n *StatelessNode) ComputeCommitment() *Fr {
+func (n *StatelessNode) ComputeCommitment() *Point {
 	if n.hash != nil {
-		return n.hash
+		return n.commitment
 	}
 
 	if n.count == 0 {
@@ -282,7 +282,7 @@ func (n *StatelessNode) ComputeCommitment() *Fr {
 		n.commitment.Identity()
 		n.hash = new(Fr)
 		toFr(n.hash, n.commitment)
-		return n.hash
+		return n.commitment
 	}
 
 	n.hash = new(Fr)
@@ -316,7 +316,7 @@ func (n *StatelessNode) ComputeCommitment() *Fr {
 		emptyChildren := 0
 		poly := make([]Fr, NodeWidth)
 		for idx, child := range n.children {
-			CopyFr(&poly[idx], child.ComputeCommitment())
+			toFr(&poly[idx], child.ComputeCommitment())
 		}
 
 		// All the coefficients have been computed, evaluate the polynomial,
@@ -325,7 +325,7 @@ func (n *StatelessNode) ComputeCommitment() *Fr {
 		toFr(n.hash, n.commitment)
 	}
 
-	return n.hash
+	return n.commitment
 }
 
 func (*StatelessNode) GetProofItems(keylist) (*ProofElements, []byte, [][]byte) {

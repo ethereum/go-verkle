@@ -83,9 +83,8 @@ func TestInsertKey0Value0(t *testing.T) {
 
 	toFr(&expected, &expectedP)
 	expectedP.ScalarMul(&srs[0], &expected)
-	toFr(&expected, &expectedP)
 
-	if !Equal(comm, &expected) {
+	if !Equal(comm, &expectedP) {
 		t.Fatalf("invalid root commitment %v != %v", comm, &expected)
 	}
 }
@@ -112,9 +111,7 @@ func TestInsertKey1Value1(t *testing.T) {
 		t.Fatal("commitment is identity")
 	}
 
-	toFr(&expected, &expectedP)
-
-	if !Equal(comm, &expected) {
+	if !Equal(comm, &expectedP) {
 		t.Fatalf("invalid root commitment %v != %v", comm, &expected)
 	}
 }
@@ -164,9 +161,7 @@ func TestInsertSameStemTwoLeaves(t *testing.T) {
 		t.Fatal("commitment is identity")
 	}
 
-	toFr(&expected, &expectedP)
-
-	if !Equal(comm, &expected) {
+	if !Equal(comm, &expectedP) {
 		t.Fatalf("invalid root commitment %v != %v", comm, &expected)
 	}
 }
@@ -197,9 +192,7 @@ func TestInsertKey1Val1Key2Val2(t *testing.T) {
 		t.Fatal("commitment is identity")
 	}
 
-	toFr(&expected, &expectedP)
-
-	if !Equal(comm, &expected) {
+	if !Equal(comm, &expectedP) {
 		t.Fatalf("invalid root commitment %v != %v", comm, &expected)
 	}
 }
@@ -208,10 +201,7 @@ func TestEmptyTrie(t *testing.T) {
 	root := New()
 	comm := root.ComputeCommitment()
 
-	var expected Fr
-	toFr(&expected, identity)
-
-	if !comm.Equal(&expected) {
-		t.Fatalf("invalid root commitment %v != %v", comm, &expected)
+	if !comm.Equal(identity) {
+		t.Fatalf("invalid root commitment %v != %v", comm, identity)
 	}
 }

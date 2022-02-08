@@ -88,12 +88,9 @@ func CreateInternalNode(bitlist []byte, raw []byte, depth byte) (*InternalNode, 
 		return nil, ErrInvalidNodeEncoding
 	}
 	for i, index := range indices {
-		hashed := &HashedNode{hash: new(Fr)}
-		// TODO(@gballet) use (*[32]byte)() when geth moves
-		// to deprecate pre-Go 1.17 compilers
-		var h [32]byte
-		copy(h[:], raw[i*32:(i+1)*32])
-		from32(hashed.hash, h)
+		hashed := &HashedNode{hash: new(Fr), commitment: new(Point)}
+		hashed.commitment.SetBytes(raw[i*32 : (i+1)*32])
+		toFr(hashed.hash, hashed.commitment)
 		n.children[index] = hashed
 		n.count++
 	}

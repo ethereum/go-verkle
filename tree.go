@@ -73,7 +73,7 @@ type VerkleNode interface {
 	// ComputeCommitment computes the commitment of the node
 	// The results (the curve point and the field element
 	// representation of its hash) are cached.
-	ComputeCommitment() *Fr
+	ComputeCommitment() *Point
 
 	// GetProofItems collects the various proof elements, and
 	// returns them breadth-first. On top of that, it returns
@@ -455,7 +455,7 @@ func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 			return nil, errReadFromInvalid
 		}
 
-		commitment := child.hash.Bytes()
+		commitment := child.commitment.Bytes()
 		payload, err := getter(commitment[:])
 		if err != nil {
 			return nil, err
@@ -475,9 +475,9 @@ func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 	}
 }
 
-func (n *InternalNode) ComputeCommitment() *Fr {
-	if n.hash != nil {
-		return n.hash
+func (n *InternalNode) ComputeCommitment() *Point {
+	if n.commitment != nil {
+		return n.commitment
 	}
 
 	// Special cases of a node with no children: either it's
@@ -492,7 +492,7 @@ func (n *InternalNode) ComputeCommitment() *Fr {
 		n.commitment.Identity()
 		n.hash = new(Fr)
 		toFr(n.hash, n.commitment)
-		return n.hash
+		return n.commitment
 	}
 
 	n.hash = new(Fr)
@@ -504,7 +504,7 @@ func (n *InternalNode) ComputeCommitment() *Fr {
 		case Empty:
 			emptyChildren++
 		default:
-			CopyFr(&poly[idx], child.ComputeCommitment())
+			toFr(&poly[idx], child.ComputeCommitment())
 		}
 	}
 
@@ -513,7 +513,7 @@ func (n *InternalNode) ComputeCommitment() *Fr {
 	n.commitment = n.committer.CommitToPoly(poly, emptyChildren)
 	toFr(n.hash, n.commitment)
 
-	return n.hash
+	return n.commitment
 }
 
 // groupKeys groups a set of keys based on their byte at a given depth.
@@ -560,7 +560,7 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 	// fill in the polynomial for this node
 	fi := make([]Fr, NodeWidth)
 	for i, child := range n.children {
-		CopyFr(&fi[i], child.ComputeCommitment())
+		toFr(&fi[i], child.ComputeCommitment())
 	}
 
 	for _, group := range groups {
@@ -709,9 +709,9 @@ func (n *LeafNode) Get(k []byte, _ NodeResolverFn) ([]byte, error) {
 	return n.values[k[31]], nil
 }
 
-func (n *LeafNode) ComputeCommitment() *Fr {
-	if n.hash != nil {
-		return n.hash
+func (n *LeafNode) ComputeCommitment() *Point {
+	if n.commitment != nil {
+		return n.commitment
 	}
 	n.hash = new(Fr)
 
@@ -730,7 +730,7 @@ func (n *LeafNode) ComputeCommitment() *Fr {
 	n.commitment = n.committer.CommitToPoly(poly[:], 252)
 	toFr(n.hash, n.commitment)
 
-	return n.hash
+	return n.commitment
 }
 
 // fillSuffixTreePoly takes one of the two suffix tree and

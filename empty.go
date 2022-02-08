@@ -45,8 +45,10 @@ func (Empty) Get([]byte, NodeResolverFn) ([]byte, error) {
 	return nil, nil
 }
 
-func (Empty) ComputeCommitment() *Fr {
-	return &FrZero
+func (Empty) ComputeCommitment() *Point {
+	var id Point
+	id.Identity()
+	return &id
 }
 
 func (Empty) GetProofItems(keylist) (*ProofElements, []byte, [][]byte) {
