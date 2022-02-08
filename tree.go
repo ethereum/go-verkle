@@ -531,7 +531,7 @@ func groupKeys(keys keylist, depth byte) []keylist {
 		keyidx := offset2key(key, depth)
 		previdx := offset2key(keys[lastkey-1], depth)
 
-		if lastkey == len(keys)-1 || keyidx != previdx {
+		if keyidx != previdx {
 			groups = append(groups, keys[firstkey:lastkey])
 			firstkey = lastkey
 		}
@@ -859,7 +859,9 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 			pe.Zis = append(pe.Zis, suffSlot, suffix)
 			pe.Yis = append(pe.Yis, &poly[suffSlot], &FrZero)
 			pe.Fis = append(pe.Fis, poly[:], suffPoly[:])
-			esses = append(esses, extStatusPresent|(n.depth<<3))
+			if len(esses) == 0 || esses[len(esses)-1] != extStatusPresent|(n.depth<<3) {
+				esses = append(esses, extStatusPresent|(n.depth<<3))
+			}
 			pe.ByPath[slotPath] = scomm
 			continue
 		}
@@ -871,7 +873,9 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 		pe.Zis = append(pe.Zis, suffSlot, 2*suffix, 2*suffix+1)
 		pe.Yis = append(pe.Yis, &poly[suffSlot], &leaves[0], &leaves[1])
 		pe.Fis = append(pe.Fis, poly[:], suffPoly[:], suffPoly[:])
-		esses = append(esses, extStatusPresent|(n.depth<<3))
+		if len(esses) == 0 || esses[len(esses)-1] != extStatusPresent|(n.depth<<3) {
+			esses = append(esses, extStatusPresent|(n.depth<<3))
+		}
 		pe.ByPath[slotPath] = scomm
 	}
 
