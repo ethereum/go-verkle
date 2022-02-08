@@ -855,10 +855,10 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 		// since after deletion the value would be set to zero
 		// but still contain the leaf marker 2^128.
 		if n.values[suffix] == nil {
-			pe.Cis = append(pe.Cis, n.commitment, scomm)
-			pe.Zis = append(pe.Zis, suffSlot, suffix)
-			pe.Yis = append(pe.Yis, &poly[suffSlot], &FrZero)
-			pe.Fis = append(pe.Fis, poly[:], suffPoly[:])
+			pe.Cis = append(pe.Cis, n.commitment, scomm, scomm)
+			pe.Zis = append(pe.Zis, suffSlot, 2*suffix, 2*suffix+1)
+			pe.Yis = append(pe.Yis, &poly[suffSlot], &FrZero, &FrZero)
+			pe.Fis = append(pe.Fis, poly[:], suffPoly[:], suffPoly[:])
 			if len(esses) == 0 || esses[len(esses)-1] != extStatusPresent|(n.depth<<3) {
 				esses = append(esses, extStatusPresent|(n.depth<<3))
 			}
