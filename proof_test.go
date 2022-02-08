@@ -41,7 +41,7 @@ func TestProofVerifyTwoLeaves(t *testing.T) {
 
 	proof, _, _, _ := MakeVerkleMultiProof(root, [][]byte{ffx32KeyTest}, map[string][]byte{string(ffx32KeyTest): zeroKeyTest})
 
-	pe, _, _ := root.GetCommitmentsAlongPath(ffx32KeyTest)
+	pe, _, _ := root.GetProofItems(keylist{ffx32KeyTest})
 	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, GetConfig()) {
 		t.Fatal("could not verify verkle proof")
 	}
@@ -61,7 +61,7 @@ func TestProofVerifyMultipleLeaves(t *testing.T) {
 
 	proof, _, _, _ := MakeVerkleMultiProof(root, [][]byte{keys[0]}, map[string][]byte{string(keys[0]): fourtyKeyTest})
 
-	pe, _, _ := root.GetCommitmentsAlongPath(keys[0])
+	pe, _, _ := root.GetProofItems(keylist{keys[0]})
 	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, GetConfig()) {
 		t.Fatal("could not verify verkle proof")
 	}
@@ -154,7 +154,7 @@ func TestProofOfAbsenceInternalVerify(t *testing.T) {
 
 	proof, _, _, _ := MakeVerkleMultiProof(root, [][]byte{ffx32KeyTest}, map[string][]byte{})
 
-	pe, _, _ := root.GetCommitmentsAlongPath(ffx32KeyTest)
+	pe, _, _ := root.GetProofItems(keylist{ffx32KeyTest})
 	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, GetConfig()) {
 		t.Fatal("could not verify verkle proof")
 	}
@@ -167,7 +167,7 @@ func TestProofOfAbsenceLeafVerify(t *testing.T) {
 
 	proof, _, _, _ := MakeVerkleMultiProof(root, [][]byte{oneKeyTest}, map[string][]byte{})
 
-	pe, _, _ := root.GetCommitmentsAlongPath(oneKeyTest)
+	pe, _, _ := root.GetProofItems(keylist{oneKeyTest})
 	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, GetConfig()) {
 		t.Fatal("could not verify verkle proof")
 	}
@@ -184,7 +184,7 @@ func TestProofOfAbsenceLeafVerifyOtherSuffix(t *testing.T) {
 
 	proof, _, _, _ := MakeVerkleMultiProof(root, [][]byte{key}, map[string][]byte{})
 
-	pe, _, _ := root.GetCommitmentsAlongPath(key)
+	pe, _, _ := root.GetProofItems(keylist{key})
 	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, GetConfig()) {
 		t.Fatal("could not verify verkle proof")
 	}
@@ -201,7 +201,7 @@ func TestProofOfAbsenceStemVerify(t *testing.T) {
 
 	proof, _, _, _ := MakeVerkleMultiProof(root, [][]byte{key}, map[string][]byte{})
 
-	pe, _, _ := root.GetCommitmentsAlongPath(key)
+	pe, _, _ := root.GetProofItems(keylist{key})
 	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, GetConfig()) {
 		t.Fatal("could not verify verkle proof")
 	}
@@ -236,7 +236,7 @@ func BenchmarkProofVerification(b *testing.B) {
 	}
 
 	root.ComputeCommitment()
-	pe, _, _ := root.GetCommitmentsAlongPath(keys[len(keys)/2])
+	pe, _, _ := root.GetProofItems(keylist{keys[len(keys)/2]})
 	proof, _, _, _ := MakeVerkleMultiProof(root, [][]byte{keys[len(keys)/2]}, map[string][]byte{})
 
 	b.ResetTimer()
@@ -353,7 +353,7 @@ func TestProofDeserialize(t *testing.T) {
 	}
 	_ = deserialized
 
-	pe, _, _ := root.GetCommitmentsAlongPath(absentkey[:])
+	pe, _, _ := root.GetProofItems(keylist{absentkey[:]})
 	if !VerifyVerkleProof(deserialized, pe.Cis, pe.Zis, pe.Yis, GetConfig()) {
 		t.Fatal("could not verify verkle proof")
 	}

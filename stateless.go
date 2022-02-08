@@ -328,7 +328,7 @@ func (n *StatelessNode) ComputeCommitment() *Fr {
 	return n.hash
 }
 
-func (*StatelessNode) GetCommitmentsAlongPath([]byte) (*ProofElements, byte, []byte) {
+func (*StatelessNode) GetProofItems(keylist) (*ProofElements, []byte, [][]byte) {
 	panic("not supported in stateless mode")
 }
 
