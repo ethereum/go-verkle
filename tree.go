@@ -527,7 +527,7 @@ func groupKeys(keys keylist, depth byte) []keylist {
 	groups := make([]keylist, 0, len(keys))
 	firstkey, lastkey := 0, 1
 	for ; lastkey < len(keys); lastkey++ {
-		key := keys[lastkey][:]
+		key := keys[lastkey]
 		keyidx := offset2key(key, depth)
 		previdx := offset2key(keys[lastkey-1], depth)
 
@@ -799,7 +799,7 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 		if !equalPaths(n.stem, key) {
 			// Deduplicate the missing stems - keys must
 			// be sorted.
-			if len(poass) == 0 || !equalPaths(poass[len(poass)], key) {
+			if len(poass) == 0 || !equalPaths(poass[len(poass)-1], key) {
 				esses = append(esses, extStatusAbsentOther|(n.depth<<3))
 				poass = append(poass, n.stem)
 			}
