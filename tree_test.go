@@ -637,7 +637,7 @@ func TestNodeSerde(t *testing.T) {
 	resRoot.children[64] = resLeaf64
 
 	if !isInternalEqual(root, resRoot) {
-		t.Errorf("parsed node not equal, %x != %x", root.hash, resRoot.hash)
+		t.Errorf("parsed node not equal, %x != %x", root.commitment.Bytes(), resRoot.commitment.Bytes())
 	}
 }
 

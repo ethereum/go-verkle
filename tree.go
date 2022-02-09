@@ -165,10 +165,6 @@ type (
 		// commitment calculations.
 		count uint
 
-		// Cache the field representation of the hash
-		// of the current node.
-		hash *Fr
-
 		// Cache the commitment value
 		commitment *Point
 
@@ -181,7 +177,6 @@ type (
 
 		commitment *Point
 		c1, c2     *Point
-		hash       *Fr
 		committer  Committer
 
 		depth byte
@@ -221,7 +216,6 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 	// Clear cached commitment on modification
 	if n.commitment != nil {
 		n.commitment = nil
-		n.hash = nil
 	}
 
 	nChild := offset2key(key, n.depth)
@@ -296,14 +290,15 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 }
 
 func (n *InternalNode) toHashedNode() *HashedNode {
-	return &HashedNode{n.hash, n.commitment}
+	var hash Fr
+	toFr(&hash, n.commitment)
+	return &HashedNode{&hash, n.commitment}
 }
 
 func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn) error {
 	// Clear cached commitment on modification
 	if n.commitment != nil {
 		n.commitment = nil
-		n.hash = nil
 	}
 
 	nChild := offset2key(key, n.depth)
@@ -405,7 +400,6 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 func (n *InternalNode) Delete(key []byte) error {
 	// Clear cached commitment on modification
 	n.commitment = nil
-	n.hash = nil
 
 	nChild := offset2key(key, n.depth)
 	switch child := n.children[nChild].(type) {
@@ -490,12 +484,8 @@ func (n *InternalNode) ComputeCommitment() *Point {
 		// case of an empty root
 		n.commitment = new(Point)
 		n.commitment.Identity()
-		n.hash = new(Fr)
-		toFr(n.hash, n.commitment)
 		return n.commitment
 	}
-
-	n.hash = new(Fr)
 
 	emptyChildren := 0
 	poly := make([]Fr, NodeWidth)
@@ -511,8 +501,6 @@ func (n *InternalNode) ComputeCommitment() *Point {
 	// All the coefficients have been computed, evaluate the polynomial,
 	// serialize and hash the resulting point - this is the commitment.
 	n.commitment = n.committer.CommitToPoly(poly, emptyChildren)
-	toFr(n.hash, n.commitment)
-
 	return n.commitment
 }
 
@@ -623,10 +611,6 @@ func (n *InternalNode) Copy() VerkleNode {
 		ret.children[i] = child.Copy()
 	}
 
-	if n.hash != nil {
-		ret.hash = new(Fr)
-		CopyFr(ret.hash, n.hash)
-	}
 	if n.commitment != nil {
 		CopyPoint(ret.commitment, n.commitment)
 	}
@@ -650,7 +634,9 @@ func (n *InternalNode) clearCache() {
 func (n *InternalNode) toDot(parent, path string) string {
 	n.ComputeCommitment()
 	me := fmt.Sprintf("internal%s", path)
-	ret := fmt.Sprintf("%s [label=\"I: %x\"]\n", me, n.hash.BytesLE())
+	var hash Fr
+	toFr(&hash, n.commitment)
+	ret := fmt.Sprintf("%s [label=\"I: %x\"]\n", me, hash.BytesLE())
 	if len(parent) > 0 {
 		ret = fmt.Sprintf("%s %s -> %s\n", ret, parent, me)
 	}
@@ -663,7 +649,9 @@ func (n *InternalNode) toDot(parent, path string) string {
 }
 
 func (n *LeafNode) toHashedNode() *HashedNode {
-	return &HashedNode{n.hash, n.commitment}
+	var hash Fr
+	toFr(&hash, n.commitment)
+	return &HashedNode{&hash, n.commitment}
 }
 
 func (n *LeafNode) Insert(k []byte, value []byte, _ NodeResolverFn) error {
@@ -673,7 +661,6 @@ func (n *LeafNode) Insert(k []byte, value []byte, _ NodeResolverFn) error {
 	}
 	n.values[k[31]] = value
 	n.commitment = nil
-	n.hash = nil
 	return nil
 }
 
@@ -692,7 +679,6 @@ func (n *LeafNode) Delete(k []byte) error {
 
 	var zero [32]byte
 	n.commitment = nil
-	n.hash = nil
 	n.values[k[31]] = zero[:]
 	return nil
 }
@@ -713,7 +699,6 @@ func (n *LeafNode) ComputeCommitment() *Point {
 	if n.commitment != nil {
 		return n.commitment
 	}
-	n.hash = new(Fr)
 
 	count := 0
 	var poly, c1poly, c2poly [256]Fr
@@ -728,8 +713,6 @@ func (n *LeafNode) ComputeCommitment() *Point {
 	toFr(&poly[3], n.c2)
 
 	n.commitment = n.committer.CommitToPoly(poly[:], 252)
-	toFr(n.hash, n.commitment)
-
 	return n.commitment
 }
 
@@ -912,9 +895,6 @@ func (n *LeafNode) Copy() VerkleNode {
 	if n.commitment != nil {
 		l.commitment = n.commitment
 	}
-	if l.hash != nil {
-		CopyFr(l.hash, n.hash)
-	}
 
 	return l
 }
@@ -931,7 +911,9 @@ func (n *LeafNode) Value(i int) []byte {
 }
 
 func (n *LeafNode) toDot(parent, path string) string {
-	ret := fmt.Sprintf("leaf%s [label=\"L: %x\nC: %x\nC₁: %x\nC₂:%x\"]\n%s -> leaf%s\n", path, n.hash.Bytes(), n.commitment.Bytes(), n.c1.Bytes(), n.c2.Bytes(), parent, path)
+	var hash Fr
+	toFr(&hash, n.commitment)
+	ret := fmt.Sprintf("leaf%s [label=\"L: %x\nC: %x\nC₁: %x\nC₂:%x\"]\n%s -> leaf%s\n", path, hash.Bytes(), n.commitment.Bytes(), n.c1.Bytes(), n.c2.Bytes(), parent, path)
 	for i, v := range n.values {
 		if v != nil {
 			ret = fmt.Sprintf("%sval%s%x [label=\"%x\"]\nleaf%s -> val%s%x\n", ret, path, i, v, path, path, i)
