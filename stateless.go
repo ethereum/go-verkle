@@ -337,16 +337,24 @@ func (*StatelessNode) Serialize() ([]byte, error) {
 }
 
 func (n *StatelessNode) Copy() VerkleNode {
-	ret := &InternalNode{
-		children:   make([]VerkleNode, len(n.children)),
+	ret := &StatelessNode{
 		commitment: new(Point),
 		depth:      n.depth,
 		committer:  n.committer,
 		count:      n.count,
 	}
 
-	for i, child := range n.children {
-		ret.children[i] = child.Copy()
+	if n.children != nil {
+		ret.children = make(map[byte]*StatelessNode, len(n.children))
+		for i, child := range n.children {
+			ret.children[i] = child.Copy().(*StatelessNode)
+		}
+	} else {
+		ret.values = make(map[byte][]byte, len(n.values))
+		for i, val := range n.values {
+			ret.values[i] = make([]byte, len(val))
+			copy(ret.values[i], val)
+		}
 	}
 
 	if n.hash != nil {
