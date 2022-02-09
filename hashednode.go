@@ -51,8 +51,8 @@ func (*HashedNode) Get([]byte, NodeResolverFn) ([]byte, error) {
 	return nil, errors.New("can not read from a hash node")
 }
 
-func (n *HashedNode) ComputeCommitment() *Fr {
-	return n.hash
+func (n *HashedNode) ComputeCommitment() *Point {
+	return n.commitment
 }
 
 func (*HashedNode) GetProofItems(keylist) (*ProofElements, []byte, [][]byte) {

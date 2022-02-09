@@ -47,10 +47,6 @@ func toFr(fr *Fr, p *Point) {
 	fr.SetBytesLE(bytes[:])
 }
 
-func from32(fr *Fr, data [32]byte) {
-	fr.SetBytes(data[:])
-}
-
 func FromLEBytes(fr *Fr, data []byte) {
 	var aligned [32]byte
 	for i := range data {
@@ -65,8 +61,8 @@ func StemFromBytes(fr *Fr, data []byte) {
 	fr.SetBytesLE(bytes)
 }
 
-func Equal(fr *Fr, other *Fr) bool {
-	return fr.Equal(other)
+func Equal(self *Point, other *Point) bool {
+	return other.Equal(self)
 }
 
 func Generator() *Point {

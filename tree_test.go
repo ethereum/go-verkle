@@ -440,7 +440,7 @@ func TestConcurrentTrees(t *testing.T) {
 	expected := tree.ComputeCommitment()
 
 	threads := 2
-	ch := make(chan *Fr)
+	ch := make(chan *Point)
 	builder := func() {
 		tree := New()
 		tree.Insert(zeroKeyTest, fourtyKeyTest, nil)
@@ -637,7 +637,7 @@ func TestNodeSerde(t *testing.T) {
 	resRoot.children[64] = resLeaf64
 
 	if !isInternalEqual(root, resRoot) {
-		t.Errorf("parsed node not equal, %x != %x", root.hash, resRoot.hash)
+		t.Errorf("parsed node not equal, %x != %x", root.commitment.Bytes(), resRoot.commitment.Bytes())
 	}
 }
 
@@ -654,7 +654,7 @@ func isInternalEqual(a, b *InternalNode) bool {
 			if !ok {
 				return false
 			}
-			if !Equal(c.(*HashedNode).hash, hn.hash) {
+			if !Equal(c.(*HashedNode).commitment, hn.commitment) {
 				return false
 			}
 		case *LeafNode:
