@@ -141,7 +141,18 @@ func SerializeProof(proof *Proof) ([]byte, []KeyValuePair, error) {
 
 	keyvals := make([]KeyValuePair, 0, len(proof.Keys))
 	for i, key := range proof.Keys {
-		keyvals = append(keyvals, KeyValuePair{key, proof.Values[i]})
+		var (
+			valueLen = len(proof.Values[i])
+			aligned  []byte
+		)
+		switch valueLen {
+		case 0, 32:
+			aligned = proof.Values[i]
+		default:
+			aligned = make([]byte, 32)
+			copy(aligned[:valueLen], proof.Values[i])
+		}
+		keyvals = append(keyvals, KeyValuePair{key, aligned})
 	}
 
 	return bufProof.Bytes(), keyvals, nil
