@@ -572,7 +572,7 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 		// Special case of a proof of absence: no children
 		// commitment, as the value is 0.
 		if _, ok := n.children[childIdx].(Empty); ok {
-			esses = append(esses, extStatusAbsentEmpty|(n.depth<<3))
+			esses = append(esses, extStatusAbsentEmpty|((n.depth+1)<<3))
 			continue
 		}
 
