@@ -63,7 +63,8 @@ func MakeVerkleMultiProof(root VerkleNode, keys [][]byte, keyvals map[string][]b
 		vals = append(vals, keyvals[string(k)])
 	}
 
-	mpArg := ipa.CreateMultiProof(tr, GetConfig().conf, pe.Cis, pe.Fis, pe.Zis)
+	cfg, _ := GetConfig()
+	mpArg := ipa.CreateMultiProof(tr, cfg.conf, pe.Cis, pe.Fis, pe.Zis)
 
 	// It's wheel-reinvention time again 🎉: reimplement a basic
 	// feature that should be part of the stdlib.

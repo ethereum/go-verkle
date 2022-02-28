@@ -26,6 +26,9 @@
 package verkle
 
 import (
+	"fmt"
+	"io/ioutil"
+
 	"github.com/crate-crypto/go-ipa/bandersnatch"
 	"github.com/crate-crypto/go-ipa/ipa"
 )
@@ -43,18 +46,30 @@ func (ipac *IPAConfig) CommitToPoly(poly []Fr, _ int) *Point {
 
 var cfg *Config
 
-func GetConfig() *Config {
-	if cfg == nil {
-		cfg = &IPAConfig{conf: ipa.NewIPASettings()}
-	}
-	return cfg
-}
+const precompFileName = "precomp"
 
-func GetConfigWithPrecomputed(pcl *bandersnatch.PrecomputeLagrange) *Config {
+func GetConfig() (*Config, error) {
 	if cfg == nil {
-		cfg = &IPAConfig{conf: ipa.NewIPASettingsWithPrecomputedLagrange(pcl)}
+		var ipacfg *ipa.IPAConfig
+		if precompSer, err := ioutil.ReadFile(precompFileName); err != nil {
+			ipacfg = ipa.NewIPASettings()
+			serialized, err := ipacfg.PrecompLag.SerializePrecomputedLagrange()
+			if err != nil {
+				return nil, fmt.Errorf("error writing serialized precomputed Lagrange points: %w", err)
+			} else if err = ioutil.WriteFile(precompFileName, serialized, 0555); err != nil {
+				return nil, fmt.Errorf("error saving the precomp: %w", err)
+			}
+		} else {
+			pcl, err := bandersnatch.DeserializePrecomputedLagrange(precompSer)
+			if err != nil {
+				return nil, fmt.Errorf("error deserializing precomputed Lagrange points, regenerating")
+			}
+			ipacfg = ipa.NewIPASettingsWithPrecomputedLagrange(pcl)
+
+		}
+		cfg = &IPAConfig{conf: ipacfg}
 	}
-	return cfg
+	return cfg, nil
 }
 
 var FrZero Fr
