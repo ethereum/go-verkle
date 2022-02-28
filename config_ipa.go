@@ -56,10 +56,8 @@ func GetConfig() (*Config, error) {
 			serialized, err := ipacfg.PrecompLag.SerializePrecomputedLagrange()
 			if err != nil {
 				return nil, fmt.Errorf("error writing serialized precomputed Lagrange points: %w", err)
-			} else {
-				if err = ioutil.WriteFile(precompFileName, serialized, 0555); err != nil {
-					return nil, fmt.Errorf("error saving the precomp: %w", err)
-				}
+			} else if err = ioutil.WriteFile(precompFileName, serialized, 0555); err != nil {
+				return nil, fmt.Errorf("error saving the precomp: %w", err)
 			}
 		} else {
 			pcl, err := bandersnatch.DeserializePrecomputedLagrange(precompSer)
