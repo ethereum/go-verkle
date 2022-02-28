@@ -197,7 +197,8 @@ func newInternalNode(depth byte, cmtr Committer) VerkleNode {
 
 // New creates a new tree root
 func New() VerkleNode {
-	return newInternalNode(0, GetConfig())
+	cfg, _ := GetConfig()
+	return newInternalNode(0, cfg)
 }
 
 func (n *InternalNode) Children() []VerkleNode {

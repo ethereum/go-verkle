@@ -64,10 +64,14 @@ func ParseNode(serialized []byte, depth byte) (VerkleNode, error) {
 		if NodeWidth != len(values) {
 			return nil, fmt.Errorf("invalid number of nodes in decoded child expected %d, got %d", NodeWidth, len(values))
 		}
+		cfg, err := GetConfig()
+		if err != nil {
+			return nil, err
+		}
 		ln := &LeafNode{
 			stem:      serialized[1:32],
 			values:    values[:],
-			committer: GetConfig(),
+			committer: cfg,
 			depth:     depth,
 		}
 		return ln, nil
@@ -79,9 +83,13 @@ func ParseNode(serialized []byte, depth byte) (VerkleNode, error) {
 }
 
 func CreateInternalNode(bitlist []byte, raw []byte, depth byte) (*InternalNode, error) {
+	tc, err := GetConfig()
+	if err != nil {
+		return nil, err
+	}
+
 	// GetTreeConfig caches computation result, hence
 	// this op has low overhead
-	tc := GetConfig()
 	n := (newInternalNode(depth, tc)).(*InternalNode)
 	indices := indicesFromBitlist(bitlist)
 	if len(raw)/32 != len(indices) {

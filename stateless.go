@@ -61,10 +61,11 @@ type StatelessNode struct {
 }
 
 func NewStateless() *StatelessNode {
+	cfg, _ := GetConfig()
 	return &StatelessNode{
 		children:   make(map[byte]*StatelessNode),
 		hash:       new(Fr).SetZero(),
-		committer:  GetConfig(),
+		committer:  cfg,
 		commitment: Generator(),
 	}
 }
@@ -74,10 +75,11 @@ func NewStatelessWithCommitment(point *Point) *StatelessNode {
 		xfr Fr
 	)
 	toFr(&xfr, point)
+	cfg, _ := GetConfig()
 	return &StatelessNode{
 		children:   make(map[byte]*StatelessNode),
 		hash:       &xfr,
-		committer:  GetConfig(),
+		committer:  cfg,
 		commitment: point,
 	}
 }
@@ -187,6 +189,7 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 		nChild := offset2key(key, n.depth)
 
 		// special case: missing child, insert a leaf
+		cfg, _ := GetConfig()
 		if n.children[nChild] == nil {
 			n.children[nChild] = &StatelessNode{
 				depth:      n.depth + 1,
@@ -198,7 +201,7 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 			}
 			n.children[nChild].ComputeCommitment()
 			var diff Point
-			diff.ScalarMul(&GetConfig().conf.SRS[nChild], n.children[nChild].hash)
+			diff.ScalarMul(&cfg.conf.SRS[nChild], n.children[nChild].hash)
 			n.commitment.Add(n.commitment, &diff)
 			toFr(n.hash, n.commitment)
 			return nil
@@ -214,7 +217,7 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 
 		// update the commitment
 		var diff Point
-		diff.ScalarMul(&GetConfig().conf.SRS[nChild], pre.Sub(n.children[nChild].hash, &pre))
+		diff.ScalarMul(&cfg.conf.SRS[nChild], pre.Sub(n.children[nChild].hash, &pre))
 		n.commitment.Add(n.commitment, &diff)
 	}
 
@@ -248,7 +251,8 @@ func (n *StatelessNode) Delete(key []byte) error {
 	pre.Sub(child.hash, &pre)
 
 	var tmp Point
-	tmp.ScalarMul(&GetConfig().conf.SRS[nChild], &pre)
+	cfg, _ := GetConfig()
+	tmp.ScalarMul(&cfg.conf.SRS[nChild], &pre)
 	n.commitment.Add(n.commitment, &tmp)
 	toFr(n.hash, n.commitment)
 	return nil

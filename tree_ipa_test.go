@@ -43,7 +43,8 @@ func extensionAndSuffixOneKey(key, value []byte, ret *Point) {
 	var (
 		v                               Fr
 		vs                              [2]Fr
-		srs                             = GetConfig().conf.SRS
+		cfg, _                          = GetConfig()
+		srs                             = cfg.conf.SRS
 		stemComm1, stemComm3, stemComm2 Point
 		t1, t2, c1                      Point
 	)
@@ -69,7 +70,8 @@ func TestInsertKey0Value0(t *testing.T) {
 		expected  Fr
 		root      = New()
 		expectedP Point
-		srs       = GetConfig().conf.SRS
+		cfg, _    = GetConfig()
+		srs       = cfg.conf.SRS
 	)
 
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
@@ -94,7 +96,8 @@ func TestInsertKey1Value1(t *testing.T) {
 		v, expected Fr
 		root        = New()
 		expectedP   Point
-		srs         = GetConfig().conf.SRS
+		cfg, _      = GetConfig()
+		srs         = cfg.conf.SRS
 	)
 	key := []byte{
 		1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
@@ -123,7 +126,8 @@ func TestInsertSameStemTwoLeaves(t *testing.T) {
 		root                            = New()
 		expectedP, c1, c2, t1, t2       Point
 		stemComm1, stemComm3, stemComm2 Point
-		srs                             = GetConfig().conf.SRS
+		cfg, _                          = GetConfig()
+		srs                             = cfg.conf.SRS
 	)
 	key_a := []byte{
 		1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
@@ -137,7 +141,7 @@ func TestInsertSameStemTwoLeaves(t *testing.T) {
 	root.Insert(key_b, key_b, nil)
 	comm := root.ComputeCommitment()
 
-	stemComm0 := GetConfig().conf.SRS[0]
+	stemComm0 := srs[0]
 	StemFromBytes(&v, key_a[:31])
 	stemComm1.ScalarMul(&srs[1], &v)
 
@@ -171,7 +175,8 @@ func TestInsertKey1Val1Key2Val2(t *testing.T) {
 		v, v1, v2, expected Fr
 		root                = New()
 		expectedP, t1, t2   Point
-		srs                 = GetConfig().conf.SRS
+		cfg, _              = GetConfig()
+		srs                 = cfg.conf.SRS
 	)
 	key_b, _ := hex.DecodeString("0101010101010101010101010101010101010101010101010101010101010101")
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
