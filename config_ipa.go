@@ -29,7 +29,6 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	"github.com/crate-crypto/go-ipa/bandersnatch"
 	"github.com/crate-crypto/go-ipa/ipa"
 )
 
@@ -53,19 +52,18 @@ func GetConfig() (*Config, error) {
 		var ipacfg *ipa.IPAConfig
 		if precompSer, err := ioutil.ReadFile(precompFileName); err != nil {
 			ipacfg = ipa.NewIPASettings()
-			serialized, err := ipacfg.PrecompLag.SerializePrecomputedLagrange()
+			serialized, err := ipacfg.SRSPrecompPoints.SerializeSRSPrecomp()
 			if err != nil {
 				return nil, fmt.Errorf("error writing serialized precomputed Lagrange points: %w", err)
 			} else if err = ioutil.WriteFile(precompFileName, serialized, 0555); err != nil {
 				return nil, fmt.Errorf("error saving the precomp: %w", err)
 			}
 		} else {
-			pcl, err := bandersnatch.DeserializePrecomputedLagrange(precompSer)
+			srs, err := ipa.DeserializeSRSPrecomp(precompSer)
 			if err != nil {
 				return nil, fmt.Errorf("error deserializing precomputed Lagrange points, regenerating")
 			}
-			ipacfg = ipa.NewIPASettingsWithPrecomputedLagrange(pcl)
-
+			ipacfg = ipa.NewIPASettingsWithSRSPrecomp(srs)
 		}
 		cfg = &IPAConfig{conf: ipacfg}
 	}
