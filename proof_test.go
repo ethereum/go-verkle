@@ -404,3 +404,15 @@ func TestProofDeserializeErrors(t *testing.T) {
 		t.Fatalf("non-nil deserialized data returned %v", deserialized)
 	}
 }
+
+func TestProofOfAbsenceEdgeCase(t *testing.T) {
+	root := New()
+	root.ComputeCommitment()
+
+	ret, _ := hex.DecodeString("0303030303030303030303030303030303030303030303030303030303030303")
+	proof, cs, zis, yis := MakeVerkleMultiProof(root, [][]byte{ret}, map[string][]byte{string(ret): nil})
+	cfg, _ := GetConfig()
+	if !VerifyVerkleProof(proof, cs, zis, yis, cfg) {
+		t.Fatal("could not verify proof")
+	}
+}
