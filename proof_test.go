@@ -39,11 +39,10 @@ func TestProofVerifyTwoLeaves(t *testing.T) {
 	root.Insert(oneKeyTest, zeroKeyTest, nil)
 	root.Insert(ffx32KeyTest, zeroKeyTest, nil)
 
-	proof, _, _, _ := MakeVerkleMultiProof(root, [][]byte{ffx32KeyTest}, map[string][]byte{string(ffx32KeyTest): zeroKeyTest})
+	proof, cis, zis, yis := MakeVerkleMultiProof(root, [][]byte{ffx32KeyTest}, map[string][]byte{string(ffx32KeyTest): zeroKeyTest})
 
-	pe, _, _ := root.GetProofItems(keylist{ffx32KeyTest})
 	cfg, _ := GetConfig()
-	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, cfg) {
+	if !VerifyVerkleProof(proof, cis, zis, yis, cfg) {
 		t.Fatal("could not verify verkle proof")
 	}
 }
@@ -60,11 +59,10 @@ func TestProofVerifyMultipleLeaves(t *testing.T) {
 		root.Insert(key, fourtyKeyTest, nil)
 	}
 
-	proof, _, _, _ := MakeVerkleMultiProof(root, [][]byte{keys[0]}, map[string][]byte{string(keys[0]): fourtyKeyTest})
+	proof, cis, zis, yis := MakeVerkleMultiProof(root, [][]byte{keys[0]}, map[string][]byte{string(keys[0]): fourtyKeyTest})
 
-	pe, _, _ := root.GetProofItems(keylist{keys[0]})
 	cfg, _ := GetConfig()
-	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, cfg) {
+	if !VerifyVerkleProof(proof, cis, zis, yis, cfg) {
 		t.Fatal("could not verify verkle proof")
 	}
 }
@@ -157,11 +155,10 @@ func TestProofOfAbsenceInternalVerify(t *testing.T) {
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
 	root.Insert(oneKeyTest, zeroKeyTest, nil)
 
-	proof, _, _, _ := MakeVerkleMultiProof(root, [][]byte{ffx32KeyTest}, map[string][]byte{})
+	proof, cis, zis, yis := MakeVerkleMultiProof(root, [][]byte{ffx32KeyTest}, map[string][]byte{})
 
-	pe, _, _ := root.GetProofItems(keylist{ffx32KeyTest})
 	cfg, _ := GetConfig()
-	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, cfg) {
+	if !VerifyVerkleProof(proof, cis, zis, yis, cfg) {
 		t.Fatal("could not verify verkle proof")
 	}
 }
@@ -171,11 +168,10 @@ func TestProofOfAbsenceLeafVerify(t *testing.T) {
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
 	root.Insert(ffx32KeyTest, zeroKeyTest, nil)
 
-	proof, _, _, _ := MakeVerkleMultiProof(root, [][]byte{oneKeyTest}, map[string][]byte{})
+	proof, cis, zis, yis := MakeVerkleMultiProof(root, [][]byte{oneKeyTest}, map[string][]byte{})
 
-	pe, _, _ := root.GetProofItems(keylist{oneKeyTest})
 	cfg, _ := GetConfig()
-	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, cfg) {
+	if !VerifyVerkleProof(proof, cis, zis, yis, cfg) {
 		t.Fatal("could not verify verkle proof")
 	}
 }
@@ -189,11 +185,10 @@ func TestProofOfAbsenceLeafVerifyOtherSuffix(t *testing.T) {
 		return ret
 	}()
 
-	proof, _, _, _ := MakeVerkleMultiProof(root, [][]byte{key}, map[string][]byte{})
+	proof, cis, zis, yis := MakeVerkleMultiProof(root, [][]byte{key}, map[string][]byte{})
 
-	pe, _, _ := root.GetProofItems(keylist{key})
 	cfg, _ := GetConfig()
-	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, cfg) {
+	if !VerifyVerkleProof(proof, cis, zis, yis, cfg) {
 		t.Fatal("could not verify verkle proof")
 	}
 }
@@ -207,11 +202,10 @@ func TestProofOfAbsenceStemVerify(t *testing.T) {
 		return ret
 	}()
 
-	proof, _, _, _ := MakeVerkleMultiProof(root, [][]byte{key}, map[string][]byte{})
+	proof, cis, zis, yis := MakeVerkleMultiProof(root, [][]byte{key}, map[string][]byte{})
 
-	pe, _, _ := root.GetProofItems(keylist{key})
 	cfg, _ := GetConfig()
-	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, cfg) {
+	if !VerifyVerkleProof(proof, cis, zis, yis, cfg) {
 		t.Fatal("could not verify verkle proof")
 	}
 }
@@ -245,15 +239,14 @@ func BenchmarkProofVerification(b *testing.B) {
 	}
 
 	root.ComputeCommitment()
-	pe, _, _ := root.GetProofItems(keylist{keys[len(keys)/2]})
-	proof, _, _, _ := MakeVerkleMultiProof(root, [][]byte{keys[len(keys)/2]}, map[string][]byte{})
+	proof, cis, zis, yis := MakeVerkleMultiProof(root, [][]byte{keys[len(keys)/2]}, map[string][]byte{})
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	cfg, _ := GetConfig()
 	for i := 0; i < b.N; i++ {
-		VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, cfg)
+		VerifyVerkleProof(proof, cis, zis, yis, cfg)
 	}
 }
 
@@ -402,5 +395,17 @@ func TestProofDeserializeErrors(t *testing.T) {
 	}
 	if deserialized != nil {
 		t.Fatalf("non-nil deserialized data returned %v", deserialized)
+	}
+}
+
+func TestProofOfAbsenceEdgeCase(t *testing.T) {
+	root := New()
+	root.ComputeCommitment()
+
+	ret, _ := hex.DecodeString("0303030303030303030303030303030303030303030303030303030303030303")
+	proof, cs, zis, yis := MakeVerkleMultiProof(root, [][]byte{ret}, map[string][]byte{string(ret): nil})
+	cfg, _ := GetConfig()
+	if !VerifyVerkleProof(proof, cs, zis, yis, cfg) {
+		t.Fatal("could not verify proof")
 	}
 }
