@@ -11,6 +11,7 @@ jobs:
       - restore_cache:
           keys:
             - v1-pkg-cache
+            - precomp
 
       - run: wget -O- -nv https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s latest
 
@@ -29,6 +30,11 @@ jobs:
           key: v1-pkg-cache
           paths:
             - "/go/pkg"
+
+      - save_cache: # Save the precomputed data in the cache
+          key: srs-precomp
+          paths:
+            - "precomp"
 
   test_linux:
     docker:
