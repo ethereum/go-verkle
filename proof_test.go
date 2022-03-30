@@ -409,3 +409,24 @@ func TestProofOfAbsenceEdgeCase(t *testing.T) {
 		t.Fatal("could not verify proof")
 	}
 }
+
+func TestProofOfAbsenceOtherMultiple(t *testing.T) {
+	// Create a stem that isn't the one that will be proven,
+	// but does look the same for most of its length.
+	root := New()
+	key, _ := hex.DecodeString("0303030303030303030303030303030303030303030303030303030303030000")
+	root.Insert(key, testValue, nil)
+	root.ComputeCommitment()
+
+	ret1, _ := hex.DecodeString("0303030303030303030303030303030303030303030303030303030303030300")
+	ret2, _ := hex.DecodeString("0303030303030303030303030303030303030303030303030303030303030301")
+	proof, cs, zis, yis := MakeVerkleMultiProof(root, [][]byte{ret1, ret2}, map[string][]byte{string(ret1): nil, string(ret2): nil})
+	cfg, _ := GetConfig()
+	if !VerifyVerkleProof(proof, cs, zis, yis, cfg) {
+		t.Fatal("could not verify proof")
+	}
+
+	if len(proof.PoaStems) > 1 {
+		t.Fatalf("invalid number of proof-of-absence stems: %d", len(proof.PoaStems))
+	}
+}

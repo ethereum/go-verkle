@@ -784,7 +784,7 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 		if !equalPaths(n.stem, key) {
 			// Deduplicate the missing stems - keys must
 			// be sorted.
-			if len(poass) == 0 || !equalPaths(poass[len(poass)-1], key) {
+			if len(poass) == 0 || !equalPaths(poass[len(poass)-1], n.stem) {
 				esses = append(esses, extStatusAbsentOther|(n.depth<<3))
 				poass = append(poass, n.stem)
 			}
