@@ -574,6 +574,10 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 		// Special case of a proof of absence: no children
 		// commitment, as the value is 0.
 		if _, ok := n.children[childIdx].(Empty); ok {
+			// A question arises here: what if this proof of absence
+			// corresponds to several stems? Should the ext status be
+			// repeated as many times? It would be wasteful, so the
+			// decoding code has to be aware of this corner case.
 			esses = append(esses, extStatusAbsentEmpty|((n.depth+1)<<3))
 			continue
 		}
