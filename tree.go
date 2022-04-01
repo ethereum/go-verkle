@@ -786,13 +786,26 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 		// Proof of absence: case of a differing stem.
 		// Add an unopened stem-level node.
 		if !equalPaths(n.stem, key) {
-			// Deduplicate the missing stems - keys must
-			// be sorted.
-			if len(poass) == 0 || !equalPaths(poass[len(poass)-1], n.stem) {
+			// Corner case: don't add the poa stem if it's
+			// already present as a proof-of-absence for a
+			// different key, or for the same key (case of
+			// multiple missing keys being absent).
+			// The list of extension statuses has to be of
+			// length 1 at this level, so skip otherwise.
+			if len(esses) == 0 {
 				esses = append(esses, extStatusAbsentOther|(n.depth<<3))
 				poass = append(poass, n.stem)
 			}
 			continue
+		}
+
+		// corner case (see previous corner case): if a proof-of-absence
+		// stem was found, and it now turns out the same stem is used as
+		// a proof of presence, clear the proof-of-absence list to avoid
+		// redundancy.
+		if len(poass) > 0 {
+			poass = nil
+			esses = nil
 		}
 
 		var (
