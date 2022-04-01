@@ -851,3 +851,22 @@ func TestLeafToCommsLessThan16(*testing.T) {
 	)
 	leafToComms(p[:], value[:])
 }
+
+func TestGetProofItemsNoPoaIfStemPresent(t *testing.T) {
+
+	root := New()
+	root.Insert(ffx32KeyTest, zeroKeyTest, nil)
+
+	// insert two keys that differ from the inserted stem
+	// by one byte.
+	key1, _ := hex.DecodeString("ffff00ffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
+	key2, _ := hex.DecodeString("ffffff00ffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
+
+	_, esses, poas := root.GetProofItems(keylist{key1, key2, ffx32KeyTest})
+	if len(poas) != 0 {
+		t.Fatalf("returned %d poas instead of 0", len(poas))
+	}
+	if len(esses) != 1 {
+		t.Fatalf("returned %d extension statuses instead of the expected 1", len(esses))
+	}
+}
