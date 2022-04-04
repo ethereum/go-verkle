@@ -594,6 +594,7 @@ func TestNodeSerde(t *testing.T) {
 	tree := New()
 	tree.Insert(zeroKeyTest, testValue, nil)
 	tree.Insert(fourtyKeyTest, testValue, nil)
+	tree.ComputeCommitment()
 	root := tree.(*InternalNode)
 
 	// Serialize all the nodes
@@ -602,32 +603,35 @@ func TestNodeSerde(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+	l0c := leaf0.commitment.Bytes()
 
 	leaf64 := (root.children[64]).(*LeafNode)
 	ls64, err := leaf64.Serialize()
 	if err != nil {
 		t.Error(err)
 	}
+	l64c := leaf64.commitment.Bytes()
 
 	rs, err := root.Serialize()
 	if err != nil {
 		t.Error(err)
 	}
+	rc := root.commitment.Bytes()
 
 	// Now deserialize and re-construct tree
-	res, err := ParseNode(ls0, 1)
+	res, err := ParseNode(ls0, 1, l0c[:])
 	if err != nil {
 		t.Error(err)
 	}
 	resLeaf0 := res.(*LeafNode)
 
-	res, err = ParseNode(ls64, 1)
+	res, err = ParseNode(ls64, 1, l64c[:])
 	if err != nil {
 		t.Error(err)
 	}
 	resLeaf64 := res.(*LeafNode)
 
-	res, err = ParseNode(rs, 0)
+	res, err = ParseNode(rs, 0, rc[:])
 	if err != nil {
 		t.Error(err)
 	}
