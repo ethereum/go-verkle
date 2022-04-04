@@ -97,7 +97,7 @@ func (n *StatelessNode) Children() []VerkleNode {
 }
 
 func (n *StatelessNode) SetChild(i int, v VerkleNode) error {
-	if i >= NodeWidth-1 {
+	if i >= NodeWidth {
 		return errors.New("child index higher than node width")
 	}
 	c, ok := v.(*StatelessNode)
