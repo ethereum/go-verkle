@@ -1,6 +1,6 @@
 module github.com/gballet/go-verkle
 
-go 1.15
+go 1.17
 
 require (
 	github.com/crate-crypto/go-ipa v0.0.0-20220309173511-816621cb2ec4
