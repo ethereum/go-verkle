@@ -43,7 +43,7 @@ func bit(bitlist []byte, nr int) bool {
 
 var serializedPayloadTooShort = errors.New("verkle payload is too short")
 
-func ParseNode(serialized []byte, depth byte) (VerkleNode, error) {
+func ParseNode(serialized []byte, depth byte, comm []byte) (VerkleNode, error) {
 	if len(serialized) < 64 {
 		return nil, serializedPayloadTooShort
 	}
@@ -74,15 +74,16 @@ func ParseNode(serialized []byte, depth byte) (VerkleNode, error) {
 			committer: cfg,
 			depth:     depth,
 		}
+		ln.ComputeCommitment()
 		return ln, nil
 	case internalRLPType:
-		return CreateInternalNode(serialized[1:33], serialized[33:], depth)
+		return CreateInternalNode(serialized[1:33], serialized[33:], depth, comm)
 	default:
 		return nil, ErrInvalidNodeEncoding
 	}
 }
 
-func CreateInternalNode(bitlist []byte, raw []byte, depth byte) (*InternalNode, error) {
+func CreateInternalNode(bitlist []byte, raw []byte, depth byte, comm []byte) (*InternalNode, error) {
 	tc, err := GetConfig()
 	if err != nil {
 		return nil, err
@@ -102,6 +103,8 @@ func CreateInternalNode(bitlist []byte, raw []byte, depth byte) (*InternalNode, 
 		n.children[index] = hashed
 		n.count++
 	}
+	n.commitment = new(Point)
+	n.commitment.SetBytes(comm)
 	return n, nil
 }
 

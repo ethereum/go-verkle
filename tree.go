@@ -241,7 +241,7 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 		if err != nil {
 			return fmt.Errorf("verkle tree: error resolving node %x: %w", key, err)
 		}
-		resolved, err := ParseNode(serialized, n.depth+1)
+		resolved, err := ParseNode(serialized, n.depth+1, hash[:])
 		if err != nil {
 			return fmt.Errorf("verkle tree: error parsing resolved node %x: %w", key, err)
 		}
@@ -458,7 +458,7 @@ func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 		}
 
 		// deserialize the payload and set it as the child
-		c, err := ParseNode(payload, n.depth+1)
+		c, err := ParseNode(payload, n.depth+1, commitment[:])
 		if err != nil {
 			return nil, err
 		}
