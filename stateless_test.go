@@ -237,3 +237,31 @@ func TestStatelessToDot(t *testing.T) {
 		t.Fatalf("hashes differ after insertion %v ||| %v", stf, stl)
 	}
 }
+
+func TestStatelessDeserialize(t *testing.T) {
+	root := NewStateless()
+	root.Insert(zeroKeyTest, fourtyKeyTest, nil)
+	root.Insert(oneKeyTest, fourtyKeyTest, nil)
+	root.Insert(fourtyKeyTest, fourtyKeyTest, nil)
+	root.Insert(ffx32KeyTest, fourtyKeyTest, nil)
+
+	proof, _, _, _ := MakeVerkleMultiProof(root, keylist{zeroKeyTest, fourtyKeyTest}, map[string][]byte{string(zeroKeyTest): fourtyKeyTest, string(fourtyKeyTest): fourtyKeyTest})
+
+	serialized, _, err := SerializeProof(proof)
+	if err != nil {
+		t.Fatalf("could not serialize proof: %v", err)
+	}
+
+	dproof, err := DeserializeProof(serialized, keyvals)
+	if err != nil {
+		t.Fatalf("error deserializing proof: %v", err)
+	}
+
+	droot, err := TreeFromProof(dproof)
+	if err != nil {
+	}
+
+	if droot.ComputeCommitment() != root.ComputeCommitment() {
+		t.Fatal("differing root commitments")
+	}
+}
