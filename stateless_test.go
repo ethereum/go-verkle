@@ -239,11 +239,14 @@ func TestStatelessToDot(t *testing.T) {
 }
 
 func TestStatelessDeserialize(t *testing.T) {
-	root := NewStateless()
-	root.Insert(zeroKeyTest, fourtyKeyTest, nil)
-	root.Insert(oneKeyTest, fourtyKeyTest, nil)
-	root.Insert(fourtyKeyTest, fourtyKeyTest, nil)
-	root.Insert(ffx32KeyTest, fourtyKeyTest, nil)
+	root := New()
+	for _, k := range [][]byte{zeroKeyTest, oneKeyTest, fourtyKeyTest, ffx32KeyTest} {
+		root.Insert(k, fourtyKeyTest, nil)
+	}
+	keyvals := []KeyValuePair{
+		{zeroKeyTest, fourtyKeyTest},
+		{fourtyKeyTest, fourtyKeyTest},
+	}
 
 	proof, _, _, _ := MakeVerkleMultiProof(root, keylist{zeroKeyTest, fourtyKeyTest}, map[string][]byte{string(zeroKeyTest): fourtyKeyTest, string(fourtyKeyTest): fourtyKeyTest})
 

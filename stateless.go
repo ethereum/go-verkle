@@ -225,16 +225,22 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 	return nil
 }
 
-func (n *StatelessNode) insertStem(path []byte, stemInfo stemInfo, comms []*Point) error {
+// insertStem is a translation of insert_node in the block explorer.
+// It inserts a given stem in the tree, placing it as described
+// by stemInfo. Its third parameters is the list of commitments
+// that have not been assigned a node. It returns the same list,
+// save the commitments that have been assigned a node during the
+// call.
+func (n *StatelessNode) insertStem(path []byte, stemInfo stemInfo, comms []*Point) ([]*Point, error) {
 	if len(path) == 0 {
-		return errors.New("invalid path")
+		return comms, errors.New("invalid path")
 	}
 
 	// path is 1 byte long, the leaf node must be created
 	if len(path) == 1 {
 		switch stemInfo.stemType & 3 {
 		case extStatusAbsentEmpty:
-			n.children[path[0]] = NewStateless()
+			n.children[path[0]] = NewStatelessWithCommitment(comms[0])
 			n.children[path[0]].stem = stemInfo.stem
 			n.children[path[0]].depth = n.depth + 1
 			// nothing to do
@@ -243,19 +249,19 @@ func (n *StatelessNode) insertStem(path []byte, stemInfo stemInfo, comms []*Poin
 		case extStatusPresent:
 			// insert stem
 			n.children[path[0]] = NewStatelessWithCommitment(comms[0])
-			comms = comms[1:]
 			if stemInfo.has_c1 {
-				n.children[path[0]].c1 = comms[0]
 				comms = comms[1:]
+				n.children[path[0]].c1 = comms[0]
 			}
 			if stemInfo.has_c2 {
+				comms = comms[1:]
 				n.children[path[0]].c2 = comms[0]
 			}
 			n.children[path[0]].values = stemInfo.values
 			n.children[path[0]].stem = stemInfo.stem
 			n.children[path[0]].depth = n.depth + 1
 		}
-		return nil
+		return comms[1:], nil
 	}
 
 	// create the child node if missing

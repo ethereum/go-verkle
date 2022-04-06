@@ -230,14 +230,16 @@ func DeserializeProof(proofSerialized []byte, keyvals []KeyValuePair) (*Proof, e
 		keys,
 		values,
 	}
+
 	return &proof, nil
 }
 
 type stemInfo struct {
-	depth          int
+	depth          byte
 	stemType       byte
 	has_c1, has_c2 bool
 	values         map[byte][]byte
+	stem           []byte
 }
 
 // TreeFromProof builds a stateless tree from the proof
@@ -250,24 +252,45 @@ func TreeFromProof(proof *Proof) (VerkleNode, error) {
 	}
 	stemIndex := 0
 
-	stemInfo := map[string]stemInfo{}
-	var paths [][]byte
+	var (
+		info  = map[string]stemInfo{}
+		paths [][]byte
+		err   error
+		poas  = proof.PoaStems
+	)
 
 	// assign one or more stem to each stem info
 	for _, es := range proof.ExtStatus {
 		depth := es >> 3
 		path := stems[stemIndex][:depth]
-		stemIndex++
-		stemInfo[string(path)] = stemInfo{
+		si := stemInfo{
 			depth:    depth,
 			stemType: es & 3,
 		}
+		switch si.stemType {
+		case extStatusAbsentEmpty:
+		case extStatusAbsentOther:
+			si.stem = poas[0]
+			poas = poas[1:]
+		default:
+			si.stem = stems[stemIndex]
+			si.values = map[byte][]byte{}
+			for i, k := range proof.Keys {
+				if !bytes.Equal(k[:31], si.stem) && proof.Values[i] != nil {
+					si.values[k[31]] = proof.Values[i]
+					si.has_c1 = si.has_c1 || (k[31] < 128)
+					si.has_c2 = si.has_c2 || (k[31] >= 128)
+				}
+			}
+		}
+		info[string(path)] = si
 		paths = append(paths, path)
 
 		// Skip over all the stems that share the same path
 		// to the extension tree. This happens e.g. if two
 		// stems have the same path, but one is a proof of
 		// absence and the other one is present.
+		stemIndex++
 		for ; stemIndex < len(stems); stemIndex++ {
 			if !bytes.Equal(stems[stemIndex][:depth], path) {
 				break
@@ -276,8 +299,9 @@ func TreeFromProof(proof *Proof) (VerkleNode, error) {
 	}
 
 	root := NewStateless()
-	for i, p := range paths {
-		err := root.insertNode(p, proof.ExtStatus[i])
+	comms := proof.Cs
+	for _, p := range paths {
+		comms, err = root.insertStem(p, info[string(p)], comms)
 		if err != nil {
 			return nil, err
 		}
@@ -290,7 +314,7 @@ func TreeFromProof(proof *Proof) (VerkleNode, error) {
 			continue
 		}
 
-		err := root.Insert(k, proof.Values[i], nil)
+		err = root.Insert(k, proof.Values[i], nil)
 		if err != nil {
 			return nil, err
 		}
