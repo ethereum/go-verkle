@@ -225,6 +225,50 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 	return nil
 }
 
+func (n *StatelessNode) insertStem(path []byte, stemInfo stemInfo, comms []*Point) error {
+	if len(path) == 0 {
+		return errors.New("invalid path")
+	}
+
+	// path is 1 byte long, the leaf node must be created
+	if len(path) == 1 {
+		switch stemInfo.stemType & 3 {
+		case extStatusAbsentEmpty:
+			n.children[path[0]] = NewStateless()
+			n.children[path[0]].stem = stemInfo.stem
+			n.children[path[0]].depth = n.depth + 1
+			// nothing to do
+		case extStatusAbsentOther:
+			// insert poa stem
+		case extStatusPresent:
+			// insert stem
+			n.children[path[0]] = NewStatelessWithCommitment(comms[0])
+			comms = comms[1:]
+			if stemInfo.has_c1 {
+				n.children[path[0]].c1 = comms[0]
+				comms = comms[1:]
+			}
+			if stemInfo.has_c2 {
+				n.children[path[0]].c2 = comms[0]
+			}
+			n.children[path[0]].values = stemInfo.values
+			n.children[path[0]].stem = stemInfo.stem
+			n.children[path[0]].depth = n.depth + 1
+		}
+		return nil
+	}
+
+	// create the child node if missing
+	if n.children[path[0]] == nil {
+		n.children[path[0]] = NewStatelessWithCommitment(comms[0])
+		comms = comms[1:]
+		n.children[path[0]].depth = n.depth + 1
+	}
+
+	// recurse
+	return n.children[path[0]].insertStem(path[1:], stemInfo, comms)
+}
+
 func (*StatelessNode) InsertOrdered([]byte, []byte, NodeFlushFn) error {
 	return errNotSupportedInStateless
 }

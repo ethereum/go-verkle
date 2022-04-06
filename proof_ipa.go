@@ -160,7 +160,7 @@ func SerializeProof(proof *Proof) ([]byte, []KeyValuePair, error) {
 }
 
 // TODO add keys and values to the signature
-func DeserializeProof(proofSerialized []byte) (*Proof, error) {
+func DeserializeProof(proofSerialized []byte, keyvals []KeyValuePair) (*Proof, error) {
 	var (
 		numPoaStems, numExtStatus uint32
 		numCommitments            uint32
@@ -216,6 +216,12 @@ func DeserializeProof(proofSerialized []byte) (*Proof, error) {
 	// TODO submit PR to go-ipa to make this return an error if it fails to Read
 	multipoint.Read(reader)
 
+	// Turn keyvals into keys and values
+	for _, kv := range keyvals {
+		keys = append(keys, kv.Key)
+		values = append(values, kv.Value)
+	}
+
 	proof := Proof{
 		&multipoint,
 		extStatus,
@@ -225,4 +231,70 @@ func DeserializeProof(proofSerialized []byte) (*Proof, error) {
 		values,
 	}
 	return &proof, nil
+}
+
+type stemInfo struct {
+	depth          int
+	stemType       byte
+	has_c1, has_c2 bool
+	values         map[byte][]byte
+}
+
+// TreeFromProof builds a stateless tree from the proof
+func TreeFromProof(proof *Proof) (VerkleNode, error) {
+	stems := make([][]byte, 0, len(proof.Keys))
+	for _, k := range proof.Keys {
+		if len(stems) == 0 || !bytes.Equal(stems[len(stems)-1], k[:31]) {
+			stems = append(stems, k[:31])
+		}
+	}
+	stemIndex := 0
+
+	stemInfo := map[string]stemInfo{}
+	var paths [][]byte
+
+	// assign one or more stem to each stem info
+	for _, es := range proof.ExtStatus {
+		depth := es >> 3
+		path := stems[stemIndex][:depth]
+		stemIndex++
+		stemInfo[string(path)] = stemInfo{
+			depth:    depth,
+			stemType: es & 3,
+		}
+		paths = append(paths, path)
+
+		// Skip over all the stems that share the same path
+		// to the extension tree. This happens e.g. if two
+		// stems have the same path, but one is a proof of
+		// absence and the other one is present.
+		for ; stemIndex < len(stems); stemIndex++ {
+			if !bytes.Equal(stems[stemIndex][:depth], path) {
+				break
+			}
+		}
+	}
+
+	root := NewStateless()
+	for i, p := range paths {
+		err := root.insertNode(p, proof.ExtStatus[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	for i, k := range proof.Keys {
+		if len(proof.Values[i]) == 0 {
+			// Skip the nil keys, they are here to prove
+			// an absence.
+			continue
+		}
+
+		err := root.Insert(k, proof.Values[i], nil)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return root, nil
 }
