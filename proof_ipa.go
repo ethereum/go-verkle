@@ -243,7 +243,7 @@ type stemInfo struct {
 }
 
 // TreeFromProof builds a stateless tree from the proof
-func TreeFromProof(proof *Proof) (VerkleNode, error) {
+func TreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) {
 	stems := make([][]byte, 0, len(proof.Keys))
 	for _, k := range proof.Keys {
 		if len(stems) == 0 || !bytes.Equal(stems[len(stems)-1], k[:31]) {
@@ -298,7 +298,7 @@ func TreeFromProof(proof *Proof) (VerkleNode, error) {
 		}
 	}
 
-	root := NewStateless()
+	root := NewStatelessWithCommitment(rootC)
 	comms := proof.Cs
 	for _, p := range paths {
 		comms, err = root.insertStem(p, info[string(p)], comms)

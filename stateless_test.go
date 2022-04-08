@@ -260,7 +260,7 @@ func TestStatelessDeserialize(t *testing.T) {
 		t.Fatalf("error deserializing proof: %v", err)
 	}
 
-	droot, err := TreeFromProof(dproof)
+	droot, err := TreeFromProof(dproof, root.ComputeCommitment())
 	if err != nil {
 		t.Fatal(err)
 	}
