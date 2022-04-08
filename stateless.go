@@ -459,11 +459,11 @@ func (n *StatelessNode) toDot(parent, path string) string {
 	} else {
 		ret = fmt.Sprintf("%s [label=\"I: %x\"]\n", me, n.hash.BytesLE())
 		if len(parent) > 0 {
-			ret += fmt.Sprintf("%s %s -> %s\n", ret, parent, me)
+			ret += fmt.Sprintf(" %s -> %s\n", parent, me)
 		}
 
 		for i, child := range n.children {
-			ret += child.toDot(me, fmt.Sprintf("%s%02x", path, i))
+			ret += child.toDot(me, fmt.Sprintf("%s%02x", path, i)) + "\n"
 		}
 	}
 
