@@ -463,7 +463,7 @@ func (n *StatelessNode) toDot(parent, path string) string {
 		}
 
 		for i, child := range n.children {
-			ret += fmt.Sprintf("%s", child.toDot(me, fmt.Sprintf("%s%02x", path, i)))
+			ret += child.toDot(me, fmt.Sprintf("%s%02x", path, i))
 		}
 	}
 
