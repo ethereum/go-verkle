@@ -262,6 +262,7 @@ func TestStatelessDeserialize(t *testing.T) {
 
 	droot, err := TreeFromProof(dproof)
 	if err != nil {
+		t.Fatal(err)
 	}
 
 	if droot.ComputeCommitment() != root.ComputeCommitment() {

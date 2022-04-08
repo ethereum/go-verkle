@@ -34,6 +34,7 @@ var (
 	errReadFromInvalid         = errors.New("trying to read from an invalid child")
 	errSerializeHashedNode     = errors.New("trying to serialized a hashed node")
 	errNotSupportedInStateless = errors.New("not implemented in stateless")
+	errInsertIntoOtherStem     = errors.New("insert splits a stem where it should not happen")
 )
 
 const (

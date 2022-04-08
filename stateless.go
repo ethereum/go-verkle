@@ -26,6 +26,7 @@
 package verkle
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 )
@@ -273,6 +274,21 @@ func (n *StatelessNode) insertStem(path []byte, stemInfo stemInfo, comms []*Poin
 
 	// recurse
 	return n.children[path[0]].insertStem(path[1:], stemInfo, comms)
+}
+
+func (n *StatelessNode) insertValue(key, value []byte) error {
+	// reached a leaf node ?
+	if len(n.values) != 0 {
+		if !bytes.Equal(key[:31], n.stem) {
+			return errInsertIntoOtherStem
+		}
+		n.values[key[31]] = value
+	} else { // no, recurse
+		nChild := offset2key(key, n.depth)
+		n.children[nChild].insertValue(key, value)
+	}
+
+	return nil
 }
 
 func (*StatelessNode) InsertOrdered([]byte, []byte, NodeFlushFn) error {

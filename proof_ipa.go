@@ -314,7 +314,7 @@ func TreeFromProof(proof *Proof) (VerkleNode, error) {
 			continue
 		}
 
-		err = root.Insert(k, proof.Values[i], nil)
+		err = root.insertValue(k, proof.Values[i])
 		if err != nil {
 			return nil, err
 		}
