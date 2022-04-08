@@ -228,7 +228,7 @@ func TestStatelessToDot(t *testing.T) {
 
 	var stl []string
 	for _, str := range strings.Split(root.toDot("", ""), "\n") {
-		if len(str) == 0 {
+		if str == "" {
 			continue
 		}
 		stl = append(stl, strings.ReplaceAll(str, " ", ""))
@@ -236,7 +236,7 @@ func TestStatelessToDot(t *testing.T) {
 
 	var stf []string
 	for _, str := range strings.Split(rootRef.toDot("", ""), "\n") {
-		if len(str) == 0 {
+		if str == "" {
 			continue
 		}
 		stf = append(stf, strings.ReplaceAll(str, " ", ""))
