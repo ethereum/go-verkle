@@ -226,8 +226,21 @@ func TestStatelessToDot(t *testing.T) {
 	rootRef.Insert(key1, fourtyKeyTest, nil)
 	rootRef.ComputeCommitment()
 
-	stl := strings.Split(root.toDot("", ""), "\n")
-	stf := strings.Split(rootRef.toDot("", ""), "\n")
+	var stl []string
+	for _, str := range strings.Split(root.toDot("", ""), "\n") {
+		if len(str) == 0 {
+			continue
+		}
+		stl = append(stl, strings.ReplaceAll(str, " ", ""))
+	}
+
+	var stf []string
+	for _, str := range strings.Split(rootRef.toDot("", ""), "\n") {
+		if len(str) == 0 {
+			continue
+		}
+		stf = append(stf, strings.ReplaceAll(str, " ", ""))
+	}
 	sort.Strings(stl)
 	sort.Strings(stf)
 	stfJ := strings.Join(stf, "\n")
