@@ -268,4 +268,12 @@ func TestStatelessDeserialize(t *testing.T) {
 	if droot.ComputeCommitment() != root.ComputeCommitment() {
 		t.Fatal("differing root commitments")
 	}
+
+	if !Equal(droot.(*StatelessNode).children[0].commitment, root.(*InternalNode).children[0].ComputeCommitment()) {
+		t.Fatal("differing commitment for child #0")
+	}
+
+	if !Equal(droot.(*StatelessNode).children[64].commitment, root.(*InternalNode).children[64].ComputeCommitment()) {
+		t.Fatal("differing commitment for child #64")
+	}
 }
