@@ -442,8 +442,15 @@ func (n *StatelessNode) toDot(parent, path string) string {
 	n.ComputeCommitment()
 	me := fmt.Sprintf("internal%s", path)
 	var ret string
-	if n.values != nil {
-		ret = fmt.Sprintf("leaf%s [label=\"L: %x\nC: %x\nC₁: %x\nC₂:%x\"]\n%s -> leaf%s\n", path, n.hash.Bytes(), n.commitment.Bytes(), n.c1.Bytes(), n.c2.Bytes(), parent, path)
+	if len(n.values) != 0 {
+		var c1bytes, c2bytes [32]byte
+		if n.c1 != nil {
+			c1bytes = n.c1.Bytes()
+		}
+		if n.c2 != nil {
+			c2bytes = n.c2.Bytes()
+		}
+		ret = fmt.Sprintf("leaf%s [label=\"L: %x\nC: %x\nC₁: %x\nC₂:%x\"]\n%s -> leaf%s\n", path, n.hash.Bytes(), n.commitment.Bytes(), c1bytes, c2bytes, parent, path)
 		for i, v := range n.values {
 			if v != nil {
 				ret = fmt.Sprintf("%sval%s%x [label=\"%x\"]\nleaf%s -> val%s%x\n", ret, path, i, v, path, path, i)
@@ -452,11 +459,11 @@ func (n *StatelessNode) toDot(parent, path string) string {
 	} else {
 		ret = fmt.Sprintf("%s [label=\"I: %x\"]\n", me, n.hash.BytesLE())
 		if len(parent) > 0 {
-			ret = fmt.Sprintf("%s %s -> %s\n", ret, parent, me)
+			ret += fmt.Sprintf(" %s -> %s\n", parent, me)
 		}
 
 		for i, child := range n.children {
-			ret = fmt.Sprintf("%s%s", ret, child.toDot(me, fmt.Sprintf("%s%02x", path, i)))
+			ret += child.toDot(me, fmt.Sprintf("%s%02x", path, i)) + "\n"
 		}
 	}
 
