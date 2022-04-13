@@ -290,3 +290,80 @@ func TestStatelessDeserialize(t *testing.T) {
 		t.Fatal("differing commitment for child #64")
 	}
 }
+
+func TestStatelessDeserializeMissginChildNode(t *testing.T) {
+	root := New()
+	for _, k := range [][]byte{zeroKeyTest, oneKeyTest, ffx32KeyTest} {
+		root.Insert(k, fourtyKeyTest, nil)
+	}
+	keyvals := []KeyValuePair{
+		{zeroKeyTest, fourtyKeyTest},
+		{fourtyKeyTest, nil},
+	}
+
+	proof, _, _, _ := MakeVerkleMultiProof(root, keylist{zeroKeyTest, fourtyKeyTest}, map[string][]byte{string(zeroKeyTest): fourtyKeyTest, string(fourtyKeyTest): nil})
+
+	serialized, _, err := SerializeProof(proof)
+	if err != nil {
+		t.Fatalf("could not serialize proof: %v", err)
+	}
+
+	dproof, err := DeserializeProof(serialized, keyvals)
+	if err != nil {
+		t.Fatalf("error deserializing proof: %v", err)
+	}
+
+	droot, err := TreeFromProof(dproof, root.ComputeCommitment())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if droot.ComputeCommitment() != root.ComputeCommitment() {
+		t.Fatal("differing root commitments")
+	}
+
+	if !Equal(droot.(*StatelessNode).children[0].commitment, root.(*InternalNode).children[0].ComputeCommitment()) {
+		t.Fatal("differing commitment for child #0")
+	}
+
+	if droot.(*StatelessNode).children[64] != nil {
+		t.Fatal("non-nil child #64")
+	}
+}
+
+func TestStatelessDeserializeDepth2(t *testing.T) {
+	root := New()
+	key1, _ := hex.DecodeString("0000010000000000000000000000000000000000000000000000000000000000")
+	for _, k := range [][]byte{zeroKeyTest, key1} {
+		root.Insert(k, fourtyKeyTest, nil)
+	}
+	keyvals := []KeyValuePair{
+		{zeroKeyTest, fourtyKeyTest},
+		{key1, nil},
+	}
+
+	proof, _, _, _ := MakeVerkleMultiProof(root, keylist{zeroKeyTest, key1}, map[string][]byte{string(zeroKeyTest): fourtyKeyTest, string(key1): nil})
+
+	serialized, _, err := SerializeProof(proof)
+	if err != nil {
+		t.Fatalf("could not serialize proof: %v", err)
+	}
+
+	dproof, err := DeserializeProof(serialized, keyvals)
+	if err != nil {
+		t.Fatalf("error deserializing proof: %v", err)
+	}
+
+	droot, err := TreeFromProof(dproof, root.ComputeCommitment())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if droot.ComputeCommitment() != root.ComputeCommitment() {
+		t.Fatal("differing root commitments")
+	}
+
+	if !Equal(droot.(*StatelessNode).children[0].commitment, root.(*InternalNode).children[0].ComputeCommitment()) {
+		t.Fatal("differing commitment for child #0")
+	}
+}

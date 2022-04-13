@@ -109,10 +109,6 @@ func (n *StatelessNode) SetChild(i int, v VerkleNode) error {
 	return nil
 }
 
-func (n *StatelessNode) SetStem(stem []byte) {
-	n.stem = stem
-}
-
 func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn) error {
 	// if this is a leaf value and the stems are different, intermediate
 	// nodes need to be inserted.
@@ -241,9 +237,6 @@ func (n *StatelessNode) insertStem(path []byte, stemInfo stemInfo, comms []*Poin
 	if len(path) == 1 {
 		switch stemInfo.stemType & 3 {
 		case extStatusAbsentEmpty:
-			n.children[path[0]] = NewStatelessWithCommitment(comms[0])
-			n.children[path[0]].stem = stemInfo.stem
-			n.children[path[0]].depth = n.depth + 1
 			// nothing to do
 		case extStatusAbsentOther:
 			// insert poa stem
@@ -278,7 +271,7 @@ func (n *StatelessNode) insertStem(path []byte, stemInfo stemInfo, comms []*Poin
 
 func (n *StatelessNode) insertValue(key, value []byte) error {
 	// reached a leaf node ?
-	if len(n.values) != 0 {
+	if len(n.children) == 0 {
 		if !bytes.Equal(key[:31], n.stem) {
 			return errInsertIntoOtherStem
 		}
