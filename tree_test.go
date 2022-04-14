@@ -906,8 +906,8 @@ func TestWithRustCompatibility(t *testing.T) {
 		}
 	}
 	commitment := root.ComputeCommitment().Bytes()
-	t.Logf("key=%x", commitment)
-	t.Logf("key=%x", testAccountRootCommitmentRust)
+	t.Logf("golangRoot=%x", commitment)
+	t.Logf("rustRoot=%x", testAccountRootCommitmentRust)
 	if !bytes.Equal(commitment[:], testAccountRootCommitmentRust) {
 		t.Fatalf("rust and golang impl are not compatible")
 	}
