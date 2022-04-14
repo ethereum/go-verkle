@@ -46,6 +46,24 @@ var (
 	oneKeyTest, _    = hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000001")
 	fourtyKeyTest, _ = hex.DecodeString("4000000000000000000000000000000000000000000000000000000000000000")
 	ffx32KeyTest, _  = hex.DecodeString("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
+
+	testAccountAddress = "71562b71999873DB5b286dF957af199Ec94617f7"
+	testAccountKeys    = [][]byte{
+		{245, 110, 100, 66, 36, 244, 87, 100, 144, 207, 224, 222, 20, 36, 164, 83, 34, 18, 82, 155, 254, 55, 71, 19, 216, 78, 125, 126, 142, 146, 114, 0},
+		{245, 110, 100, 66, 36, 244, 87, 100, 144, 207, 224, 222, 20, 36, 164, 83, 34, 18, 82, 155, 254, 55, 71, 19, 216, 78, 125, 126, 142, 146, 114, 1},
+		{245, 110, 100, 66, 36, 244, 87, 100, 144, 207, 224, 222, 20, 36, 164, 83, 34, 18, 82, 155, 254, 55, 71, 19, 216, 78, 125, 126, 142, 146, 114, 2},
+		{245, 110, 100, 66, 36, 244, 87, 100, 144, 207, 224, 222, 20, 36, 164, 83, 34, 18, 82, 155, 254, 55, 71, 19, 216, 78, 125, 126, 142, 146, 114, 3},
+		{245, 110, 100, 66, 36, 244, 87, 100, 144, 207, 224, 222, 20, 36, 164, 83, 34, 18, 82, 155, 254, 55, 71, 19, 216, 78, 125, 126, 142, 146, 114, 4},
+	}
+
+	testAccountValues = [][]byte{
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+		{0, 0, 100, 167, 179, 182, 224, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+		{197, 210, 70, 1, 134, 247, 35, 60, 146, 126, 125, 178, 220, 199, 3, 192, 229, 0, 182, 83, 202, 130, 39, 59, 123, 250, 216, 4, 93, 133, 164, 112},
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+	}
+	testAccountRootCommitmentRust, _ = hex.DecodeString("551dbfb30ba563ce071cd5ea69b1c28467c018f740d86cf9828c4cc32c4b0305")
 )
 
 func TestInsertIntoRoot(t *testing.T) {
@@ -876,5 +894,21 @@ func TestGetProofItemsNoPoaIfStemPresent(t *testing.T) {
 	}
 	if len(esses) != 1 {
 		t.Fatalf("returned %d extension statuses instead of the expected 1", len(esses))
+	}
+}
+
+func TestWithRustCompatibility(t *testing.T) {
+	root := New()
+	for i, key := range testAccountKeys {
+		err := root.Insert(key, testAccountValues[i], nil)
+		if err != nil {
+			t.Fatalf("error inserting: %v", err)
+		}
+	}
+	commitment := root.ComputeCommitment().Bytes()
+	t.Logf("key=%x", commitment)
+	t.Logf("key=%x", testAccountRootCommitmentRust)
+	if !bytes.Equal(commitment[:], testAccountRootCommitmentRust) {
+		t.Fatalf("rust and golang impl are not compatible")
 	}
 }
