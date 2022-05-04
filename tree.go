@@ -435,6 +435,27 @@ func (n *InternalNode) Flush(flush NodeFlushFn) {
 	flush(n)
 }
 
+// FlushStem recurses through the tree until it finds a leaf node,
+// and flushes this leaf node to disk. The internal nodes are left
+// untouched.
+func (n *InternalNode) FlushStem(stem []byte, flush NodeFlushFn) {
+	nChild := offset2key(stem, n.depth)
+	child := n.children[nChild]
+	switch child := child.(type) {
+	case *InternalNode:
+		child.FlushStem(stem, flush)
+	case *LeafNode:
+		if child.commitment == nil {
+			child.ComputeCommitment()
+		}
+		flush(child)
+		n.children[nChild] = child.toHashedNode()
+
+	default:
+		// reaching here is probably an error, skip for now
+	}
+}
+
 func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 	nChild := offset2key(k, n.depth)
 
