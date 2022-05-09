@@ -34,9 +34,12 @@ import (
 )
 
 func TestStatelessChildren(t *testing.T) {
+	c2key, _ := hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000085")
+
 	root := NewStateless()
 	root.Insert(zeroKeyTest, fourtyKeyTest, nil)
 	root.Insert(oneKeyTest, fourtyKeyTest, nil)
+	root.Insert(c2key, fourtyKeyTest, nil)
 
 	list := root.Children()
 	if len(list) != NodeWidth {
@@ -67,9 +70,10 @@ func TestStatelessChildren(t *testing.T) {
 	rootRef := New()
 	rootRef.Insert(zeroKeyTest, fourtyKeyTest, nil)
 	rootRef.Insert(oneKeyTest, fourtyKeyTest, nil)
+	rootRef.Insert(c2key, fourtyKeyTest, nil)
 
-	if !Equal(rootRef.ComputeCommitment(), root.ComputeCommitment()) {
-		t.Fatalf("differing state(less|ful) roots %x != %x", rootRef.ComputeCommitment(), root.ComputeCommitment())
+	if !Equal(rootRef.ComputeCommitment(), root.commitment) {
+		t.Fatalf("differing state(less|ful) roots %x != %x", rootRef.ComputeCommitment(), root.commitment)
 	}
 }
 

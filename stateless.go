@@ -350,43 +350,34 @@ func (n *StatelessNode) ComputeCommitment() *Point {
 
 	n.hash = new(Fr)
 
-	if n.values != nil {
-		// leaf node: go over each value, and set them in the
-		// polynomial for the corresponding suffix node.
-		count1, count2 := 0, 0
-		var poly, c1poly, c2poly [256]Fr
-		poly[0].SetUint64(1)
-		StemFromBytes(&poly[1], n.stem)
-
-		for idx, val := range n.values {
-			if idx < 128 {
-				leafToComms(c1poly[idx<<1:], val)
-				count1++
-			} else {
-				leafToComms(c2poly[(idx<<1)&0xFF:], val)
-				count2++
-			}
-		}
-		n.c1 = n.committer.CommitToPoly(c1poly[:], 256-count1)
-		toFr(&poly[2], n.c1)
-		n.c2 = n.committer.CommitToPoly(c2poly[:], 256-count2)
-		toFr(&poly[3], n.c2)
-
-		n.commitment = n.committer.CommitToPoly(poly[:], 252)
-		toFr(n.hash, n.commitment)
-	} else {
-		// internal node
-		emptyChildren := 0
-		poly := make([]Fr, NodeWidth)
-		for idx, child := range n.children {
-			toFr(&poly[idx], child.ComputeCommitment())
-		}
-
-		// All the coefficients have been computed, evaluate the polynomial,
-		// serialize and hash the resulting point - this is the commitment.
-		n.commitment = n.committer.CommitToPoly(poly, emptyChildren)
-		toFr(n.hash, n.commitment)
+	if n.values == nil {
+		// panic because this case should not be necessary
+		panic("ComputeCommitment can not be called on a non-root value in stateless mode")
 	}
+
+	// leaf node: go over each value, and set them in the
+	// polynomial for the corresponding suffix node.
+	count1, count2 := 0, 0
+	var poly, c1poly, c2poly [256]Fr
+	poly[0].SetUint64(1)
+	StemFromBytes(&poly[1], n.stem)
+
+	for idx, val := range n.values {
+		if idx < 128 {
+			leafToComms(c1poly[idx<<1:], val)
+			count1++
+		} else {
+			leafToComms(c2poly[(idx<<1)&0xFF:], val)
+			count2++
+		}
+	}
+	n.c1 = n.committer.CommitToPoly(c1poly[:], 256-count1)
+	toFr(&poly[2], n.c1)
+	n.c2 = n.committer.CommitToPoly(c2poly[:], 256-count2)
+	toFr(&poly[3], n.c2)
+
+	n.commitment = n.committer.CommitToPoly(poly[:], 252)
+	toFr(n.hash, n.commitment)
 
 	return n.commitment
 }
