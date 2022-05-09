@@ -159,7 +159,8 @@ func SerializeProof(proof *Proof) ([]byte, []KeyValuePair, error) {
 	return bufProof.Bytes(), keyvals, nil
 }
 
-// TODO add keys and values to the signature
+// DeserializeProof deserializes the proof found in blocks, into a format that
+// can be used to rebuild a stateless version of the tree.
 func DeserializeProof(proofSerialized []byte, keyvals []KeyValuePair) (*Proof, error) {
 	var (
 		numPoaStems, numExtStatus uint32
