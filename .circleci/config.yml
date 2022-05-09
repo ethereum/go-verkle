@@ -53,10 +53,6 @@ jobs:
           name: Run unit tests
           command: go test -v -coverprofile=coverage.txt -covermode=count ./...
 
-      - run:
-          name: Codecov upload
-          command: bash <(curl -s https://codecov.io/bash)
-
       - save_cache: # Store cache in the /go/pkg directory
           key: v1-pkg-cache
           paths:
