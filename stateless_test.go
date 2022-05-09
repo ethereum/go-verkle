@@ -63,6 +63,14 @@ func TestStatelessChildren(t *testing.T) {
 	if err := root.SetChild(3, &StatelessNode{}); err != nil {
 		t.Fatal("error inserting stateless node")
 	}
+
+	rootRef := New()
+	rootRef.Insert(zeroKeyTest, fourtyKeyTest, nil)
+	rootRef.Insert(oneKeyTest, fourtyKeyTest, nil)
+
+	if !Equal(rootRef.ComputeCommitment(), root.ComputeCommitment()) {
+		t.Fatalf("differing state(less|ful) roots %x != %x", rootRef.ComputeCommitment(), root.ComputeCommitment())
+	}
 }
 
 func TestStatelessDelete(t *testing.T) {
