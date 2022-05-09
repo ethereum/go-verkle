@@ -34,9 +34,12 @@ import (
 )
 
 func TestStatelessChildren(t *testing.T) {
+	c2key, _ := hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000085")
+
 	root := NewStateless()
 	root.Insert(zeroKeyTest, fourtyKeyTest, nil)
 	root.Insert(oneKeyTest, fourtyKeyTest, nil)
+	root.Insert(c2key, fourtyKeyTest, nil)
 
 	list := root.Children()
 	if len(list) != NodeWidth {
@@ -62,6 +65,15 @@ func TestStatelessChildren(t *testing.T) {
 
 	if err := root.SetChild(3, &StatelessNode{}); err != nil {
 		t.Fatal("error inserting stateless node")
+	}
+
+	rootRef := New()
+	rootRef.Insert(zeroKeyTest, fourtyKeyTest, nil)
+	rootRef.Insert(oneKeyTest, fourtyKeyTest, nil)
+	rootRef.Insert(c2key, fourtyKeyTest, nil)
+
+	if !Equal(rootRef.ComputeCommitment(), root.commitment) {
+		t.Fatalf("differing state(less|ful) roots %x != %x", rootRef.ComputeCommitment(), root.commitment)
 	}
 }
 
@@ -226,8 +238,21 @@ func TestStatelessToDot(t *testing.T) {
 	rootRef.Insert(key1, fourtyKeyTest, nil)
 	rootRef.ComputeCommitment()
 
-	stl := strings.Split(root.toDot("", ""), "\n")
-	stf := strings.Split(rootRef.toDot("", ""), "\n")
+	var stl []string
+	for _, str := range strings.Split(root.toDot("", ""), "\n") {
+		if str == "" {
+			continue
+		}
+		stl = append(stl, strings.ReplaceAll(str, " ", ""))
+	}
+
+	var stf []string
+	for _, str := range strings.Split(rootRef.toDot("", ""), "\n") {
+		if str == "" {
+			continue
+		}
+		stf = append(stf, strings.ReplaceAll(str, " ", ""))
+	}
 	sort.Strings(stl)
 	sort.Strings(stf)
 	stfJ := strings.Join(stf, "\n")
@@ -235,5 +260,122 @@ func TestStatelessToDot(t *testing.T) {
 
 	if stfJ != stlJ {
 		t.Fatalf("hashes differ after insertion %v ||| %v", stf, stl)
+	}
+}
+
+func TestStatelessDeserialize(t *testing.T) {
+	root := New()
+	for _, k := range [][]byte{zeroKeyTest, oneKeyTest, fourtyKeyTest, ffx32KeyTest} {
+		root.Insert(k, fourtyKeyTest, nil)
+	}
+	keyvals := []KeyValuePair{
+		{zeroKeyTest, fourtyKeyTest},
+		{fourtyKeyTest, fourtyKeyTest},
+	}
+
+	proof, _, _, _ := MakeVerkleMultiProof(root, keylist{zeroKeyTest, fourtyKeyTest}, map[string][]byte{string(zeroKeyTest): fourtyKeyTest, string(fourtyKeyTest): fourtyKeyTest})
+
+	serialized, _, err := SerializeProof(proof)
+	if err != nil {
+		t.Fatalf("could not serialize proof: %v", err)
+	}
+
+	dproof, err := DeserializeProof(serialized, keyvals)
+	if err != nil {
+		t.Fatalf("error deserializing proof: %v", err)
+	}
+
+	droot, err := TreeFromProof(dproof, root.ComputeCommitment())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if droot.ComputeCommitment() != root.ComputeCommitment() {
+		t.Fatal("differing root commitments")
+	}
+
+	if !Equal(droot.(*StatelessNode).children[0].commitment, root.(*InternalNode).children[0].ComputeCommitment()) {
+		t.Fatal("differing commitment for child #0")
+	}
+
+	if !Equal(droot.(*StatelessNode).children[64].commitment, root.(*InternalNode).children[64].ComputeCommitment()) {
+		t.Fatal("differing commitment for child #64")
+	}
+}
+
+func TestStatelessDeserializeMissginChildNode(t *testing.T) {
+	root := New()
+	for _, k := range [][]byte{zeroKeyTest, oneKeyTest, ffx32KeyTest} {
+		root.Insert(k, fourtyKeyTest, nil)
+	}
+	keyvals := []KeyValuePair{
+		{zeroKeyTest, fourtyKeyTest},
+		{fourtyKeyTest, nil},
+	}
+
+	proof, _, _, _ := MakeVerkleMultiProof(root, keylist{zeroKeyTest, fourtyKeyTest}, map[string][]byte{string(zeroKeyTest): fourtyKeyTest, string(fourtyKeyTest): nil})
+
+	serialized, _, err := SerializeProof(proof)
+	if err != nil {
+		t.Fatalf("could not serialize proof: %v", err)
+	}
+
+	dproof, err := DeserializeProof(serialized, keyvals)
+	if err != nil {
+		t.Fatalf("error deserializing proof: %v", err)
+	}
+
+	droot, err := TreeFromProof(dproof, root.ComputeCommitment())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if droot.ComputeCommitment() != root.ComputeCommitment() {
+		t.Fatal("differing root commitments")
+	}
+
+	if !Equal(droot.(*StatelessNode).children[0].commitment, root.(*InternalNode).children[0].ComputeCommitment()) {
+		t.Fatal("differing commitment for child #0")
+	}
+
+	if droot.(*StatelessNode).children[64] != nil {
+		t.Fatal("non-nil child #64")
+	}
+}
+
+func TestStatelessDeserializeDepth2(t *testing.T) {
+	root := New()
+	key1, _ := hex.DecodeString("0000010000000000000000000000000000000000000000000000000000000000")
+	for _, k := range [][]byte{zeroKeyTest, key1} {
+		root.Insert(k, fourtyKeyTest, nil)
+	}
+	keyvals := []KeyValuePair{
+		{zeroKeyTest, fourtyKeyTest},
+		{key1, nil},
+	}
+
+	proof, _, _, _ := MakeVerkleMultiProof(root, keylist{zeroKeyTest, key1}, map[string][]byte{string(zeroKeyTest): fourtyKeyTest, string(key1): nil})
+
+	serialized, _, err := SerializeProof(proof)
+	if err != nil {
+		t.Fatalf("could not serialize proof: %v", err)
+	}
+
+	dproof, err := DeserializeProof(serialized, keyvals)
+	if err != nil {
+		t.Fatalf("error deserializing proof: %v", err)
+	}
+
+	droot, err := TreeFromProof(dproof, root.ComputeCommitment())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if droot.ComputeCommitment() != root.ComputeCommitment() {
+		t.Fatal("differing root commitments")
+	}
+
+	if !Equal(droot.(*StatelessNode).children[0].commitment, root.(*InternalNode).children[0].ComputeCommitment()) {
+		t.Fatal("differing commitment for child #0")
 	}
 }

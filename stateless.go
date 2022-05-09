@@ -26,6 +26,7 @@
 package verkle
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 )
@@ -106,10 +107,6 @@ func (n *StatelessNode) SetChild(i int, v VerkleNode) error {
 	}
 	n.children[byte(i)] = c
 	return nil
-}
-
-func (n *StatelessNode) SetStem(stem []byte) {
-	n.stem = stem
 }
 
 func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn) error {
@@ -225,6 +222,68 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 	return nil
 }
 
+// insertStem is a translation of insert_node in the block explorer.
+// It inserts a given stem in the tree, placing it as described
+// by stemInfo. Its third parameters is the list of commitments
+// that have not been assigned a node. It returns the same list,
+// save the commitments that have been assigned a node during the
+// call.
+func (n *StatelessNode) insertStem(path []byte, stemInfo stemInfo, comms []*Point) ([]*Point, error) {
+	if len(path) == 0 {
+		return comms, errors.New("invalid path")
+	}
+
+	// path is 1 byte long, the leaf node must be created
+	if len(path) == 1 {
+		switch stemInfo.stemType & 3 {
+		case extStatusAbsentEmpty:
+			// nothing to do
+		case extStatusAbsentOther:
+			// insert poa stem
+		case extStatusPresent:
+			// insert stem
+			n.children[path[0]] = NewStatelessWithCommitment(comms[0])
+			if stemInfo.has_c1 {
+				comms = comms[1:]
+				n.children[path[0]].c1 = comms[0]
+			}
+			if stemInfo.has_c2 {
+				comms = comms[1:]
+				n.children[path[0]].c2 = comms[0]
+			}
+			n.children[path[0]].values = stemInfo.values
+			n.children[path[0]].stem = stemInfo.stem
+			n.children[path[0]].depth = n.depth + 1
+		}
+		return comms[1:], nil
+	}
+
+	// create the child node if missing
+	if n.children[path[0]] == nil {
+		n.children[path[0]] = NewStatelessWithCommitment(comms[0])
+		comms = comms[1:]
+		n.children[path[0]].depth = n.depth + 1
+	}
+
+	// recurse
+	return n.children[path[0]].insertStem(path[1:], stemInfo, comms)
+}
+
+func (n *StatelessNode) insertValue(key, value []byte) error {
+	// reached a leaf node ?
+	if len(n.children) == 0 {
+		if !bytes.Equal(key[:31], n.stem) {
+			return errInsertIntoOtherStem
+		}
+		n.values[key[31]] = value
+	} else { // no, recurse
+		nChild := offset2key(key, n.depth)
+		n.children[nChild].insertValue(key, value)
+	}
+
+	return nil
+}
+
 func (*StatelessNode) InsertOrdered([]byte, []byte, NodeFlushFn) error {
 	return errNotSupportedInStateless
 }
@@ -291,43 +350,34 @@ func (n *StatelessNode) ComputeCommitment() *Point {
 
 	n.hash = new(Fr)
 
-	if n.values != nil {
-		// leaf node: go over each value, and set them in the
-		// polynomial for the corresponding suffix node.
-		count1, count2 := 0, 0
-		var poly, c1poly, c2poly [256]Fr
-		poly[0].SetUint64(1)
-		StemFromBytes(&poly[1], n.stem)
-
-		for idx, val := range n.values {
-			if idx < 128 {
-				leafToComms(c1poly[idx<<1:], val)
-				count1++
-			} else {
-				leafToComms(c2poly[(idx<<1)&0xFF:], val)
-				count2++
-			}
-		}
-		n.c1 = n.committer.CommitToPoly(c1poly[:], 256-count1)
-		toFr(&poly[2], n.c1)
-		n.c2 = n.committer.CommitToPoly(c2poly[:], 256-count2)
-		toFr(&poly[3], n.c2)
-
-		n.commitment = n.committer.CommitToPoly(poly[:], 252)
-		toFr(n.hash, n.commitment)
-	} else {
-		// internal node
-		emptyChildren := 0
-		poly := make([]Fr, NodeWidth)
-		for idx, child := range n.children {
-			toFr(&poly[idx], child.ComputeCommitment())
-		}
-
-		// All the coefficients have been computed, evaluate the polynomial,
-		// serialize and hash the resulting point - this is the commitment.
-		n.commitment = n.committer.CommitToPoly(poly, emptyChildren)
-		toFr(n.hash, n.commitment)
+	if n.values == nil {
+		// panic because this case should not be necessary
+		panic("ComputeCommitment can not be called on a non-root value in stateless mode")
 	}
+
+	// leaf node: go over each value, and set them in the
+	// polynomial for the corresponding suffix node.
+	count1, count2 := 0, 0
+	var poly, c1poly, c2poly [256]Fr
+	poly[0].SetUint64(1)
+	StemFromBytes(&poly[1], n.stem)
+
+	for idx, val := range n.values {
+		if idx < 128 {
+			leafToComms(c1poly[idx<<1:], val)
+			count1++
+		} else {
+			leafToComms(c2poly[(idx<<1)&0xFF:], val)
+			count2++
+		}
+	}
+	n.c1 = n.committer.CommitToPoly(c1poly[:], 256-count1)
+	toFr(&poly[2], n.c1)
+	n.c2 = n.committer.CommitToPoly(c2poly[:], 256-count2)
+	toFr(&poly[3], n.c2)
+
+	n.commitment = n.committer.CommitToPoly(poly[:], 252)
+	toFr(n.hash, n.commitment)
 
 	return n.commitment
 }
@@ -376,8 +426,15 @@ func (n *StatelessNode) toDot(parent, path string) string {
 	n.ComputeCommitment()
 	me := fmt.Sprintf("internal%s", path)
 	var ret string
-	if n.values != nil {
-		ret = fmt.Sprintf("leaf%s [label=\"L: %x\nC: %x\nC₁: %x\nC₂:%x\"]\n%s -> leaf%s\n", path, n.hash.Bytes(), n.commitment.Bytes(), n.c1.Bytes(), n.c2.Bytes(), parent, path)
+	if len(n.values) != 0 {
+		var c1bytes, c2bytes [32]byte
+		if n.c1 != nil {
+			c1bytes = n.c1.Bytes()
+		}
+		if n.c2 != nil {
+			c2bytes = n.c2.Bytes()
+		}
+		ret = fmt.Sprintf("leaf%s [label=\"L: %x\nC: %x\nC₁: %x\nC₂:%x\"]\n%s -> leaf%s\n", path, n.hash.Bytes(), n.commitment.Bytes(), c1bytes, c2bytes, parent, path)
 		for i, v := range n.values {
 			if v != nil {
 				ret = fmt.Sprintf("%sval%s%x [label=\"%x\"]\nleaf%s -> val%s%x\n", ret, path, i, v, path, path, i)
@@ -386,11 +443,11 @@ func (n *StatelessNode) toDot(parent, path string) string {
 	} else {
 		ret = fmt.Sprintf("%s [label=\"I: %x\"]\n", me, n.hash.BytesLE())
 		if len(parent) > 0 {
-			ret = fmt.Sprintf("%s %s -> %s\n", ret, parent, me)
+			ret += fmt.Sprintf(" %s -> %s\n", parent, me)
 		}
 
 		for i, child := range n.children {
-			ret = fmt.Sprintf("%s%s", ret, child.toDot(me, fmt.Sprintf("%s%02x", path, i)))
+			ret += child.toDot(me, fmt.Sprintf("%s%02x", path, i)) + "\n"
 		}
 	}
 

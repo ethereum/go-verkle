@@ -326,11 +326,16 @@ func TestProofDeserialize(t *testing.T) {
 
 	keys := make([][]byte, leafCount)
 	root := New()
+	var keyvals []KeyValuePair
 	for i := 0; i < leafCount; i++ {
 		key := make([]byte, 32)
 		key[2] = byte(i)
 		keys[i] = key
 		root.Insert(key, fourtyKeyTest, nil)
+		keyvals = append(keyvals, KeyValuePair{
+			Key:   key,
+			Value: fourtyKeyTest,
+		})
 	}
 
 	// Create stem  0x0000020100000.... that is not present in the tree,
@@ -350,7 +355,7 @@ func TestProofDeserialize(t *testing.T) {
 		t.Fatal("zero-length serialized proof payload")
 	}
 
-	deserialized, err := DeserializeProof(serialized)
+	deserialized, err := DeserializeProof(serialized, keyvals)
 	if err != nil {
 		t.Fatalf("could not deserialize verkle proof: %v", err)
 	}
@@ -365,7 +370,7 @@ func TestProofDeserialize(t *testing.T) {
 
 func TestProofDeserializeErrors(t *testing.T) {
 
-	deserialized, err := DeserializeProof([]byte{0})
+	deserialized, err := DeserializeProof([]byte{0}, nil)
 	if err == nil {
 		t.Fatal("deserializing invalid proof didn't cause an error")
 	}
@@ -373,7 +378,7 @@ func TestProofDeserializeErrors(t *testing.T) {
 		t.Fatalf("non-nil deserialized data returned %v", deserialized)
 	}
 
-	deserialized, err = DeserializeProof([]byte{1, 0, 0, 0})
+	deserialized, err = DeserializeProof([]byte{1, 0, 0, 0}, nil)
 	if err == nil {
 		t.Fatal("deserializing invalid proof didn't cause an error")
 	}
@@ -381,7 +386,7 @@ func TestProofDeserializeErrors(t *testing.T) {
 		t.Fatalf("non-nil deserialized data returned %v", deserialized)
 	}
 
-	deserialized, err = DeserializeProof([]byte{0, 0, 0, 0, 0})
+	deserialized, err = DeserializeProof([]byte{0, 0, 0, 0, 0}, nil)
 	if err == nil {
 		t.Fatal("deserializing invalid proof didn't cause an error")
 	}
@@ -389,7 +394,7 @@ func TestProofDeserializeErrors(t *testing.T) {
 		t.Fatalf("non-nil deserialized data returned %v", deserialized)
 	}
 
-	deserialized, err = DeserializeProof([]byte{0, 0, 0, 0, 0, 0, 0, 0, 0})
+	deserialized, err = DeserializeProof([]byte{0, 0, 0, 0, 0, 0, 0, 0, 0}, nil)
 	if err == nil {
 		t.Fatal("deserializing invalid proof didn't cause an error")
 	}

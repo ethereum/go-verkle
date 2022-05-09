@@ -684,7 +684,7 @@ func (n *LeafNode) toHashedNode() *HashedNode {
 func (n *LeafNode) Insert(k []byte, value []byte, _ NodeResolverFn) error {
 	// Sanity check: ensure the key header is the same:
 	if !equalPaths(k, n.stem) {
-		return errors.New("split should not happen here")
+		return errInsertIntoOtherStem
 	}
 	n.values[k[31]] = value
 	n.commitment = nil

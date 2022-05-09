@@ -159,8 +159,9 @@ func SerializeProof(proof *Proof) ([]byte, []KeyValuePair, error) {
 	return bufProof.Bytes(), keyvals, nil
 }
 
-// TODO add keys and values to the signature
-func DeserializeProof(proofSerialized []byte) (*Proof, error) {
+// DeserializeProof deserializes the proof found in blocks, into a format that
+// can be used to rebuild a stateless version of the tree.
+func DeserializeProof(proofSerialized []byte, keyvals []KeyValuePair) (*Proof, error) {
 	var (
 		numPoaStems, numExtStatus uint32
 		numCommitments            uint32
@@ -216,6 +217,12 @@ func DeserializeProof(proofSerialized []byte) (*Proof, error) {
 	// TODO submit PR to go-ipa to make this return an error if it fails to Read
 	multipoint.Read(reader)
 
+	// Turn keyvals into keys and values
+	for _, kv := range keyvals {
+		keys = append(keys, kv.Key)
+		values = append(values, kv.Value)
+	}
+
 	proof := Proof{
 		&multipoint,
 		extStatus,
@@ -224,5 +231,95 @@ func DeserializeProof(proofSerialized []byte) (*Proof, error) {
 		keys,
 		values,
 	}
+
 	return &proof, nil
+}
+
+type stemInfo struct {
+	depth          byte
+	stemType       byte
+	has_c1, has_c2 bool
+	values         map[byte][]byte
+	stem           []byte
+}
+
+// TreeFromProof builds a stateless tree from the proof
+func TreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) {
+	stems := make([][]byte, 0, len(proof.Keys))
+	for _, k := range proof.Keys {
+		if len(stems) == 0 || !bytes.Equal(stems[len(stems)-1], k[:31]) {
+			stems = append(stems, k[:31])
+		}
+	}
+	stemIndex := 0
+
+	var (
+		info  = map[string]stemInfo{}
+		paths [][]byte
+		err   error
+		poas  = proof.PoaStems
+	)
+
+	// assign one or more stem to each stem info
+	for _, es := range proof.ExtStatus {
+		depth := es >> 3
+		path := stems[stemIndex][:depth]
+		si := stemInfo{
+			depth:    depth,
+			stemType: es & 3,
+		}
+		switch si.stemType {
+		case extStatusAbsentEmpty:
+		case extStatusAbsentOther:
+			si.stem = poas[0]
+			poas = poas[1:]
+		default:
+			si.stem = stems[stemIndex]
+			si.values = map[byte][]byte{}
+			for i, k := range proof.Keys {
+				if !bytes.Equal(k[:31], si.stem) && proof.Values[i] != nil {
+					si.values[k[31]] = proof.Values[i]
+					si.has_c1 = si.has_c1 || (k[31] < 128)
+					si.has_c2 = si.has_c2 || (k[31] >= 128)
+				}
+			}
+		}
+		info[string(path)] = si
+		paths = append(paths, path)
+
+		// Skip over all the stems that share the same path
+		// to the extension tree. This happens e.g. if two
+		// stems have the same path, but one is a proof of
+		// absence and the other one is present.
+		stemIndex++
+		for ; stemIndex < len(stems); stemIndex++ {
+			if !bytes.Equal(stems[stemIndex][:depth], path) {
+				break
+			}
+		}
+	}
+
+	root := NewStatelessWithCommitment(rootC)
+	comms := proof.Cs
+	for _, p := range paths {
+		comms, err = root.insertStem(p, info[string(p)], comms)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	for i, k := range proof.Keys {
+		if len(proof.Values[i]) == 0 {
+			// Skip the nil keys, they are here to prove
+			// an absence.
+			continue
+		}
+
+		err = root.insertValue(k, proof.Values[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return root, nil
 }
