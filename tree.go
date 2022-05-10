@@ -443,6 +443,13 @@ func (n *InternalNode) FlushStem(stem []byte, flush NodeFlushFn) {
 	child := n.children[nChild]
 	switch child := child.(type) {
 	case *InternalNode:
+		if n.depth == 2 {
+			child.ComputeCommitment()
+			child.Flush(flush)
+			n.children[nChild] = child.toHashedNode()
+			return
+		}
+
 		child.FlushStem(stem, flush)
 	case *LeafNode:
 		if child.commitment == nil {
