@@ -463,6 +463,28 @@ func (n *InternalNode) FlushStem(stem []byte, flush NodeFlushFn) {
 	}
 }
 
+// FlushAtDepth goes over all internal nodes of a given depth, and
+// flushes them to disk. It's meant to free up some memory when it
+// is running scarce.
+func (n *InternalNode) FlushAtDepth(depth uint8, flush NodeFlushFn) {
+	if n.depth+1 == depth {
+		for i, child := range n.children {
+			switch c := child.(type) {
+			case *LeafNode:
+				child.ComputeCommitment()
+				flush(child)
+				n.children[i] = c.toHashedNode()
+			case *InternalNode:
+				child.ComputeCommitment()
+				flush(child)
+				n.children[i] = c.toHashedNode()
+			default:
+				// skip
+			}
+		}
+	}
+}
+
 func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 	nChild := offset2key(k, n.depth)
 
