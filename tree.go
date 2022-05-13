@@ -446,7 +446,7 @@ func (n *InternalNode) FlushStem(stem []byte, flush NodeFlushFn) {
 		child.FlushStem(stem, flush)
 
 		// if n.depth is 2 then the child's depth is 3
-		if n.depth == 2 {
+		if n.depth >= 2 {
 			child.ComputeCommitment()
 			flush(child)
 			n.children[nChild] = child.toHashedNode()
