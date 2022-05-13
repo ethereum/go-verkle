@@ -2,7 +2,7 @@ version: 2.1
 jobs:
   lint_and_check:
     docker:
-      - image: circleci/golang:1.15.8
+      - image: circleci/golang:1.18.1
     working_directory: /go/src/github.com/gballet/go-verkle
 
     steps:
@@ -38,7 +38,7 @@ jobs:
 
   test_linux:
     docker:
-      - image: circleci/golang:1.15.8
+      - image: circleci/golang:1.18.1
     working_directory: /go/src/github.com/gballet/go-verkle
 
     steps:
