@@ -473,6 +473,7 @@ func (n *InternalNode) FlushAtDepth(depth uint8, flush NodeFlushFn) {
 		case *LeafNode:
 			if n.depth+1 == depth {
 				child.ComputeCommitment()
+				flush(child)
 				n.children[i] = c.toHashedNode()
 			}
 		case *InternalNode:
@@ -480,6 +481,7 @@ func (n *InternalNode) FlushAtDepth(depth uint8, flush NodeFlushFn) {
 
 			if n.depth+1 == depth {
 				child.ComputeCommitment()
+				flush(child)
 				n.children[i] = c.toHashedNode()
 			}
 		default:
