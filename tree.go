@@ -444,6 +444,14 @@ func (n *InternalNode) FlushStem(stem []byte, flush NodeFlushFn) {
 	switch child := child.(type) {
 	case *InternalNode:
 		child.FlushStem(stem, flush)
+
+		// if n.depth is 2 then the child's depth is 3
+		if n.depth >= 2 {
+			child.ComputeCommitment()
+			flush(child)
+			n.children[nChild] = child.toHashedNode()
+			return
+		}
 	case *LeafNode:
 		if child.commitment == nil {
 			child.ComputeCommitment()
@@ -453,6 +461,32 @@ func (n *InternalNode) FlushStem(stem []byte, flush NodeFlushFn) {
 
 	default:
 		// reaching here is probably an error, skip for now
+	}
+}
+
+// FlushAtDepth goes over all internal nodes of a given depth, and
+// flushes them to disk. It's meant to free up some memory when it
+// is running scarce.
+func (n *InternalNode) FlushAtDepth(depth uint8, flush NodeFlushFn) {
+	for i, child := range n.children {
+		switch c := child.(type) {
+		case *LeafNode:
+			if n.depth+1 >= depth {
+				child.ComputeCommitment()
+				flush(child)
+				n.children[i] = c.toHashedNode()
+			}
+		case *InternalNode:
+			c.FlushAtDepth(depth, flush)
+
+			if n.depth+1 >= depth {
+				child.ComputeCommitment()
+				flush(child)
+				n.children[i] = c.toHashedNode()
+			}
+		default:
+			// skip
+		}
 	}
 }
 
