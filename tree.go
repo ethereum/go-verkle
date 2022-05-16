@@ -229,6 +229,10 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 		defer n.lock.Unlock()
 	}
 
+	return n.insert(key, value, resolver)
+}
+
+func (n *InternalNode) insert(key []byte, value []byte, resolver NodeResolverFn) error {
 	nChild := offset2key(key, n.depth)
 
 	switch child := n.children[nChild].(type) {
@@ -257,7 +261,9 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 		}
 		resolved.ComputeCommitment()
 		n.children[nChild] = resolved
-		return resolved.Insert(key, value, resolver)
+		// recurse to handle the case of a LeafNode child that
+		// splits.
+		return n.insert(key, value, resolver)
 	case *LeafNode:
 		// Need to add a new branch node to differentiate
 		// between two keys, if the keys are different.
@@ -451,32 +457,27 @@ func (n *InternalNode) Flush(flush NodeFlushFn) {
 }
 
 // FlushAtDepth goes over all internal nodes of a given depth, and
-// flushes them to disk. It's meant to free up some memory when it
+// flushes them to disk. Its purpose it to free up space if memory
 // is running scarce.
 func (n *InternalNode) FlushAtDepth(depth uint8, flush NodeFlushFn) {
 	for i, child := range n.children {
-		switch c := child.(type) {
-		case *LeafNode:
-			if n.depth >= depth {
-				child.ComputeCommitment()
-				flush(child)
-				n.children[i] = c.toHashedNode()
-			}
-		case *InternalNode:
+		// Skip non-internal nodes
+		c, ok := child.(*InternalNode)
+		if !ok {
+			continue
+		}
+
+		if n.depth >= depth {
+			// Lock the subtree so no insertion
+			// occur during the flush.
+			c.lock.Lock()
+			defer c.lock.Unlock()
+
+			child.ComputeCommitment()
+			c.Flush(flush)
+			n.children[i] = c.toHashedNode()
+		} else {
 			c.FlushAtDepth(depth, flush)
-
-			if n.depth >= depth {
-				// Lock the subtree so no insertion
-				// occur during the flush.
-				c.lock.Lock()
-				defer c.lock.Unlock()
-
-				child.ComputeCommitment()
-				flush(child)
-				n.children[i] = c.toHashedNode()
-			}
-		default:
-			// skip
 		}
 	}
 }
