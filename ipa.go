@@ -26,12 +26,12 @@
 package verkle
 
 import (
-	"github.com/crate-crypto/go-ipa/bandersnatch"
 	"github.com/crate-crypto/go-ipa/bandersnatch/fr"
+	"github.com/crate-crypto/go-ipa/banderwagon"
 )
 
 type Fr = fr.Element
-type Point = bandersnatch.PointAffine
+type Point = banderwagon.Element
 
 func CopyFr(dst, src *Fr) {
 	copy(dst[:], src[:])
