@@ -29,6 +29,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"sync"
 )
 
 type NodeFlushFn func(VerkleNode)
@@ -169,6 +170,8 @@ type (
 		commitment *Point
 
 		committer Committer
+
+		lock sync.Mutex
 	}
 
 	LeafNode struct {
@@ -219,6 +222,13 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 		n.commitment = nil
 	}
 
+	// Prevent access to that subtree so that nodes aren't
+	// flushed from under us.
+	if n.depth >= 2 {
+		n.lock.Lock()
+		defer n.lock.Unlock()
+	}
+
 	nChild := offset2key(key, n.depth)
 
 	switch child := n.children[nChild].(type) {
@@ -239,7 +249,7 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 		hash := child.ComputeCommitment().Bytes()
 		serialized, err := resolver(hash[:])
 		if err != nil {
-			return fmt.Errorf("verkle tree: error resolving node %x: %w", key, err)
+			return fmt.Errorf("verkle tree: error resolving node %x at depth %d: %w", key, n.depth, err)
 		}
 		resolved, err := ParseNode(serialized, n.depth+1, hash[:])
 		if err != nil {
@@ -403,6 +413,11 @@ func (n *InternalNode) Delete(key []byte) error {
 	// Clear cached commitment on modification
 	n.commitment = nil
 
+	if n.depth >= 2 {
+		n.lock.Lock()
+		defer n.lock.Unlock()
+	}
+
 	nChild := offset2key(key, n.depth)
 	switch child := n.children[nChild].(type) {
 	case Empty:
@@ -435,35 +450,6 @@ func (n *InternalNode) Flush(flush NodeFlushFn) {
 	flush(n)
 }
 
-// FlushStem recurses through the tree until it finds a leaf node,
-// and flushes this leaf node to disk. The internal nodes are left
-// untouched.
-func (n *InternalNode) FlushStem(stem []byte, flush NodeFlushFn) {
-	nChild := offset2key(stem, n.depth)
-	child := n.children[nChild]
-	switch child := child.(type) {
-	case *InternalNode:
-		child.FlushStem(stem, flush)
-
-		// if n.depth is 2 then the child's depth is 3
-		if n.depth >= 2 {
-			child.ComputeCommitment()
-			flush(child)
-			n.children[nChild] = child.toHashedNode()
-			return
-		}
-	case *LeafNode:
-		if child.commitment == nil {
-			child.ComputeCommitment()
-		}
-		flush(child)
-		n.children[nChild] = child.toHashedNode()
-
-	default:
-		// reaching here is probably an error, skip for now
-	}
-}
-
 // FlushAtDepth goes over all internal nodes of a given depth, and
 // flushes them to disk. It's meant to free up some memory when it
 // is running scarce.
@@ -479,6 +465,13 @@ func (n *InternalNode) FlushAtDepth(depth uint8, flush NodeFlushFn) {
 		case *InternalNode:
 			c.FlushAtDepth(depth, flush)
 
+			// Lock the subtree so no insertion occur
+			// during the flush.
+			if n.depth >= depth {
+				c.lock.Lock()
+				defer c.lock.Unlock()
+			}
+
 			if n.depth+1 >= depth {
 				child.ComputeCommitment()
 				flush(child)
@@ -492,6 +485,10 @@ func (n *InternalNode) FlushAtDepth(depth uint8, flush NodeFlushFn) {
 
 func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 	nChild := offset2key(k, n.depth)
+	if n.depth >= 2 {
+		n.lock.Lock()
+		defer n.lock.Unlock()
+	}
 
 	switch child := n.children[nChild].(type) {
 	case Empty, nil:
