@@ -207,7 +207,7 @@ func DeserializeProof(proofSerialized []byte, keyvals []KeyValuePair) (*Proof, e
 		if err := binary.Read(reader, binary.LittleEndian, commitmentBytes); err != nil {
 			return nil, err
 		}
-		if err := commitment.Unmarshal(commitmentBytes); err != nil {
+		if err := commitment.SetBytes(commitmentBytes); err != nil {
 			return nil, err
 		}
 

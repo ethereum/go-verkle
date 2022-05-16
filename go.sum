@@ -10,6 +10,8 @@ github.com/crate-crypto/go-ipa v0.0.0-20220120174240-fe21866d2ad5 h1:BsLconJDsOD
 github.com/crate-crypto/go-ipa v0.0.0-20220120174240-fe21866d2ad5/go.mod h1:gFnFS95y8HstDP6P9pPwzrxOOC5TRDkwbM+ao15ChAI=
 github.com/crate-crypto/go-ipa v0.0.0-20220309173511-816621cb2ec4 h1:6KIFkDoBRVfE2I4cUt2wUuejBs+ReEe0cNQnTLs8AwE=
 github.com/crate-crypto/go-ipa v0.0.0-20220309173511-816621cb2ec4/go.mod h1:gFnFS95y8HstDP6P9pPwzrxOOC5TRDkwbM+ao15ChAI=
+github.com/crate-crypto/go-ipa v0.0.0-20220516134728-b2cd5dda440e h1:gxuOODMooJDWRS+Ov44j/IeFkCPxdY6zYpp0H1vyj5M=
+github.com/crate-crypto/go-ipa v0.0.0-20220516134728-b2cd5dda440e/go.mod h1:gFnFS95y8HstDP6P9pPwzrxOOC5TRDkwbM+ao15ChAI=
 github.com/leanovate/gopter v0.2.9/go.mod h1:U2L/78B+KVFIx2VmW6onHJQzXtFb+p5y3y2Sh+Jxxv8=
 golang.org/x/sys v0.0.0-20211020174200-9d6173849985/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.0.0-20211023085530-d6a326fbbf70 h1:SeSEfdIxyvwGJliREIJhRPPXvW6sDlLT+UQ3B0hD0NA=

@@ -932,7 +932,7 @@ var (
 		{197, 210, 70, 1, 134, 247, 35, 60, 146, 126, 125, 178, 220, 199, 3, 192, 229, 0, 182, 83, 202, 130, 39, 59, 123, 250, 216, 4, 93, 133, 164, 112},
 		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 	}
-	testAccountRootHashRust, _ = hex.DecodeString("551dbfb30ba563ce071cd5ea69b1c28467c018f740d86cf9828c4cc32c4b0305")
+	testAccountRootHashRust, _ = hex.DecodeString("4fb2c49748e3dd5af3b8bb91ec8b9a3ed638cbe3cb63e50e02baa935d820bf0a")
 )
 
 func TestWithRustCompatibility(t *testing.T) {
