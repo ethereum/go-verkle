@@ -240,43 +240,6 @@ func TestFlush1kLeaves(t *testing.T) {
 	}
 }
 
-func TestStemFlush(t *testing.T) {
-	n := 1000
-	keys := randomKeysSorted(n)
-
-	flushCh := make(chan VerkleNode)
-	flush := func(node VerkleNode) {
-		flushCh <- node
-	}
-	go func() {
-		root := New()
-		for _, k := range keys {
-			root.Insert(k, fourtyKeyTest, nil)
-		}
-		for _, k := range keys {
-			root.(*InternalNode).FlushStem(k[:31], flush)
-		}
-		close(flushCh)
-	}()
-
-	count := 0
-	leaves := 0
-	for n := range flushCh {
-		_, isLeaf := n.(*LeafNode)
-		if !isLeaf {
-			t.Fatal("invalid node type received, expected leaf")
-		}
-		if isLeaf {
-			leaves++
-		}
-		count++
-	}
-
-	if leaves != n {
-		t.Fatalf("number of flushed leaves incorrect. Expected %d got %d\n", n, leaves)
-	}
-}
-
 func TestCopy(t *testing.T) {
 	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
 	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
