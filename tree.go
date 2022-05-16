@@ -255,9 +255,9 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 		if err != nil {
 			return fmt.Errorf("verkle tree: error parsing resolved node %x: %w", key, err)
 		}
+		resolved.ComputeCommitment()
 		n.children[nChild] = resolved
-		// the child has been resolved as a LeafNode, so when recursing, the following case will be executed
-		return n.Insert(key, value, resolver)
+		return resolved.Insert(key, value, resolver)
 	case *LeafNode:
 		// Need to add a new branch node to differentiate
 		// between two keys, if the keys are different.
