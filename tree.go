@@ -217,15 +217,15 @@ func (n *InternalNode) SetChild(i int, c VerkleNode) error {
 }
 
 func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn) error {
-	// Clear cached commitment on modification
-	n.commitment = nil
-
 	// Prevent access to that subtree so that nodes aren't
 	// flushed from under us.
 	if n.depth >= 2 {
 		n.lock.Lock()
 		defer n.lock.Unlock()
 	}
+
+	// Clear cached commitment on modification
+	n.commitment = nil
 
 	err := n.insert(key, value, resolver)
 	if err != nil {
@@ -444,15 +444,13 @@ func (n *InternalNode) Delete(key []byte) error {
 func (n *InternalNode) Flush(flush NodeFlushFn) {
 	for i, child := range n.children {
 		if c, ok := child.(*InternalNode); ok {
-			if c.commitment == nil {
-				c.ComputeCommitment()
-			}
+			c.lock.Lock()
+			defer c.lock.Unlock()
+			c.ComputeCommitment()
 			c.Flush(flush)
 			n.children[i] = c.toHashedNode()
 		} else if c, ok := child.(*LeafNode); ok {
-			if c.commitment == nil {
-				c.ComputeCommitment()
-			}
+			c.ComputeCommitment()
 			flush(n.children[i])
 			n.children[i] = c.toHashedNode()
 		}
@@ -471,6 +469,10 @@ func (n *InternalNode) FlushAtDepth(depth uint8, flush NodeFlushFn) {
 			continue
 		}
 
+		// Recurse, to ensure that each child will
+		// be locked.
+		c.FlushAtDepth(depth, flush)
+
 		if n.depth >= depth {
 			// Lock the subtree so no insertion
 			// occur during the flush.
@@ -480,8 +482,6 @@ func (n *InternalNode) FlushAtDepth(depth uint8, flush NodeFlushFn) {
 			child.ComputeCommitment()
 			c.Flush(flush)
 			n.children[i] = c.toHashedNode()
-		} else {
-			c.FlushAtDepth(depth, flush)
 		}
 	}
 }
