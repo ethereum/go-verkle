@@ -217,15 +217,15 @@ func (n *InternalNode) SetChild(i int, c VerkleNode) error {
 }
 
 func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn) error {
-	// Clear cached commitment on modification
-	n.commitment = nil
-
 	// Prevent access to that subtree so that nodes aren't
 	// flushed from under us.
 	if n.depth >= 2 {
 		n.lock.Lock()
 		defer n.lock.Unlock()
 	}
+
+	// Clear cached commitment on modification
+	n.commitment = nil
 
 	err := n.insert(key, value, resolver)
 	if err != nil {
