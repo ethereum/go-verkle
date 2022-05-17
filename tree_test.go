@@ -277,7 +277,8 @@ func TestCachedCommitment(t *testing.T) {
 	tree.Insert(key1, fourtyKeyTest, nil)
 	tree.Insert(key2, fourtyKeyTest, nil)
 	tree.Insert(key3, fourtyKeyTest, nil)
-	tree.ComputeCommitment()
+	oldRoot := tree.ComputeCommitment().Bytes()
+	oldInternal := tree.(*InternalNode).children[4].(*LeafNode).commitment.Bytes()
 
 	if tree.(*InternalNode).commitment == nil {
 		t.Error("root has not cached commitment")
@@ -285,10 +286,10 @@ func TestCachedCommitment(t *testing.T) {
 
 	tree.Insert(key4, fourtyKeyTest, nil)
 
-	if tree.(*InternalNode).commitment != nil {
+	if tree.(*InternalNode).commitment.Bytes() == oldRoot {
 		t.Error("root has stale commitment")
 	}
-	if tree.(*InternalNode).children[4].(*InternalNode).commitment != nil {
+	if tree.(*InternalNode).children[4].(*InternalNode).commitment.Bytes() == oldInternal {
 		t.Error("internal node has stale commitment")
 	}
 	if tree.(*InternalNode).children[1].(*InternalNode).commitment == nil {
