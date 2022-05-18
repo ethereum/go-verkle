@@ -914,3 +914,28 @@ func TestWithRustCompatibility(t *testing.T) {
 		t.Fatalf("rust and golang impl are not compatible rust=%x, go=%x", testAccountRootHashRust, hashBytes)
 	}
 }
+
+func TestInsertStem(t *testing.T) {
+	root1 := New()
+	root2 := New()
+
+	values := make([][]byte, 256)
+	values[5] = zeroKeyTest
+	values[192] = fourtyKeyTest
+
+	root1.(*InternalNode).InsertStem(fourtyKeyTest[:31], values, nil)
+	r1c := root1.ComputeCommitment()
+
+	var key5, key192 [32]byte
+	copy(key5[:], fourtyKeyTest[:31])
+	copy(key192[:], fourtyKeyTest[:31])
+	key5[31] = 5
+	key192[31] = 192
+	root2.Insert(key5[:], zeroKeyTest, nil)
+	root2.Insert(key192[:], fourtyKeyTest, nil)
+	r2c := root2.ComputeCommitment()
+
+	if !Equal(r1c, r2c) {
+		t.Fatalf("differing commitments %x != %x", r1c.Bytes(), r2c.Bytes())
+	}
+}
