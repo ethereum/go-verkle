@@ -51,9 +51,9 @@ func toFr(fr *Fr, p *Point) {
 func FromLEBytes(fr *Fr, data []byte) {
 	var aligned [32]byte
 	for i := range data {
-		aligned[31-i] = data[i]
+		aligned[i] = data[i]
 	}
-	fr.SetBytes(aligned[:])
+	fr.SetBytesLE(aligned[:])
 }
 
 func StemFromBytes(fr *Fr, data []byte) {
