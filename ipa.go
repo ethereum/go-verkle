@@ -26,12 +26,12 @@
 package verkle
 
 import (
-	"github.com/crate-crypto/go-ipa/bandersnatch"
 	"github.com/crate-crypto/go-ipa/bandersnatch/fr"
+	"github.com/crate-crypto/go-ipa/banderwagon"
 )
 
 type Fr = fr.Element
-type Point = bandersnatch.PointAffine
+type Point = banderwagon.Element
 
 func CopyFr(dst, src *Fr) {
 	copy(dst[:], src[:])
@@ -43,16 +43,15 @@ func CopyPoint(dst, src *Point) {
 }
 
 func toFr(fr *Fr, p *Point) {
-	bytes := p.Bytes()
+	baseField := p.MapToBaseField()
+	bytes := (&baseField).BytesLE()
 	fr.SetBytesLE(bytes[:])
 }
 
 func FromLEBytes(fr *Fr, data []byte) {
 	var aligned [32]byte
-	for i := range data {
-		aligned[31-i] = data[i]
-	}
-	fr.SetBytes(aligned[:])
+	copy(aligned[:len(data)], data)
+	fr.SetBytesLE(aligned[:])
 }
 
 func StemFromBytes(fr *Fr, data []byte) {

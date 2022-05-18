@@ -932,7 +932,7 @@ var (
 		{197, 210, 70, 1, 134, 247, 35, 60, 146, 126, 125, 178, 220, 199, 3, 192, 229, 0, 182, 83, 202, 130, 39, 59, 123, 250, 216, 4, 93, 133, 164, 112},
 		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 	}
-	testAccountRootHashRust, _ = hex.DecodeString("551dbfb30ba563ce071cd5ea69b1c28467c018f740d86cf9828c4cc32c4b0305")
+	testAccountRootCommRust, _ = hex.DecodeString("10ed89d89047bb168baa4e69b8607e260049e928ddbcb2fdd23ea0f4182b1f8a")
 )
 
 func TestWithRustCompatibility(t *testing.T) {
@@ -943,10 +943,9 @@ func TestWithRustCompatibility(t *testing.T) {
 			t.Fatalf("error inserting: %v", err)
 		}
 	}
-	var hash Fr
-	toFr(&hash, root.ComputeCommitment())
-	hashBytes := hash.BytesLE()
-	if !bytes.Equal(hashBytes[:], testAccountRootHashRust) {
-		t.Fatalf("rust and golang impl are not compatible rust=%x, go=%x", testAccountRootHashRust, hashBytes)
+
+	commBytes := root.ComputeCommitment().Bytes()
+	if !bytes.Equal(commBytes[:], testAccountRootCommRust) {
+		t.Fatalf("rust and golang impl are not compatible rust=%x, go=%x", testAccountRootCommRust, commBytes)
 	}
 }

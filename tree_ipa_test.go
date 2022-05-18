@@ -29,6 +29,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"testing"
+
+	"github.com/crate-crypto/go-ipa/banderwagon"
 )
 
 var identity *Point
@@ -208,5 +210,27 @@ func TestEmptyTrie(t *testing.T) {
 
 	if !comm.Equal(identity) {
 		t.Fatalf("invalid root commitment %v != %v", comm, identity)
+	}
+}
+
+func TestGroupToField(t *testing.T) {
+	point := banderwagon.Generator
+	var v Fr
+	toFr(&v, &point)
+	bytes := v.BytesLE()
+	hexStr := hex.EncodeToString(bytes[:])
+	if hexStr != "d1e7de2aaea9603d5bc6c208d319596376556ecd8336671ba7670c2139772d14" {
+		t.Fatalf("group to field not working")
+	}
+}
+
+func TestPaddingInFromLEBytes(t *testing.T) {
+	var fr1, fr2 Fr
+	FromLEBytes(&fr1, ffx32KeyTest[:16])
+	key, _ := hex.DecodeString("ffffffffffffffffffffffffffffffff00000000000000000000000000000000")
+	FromLEBytes(&fr2, key)
+
+	if !fr1.Equal(&fr2) {
+		t.Fatal("byte alignment")
 	}
 }
