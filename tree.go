@@ -312,15 +312,15 @@ func (n *InternalNode) insert(key []byte, value []byte, resolver NodeResolverFn)
 }
 
 func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeResolverFn) error {
-	// Clear cached commitment on modification
-	n.commitment = nil
-
 	// Prevent access to that subtree so that nodes aren't
 	// flushed from under us.
 	if n.depth >= 2 {
 		n.lock.Lock()
 		defer n.lock.Unlock()
 	}
+
+	// Clear cached commitment on modification
+	n.commitment = nil
 
 	err := n.insertStem(stem, values, resolver)
 	if err != nil {
@@ -513,13 +513,13 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 }
 
 func (n *InternalNode) Delete(key []byte) error {
-	// Clear cached commitment on modification
-	n.commitment = nil
-
 	if n.depth >= 2 {
 		n.lock.Lock()
 		defer n.lock.Unlock()
 	}
+
+	// Clear cached commitment on modification
+	n.commitment = nil
 
 	nChild := offset2key(key, n.depth)
 	switch child := n.children[nChild].(type) {
