@@ -311,6 +311,8 @@ func (n *InternalNode) insert(key []byte, value []byte, resolver NodeResolverFn)
 	return nil
 }
 
+// InsertStem does the same thing as Insert, except all values in an extension-and-suffix node
+// are inserted at once.
 func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeResolverFn) error {
 	// Prevent access to that subtree so that nodes aren't
 	// flushed from under us.
