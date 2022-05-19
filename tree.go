@@ -403,7 +403,18 @@ func (n *InternalNode) insertStemUnlocked(stem []byte, values [][]byte, resolver
 			}
 		}
 	case *InternalNode:
-		return child.InsertStem(stem, values, resolver)
+		var (
+			pre, post Fr // pre- and post-insertion hahes
+			diff      Point
+		)
+		toFr(&pre, child.commitment)
+		err := child.InsertStem(stem, values, resolver)
+		if err != nil {
+			return err
+		}
+		toFr(&post, child.commitment)
+		diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[nChild], pre.Sub(&post, &pre))
+		n.commitment.Add(n.commitment, &diff)
 	default: // StatelessNode
 		return errStatelessAndStatefulMix
 	}
