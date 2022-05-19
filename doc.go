@@ -35,6 +35,7 @@ var (
 	errSerializeHashedNode     = errors.New("trying to serialized a hashed node")
 	errNotSupportedInStateless = errors.New("not implemented in stateless")
 	errInsertIntoOtherStem     = errors.New("insert splits a stem where it should not happen")
+	errStatelessAndStatefulMix = errors.New("a stateless node should not be found in a stateful tree")
 )
 
 const (

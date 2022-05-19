@@ -305,8 +305,10 @@ func (n *InternalNode) insertUnlocked(key []byte, value []byte, resolver NodeRes
 				return err
 			}
 		}
-	default: // InternalNode
+	case *InternalNode:
 		return child.Insert(key, value, resolver)
+	default: // StatelessNode
+		return errStatelessAndStatefulMix
 	}
 	return nil
 }
@@ -402,6 +404,8 @@ func (n *InternalNode) insertStemUnlocked(stem []byte, values [][]byte, resolver
 		}
 	case *InternalNode:
 		return child.InsertStem(stem, values, resolver)
+	default: // StatelessNode
+		return errStatelessAndStatefulMix
 	}
 	return nil
 }
@@ -508,8 +512,10 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 				}
 			}
 		}
-	default: // InternalNode
+	case *InternalNode: // InternalNode
 		return child.InsertOrdered(key, value, flush)
+	default: // StatelessNode
+		return errStatelessAndStatefulMix
 	}
 	return nil
 }
