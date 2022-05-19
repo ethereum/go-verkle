@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("2K!\xffCc'l>2\xa0mwd9G8C&.\xfd\xba\x0e\x0f\xeen1yc8\x8a\xa949\xb4\xea1sA\x19Lb\xe1\x01X(z7\x9emc)*8\xbd\xbd\xbdB\xbd,Cly\xa82000000000000000000000000000000000000000000000000000000000000000")

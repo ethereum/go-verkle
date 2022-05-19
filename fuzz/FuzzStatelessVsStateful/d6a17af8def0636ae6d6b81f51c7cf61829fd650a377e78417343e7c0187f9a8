@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("8p97%.\x81\x81#B2091Y828.9Z=A8C&#cZB(2y\x8d18Z9!=XC0\xa20\xc8yv\xfd7Y#C]1\"QCya\xb811Y")
