@@ -29,6 +29,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"sync"
 )
 
 type NodeFlushFn func(VerkleNode)
@@ -169,6 +170,8 @@ type (
 		commitment *Point
 
 		committer Committer
+
+		lock sync.Mutex
 	}
 
 	LeafNode struct {
@@ -214,11 +217,26 @@ func (n *InternalNode) SetChild(i int, c VerkleNode) error {
 }
 
 func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn) error {
-	// Clear cached commitment on modification
-	if n.commitment != nil {
-		n.commitment = nil
+	// Prevent access to that subtree so that nodes aren't
+	// flushed from under us.
+	if n.depth >= 2 {
+		n.lock.Lock()
+		defer n.lock.Unlock()
 	}
 
+	// Clear cached commitment on modification
+	n.commitment = nil
+
+	err := n.insertUnlocked(key, value, resolver)
+	if err != nil {
+		return err
+	}
+
+	n.ComputeCommitment()
+	return nil
+}
+
+func (n *InternalNode) insertUnlocked(key []byte, value []byte, resolver NodeResolverFn) error {
 	nChild := offset2key(key, n.depth)
 
 	switch child := n.children[nChild].(type) {
@@ -239,15 +257,17 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 		hash := child.ComputeCommitment().Bytes()
 		serialized, err := resolver(hash[:])
 		if err != nil {
-			return fmt.Errorf("verkle tree: error resolving node %x: %w", key, err)
+			return fmt.Errorf("verkle tree: error resolving node %x at depth %d: %w", key, n.depth, err)
 		}
 		resolved, err := ParseNode(serialized, n.depth+1, hash[:])
 		if err != nil {
 			return fmt.Errorf("verkle tree: error parsing resolved node %x: %w", key, err)
 		}
+		resolved.ComputeCommitment()
 		n.children[nChild] = resolved
-		// the child has been resolved as a LeafNode, so when recursing, the following case will be executed
-		return n.Insert(key, value, resolver)
+		// recurse to handle the case of a LeafNode child that
+		// splits.
+		return n.insertUnlocked(key, value, resolver)
 	case *LeafNode:
 		// Need to add a new branch node to differentiate
 		// between two keys, if the keys are different.
@@ -287,6 +307,101 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 		}
 	default: // InternalNode
 		return child.Insert(key, value, resolver)
+	}
+	return nil
+}
+
+// InsertStem does the same thing as Insert, except all values in an extension-and-suffix node
+// are inserted at once.
+func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeResolverFn) error {
+	// Prevent access to that subtree so that nodes aren't
+	// flushed from under us.
+	if n.depth >= 2 {
+		n.lock.Lock()
+		defer n.lock.Unlock()
+	}
+
+	// Clear cached commitment on modification
+	n.commitment = nil
+
+	err := n.insertStemUnlocked(stem, values, resolver)
+	if err != nil {
+		return err
+	}
+
+	n.ComputeCommitment()
+	return nil
+}
+
+func (n *InternalNode) insertStemUnlocked(stem []byte, values [][]byte, resolver NodeResolverFn) error {
+	nChild := offset2key(stem, n.depth)
+
+	switch child := n.children[nChild].(type) {
+	case Empty:
+		lastNode := &LeafNode{
+			stem:      stem,
+			values:    values,
+			committer: n.committer,
+			depth:     n.depth + 1,
+		}
+		n.children[nChild] = lastNode
+		n.count++
+	case *HashedNode:
+		if resolver == nil {
+			return errInsertIntoHash
+		}
+		hash := child.ComputeCommitment().Bytes()
+		serialized, err := resolver(hash[:])
+		if err != nil {
+			return fmt.Errorf("verkle tree: error resolving node %x at depth %d: %w", stem, n.depth, err)
+		}
+		resolved, err := ParseNode(serialized, n.depth+1, hash[:])
+		if err != nil {
+			return fmt.Errorf("verkle tree: error parsing resolved node %x: %w", stem, err)
+		}
+		resolved.ComputeCommitment()
+		n.children[nChild] = resolved
+		// recurse to handle the case of a LeafNode child that
+		// splits.
+		return n.insertStemUnlocked(stem, values, resolver)
+	case *LeafNode:
+		// Need to add a new branch node to differentiate
+		// between two keys, if the keys are different.
+		// Otherwise, just update the key.
+		if equalPaths(child.stem, stem) {
+			if err := child.insertStem(stem, values); err != nil {
+				return err
+			}
+		} else {
+			// A new branch node has to be inserted. Depending
+			// on the next word in both keys, a recursion into
+			// the moved leaf node can occur.
+			nextWordInExistingKey := offset2key(child.stem, n.depth+1)
+			newBranch := newInternalNode(n.depth+1, n.committer).(*InternalNode)
+			newBranch.count = 1
+			n.count++
+			n.children[nChild] = newBranch
+			newBranch.children[nextWordInExistingKey] = child
+			child.depth += 1
+
+			nextWordInInsertedKey := offset2key(stem, n.depth+1)
+			if nextWordInInsertedKey != nextWordInExistingKey {
+				// Next word differs, so this was the last level.
+				// Insert it directly into its final slot.
+				lastNode := &LeafNode{
+					stem:      stem,
+					values:    values,
+					committer: n.committer,
+					depth:     n.depth + 2,
+				}
+				newBranch.children[nextWordInInsertedKey] = lastNode
+				newBranch.count++
+			} else if err := newBranch.InsertStem(stem, values, resolver); err != nil {
+				return err
+			}
+		}
+	case *InternalNode:
+		return child.InsertStem(stem, values, resolver)
 	}
 	return nil
 }
@@ -400,6 +515,11 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 }
 
 func (n *InternalNode) Delete(key []byte) error {
+	if n.depth >= 2 {
+		n.lock.Lock()
+		defer n.lock.Unlock()
+	}
+
 	// Clear cached commitment on modification
 	n.commitment = nil
 
@@ -419,15 +539,13 @@ func (n *InternalNode) Delete(key []byte) error {
 func (n *InternalNode) Flush(flush NodeFlushFn) {
 	for i, child := range n.children {
 		if c, ok := child.(*InternalNode); ok {
-			if c.commitment == nil {
-				c.ComputeCommitment()
-			}
+			c.lock.Lock()
+			defer c.lock.Unlock()
+			c.ComputeCommitment()
 			c.Flush(flush)
 			n.children[i] = c.toHashedNode()
 		} else if c, ok := child.(*LeafNode); ok {
-			if c.commitment == nil {
-				c.ComputeCommitment()
-			}
+			c.ComputeCommitment()
 			flush(n.children[i])
 			n.children[i] = c.toHashedNode()
 		}
@@ -435,63 +553,40 @@ func (n *InternalNode) Flush(flush NodeFlushFn) {
 	flush(n)
 }
 
-// FlushStem recurses through the tree until it finds a leaf node,
-// and flushes this leaf node to disk. The internal nodes are left
-// untouched.
-func (n *InternalNode) FlushStem(stem []byte, flush NodeFlushFn) {
-	nChild := offset2key(stem, n.depth)
-	child := n.children[nChild]
-	switch child := child.(type) {
-	case *InternalNode:
-		child.FlushStem(stem, flush)
-
-		// if n.depth is 2 then the child's depth is 3
-		if n.depth >= 2 {
-			child.ComputeCommitment()
-			flush(child)
-			n.children[nChild] = child.toHashedNode()
-			return
-		}
-	case *LeafNode:
-		if child.commitment == nil {
-			child.ComputeCommitment()
-		}
-		flush(child)
-		n.children[nChild] = child.toHashedNode()
-
-	default:
-		// reaching here is probably an error, skip for now
-	}
-}
-
 // FlushAtDepth goes over all internal nodes of a given depth, and
-// flushes them to disk. It's meant to free up some memory when it
+// flushes them to disk. Its purpose it to free up space if memory
 // is running scarce.
 func (n *InternalNode) FlushAtDepth(depth uint8, flush NodeFlushFn) {
 	for i, child := range n.children {
-		switch c := child.(type) {
-		case *LeafNode:
-			if n.depth+1 >= depth {
-				child.ComputeCommitment()
-				flush(child)
-				n.children[i] = c.toHashedNode()
-			}
-		case *InternalNode:
-			c.FlushAtDepth(depth, flush)
+		// Skip non-internal nodes
+		c, ok := child.(*InternalNode)
+		if !ok {
+			continue
+		}
 
-			if n.depth+1 >= depth {
-				child.ComputeCommitment()
-				flush(child)
-				n.children[i] = c.toHashedNode()
-			}
-		default:
-			// skip
+		// Recurse, to ensure that each child will
+		// be locked.
+		c.FlushAtDepth(depth, flush)
+
+		if n.depth >= depth {
+			// Lock the subtree so no insertion
+			// occur during the flush.
+			c.lock.Lock()
+			defer c.lock.Unlock()
+
+			child.ComputeCommitment()
+			c.Flush(flush)
+			n.children[i] = c.toHashedNode()
 		}
 	}
 }
 
 func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 	nChild := offset2key(k, n.depth)
+	if n.depth >= 2 {
+		n.lock.Lock()
+		defer n.lock.Unlock()
+	}
 
 	switch child := n.children[nChild].(type) {
 	case Empty, nil:
@@ -722,6 +817,18 @@ func (n *LeafNode) Insert(k []byte, value []byte, _ NodeResolverFn) error {
 	}
 	n.values[k[31]] = value
 	n.commitment = nil
+	n.ComputeCommitment()
+	return nil
+}
+
+func (n *LeafNode) insertStem(k []byte, values [][]byte) error {
+	// Sanity check: ensure the key header is the same:
+	if !equalPaths(k, n.stem) {
+		return errInsertIntoOtherStem
+	}
+	n.values = values
+	n.commitment = nil
+	n.ComputeCommitment()
 	return nil
 }
 

@@ -240,43 +240,6 @@ func TestFlush1kLeaves(t *testing.T) {
 	}
 }
 
-func TestStemFlush(t *testing.T) {
-	n := 1000
-	keys := randomKeysSorted(n)
-
-	flushCh := make(chan VerkleNode)
-	flush := func(node VerkleNode) {
-		flushCh <- node
-	}
-	go func() {
-		root := New()
-		for _, k := range keys {
-			root.Insert(k, fourtyKeyTest, nil)
-		}
-		for _, k := range keys {
-			root.(*InternalNode).FlushStem(k[:31], flush)
-		}
-		close(flushCh)
-	}()
-
-	count := 0
-	leaves := 0
-	for n := range flushCh {
-		_, isLeaf := n.(*LeafNode)
-		if !isLeaf {
-			t.Fatal("invalid node type received, expected leaf")
-		}
-		if isLeaf {
-			leaves++
-		}
-		count++
-	}
-
-	if leaves != n {
-		t.Fatalf("number of flushed leaves incorrect. Expected %d got %d\n", n, leaves)
-	}
-}
-
 func TestCopy(t *testing.T) {
 	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
 	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
@@ -314,7 +277,8 @@ func TestCachedCommitment(t *testing.T) {
 	tree.Insert(key1, fourtyKeyTest, nil)
 	tree.Insert(key2, fourtyKeyTest, nil)
 	tree.Insert(key3, fourtyKeyTest, nil)
-	tree.ComputeCommitment()
+	oldRoot := tree.ComputeCommitment().Bytes()
+	oldInternal := tree.(*InternalNode).children[4].(*LeafNode).commitment.Bytes()
 
 	if tree.(*InternalNode).commitment == nil {
 		t.Error("root has not cached commitment")
@@ -322,10 +286,10 @@ func TestCachedCommitment(t *testing.T) {
 
 	tree.Insert(key4, fourtyKeyTest, nil)
 
-	if tree.(*InternalNode).commitment != nil {
+	if tree.(*InternalNode).commitment.Bytes() == oldRoot {
 		t.Error("root has stale commitment")
 	}
-	if tree.(*InternalNode).children[4].(*InternalNode).commitment != nil {
+	if tree.(*InternalNode).children[4].(*InternalNode).commitment.Bytes() == oldInternal {
 		t.Error("internal node has stale commitment")
 	}
 	if tree.(*InternalNode).children[1].(*InternalNode).commitment == nil {
@@ -947,5 +911,82 @@ func TestWithRustCompatibility(t *testing.T) {
 	commBytes := root.ComputeCommitment().Bytes()
 	if !bytes.Equal(commBytes[:], testAccountRootCommRust) {
 		t.Fatalf("rust and golang impl are not compatible rust=%x, go=%x", testAccountRootCommRust, commBytes)
+	}
+}
+
+func TestInsertStem(t *testing.T) {
+	root1 := New()
+	root2 := New()
+
+	values := make([][]byte, 256)
+	values[5] = zeroKeyTest
+	values[192] = fourtyKeyTest
+
+	root1.(*InternalNode).InsertStem(fourtyKeyTest[:31], values, nil)
+	r1c := root1.ComputeCommitment()
+
+	var key5, key192 [32]byte
+	copy(key5[:], fourtyKeyTest[:31])
+	copy(key192[:], fourtyKeyTest[:31])
+	key5[31] = 5
+	key192[31] = 192
+	root2.Insert(key5[:], zeroKeyTest, nil)
+	root2.Insert(key192[:], fourtyKeyTest, nil)
+	r2c := root2.ComputeCommitment()
+
+	if !Equal(r1c, r2c) {
+		t.Fatalf("differing commitments %x != %x", r1c.Bytes(), r2c.Bytes())
+	}
+}
+
+func TestInsertResolveSplitLeaf(t *testing.T) {
+	var leaf *LeafNode
+
+	// Insert a unique leaf and flush it
+	root := New()
+	root.Insert(zeroKeyTest, ffx32KeyTest, nil)
+	root.(*InternalNode).Flush(func(node VerkleNode) {
+		l, ok := node.(*LeafNode)
+		if !ok {
+			return
+		}
+
+		if leaf != nil {
+			t.Fatal("there should only be one leaf")
+		}
+		leaf = l
+	})
+
+	// check that the leafnode is now a hashed node
+	if _, ok := root.(*InternalNode).children[0].(*HashedNode); !ok {
+		t.Fatal("flush didn't produce a hashed node")
+	}
+
+	// Now insert another leaf, with a resolver function
+	key, _ := hex.DecodeString("0000100000000000000000000000000000000000000000000000000000000000")
+	if err := root.Insert(key, ffx32KeyTest, func(comm []byte) ([]byte, error) {
+		leafcomm := leaf.ComputeCommitment().Bytes()
+		if bytes.Equal(comm, leafcomm[:]) {
+			ls, err := leaf.Serialize()
+			if err != nil {
+				return nil, err
+			}
+			return ls, nil
+		}
+
+		return nil, fmt.Errorf("asked for %x, expected %x", comm, leafcomm)
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, ok := root.(*InternalNode).children[0].(*InternalNode); !ok {
+		t.Fatal("resolution didn't produce and intermediate, intermediate node")
+	}
+	l, ok := root.(*InternalNode).children[0].(*InternalNode).children[0].(*InternalNode).children[0].(*LeafNode)
+	if !ok {
+		t.Fatal("resolve with resolver didn't produce a leaf node where expected")
+	}
+	if !bytes.Equal(l.stem, zeroKeyTest[:31]) && !bytes.Equal(l.values[0], ffx32KeyTest) {
+		t.Fatal("didn't find the resolved leaf where expected")
 	}
 }
