@@ -938,3 +938,55 @@ func TestInsertStem(t *testing.T) {
 		t.Fatalf("differing commitments %x != %x", r1c.Bytes(), r2c.Bytes())
 	}
 }
+
+func TestInsertResolveSplitLeaf(t *testing.T) {
+	var leaf *LeafNode
+
+	// Insert a unique leaf and flush it
+	root := New()
+	root.Insert(zeroKeyTest, ffx32KeyTest, nil)
+	root.(*InternalNode).Flush(func(node VerkleNode) {
+		l, ok := node.(*LeafNode)
+		if !ok {
+			return
+		}
+
+		if leaf != nil {
+			t.Fatal("there should only be one leaf")
+		}
+		leaf = l
+	})
+
+	// check that the leafnode is now a hashed node
+	if _, ok := root.(*InternalNode).children[0].(*HashedNode); !ok {
+		t.Fatal("flush didn't produce a hashed node")
+	}
+
+	// Now insert another leaf, with a resolver function
+	key, _ := hex.DecodeString("0000100000000000000000000000000000000000000000000000000000000000")
+	if err := root.Insert(key, ffx32KeyTest, func(comm []byte) ([]byte, error) {
+		leafcomm := leaf.ComputeCommitment().Bytes()
+		if bytes.Equal(comm, leafcomm[:]) {
+			ls, err := leaf.Serialize()
+			if err != nil {
+				return nil, err
+			}
+			return ls, nil
+		}
+
+		return nil, fmt.Errorf("asked for %x, expected %x", comm, leafcomm)
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, ok := root.(*InternalNode).children[0].(*InternalNode); !ok {
+		t.Fatal("resolution didn't produce and intermediate, intermediate node")
+	}
+	l, ok := root.(*InternalNode).children[0].(*InternalNode).children[0].(*InternalNode).children[0].(*LeafNode)
+	if !ok {
+		t.Fatal("resolve with resolver didn't produce a leaf node where expected")
+	}
+	if !bytes.Equal(l.stem, zeroKeyTest[:31]) && !bytes.Equal(l.values[0], ffx32KeyTest) {
+		t.Fatal("didn't find the resolved leaf where expected")
+	}
+}
