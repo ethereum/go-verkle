@@ -227,7 +227,7 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 	// Clear cached commitment on modification
 	n.commitment = nil
 
-	err := n.insert(key, value, resolver)
+	err := n.insertUnlocked(key, value, resolver)
 	if err != nil {
 		return err
 	}
@@ -236,7 +236,7 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 	return nil
 }
 
-func (n *InternalNode) insert(key []byte, value []byte, resolver NodeResolverFn) error {
+func (n *InternalNode) insertUnlocked(key []byte, value []byte, resolver NodeResolverFn) error {
 	nChild := offset2key(key, n.depth)
 
 	switch child := n.children[nChild].(type) {
@@ -267,7 +267,7 @@ func (n *InternalNode) insert(key []byte, value []byte, resolver NodeResolverFn)
 		n.children[nChild] = resolved
 		// recurse to handle the case of a LeafNode child that
 		// splits.
-		return n.insert(key, value, resolver)
+		return n.insertUnlocked(key, value, resolver)
 	case *LeafNode:
 		// Need to add a new branch node to differentiate
 		// between two keys, if the keys are different.
@@ -324,7 +324,7 @@ func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeRes
 	// Clear cached commitment on modification
 	n.commitment = nil
 
-	err := n.insertStem(stem, values, resolver)
+	err := n.insertStemUnlocked(stem, values, resolver)
 	if err != nil {
 		return err
 	}
@@ -333,7 +333,7 @@ func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeRes
 	return nil
 }
 
-func (n *InternalNode) insertStem(stem []byte, values [][]byte, resolver NodeResolverFn) error {
+func (n *InternalNode) insertStemUnlocked(stem []byte, values [][]byte, resolver NodeResolverFn) error {
 	nChild := offset2key(stem, n.depth)
 
 	switch child := n.children[nChild].(type) {
@@ -363,7 +363,7 @@ func (n *InternalNode) insertStem(stem []byte, values [][]byte, resolver NodeRes
 		n.children[nChild] = resolved
 		// recurse to handle the case of a LeafNode child that
 		// splits.
-		return n.insertStem(stem, values, resolver)
+		return n.insertStemUnlocked(stem, values, resolver)
 	case *LeafNode:
 		// Need to add a new branch node to differentiate
 		// between two keys, if the keys are different.
