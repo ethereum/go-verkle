@@ -546,10 +546,10 @@ func (n *InternalNode) Flush(flush NodeFlushFn) {
 	for i, child := range n.children {
 		if c, ok := child.(*InternalNode); ok {
 			c.lock.Lock()
-			defer c.lock.Unlock()
 			c.ComputeCommitment()
 			c.Flush(flush)
 			n.children[i] = c.toHashedNode()
+			c.lock.Unlock()
 		} else if c, ok := child.(*LeafNode); ok {
 			c.ComputeCommitment()
 			flush(n.children[i])
@@ -578,11 +578,11 @@ func (n *InternalNode) FlushAtDepth(depth uint8, flush NodeFlushFn) {
 			// Lock the subtree so no insertion
 			// occur during the flush.
 			c.lock.Lock()
-			defer c.lock.Unlock()
 
 			child.ComputeCommitment()
 			c.Flush(flush)
 			n.children[i] = c.toHashedNode()
+			c.lock.Unlock()
 		}
 	}
 }
