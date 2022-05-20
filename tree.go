@@ -246,7 +246,6 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 		return err
 	}
 
-	n.ComputeCommitment()
 	return nil
 }
 
@@ -277,7 +276,6 @@ func (n *InternalNode) insertUnlocked(key []byte, value []byte, resolver NodeRes
 		if err != nil {
 			return fmt.Errorf("verkle tree: error parsing resolved node %x: %w", key, err)
 		}
-		resolved.ComputeCommitment()
 		n.children[nChild] = resolved
 		// recurse to handle the case of a LeafNode child that
 		// splits.
@@ -825,7 +823,6 @@ func (n *LeafNode) Insert(k []byte, value []byte, _ NodeResolverFn) error {
 	}
 	n.values[k[31]] = value
 	n.commitment = nil
-	n.ComputeCommitment()
 	return nil
 }
 
