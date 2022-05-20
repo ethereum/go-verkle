@@ -29,6 +29,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"runtime"
 	"sync"
 )
 
@@ -808,6 +809,21 @@ func (n *InternalNode) toDot(parent, path string) string {
 
 func (n *InternalNode) setDepth(d byte) {
 	n.depth = d
+}
+
+// MergeTrees takes a series of subtrees that got filled following
+// a command-and-conquer method, and merges them into a single tree.
+func MergeTrees(subroots []*InternalNode) VerkleNode {
+	root := New().(*InternalNode)
+	offset := 0
+	for i, subroot := range subroots {
+		root.count += subroot.count
+		for offset = i * runtime.NumCPU(); offset < (i+1)*runtime.NumCPU(); offset++ {
+			root.children[offset] = subroot.children[offset]
+		}
+	}
+
+	return root
 }
 
 func (n *LeafNode) ToHashedNode() *HashedNode {
