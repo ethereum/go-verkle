@@ -453,3 +453,7 @@ func (n *StatelessNode) toDot(parent, path string) string {
 
 	return ret
 }
+
+func (n *StatelessNode) setDepth(d byte) {
+	n.depth = d
+}

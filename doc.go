@@ -36,6 +36,7 @@ var (
 	errNotSupportedInStateless = errors.New("not implemented in stateless")
 	errInsertIntoOtherStem     = errors.New("insert splits a stem where it should not happen")
 	errStatelessAndStatefulMix = errors.New("a stateless node should not be found in a stateful tree")
+	errLeafOverwrite           = errors.New("leaf overwrite disallowed")
 )
 
 const (
