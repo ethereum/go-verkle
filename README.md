@@ -5,7 +5,7 @@
 
 # go-verkle
 
-An implementation of [Verkle trees](https://notes.ethereum.org/nrQqhVpQRi6acQckwm1Ryg). When production-ready, the code is to be merged back into go-ethereum.
+An implementation of [Verkle trees](https://dankradfeist.de/ethereum/2021/06/18/verkle-trie-for-eth1.html). When production-ready, the code is to be merged back into go-ethereum.
 
 Node width is set to 256 children.
 
