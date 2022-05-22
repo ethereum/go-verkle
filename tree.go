@@ -234,7 +234,7 @@ func (n *InternalNode) SetChild(i int, c VerkleNode) error {
 func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn) error {
 	// Prevent access to that subtree so that nodes aren't
 	// flushed from under us.
-	if n.depth >= 2 {
+	if n.depth >= 1 {
 		n.lock.Lock()
 		defer n.lock.Unlock()
 	}
@@ -325,7 +325,7 @@ func (n *InternalNode) insertUnlocked(key []byte, value []byte, resolver NodeRes
 func (n *InternalNode) InsertStem(stem []byte, node VerkleNode, resolver NodeResolverFn) error {
 	// Prevent access to that subtree so that nodes aren't
 	// flushed from under us.
-	if n.depth >= 2 {
+	if n.depth >= 1 {
 		n.lock.Lock()
 		defer n.lock.Unlock()
 	}
@@ -510,7 +510,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 }
 
 func (n *InternalNode) Delete(key []byte) error {
-	if n.depth >= 2 {
+	if n.depth >= 1 {
 		n.lock.Lock()
 		defer n.lock.Unlock()
 	}
@@ -578,7 +578,7 @@ func (n *InternalNode) FlushAtDepth(depth uint8, flush NodeFlushFn) {
 
 func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 	nChild := offset2key(k, n.depth)
-	if n.depth >= 2 {
+	if n.depth >= 1 {
 		n.lock.Lock()
 		defer n.lock.Unlock()
 	}
