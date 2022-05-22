@@ -242,12 +242,7 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 	// Clear cached commitment on modification
 	n.commitment = nil
 
-	err := n.insertUnlocked(key, value, resolver)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return n.insertUnlocked(key, value, resolver)
 }
 
 func (n *InternalNode) insertUnlocked(key []byte, value []byte, resolver NodeResolverFn) error {
@@ -338,13 +333,7 @@ func (n *InternalNode) InsertStem(stem []byte, node VerkleNode, resolver NodeRes
 	// Clear cached commitment on modification
 	n.commitment = nil
 
-	err := n.insertStemUnlocked(stem, node, resolver)
-	if err != nil {
-		return err
-	}
-
-	n.ComputeCommitment()
-	return nil
+	return n.insertStemUnlocked(stem, node, resolver)
 }
 
 func (n *InternalNode) insertStemUnlocked(stem []byte, node VerkleNode, resolver NodeResolverFn) error {
@@ -849,7 +838,6 @@ func (n *LeafNode) insertStem(k []byte, values [][]byte) error {
 	}
 	n.values = values
 	n.commitment = nil
-	n.ComputeCommitment()
 	return nil
 }
 
