@@ -348,7 +348,7 @@ func (n *InternalNode) insertStemUnlocked(stem []byte, node VerkleNode, resolver
 		if resolver == nil {
 			return errInsertIntoHash
 		}
-		hash := child.ComputeCommitment().Bytes()
+		hash := child.commitment.Bytes()
 		serialized, err := resolver(hash[:])
 		if err != nil {
 			return fmt.Errorf("verkle tree: error resolving node %x at depth %d: %w", stem, n.depth, err)
@@ -398,6 +398,9 @@ func (n *InternalNode) insertStemUnlocked(stem []byte, node VerkleNode, resolver
 
 func (n *InternalNode) toHashedNode() *HashedNode {
 	var hash Fr
+	if n.commitment == nil {
+		panic("nil commitment")
+	}
 	toFr(&hash, n.commitment)
 	return &HashedNode{&hash, n.commitment}
 }
@@ -817,6 +820,9 @@ func MergeTrees(subroots []*InternalNode) VerkleNode {
 
 func (n *LeafNode) ToHashedNode() *HashedNode {
 	var hash Fr
+	if n.commitment == nil {
+		panic("nil commitment")
+	}
 	toFr(&hash, n.commitment)
 	return &HashedNode{&hash, n.commitment}
 }
