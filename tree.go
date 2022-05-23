@@ -30,7 +30,6 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
-	"sync"
 )
 
 type NodeFlushFn func(VerkleNode)
@@ -173,8 +172,6 @@ type (
 		commitment *Point
 
 		committer Committer
-
-		lock sync.Mutex
 	}
 
 	LeafNode struct {
@@ -794,16 +791,6 @@ func (n *LeafNode) Insert(k []byte, value []byte, _ NodeResolverFn) error {
 		return errInsertIntoOtherStem
 	}
 	n.values[k[31]] = value
-	n.commitment = nil
-	return nil
-}
-
-func (n *LeafNode) insertStem(k []byte, values [][]byte) error {
-	// Sanity check: ensure the key header is the same:
-	if !equalPaths(k, n.stem) {
-		return errInsertIntoOtherStem
-	}
-	n.values = values
 	n.commitment = nil
 	return nil
 }
