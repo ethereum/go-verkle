@@ -375,7 +375,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 	case Empty:
 		// Insert into a new subtrie, which means that the
 		// subtree directly preceding this new one, can
-		// safely be calculated.
+		// safely be flushed.
 	searchFirstNonEmptyChild:
 		for i := int(nChild) - 1; i >= 0; i-- {
 			switch child := n.children[i].(type) {
@@ -458,6 +458,93 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 		}
 	case *InternalNode: // InternalNode
 		return child.InsertOrdered(key, value, flush)
+	default: // StatelessNode
+		return errStatelessAndStatefulMix
+	}
+	return nil
+}
+
+// InsertStemOrdered does the same thing as InsertOrdered but is meant to insert a pre-build
+// LeafNode at a given stem, instead of individual leaves.
+func (n *InternalNode) InsertStemOrdered(key []byte, leaf *LeafNode, flush NodeFlushFn) error {
+	n.commitment = nil
+
+	nChild := offset2key(key, n.depth)
+
+	switch child := n.children[nChild].(type) {
+	case Empty:
+		// Insert into a new subtrie, which means that the
+		// subtree directly preceding this new one, can
+		// safely be flushed.
+	searchFirstNonEmptyChild:
+		for i := int(nChild) - 1; i >= 0; i-- {
+			switch child := n.children[i].(type) {
+			case Empty:
+				continue
+			case *LeafNode:
+				child.ComputeCommitment()
+				if flush != nil {
+					flush(child)
+				}
+				n.children[i] = child.ToHashedNode()
+				break searchFirstNonEmptyChild
+			case *HashedNode:
+				break searchFirstNonEmptyChild
+			case *InternalNode:
+				n.children[i].ComputeCommitment()
+				if flush != nil {
+					child.Flush(flush)
+				}
+				n.children[i] = child.toHashedNode()
+				break searchFirstNonEmptyChild
+			}
+		}
+
+		leaf.depth = n.depth + 1
+		n.children[nChild] = leaf
+		n.count++
+
+	case *HashedNode:
+		return errInsertIntoHash
+	case *LeafNode:
+		// Need to add a new branch node to differentiate
+		// between two keys, if the keys are different.
+		// Otherwise, just update the key.
+		if equalPaths(child.stem, key) {
+			return errLeafOverwrite
+		}
+
+		// A new branch node has to be inserted. Depending
+		// on the next word in both keys, a recursion into
+		// the moved leaf node can occur.
+		nextWordInExistingKey := offset2key(child.stem, n.depth+1)
+		newBranch := newInternalNode(n.depth+1, n.committer).(*InternalNode)
+		newBranch.count = 1
+		n.children[nChild] = newBranch
+
+		nextWordInInsertedKey := offset2key(key, n.depth+1)
+		if nextWordInInsertedKey != nextWordInExistingKey {
+			// Directly hash the (left) node that was already
+			// inserted.
+			child.ComputeCommitment()
+			if flush != nil {
+				flush(child)
+			}
+			newBranch.children[nextWordInExistingKey] = child.ToHashedNode()
+
+			// Next word differs, so this was the last level.
+			// Insert it directly into its final slot.
+			leaf.depth = n.depth + 1
+			newBranch.children[nextWordInInsertedKey] = leaf
+		} else {
+			// Reinsert the leaf in order to recurse
+			newBranch.children[nextWordInExistingKey] = child
+			if err := newBranch.InsertStemOrdered(key, leaf, flush); err != nil {
+				return err
+			}
+		}
+	case *InternalNode: // InternalNode
+		return child.InsertStemOrdered(key, leaf, flush)
 	default: // StatelessNode
 		return errStatelessAndStatefulMix
 	}
