@@ -502,7 +502,6 @@ func (n *InternalNode) InsertStemOrdered(key []byte, leaf *LeafNode, flush NodeF
 
 		leaf.depth = n.depth + 1
 		n.children[nChild] = leaf
-		n.count++
 
 	case *HashedNode:
 		return errInsertIntoHash
@@ -519,7 +518,6 @@ func (n *InternalNode) InsertStemOrdered(key []byte, leaf *LeafNode, flush NodeF
 		// the moved leaf node can occur.
 		nextWordInExistingKey := offset2key(child.stem, n.depth+1)
 		newBranch := newInternalNode(n.depth+1, n.committer).(*InternalNode)
-		newBranch.count = 1
 		n.children[nChild] = newBranch
 
 		nextWordInInsertedKey := offset2key(key, n.depth+1)
