@@ -29,7 +29,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"runtime"
 )
 
 type NodeFlushFn func(VerkleNode)
@@ -733,10 +732,12 @@ func (n *InternalNode) setDepth(d byte) {
 // a command-and-conquer method, and merges them into a single tree.
 func MergeTrees(subroots []*InternalNode) VerkleNode {
 	root := New().(*InternalNode)
-	offset := 0
-	for i, subroot := range subroots {
-		for offset = i * runtime.NumCPU(); offset < (i+1)*runtime.NumCPU(); offset++ {
-			root.children[offset] = subroot.children[offset]
+	for _, subroot := range subroots {
+		for i := 0; i < 256; i++ {
+			if _, ok := subroot.children[i].(Empty); ok {
+				continue
+			}
+			root.children[i] = subroot.children[i]
 		}
 	}
 
