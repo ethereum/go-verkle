@@ -164,10 +164,6 @@ type (
 		// node depth in the tree, in bits
 		depth byte
 
-		// child count, used for the special case in
-		// commitment calculations.
-		count uint
-
 		// Cache the commitment value
 		commitment *Point
 
@@ -194,7 +190,6 @@ func newInternalNode(depth byte, cmtr Committer) VerkleNode {
 	}
 	node.depth = depth
 	node.committer = cmtr
-	node.count = 0
 	return node
 }
 
@@ -244,7 +239,6 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 		}
 		lastNode.values[key[31]] = value
 		n.children[nChild] = lastNode
-		n.count++
 	case *HashedNode:
 		if resolver == nil {
 			return errInsertIntoHash
@@ -276,8 +270,6 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 			// the moved leaf node can occur.
 			nextWordInExistingKey := offset2key(child.stem, n.depth+1)
 			newBranch := newInternalNode(n.depth+1, n.committer).(*InternalNode)
-			newBranch.count = 1
-			n.count++
 			n.children[nChild] = newBranch
 			newBranch.children[nextWordInExistingKey] = child
 			child.depth += 1
@@ -294,7 +286,6 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 				}
 				lastNode.values[key[31]] = value
 				newBranch.children[nextWordInInsertedKey] = lastNode
-				newBranch.count++
 			} else if err := newBranch.Insert(key, value, resolver); err != nil {
 				return err
 			}
@@ -317,7 +308,6 @@ func (n *InternalNode) InsertStem(stem []byte, node VerkleNode, resolver NodeRes
 	case Empty:
 		node.setDepth(n.depth + 1)
 		n.children[nChild] = node
-		n.count++
 	case *HashedNode:
 		if resolver == nil {
 			return errInsertIntoHash
@@ -346,8 +336,6 @@ func (n *InternalNode) InsertStem(stem []byte, node VerkleNode, resolver NodeRes
 		// the moved leaf node can occur.
 		nextWordInExistingKey := offset2key(child.stem, n.depth+1)
 		newBranch := newInternalNode(n.depth+1, n.committer).(*InternalNode)
-		newBranch.count = 1
-		n.count++
 		n.children[nChild] = newBranch
 		newBranch.children[nextWordInExistingKey] = child
 		child.depth += 1
@@ -358,7 +346,6 @@ func (n *InternalNode) InsertStem(stem []byte, node VerkleNode, resolver NodeRes
 			// Insert it directly into its final slot.
 			node.setDepth(n.depth + 2)
 			newBranch.children[nextWordInInsertedKey] = node
-			newBranch.count++
 		} else if err := newBranch.InsertStem(stem, node, resolver); err != nil {
 			return err
 		}
@@ -423,7 +410,6 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 		}
 		lastNode.values[key[31]] = value
 		n.children[nChild] = lastNode
-		n.count++
 
 		// If the node was already created, then there was at least one
 		// child. As a result, inserting this new leaf means there are
@@ -442,7 +428,6 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 			// the moved leaf node can occur.
 			nextWordInExistingKey := offset2key(child.stem, n.depth+1)
 			newBranch := newInternalNode(n.depth+1, n.committer).(*InternalNode)
-			newBranch.count = 1
 			n.children[nChild] = newBranch
 
 			nextWordInInsertedKey := offset2key(key, n.depth+1)
@@ -464,7 +449,6 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 				}
 				lastNode.values[key[31]] = value
 				newBranch.children[nextWordInInsertedKey] = lastNode
-				newBranch.count++
 			} else {
 				// Reinsert the leaf in order to recurse
 				newBranch.children[nextWordInExistingKey] = child
@@ -574,19 +558,6 @@ func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 
 func (n *InternalNode) ComputeCommitment() *Point {
 	if n.commitment != nil {
-		return n.commitment
-	}
-
-	// Special cases of a node with no children: either it's
-	// an empty root, or it's an invalid node.
-	if n.count == 0 {
-		if n.depth != 0 {
-			panic("internal node should be empty node")
-		}
-
-		// case of an empty root
-		n.commitment = new(Point)
-		n.commitment.Identity()
 		return n.commitment
 	}
 
@@ -711,7 +682,6 @@ func (n *InternalNode) Copy() VerkleNode {
 		commitment: new(Point),
 		depth:      n.depth,
 		committer:  n.committer,
-		count:      n.count,
 	}
 
 	for i, child := range n.children {
@@ -765,7 +735,6 @@ func MergeTrees(subroots []*InternalNode) VerkleNode {
 	root := New().(*InternalNode)
 	offset := 0
 	for i, subroot := range subroots {
-		root.count += subroot.count
 		for offset = i * runtime.NumCPU(); offset < (i+1)*runtime.NumCPU(); offset++ {
 			root.children[offset] = subroot.children[offset]
 		}

@@ -101,7 +101,6 @@ func CreateInternalNode(bitlist []byte, raw []byte, depth byte, comm []byte) (*I
 		hashed.commitment.SetBytes(raw[i*32 : (i+1)*32])
 		toFr(hashed.hash, hashed.commitment)
 		n.children[index] = hashed
-		n.count++
 	}
 	n.commitment = new(Point)
 	n.commitment.SetBytes(comm)
