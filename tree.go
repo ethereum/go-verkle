@@ -381,9 +381,7 @@ func (n *InternalNode) toHashedNode() *HashedNode {
 
 func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn) error {
 	// Clear cached commitment on modification
-	if n.commitment != nil {
-		n.commitment = nil
-	}
+	n.commitment = nil
 
 	nChild := offset2key(key, n.depth)
 
