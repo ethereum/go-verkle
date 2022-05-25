@@ -995,3 +995,58 @@ func TestInsertResolveSplitLeaf(t *testing.T) {
 		t.Fatal("didn't find the resolved leaf where expected")
 	}
 }
+
+func TestInsertStemOrdered(t *testing.T) {
+	root1 := New()
+	root2 := New()
+
+	values1 := make([][]byte, 256)
+	values1[5] = zeroKeyTest
+	values1[192] = fourtyKeyTest
+	values2 := make([][]byte, 256)
+	values2[0] = ffx32KeyTest
+	values3 := make([][]byte, 256)
+	values3[64] = zeroKeyTest
+
+	var keysplit [32]byte // a key to check stem splitting in insert
+	copy(keysplit[:], fourtyKeyTest)
+	keysplit[24] = 72
+	leaf1 := &LeafNode{
+		stem:      fourtyKeyTest[:31],
+		values:    values1,
+		committer: root1.(*InternalNode).committer,
+	}
+	leaf2 := &LeafNode{
+		stem:      keysplit[:31],
+		values:    values2,
+		committer: root1.(*InternalNode).committer,
+	}
+	leaf3 := &LeafNode{
+		stem:      ffx32KeyTest[:31],
+		values:    values3,
+		committer: root1.(*InternalNode).committer,
+	}
+	root1.(*InternalNode).InsertStemOrdered(fourtyKeyTest[:31], leaf1, nil)
+	root1.(*InternalNode).InsertStemOrdered(keysplit[:31], leaf2, nil)
+	root1.(*InternalNode).InsertStemOrdered(ffx32KeyTest[:31], leaf3, nil)
+	r1c := root1.ComputeCommitment()
+
+	var key5, key32, key64, key192 [32]byte
+	copy(key5[:], fourtyKeyTest[:31])
+	copy(key192[:], fourtyKeyTest[:31])
+	copy(key64[:], ffx32KeyTest[:31])
+	key5[31] = 5
+	key192[31] = 192
+	key64[31] = 64
+	key32[31] = 32
+	root2.Insert(key5[:], zeroKeyTest, nil)
+	root2.Insert(key192[:], fourtyKeyTest, nil)
+	root2.Insert(key192[:], fourtyKeyTest, nil)
+	root2.Insert(key64[:], zeroKeyTest, nil)
+	root2.Insert(keysplit[:], ffx32KeyTest, nil)
+	r2c := root2.ComputeCommitment()
+
+	if !Equal(r1c, r2c) {
+		t.Fatalf("differing commitments %x != %x", r1c.Bytes(), r2c.Bytes())
+	}
+}
