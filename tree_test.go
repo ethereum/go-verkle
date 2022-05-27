@@ -1049,4 +1049,11 @@ func TestInsertStemOrdered(t *testing.T) {
 	if !Equal(r1c, r2c) {
 		t.Fatalf("differing commitments %x != %x", r1c.Bytes(), r2c.Bytes())
 	}
+
+	// Check that a previous key was flushed and hashed, and that one can no
+	// longer insert in it.
+	err := root1.(*InternalNode).InsertStemOrdered(fourtyKeyTest[:31], leaf1, nil)
+	if err != errInsertIntoHash {
+		t.Fatalf("received wrong error %v != %v", err, errInsertIntoHash)
+	}
 }
