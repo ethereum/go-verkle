@@ -1026,6 +1026,7 @@ func TestInsertStemOrdered(t *testing.T) {
 		values:    values3,
 		committer: root1.(*InternalNode).committer,
 	}
+	root1.(*InternalNode).Insert(zeroKeyTest, ffx32KeyTest, nil)
 	root1.(*InternalNode).InsertStemOrdered(fourtyKeyTest[:31], leaf1, nil)
 	root1.(*InternalNode).InsertStemOrdered(keysplit[:31], leaf2, nil)
 	root1.(*InternalNode).InsertStemOrdered(ffx32KeyTest[:31], leaf3, nil)
@@ -1039,6 +1040,7 @@ func TestInsertStemOrdered(t *testing.T) {
 	key192[31] = 192
 	key64[31] = 64
 	key32[31] = 32
+	root2.Insert(zeroKeyTest, ffx32KeyTest, nil)
 	root2.Insert(key5[:], zeroKeyTest, nil)
 	root2.Insert(key192[:], fourtyKeyTest, nil)
 	root2.Insert(key192[:], fourtyKeyTest, nil)
