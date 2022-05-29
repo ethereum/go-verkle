@@ -1008,6 +1008,11 @@ func TestInsertStemOrdered(t *testing.T) {
 	values3 := make([][]byte, 256)
 	values3[64] = zeroKeyTest
 
+	flushCount := 0
+	flush := func(VerkleNode) {
+		flushCount++
+	}
+
 	var keysplit [32]byte // a key to check stem splitting in insert
 	copy(keysplit[:], fourtyKeyTest)
 	keysplit[24] = 72
@@ -1027,10 +1032,15 @@ func TestInsertStemOrdered(t *testing.T) {
 		committer: root1.(*InternalNode).committer,
 	}
 	root1.(*InternalNode).Insert(zeroKeyTest, ffx32KeyTest, nil)
-	root1.(*InternalNode).InsertStemOrdered(fourtyKeyTest[:31], leaf1, nil)
-	root1.(*InternalNode).InsertStemOrdered(keysplit[:31], leaf2, nil)
-	root1.(*InternalNode).InsertStemOrdered(ffx32KeyTest[:31], leaf3, nil)
+	root1.(*InternalNode).InsertStemOrdered(fourtyKeyTest[:31], leaf1, flush)
+	root1.(*InternalNode).InsertStemOrdered(keysplit[:31], leaf2, flush)
+	root1.(*InternalNode).InsertStemOrdered(ffx32KeyTest[:31], leaf3, flush)
 	r1c := root1.ComputeCommitment()
+
+	// 26 for fourtyKeyTest + 2 children, 1 for zeroKeyTest,
+	if flushCount != 27 {
+		t.Fatalf("incorrect number of flushes %d != 26", flushCount)
+	}
 
 	var key5, key32, key64, key192 [32]byte
 	copy(key5[:], fourtyKeyTest[:31])
