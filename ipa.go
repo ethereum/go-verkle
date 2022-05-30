@@ -43,8 +43,7 @@ func CopyPoint(dst, src *Point) {
 }
 
 func toFr(fr *Fr, p *Point) {
-	baseField := p.MapToBaseField()
-	bytes := (&baseField).BytesLE()
+	bytes := p.MapToBaseFieldBytes()
 	fr.SetBytesLE(bytes[:])
 }
 
