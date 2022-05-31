@@ -89,8 +89,6 @@ type VerkleNode interface {
 
 	// toDot returns a string representing this subtree in DOT language
 	toDot(string, string) string
-
-	setDepth(depth byte)
 }
 
 // ProofElements gathers the elements needed to build a proof.
@@ -298,62 +296,8 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 }
 
 // InsertStem inserts a pre-constructed node into the tree at stem stem.
-func (n *InternalNode) InsertStem(stem []byte, node VerkleNode, resolver NodeResolverFn) error {
-	// Clear cached commitment on modification
-	n.commitment = nil
-	nChild := offset2key(stem, n.depth)
-
-	switch child := n.children[nChild].(type) {
-	case Empty:
-		node.setDepth(n.depth + 1)
-		n.children[nChild] = node
-	case *HashedNode:
-		if resolver == nil {
-			return errInsertIntoHash
-		}
-		hash := child.commitment.Bytes()
-		serialized, err := resolver(hash[:])
-		if err != nil {
-			return fmt.Errorf("verkle tree: error resolving node %x at depth %d: %w", stem, n.depth, err)
-		}
-		resolved, err := ParseNode(serialized, n.depth+1, hash[:])
-		if err != nil {
-			return fmt.Errorf("verkle tree: error parsing resolved node %x: %w", stem, err)
-		}
-		resolved.ComputeCommitment()
-		n.children[nChild] = resolved
-		// recurse to handle the case of a LeafNode child that
-		// splits.
-		return n.InsertStem(stem, node, resolver)
-	case *LeafNode:
-		// overwriting leaves isn't allowed
-		if equalPaths(child.stem, stem) {
-			return errLeafOverwrite
-		}
-		// A new branch node has to be inserted. Depending
-		// on the next word in both keys, a recursion into
-		// the moved leaf node can occur.
-		nextWordInExistingKey := offset2key(child.stem, n.depth+1)
-		newBranch := newInternalNode(n.depth+1, n.committer).(*InternalNode)
-		n.children[nChild] = newBranch
-		newBranch.children[nextWordInExistingKey] = child
-		child.depth += 1
-
-		nextWordInInsertedKey := offset2key(stem, n.depth+1)
-		if nextWordInInsertedKey != nextWordInExistingKey {
-			// Next word differs, so this was the last level.
-			// Insert it directly into its final slot.
-			node.setDepth(n.depth + 2)
-			newBranch.children[nextWordInInsertedKey] = node
-		} else if err := newBranch.InsertStem(stem, node, resolver); err != nil {
-			return err
-		}
-	case *InternalNode:
-		return child.InsertStem(stem, node, resolver)
-	default: // StatelessNode
-		return errStatelessAndStatefulMix
-	}
-	return nil
+func (n *InternalNode) InsertStem(stem []byte, leaf *LeafNode, resolver NodeResolverFn) error {
+	return n.insertStemHelper(stem, leaf, nil, false, resolver)
 }
 
 func (n *InternalNode) toHashedNode() *HashedNode {
@@ -466,50 +410,76 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 
 // InsertStemOrdered does the same thing as InsertOrdered but is meant to insert a pre-build
 // LeafNode at a given stem, instead of individual leaves.
-func (n *InternalNode) InsertStemOrdered(key []byte, leaf *LeafNode, flush NodeFlushFn) error {
+func (n *InternalNode) InsertStemOrdered(stem []byte, leaf *LeafNode, flush NodeFlushFn) error {
+	return n.insertStemHelper(stem, leaf, flush, true, nil)
+}
+
+func (n *InternalNode) flushPreviousNode(nChild int, flush NodeFlushFn) {
+searchFirstNonEmptyChild:
+	for i := nChild - 1; i >= 0; i-- {
+		switch child := n.children[i].(type) {
+		case Empty:
+			continue
+		case *LeafNode:
+			child.ComputeCommitment()
+			if flush != nil {
+				flush(child)
+			}
+			n.children[i] = child.ToHashedNode()
+			break searchFirstNonEmptyChild
+		case *HashedNode:
+			break searchFirstNonEmptyChild
+		case *InternalNode:
+			n.children[i].ComputeCommitment()
+			if flush != nil {
+				child.Flush(flush)
+			}
+			n.children[i] = child.toHashedNode()
+			break searchFirstNonEmptyChild
+		}
+	}
+}
+
+func (n *InternalNode) insertStemHelper(stem []byte, leaf *LeafNode, flush NodeFlushFn, flushPreviousNode bool, resolver NodeResolverFn) error {
 	n.commitment = nil
 
-	nChild := offset2key(key, n.depth)
+	nChild := offset2key(stem, n.depth)
 
 	switch child := n.children[nChild].(type) {
 	case Empty:
 		// Insert into a new subtrie, which means that the
 		// subtree directly preceding this new one, can
 		// safely be flushed.
-	searchFirstNonEmptyChild:
-		for i := int(nChild) - 1; i >= 0; i-- {
-			switch child := n.children[i].(type) {
-			case Empty:
-				continue
-			case *LeafNode:
-				child.ComputeCommitment()
-				if flush != nil {
-					flush(child)
-				}
-				n.children[i] = child.ToHashedNode()
-				break searchFirstNonEmptyChild
-			case *HashedNode:
-				break searchFirstNonEmptyChild
-			case *InternalNode:
-				n.children[i].ComputeCommitment()
-				if flush != nil {
-					child.Flush(flush)
-				}
-				n.children[i] = child.toHashedNode()
-				break searchFirstNonEmptyChild
-			}
+		if flushPreviousNode {
+			n.flushPreviousNode(int(nChild), flush)
 		}
 
 		leaf.depth = n.depth + 1
 		n.children[nChild] = leaf
 
 	case *HashedNode:
-		return errInsertIntoHash
+		if resolver == nil {
+			return errInsertIntoHash
+		}
+
+		// this will only execute in InsertStem, since InsertStemOrdered has resolver = nil
+		hash := child.commitment.Bytes()
+		serialized, err := resolver(hash[:])
+		if err != nil {
+			return fmt.Errorf("verkle tree: error resolving node %x at depth %d: %w", stem, n.depth, err)
+		}
+		resolved, err := ParseNode(serialized, n.depth+1, hash[:])
+		if err != nil {
+			return fmt.Errorf("verkle tree: error parsing resolved node %x: %w", stem, err)
+		}
+		resolved.ComputeCommitment()
+		n.children[nChild] = resolved
+		// recurse to handle the case of a LeafNode child that
+		// splits.
+		return n.InsertStem(stem, leaf, resolver)
 	case *LeafNode:
-		// Need to add a new branch node to differentiate
-		// between two keys, if the keys are different.
-		// Otherwise, just update the key.
-		if equalPaths(child.stem, key) {
+		// overwriting leaves isn't allowed
+		if equalPaths(child.stem, stem) {
 			return errLeafOverwrite
 		}
 
@@ -520,15 +490,20 @@ func (n *InternalNode) InsertStemOrdered(key []byte, leaf *LeafNode, flush NodeF
 		newBranch := newInternalNode(n.depth+1, n.committer).(*InternalNode)
 		n.children[nChild] = newBranch
 
-		nextWordInInsertedKey := offset2key(key, n.depth+1)
+		nextWordInInsertedKey := offset2key(stem, n.depth+1)
 		if nextWordInInsertedKey != nextWordInExistingKey {
-			// Directly hash the (left) node that was already
-			// inserted.
-			child.ComputeCommitment()
-			if flush != nil {
-				flush(child)
+			if false {
+				newBranch.children[nextWordInExistingKey] = child
+				child.depth += 1
+			} else {
+				// Directly hash the (left) node that was already
+				// inserted.
+				if flush != nil {
+					child.ComputeCommitment()
+					flush(child)
+				}
+				newBranch.children[nextWordInExistingKey] = child.ToHashedNode()
 			}
-			newBranch.children[nextWordInExistingKey] = child.ToHashedNode()
 
 			// Next word differs, so this was the last level.
 			// Insert it directly into its final slot.
@@ -537,12 +512,10 @@ func (n *InternalNode) InsertStemOrdered(key []byte, leaf *LeafNode, flush NodeF
 		} else {
 			// Reinsert the leaf in order to recurse
 			newBranch.children[nextWordInExistingKey] = child
-			if err := newBranch.InsertStemOrdered(key, leaf, flush); err != nil {
-				return err
-			}
+			return newBranch.insertStemHelper(stem, leaf, flush, flushPreviousNode, resolver)
 		}
 	case *InternalNode: // InternalNode
-		return child.InsertStemOrdered(key, leaf, flush)
+		return child.insertStemHelper(stem, leaf, flush, flushPreviousNode, resolver)
 	default: // StatelessNode
 		return errStatelessAndStatefulMix
 	}
@@ -807,10 +780,6 @@ func (n *InternalNode) toDot(parent, path string) string {
 	}
 
 	return ret
-}
-
-func (n *InternalNode) setDepth(d byte) {
-	n.depth = d
 }
 
 // MergeTrees takes a series of subtrees that got filled following
@@ -1117,10 +1086,6 @@ func (n *LeafNode) toDot(parent, path string) string {
 		}
 	}
 	return ret
-}
-
-func (n *LeafNode) setDepth(d byte) {
-	n.depth = d
 }
 
 func setBit(bitlist []byte, index int) {
