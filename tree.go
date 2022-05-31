@@ -532,7 +532,7 @@ func (n *InternalNode) InsertStemOrdered(key []byte, leaf *LeafNode, flush NodeF
 
 			// Next word differs, so this was the last level.
 			// Insert it directly into its final slot.
-			leaf.depth = n.depth + 1
+			leaf.depth = n.depth + 2
 			newBranch.children[nextWordInInsertedKey] = leaf
 		} else {
 			// Reinsert the leaf in order to recurse
