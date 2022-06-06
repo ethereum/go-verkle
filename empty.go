@@ -37,7 +37,7 @@ func (e Empty) InsertOrdered(key []byte, value []byte, _ NodeFlushFn) error {
 	return e.Insert(key, value, nil)
 }
 
-func (Empty) Delete([]byte) error {
+func (Empty) Delete([]byte, NodeResolverFn) error {
 	return errors.New("cant delete an empty node")
 }
 

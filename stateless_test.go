@@ -88,12 +88,12 @@ func TestStatelessDelete(t *testing.T) {
 		t.Fatal("second insert didn't update")
 	}
 
-	root.Delete(oneKeyTest)
+	root.Delete(oneKeyTest, nil)
 
 	rootRef := New()
 	rootRef.Insert(zeroKeyTest, fourtyKeyTest, nil)
 	rootRef.Insert(oneKeyTest, fourtyKeyTest, nil)
-	rootRef.Delete(oneKeyTest)
+	rootRef.Delete(oneKeyTest, nil)
 
 	if !Equal(rootRef.ComputeCommitment(), root.commitment) {
 		t.Fatal("error in delete", rootRef.ComputeCommitment(), root.hash)

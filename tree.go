@@ -65,7 +65,7 @@ type VerkleNode interface {
 	InsertOrdered([]byte, []byte, NodeFlushFn) error
 
 	// Delete a leaf with the given key
-	Delete([]byte) error
+	Delete([]byte, NodeResolverFn) error
 
 	// Get value at a given key
 	Get([]byte, NodeResolverFn) ([]byte, error)
@@ -549,7 +549,7 @@ func (n *InternalNode) InsertStemOrdered(key []byte, leaf *LeafNode, flush NodeF
 	return nil
 }
 
-func (n *InternalNode) Delete(key []byte) error {
+func (n *InternalNode) Delete(key []byte, resolver NodeResolverFn) error {
 	// Clear cached commitment on modification
 	n.commitment = nil
 
@@ -558,9 +558,24 @@ func (n *InternalNode) Delete(key []byte) error {
 	case Empty:
 		return errDeleteNonExistent
 	case *HashedNode:
-		return errDeleteHash
+		if resolver == nil {
+			return errDeleteHash
+		}
+		comm := child.commitment.Bytes()
+		payload, err := resolver(comm[:])
+		if err != nil {
+			return err
+		}
+		// deserialize the payload and set it as the child
+		c, err := ParseNode(payload, n.depth+1, comm[:])
+		if err != nil {
+			return err
+		}
+		c.ComputeCommitment()
+		n.children[nChild] = c
+		return n.Delete(key, resolver)
 	default:
-		return child.Delete(key)
+		return child.Delete(key, resolver)
 	}
 }
 
@@ -855,7 +870,7 @@ func (n *LeafNode) InsertOrdered(key []byte, value []byte, _ NodeFlushFn) error 
 	return n.Insert(key, value, nil)
 }
 
-func (n *LeafNode) Delete(k []byte) error {
+func (n *LeafNode) Delete(k []byte, _ NodeResolverFn) error {
 	// Sanity check: ensure the key header is the same:
 	if !equalPaths(k, n.stem) {
 		return errDeleteNonExistent

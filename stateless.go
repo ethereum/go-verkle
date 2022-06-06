@@ -288,7 +288,7 @@ func (*StatelessNode) InsertOrdered([]byte, []byte, NodeFlushFn) error {
 	return errNotSupportedInStateless
 }
 
-func (n *StatelessNode) Delete(key []byte) error {
+func (n *StatelessNode) Delete(key []byte, resolver NodeResolverFn) error {
 	// Case of an ext node
 	if n.values != nil {
 		var zero [32]byte
@@ -303,7 +303,7 @@ func (n *StatelessNode) Delete(key []byte) error {
 	child := n.children[nChild]
 	var pre Fr
 	CopyFr(&pre, child.hash)
-	if err := child.Delete(key); err != nil {
+	if err := child.Delete(key, resolver); err != nil {
 		return err
 	}
 

@@ -329,7 +329,7 @@ func TestDelLeaf(t *testing.T) {
 	hash := tree.ComputeCommitment()
 
 	tree.Insert(key3, fourtyKeyTest, nil)
-	if err := tree.Delete(key3); err != nil {
+	if err := tree.Delete(key3, nil); err != nil {
 		t.Error(err)
 	}
 
@@ -354,7 +354,7 @@ func TestDeleteNonExistent(t *testing.T) {
 	tree := New()
 	tree.Insert(key1, fourtyKeyTest, nil)
 	tree.Insert(key2, fourtyKeyTest, nil)
-	if err := tree.Delete(key3); err != errDeleteNonExistent {
+	if err := tree.Delete(key3, nil); err != errDeleteNonExistent {
 		t.Error("should fail to delete non-existent key")
 	}
 }
@@ -373,7 +373,7 @@ func TestDeletePrune(t *testing.T) {
 	hash2 := tree.ComputeCommitment()
 	tree.Insert(key4, fourtyKeyTest, nil)
 
-	if err := tree.Delete(key4); err != nil {
+	if err := tree.Delete(key4, nil); err != nil {
 		t.Error(err)
 	}
 	postHash := tree.ComputeCommitment()
@@ -388,7 +388,7 @@ func TestDeletePrune(t *testing.T) {
 		t.Error("leaf hasnt been deleted")
 	}
 
-	if err := tree.Delete(key3); err != nil {
+	if err := tree.Delete(key3, nil); err != nil {
 		t.Error(err)
 	}
 	postHash = tree.ComputeCommitment()
@@ -413,7 +413,7 @@ func TestDeleteHash(t *testing.T) {
 	tree.InsertOrdered(key2, fourtyKeyTest, nil)
 	tree.InsertOrdered(key3, fourtyKeyTest, nil)
 	tree.ComputeCommitment()
-	if err := tree.Delete(key2); err != errDeleteHash {
+	if err := tree.Delete(key2, nil); err != errDeleteHash {
 		t.Fatalf("did not report the correct error while deleting from a hash: %v", err)
 	}
 }
@@ -427,8 +427,41 @@ func TestDeleteUnequalPath(t *testing.T) {
 	tree.Insert(key3, fourtyKeyTest, nil)
 	tree.ComputeCommitment()
 
-	if err := tree.Delete(key2); err != errDeleteNonExistent {
+	if err := tree.Delete(key2, nil); err != errDeleteNonExistent {
 		t.Fatalf("didn't catch the deletion of non-existing key, err =%v", err)
+	}
+}
+func TestDeleteResolve(t *testing.T) {
+	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
+	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
+	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
+	tree := New()
+	var savedNodes []VerkleNode
+	saveNode := func(node VerkleNode) {
+		savedNodes = append(savedNodes, node)
+	}
+	tree.InsertOrdered(key1, fourtyKeyTest, saveNode)
+	tree.InsertOrdered(key2, fourtyKeyTest, saveNode)
+	tree.InsertOrdered(key3, fourtyKeyTest, saveNode)
+	tree.ComputeCommitment()
+
+	var called bool
+	err := tree.Delete(key2, func(comm []byte) ([]byte, error) {
+		called = true
+		for _, node := range savedNodes {
+			c := node.ComputeCommitment().Bytes()
+			if bytes.Equal(comm, c[:]) {
+				return node.Serialize()
+			}
+		}
+		t.Fatal("could not find node")
+		return nil, fmt.Errorf("node not found")
+	})
+	if !called {
+		t.Fatal("should have called the resolve function")
+	}
+	if err != nil {
+		t.Fatalf("error deleting key: %v", err)
 	}
 }
 
