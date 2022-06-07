@@ -33,6 +33,7 @@ import (
 type HashedNode struct {
 	hash       *Fr
 	commitment *Point
+	stem       []byte
 }
 
 func (*HashedNode) Insert([]byte, []byte, NodeResolverFn) error {
@@ -73,6 +74,10 @@ func (n *HashedNode) Copy() VerkleNode {
 	}
 	if n.commitment != nil {
 		CopyPoint(h.commitment, n.commitment)
+	}
+	if n.stem != nil {
+		h.stem = make([]byte, len(n.stem))
+		copy(h.stem, n.stem)
 	}
 
 	return h
