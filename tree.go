@@ -326,9 +326,23 @@ func (n *InternalNode) InsertStem(stem []byte, node VerkleNode, resolver NodeRes
 		// splits.
 		return n.InsertStem(stem, node, resolver)
 	case *LeafNode:
-		// overwriting leaves isn't allowed
+		// if the leaf already exists, attempt to merge the two. If a value
+		// is inserted into a slot that already contains a key, return an
+		// error as InsertStem is only used for the conversion process and
+		// the same key should not be inserted twice. Because keys are converted
+		// in hash order, though, it is possible to find a case in which two
+		// keys belonging to the same group are reported as two groups with one
+		// leaf, and these groups should be merged.
 		if equalPaths(child.stem, stem) {
-			return errLeafOverwrite
+			for i, v := range node.(*LeafNode).values {
+				if len(v) != 0 {
+					if len(child.values[i]) == 0 {
+						child.values[i] = v
+					} else {
+						return errLeafOverwrite
+					}
+				}
+			}
 		}
 		// A new branch node has to be inserted. Depending
 		// on the next word in both keys, a recursion into
@@ -510,7 +524,15 @@ func (n *InternalNode) InsertStemOrdered(key []byte, leaf *LeafNode, flush NodeF
 		// between two keys, if the keys are different.
 		// Otherwise, just update the key.
 		if equalPaths(child.stem, key) {
-			return errLeafOverwrite
+			for i, v := range leaf.values {
+				if len(v) != 0 {
+					if len(child.values[i]) == 0 {
+						child.values[i] = v
+					} else if bytes.Compare(child.values[i], v) != 0 {
+						return errLeafOverwrite
+					}
+				}
+			}
 		}
 
 		// A new branch node has to be inserted. Depending
