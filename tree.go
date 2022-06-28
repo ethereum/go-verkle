@@ -528,7 +528,7 @@ func (n *InternalNode) InsertStemOrdered(key []byte, leaf *LeafNode, flush NodeF
 				if len(v) != 0 {
 					if len(child.values[i]) == 0 {
 						child.values[i] = v
-					} else if bytes.Compare(child.values[i], v) != 0 {
+					} else if !bytes.Equal(child.values[i], v) {
 						return errLeafOverwrite
 					}
 				}
