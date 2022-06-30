@@ -109,6 +109,11 @@ func (n *StatelessNode) SetChild(i int, v VerkleNode) error {
 	return nil
 }
 
+// SetStem is an accessor for a stateless leaf node stem
+func (n *StatelessNode) SetStem(stem []byte) {
+	n.stem = stem
+}
+
 func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn) error {
 	// if this is a leaf value and the stems are different, intermediate
 	// nodes need to be inserted.

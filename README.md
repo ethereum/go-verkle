@@ -11,7 +11,7 @@ Node width is set to 256 children.
 
 ### Setup
 
-Download the [precomputed Lagrange point file](https://github.com/gballet/go-verkle/releases/download/banderwagon/precomp) available in [this release](https://github.com/gballet/go-verkle/releases/tag/banderwagon), and place it in the directory that you will run the program from. While not strictly required (it will be generated upon startup if not present), this will save a lot of startup time when running the tests.
+Download the [precomputed Lagrange point file](https://github.com/gballet/go-verkle/releases/download/banderwagonv2/precomp) available in [this release](https://github.com/gballet/go-verkle/releases/tag/banderwagon), and place it in the directory that you will run the program from. While not strictly required (it will be generated upon startup if not present), this will save a lot of startup time when running the tests.
 
 ### Running the tests
 
