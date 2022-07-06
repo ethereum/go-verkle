@@ -251,16 +251,18 @@ func (n *StatelessNode) insertStem(path []byte, stemInfo stemInfo, comms []*Poin
 			if stemInfo.has_c1 {
 				comms = comms[1:]
 				n.children[path[0]].c1 = comms[0]
+				comms = comms[1:]
 			}
 			if stemInfo.has_c2 {
 				comms = comms[1:]
 				n.children[path[0]].c2 = comms[0]
+				comms = comms[1:]
 			}
 			n.children[path[0]].values = stemInfo.values
 			n.children[path[0]].stem = stemInfo.stem
 			n.children[path[0]].depth = n.depth + 1
 		}
-		return comms[1:], nil
+		return comms, nil
 	}
 
 	// create the child node if missing
@@ -392,8 +394,7 @@ func (n *StatelessNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][
 		pe = &ProofElements{
 			Cis:    []*Point{},
 			Zis:    []byte{},
-			Yis:    []*Fr{}, // Should be 0
-			Fis:    [][]Fr{},
+			Yis:    []*Fr{},
 			ByPath: map[string]*Point{},
 		}
 
@@ -401,27 +402,27 @@ func (n *StatelessNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][
 		poass [][]byte       // list of proof-of-absence stems
 	)
 
-	if n.children != nil {
+	if len(n.values) == 0 {
 		var (
 			groups = groupKeys(keys, n.depth)
 		)
 
-		// fill in the polynomial for this node
-		fi := make([]Fr, NodeWidth)
-		for i, child := range n.children {
-			toFr(&fi[i], child.ComputeCommitment())
-		}
-
 		for _, group := range groups {
 			childIdx := offset2key(group[0], n.depth)
-			var yi Fr
-			toFr(&yi, n.children[childIdx].commitment)
 
-			// Build the list of elements for this level
+			var yi Fr
+			// when proving that a key is not in the tree
+			if n.children[childIdx] == nil {
+				yi.SetZero()
+			} else {
+				toFr(&yi, n.children[childIdx].commitment)
+			}
+
 			pe.Cis = append(pe.Cis, n.commitment)
 			pe.Zis = append(pe.Zis, childIdx)
 			pe.Yis = append(pe.Yis, &yi)
 			pe.ByPath[string(group[0][:n.depth])] = n.commitment
+
 		}
 
 		// Loop over again, collecting the children's proof elements
@@ -431,7 +432,7 @@ func (n *StatelessNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][
 
 			// Special case of a proof of absence: no children
 			// commitment, as the value is 0.
-			if n.children[childIdx] != nil {
+			if n.children[childIdx] == nil {
 				// A question arises here: what if this proof of absence
 				// corresponds to several stems? Should the ext status be
 				// repeated as many times? It would be wasteful, so the
@@ -445,26 +446,11 @@ func (n *StatelessNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][
 			poass = append(poass, other...)
 			esses = append(esses, es...)
 		}
-
 	} else {
-		var (
-			poly [256]Fr // top-level polynomial
-			pe           = &ProofElements{
-				Cis:    []*Point{n.commitment, n.commitment},
-				Zis:    []byte{0, 1},
-				Yis:    []*Fr{&poly[0], &poly[1]}, // Should be 0
-				ByPath: map[string]*Point{},
-			}
-
-			esses []byte   = nil // list of extension statuses
-			poass [][]byte       // list of proof-of-absence stems
-		)
-
-		// Initialize the top-level polynomial with 1 + stem + C1 + C2
-		poly[0].SetUint64(1)
-		StemFromBytes(&poly[1], n.stem)
-		toFr(&poly[2], n.c1)
-		toFr(&poly[3], n.c2)
+		pe.Cis = append(pe.Cis, n.commitment, n.commitment)
+		pe.Zis = append(pe.Zis, 0, 1)
+		pe.Yis = append(pe.Yis, new(Fr).SetOne(), new(Fr).SetZero())
+		StemFromBytes(pe.Yis[len(pe.Yis)-1], n.stem)
 
 		for _, key := range keys {
 			pe.ByPath[string(key[:n.depth])] = n.commitment
@@ -503,10 +489,14 @@ func (n *StatelessNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][
 
 			if suffix < 128 {
 				scomm = n.c1
-				toFr(&yi, n.c1)
+				if n.c1 != nil {
+					toFr(&yi, n.c1)
+				}
 			} else {
 				scomm = n.c2
-				toFr(&yi, n.c2)
+				if n.c2 != nil {
+					toFr(&yi, n.c2)
+				}
 			}
 
 			// Proof of absence: case of a missing suffix tree.

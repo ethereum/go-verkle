@@ -278,7 +278,7 @@ func TreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) {
 			si.stem = stems[stemIndex]
 			si.values = map[byte][]byte{}
 			for i, k := range proof.Keys {
-				if !bytes.Equal(k[:31], si.stem) && proof.Values[i] != nil {
+				if bytes.Equal(k[:31], si.stem) && proof.Values[i] != nil {
 					si.values[k[31]] = proof.Values[i]
 					si.has_c1 = si.has_c1 || (k[31] < 128)
 					si.has_c2 = si.has_c2 || (k[31] >= 128)
