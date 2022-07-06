@@ -28,6 +28,7 @@ package verkle
 import (
 	"bytes"
 	"encoding/hex"
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
@@ -377,5 +378,41 @@ func TestStatelessDeserializeDepth2(t *testing.T) {
 
 	if !Equal(droot.(*StatelessNode).children[0].commitment, root.(*InternalNode).children[0].ComputeCommitment()) {
 		t.Fatal("differing commitment for child #0")
+	}
+}
+
+func TestStatelessGetProofItems(t *testing.T) {
+	root := New()
+	keys := [][]byte{zeroKeyTest, oneKeyTest, ffx32KeyTest}
+	for _, k := range keys {
+		root.Insert(k, fourtyKeyTest, nil)
+	}
+	keyvals := []KeyValuePair{
+		{zeroKeyTest, fourtyKeyTest},
+		{fourtyKeyTest, nil},
+	}
+
+	proof, _, _, _ := MakeVerkleMultiProof(root, keylist{zeroKeyTest, fourtyKeyTest}, map[string][]byte{string(zeroKeyTest): fourtyKeyTest, string(fourtyKeyTest): nil})
+
+	serialized, _, err := SerializeProof(proof)
+	if err != nil {
+		t.Fatalf("could not serialize proof: %v", err)
+	}
+
+	dproof, err := DeserializeProof(serialized, keyvals)
+	if err != nil {
+		t.Fatalf("error deserializing proof: %v", err)
+	}
+
+	droot, err := TreeFromProof(dproof, root.ComputeCommitment())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pel, _, _ := droot.GetProofItems(keylist(keys))
+	pef, _, _ := root.GetProofItems(keylist(keys))
+
+	if !reflect.DeepEqual(pel, pef) {
+		t.Fatalf("%v != %v", pel, pef)
 	}
 }
