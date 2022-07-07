@@ -325,7 +325,11 @@ func (n *StatelessNode) Delete(key []byte, resolver NodeResolverFn) error {
 
 func (n *StatelessNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 	if n.values != nil {
-		return n.values[k[31]], nil
+		// if the stems are different, then the key is missing
+		if bytes.Equal(n.stem, k[:31]) {
+			return n.values[k[31]], nil
+		}
+		return nil, nil
 	}
 
 	nChild := offset2key(k, n.depth)
