@@ -79,6 +79,9 @@ type VerkleNode interface {
 	// returns them breadth-first. On top of that, it returns
 	// one "extension status" per stem, and an alternate stem
 	// if the key is missing but another stem has been found.
+	//
+	// Note that `Fis` will be `nil` if this is a stateless
+	// tree.
 	GetProofItems(keylist) (*ProofElements, []byte, [][]byte)
 
 	// Serialize encodes the node to RLP.
@@ -98,7 +101,7 @@ type ProofElements struct {
 	Cis    []*Point
 	Zis    []byte
 	Yis    []*Fr
-	Fis    [][]Fr
+	Fis    [][]Fr            // Poly. evaluation at each of the 256 points. `nil` in stateless.
 	ByPath map[string]*Point // Gather commitments by path
 
 	// dedups flags the presence of each (Ci,zi) tuple
