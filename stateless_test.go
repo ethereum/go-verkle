@@ -379,3 +379,64 @@ func TestStatelessDeserializeDepth2(t *testing.T) {
 		t.Fatal("differing commitment for child #0")
 	}
 }
+
+func TestStatelessGetProofItems(t *testing.T) {
+	insertedKeys := [][]byte{zeroKeyTest, oneKeyTest, ffx32KeyTest}
+	provenKeys := [][]byte{zeroKeyTest, fourtyKeyTest}
+
+	root := New()
+	for _, k := range insertedKeys {
+		root.Insert(k, fourtyKeyTest, nil)
+	}
+	keyvals := []KeyValuePair{
+		{zeroKeyTest, fourtyKeyTest},
+		{fourtyKeyTest, nil},
+	}
+
+	proof, _, _, _ := MakeVerkleMultiProof(root, keylist(provenKeys), map[string][]byte{string(zeroKeyTest): fourtyKeyTest, string(fourtyKeyTest): nil})
+
+	serialized, _, err := SerializeProof(proof)
+	if err != nil {
+		t.Fatalf("could not serialize proof: %v", err)
+	}
+
+	dproof, err := DeserializeProof(serialized, keyvals)
+	if err != nil {
+		t.Fatalf("error deserializing proof: %v", err)
+	}
+
+	droot, err := TreeFromProof(dproof, root.ComputeCommitment())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pel, _, _ := droot.GetProofItems(keylist(provenKeys))
+	pef, _, _ := root.GetProofItems(keylist(provenKeys))
+
+	for i, c := range pel.Cis {
+		if !Equal(c, pef.Cis[i]) {
+			t.Fatalf("differing commitment at %d: %x != %x", i, c.Bytes(), pef.Cis[i].Bytes())
+		}
+	}
+	if len(pel.Cis) != len(pef.Cis) {
+		t.Fatal("commitments have different length")
+	}
+
+	if !bytes.Equal(pel.Zis, pef.Zis) {
+		t.Fatalf("differing index list %v != %v", pel.Zis, pef.Zis)
+	}
+	if len(pel.Zis) != len(pef.Zis) {
+		t.Fatal("indices have different length")
+	}
+
+	for i, y := range pel.Yis {
+		l := y.Bytes()
+		f := pef.Yis[i].Bytes()
+		if !bytes.Equal(l[:], f[:]) {
+			t.Fatalf("differing eval #%d %x != %x", i, l, f)
+		}
+	}
+	if len(pel.Yis) != len(pef.Yis) {
+		t.Fatal("evaluations have different length")
+	}
+}

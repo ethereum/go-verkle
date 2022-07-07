@@ -251,16 +251,18 @@ func (n *StatelessNode) insertStem(path []byte, stemInfo stemInfo, comms []*Poin
 			if stemInfo.has_c1 {
 				comms = comms[1:]
 				n.children[path[0]].c1 = comms[0]
+				comms = comms[1:]
 			}
 			if stemInfo.has_c2 {
 				comms = comms[1:]
 				n.children[path[0]].c2 = comms[0]
+				comms = comms[1:]
 			}
 			n.children[path[0]].values = stemInfo.values
 			n.children[path[0]].stem = stemInfo.stem
 			n.children[path[0]].depth = n.depth + 1
 		}
-		return comms[1:], nil
+		return comms, nil
 	}
 
 	// create the child node if missing
@@ -387,8 +389,164 @@ func (n *StatelessNode) ComputeCommitment() *Point {
 	return n.commitment
 }
 
-func (*StatelessNode) GetProofItems(keylist) (*ProofElements, []byte, [][]byte) {
-	panic("not supported in stateless mode")
+func (n *StatelessNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte) {
+	var (
+		pe = &ProofElements{
+			Cis:    []*Point{},
+			Zis:    []byte{},
+			Yis:    []*Fr{},
+			ByPath: map[string]*Point{},
+		}
+
+		esses []byte   = nil // list of extension statuses
+		poass [][]byte       // list of proof-of-absence stems
+	)
+
+	if len(n.values) == 0 {
+		var (
+			groups = groupKeys(keys, n.depth)
+		)
+
+		for _, group := range groups {
+			childIdx := offset2key(group[0], n.depth)
+
+			var yi Fr
+			// when proving that a key is not in the tree
+			if n.children[childIdx] == nil {
+				yi.SetZero()
+			} else {
+				toFr(&yi, n.children[childIdx].commitment)
+			}
+
+			pe.Cis = append(pe.Cis, n.commitment)
+			pe.Zis = append(pe.Zis, childIdx)
+			pe.Yis = append(pe.Yis, &yi)
+			pe.ByPath[string(group[0][:n.depth])] = n.commitment
+
+		}
+
+		// Loop over again, collecting the children's proof elements
+		// This is because the order is breadth-first.
+		for _, group := range groups {
+			childIdx := offset2key(group[0], n.depth)
+
+			// Special case of a proof of absence: no children
+			// commitment, as the value is 0.
+			if n.children[childIdx] == nil {
+				// A question arises here: what if this proof of absence
+				// corresponds to several stems? Should the ext status be
+				// repeated as many times? It would be wasteful, so the
+				// decoding code has to be aware of this corner case.
+				esses = append(esses, extStatusAbsentEmpty|((n.depth+1)<<3))
+				continue
+			}
+
+			pec, es, other := n.children[childIdx].GetProofItems(group)
+			pe.Merge(pec)
+			poass = append(poass, other...)
+			esses = append(esses, es...)
+		}
+	} else {
+		pe.Cis = append(pe.Cis, n.commitment, n.commitment)
+		pe.Zis = append(pe.Zis, 0, 1)
+		pe.Yis = append(pe.Yis, new(Fr).SetOne(), new(Fr).SetZero())
+		StemFromBytes(pe.Yis[len(pe.Yis)-1], n.stem)
+
+		for _, key := range keys {
+			pe.ByPath[string(key[:n.depth])] = n.commitment
+
+			// Proof of absence: case of a differing stem.
+			// Add an unopened stem-level node.
+			if !equalPaths(n.stem, key) {
+				// Corner case: don't add the poa stem if it's
+				// already present as a proof-of-absence for a
+				// different key, or for the same key (case of
+				// multiple missing keys being absent).
+				// The list of extension statuses has to be of
+				// length 1 at this level, so skip otherwise.
+				if len(esses) == 0 {
+					esses = append(esses, extStatusAbsentOther|(n.depth<<3))
+					poass = append(poass, n.stem)
+				}
+				continue
+			}
+
+			// corner case (see previous corner case): if a proof-of-absence
+			// stem was found, and it now turns out the same stem is used as
+			// a proof of presence, clear the proof-of-absence list to avoid
+			// redundancy.
+			if len(poass) > 0 {
+				poass = nil
+				esses = nil
+			}
+
+			var (
+				suffix   = key[31]
+				suffSlot = 2 + suffix/128 // slot in suffix tree
+				scomm    *Point
+				yi       Fr
+			)
+
+			if suffix < 128 {
+				scomm = n.c1
+				if n.c1 != nil {
+					toFr(&yi, n.c1)
+				}
+			} else {
+				scomm = n.c2
+				if n.c2 != nil {
+					toFr(&yi, n.c2)
+				}
+			}
+
+			// Proof of absence: case of a missing suffix tree.
+			//
+			// The suffix tree for this value is missing, i.e. all
+			// values in the extension-and-suffix tree are grouped
+			// in the other suffix tree (e.g. C2 if we are looking
+			// at C1).
+			if yi.IsZero() {
+				pe.Cis = append(pe.Cis, n.commitment)
+				pe.Zis = append(pe.Zis, suffSlot)
+				pe.Yis = append(pe.Yis, &FrZero)
+				esses = append(esses, extStatusAbsentEmpty|(n.depth<<3))
+				continue
+			}
+
+			slotPath := string(key[:n.depth]) + string([]byte{suffSlot})
+
+			// Proof of absence: case of a missing value.
+			//
+			// Suffix tree is present as a child of the extension,
+			// but does not contain the requested suffix. This can
+			// only happen when the leaf has never been written to
+			// since after deletion the value would be set to zero
+			// but still contain the leaf marker 2^128.
+			if n.values[suffix] == nil {
+				pe.Cis = append(pe.Cis, n.commitment, scomm, scomm)
+				pe.Zis = append(pe.Zis, suffSlot, 2*suffix, 2*suffix+1)
+				pe.Yis = append(pe.Yis, &yi, &FrZero, &FrZero)
+				if len(esses) == 0 || esses[len(esses)-1] != extStatusPresent|(n.depth<<3) {
+					esses = append(esses, extStatusPresent|(n.depth<<3))
+				}
+				pe.ByPath[slotPath] = scomm
+				continue
+			}
+
+			// suffix tree is present and contains the key
+			var leaves [2]Fr
+			leafToComms(leaves[:], n.values[suffix])
+			pe.Cis = append(pe.Cis, n.commitment, scomm, scomm)
+			pe.Zis = append(pe.Zis, suffSlot, 2*suffix, 2*suffix+1)
+			pe.Yis = append(pe.Yis, &yi, &leaves[0], &leaves[1])
+			if len(esses) == 0 || esses[len(esses)-1] != extStatusPresent|(n.depth<<3) {
+				esses = append(esses, extStatusPresent|(n.depth<<3))
+			}
+			pe.ByPath[slotPath] = scomm
+		}
+
+	}
+	return pe, esses, poass
 }
 
 func (*StatelessNode) Serialize() ([]byte, error) {

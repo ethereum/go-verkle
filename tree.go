@@ -137,7 +137,9 @@ func (pe *ProofElements) Merge(other *ProofElements) {
 		pe.Cis = append(pe.Cis, ci)
 		pe.Zis = append(pe.Zis, other.Zis[i])
 		pe.Yis = append(pe.Yis, other.Yis[i])
-		pe.Fis = append(pe.Fis, other.Fis[i])
+		if pe.Fis != nil {
+			pe.Fis = append(pe.Fis, other.Fis[i])
+		}
 	}
 
 	for path, C := range other.ByPath {
