@@ -248,13 +248,12 @@ func (n *StatelessNode) insertStem(path []byte, stemInfo stemInfo, comms []*Poin
 		case extStatusPresent:
 			// insert stem
 			n.children[path[0]] = NewStatelessWithCommitment(comms[0])
+			comms = comms[1:]
 			if stemInfo.has_c1 {
-				comms = comms[1:]
 				n.children[path[0]].c1 = comms[0]
 				comms = comms[1:]
 			}
 			if stemInfo.has_c2 {
-				comms = comms[1:]
 				n.children[path[0]].c2 = comms[0]
 				comms = comms[1:]
 			}
