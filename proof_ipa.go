@@ -275,13 +275,19 @@ func TreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) {
 			si.stem = poas[0]
 			poas = poas[1:]
 		default:
-			si.stem = stems[stemIndex]
+			// the first stem could be missing (e.g. the second stem in the
+			// group is the one that is present. Compare each key to the first
+			// stem, along the length of the path only.
+			stemPath := stems[stemIndex][:len(path)]
 			si.values = map[byte][]byte{}
 			for i, k := range proof.Keys {
-				if bytes.Equal(k[:31], si.stem) && proof.Values[i] != nil {
+				if bytes.Equal(k[:len(path)], stemPath) && proof.Values[i] != nil {
 					si.values[k[31]] = proof.Values[i]
 					si.has_c1 = si.has_c1 || (k[31] < 128)
 					si.has_c2 = si.has_c2 || (k[31] >= 128)
+					// This key has values, its stem is the one that
+					// is present.
+					si.stem = k[:31]
 				}
 			}
 		}
