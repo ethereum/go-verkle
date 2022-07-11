@@ -936,6 +936,9 @@ func fillSuffixTreePoly(poly []Fr, values [][]byte) int {
 // leafToComms turns a leaf into two commitments of the suffix
 // and extension tree.
 func leafToComms(poly []Fr, val []byte) {
+	if len(val) == 0 {
+		return
+	}
 	if len(val) > 32 {
 		panic(fmt.Sprintf("invalid leaf length %d, %v", len(val), val))
 	}

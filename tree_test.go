@@ -1102,3 +1102,115 @@ func TestInsertStemOrdered(t *testing.T) {
 		t.Fatalf("received wrong error %v != %v", err, errInsertIntoHash)
 	}
 }
+
+func TestRustBanderwagonBlock48(t *testing.T) {
+	keyStrings := []string{
+		"744f493648c83c5ede1726a0cfbe36d3830fd5b64a820b79ca77fe1593352600",
+		"744f493648c83c5ede1726a0cfbe36d3830fd5b64a820b79ca77fe1593352601",
+		"744f493648c83c5ede1726a0cfbe36d3830fd5b64a820b79ca77fe1593352602",
+		"744f493648c83c5ede1726a0cfbe36d3830fd5b64a820b79ca77fe1593352603",
+		"744f493648c83c5ede1726a0cfbe36d3830fd5b64a820b79ca77fe1593352604",
+		"744f493648c83c5ede1726a0cfbe36d3830fd5b64a820b79ca77fe1593352640",
+		"744f493648c83c5ede1726a0cfbe36d3830fd5b64a820b79ca77fe1593352680",
+		"744f493648c83c5ede1726a0cfbe36d3830fd5b64a820b79ca77fe1593352681",
+		"744f493648c83c5ede1726a0cfbe36d3830fd5b64a820b79ca77fe1593352682",
+		"744f493648c83c5ede1726a0cfbe36d3830fd5b64a820b79ca77fe1593352683",
+		"744f493648c83c5ede1726a0cfbe36d3830fd5b64a820b79ca77fe1593352684",
+		"744f493648c83c5ede1726a0cfbe36d3830fd5b64a820b79ca77fe1593352685",
+		"744f493648c83c5ede1726a0cfbe36d3830fd5b64a820b79ca77fe1593352686",
+		"744f493648c83c5ede1726a0cfbe36d3830fd5b64a820b79ca77fe1593352687",
+		"744f493648c83c5ede1726a0cfbe36d3830fd5b64a820b79ca77fe1593352688",
+		"744f493648c83c5ede1726a0cfbe36d3830fd5b64a820b79ca77fe1593352689",
+		"9661ae0db10ecdb9bea3ef0c5fb46bb233cb6ed7404b77e7b0732512ecc60100",
+		"9661ae0db10ecdb9bea3ef0c5fb46bb233cb6ed7404b77e7b0732512ecc60101",
+		"9661ae0db10ecdb9bea3ef0c5fb46bb233cb6ed7404b77e7b0732512ecc60102",
+		"9661ae0db10ecdb9bea3ef0c5fb46bb233cb6ed7404b77e7b0732512ecc60103",
+		"9661ae0db10ecdb9bea3ef0c5fb46bb233cb6ed7404b77e7b0732512ecc60104",
+	}
+
+	var keys [][]byte
+	for _, s := range keyStrings {
+		k, _ := hex.DecodeString(s)
+		keys = append(keys, k)
+	}
+	tree := New()
+
+	valStrings := []string{
+		"0000000000000000000000000000000000000000000000000000000000000000",
+		"0000000000000000000000000000000000000000000000000000000000000000",
+		"0100000000000000000000000000000000000000000000000000000000000000",
+		"f8811a5ee0d54eca4880eaee7b102eae4b3963ff343f50a024c0fd3d367cb8cc",
+		"5001000000000000000000000000000000000000000000000000000000000000",
+		"",
+		"00608060405234801561001057600080fd5b50600436106100365760003560e0",
+		"001c80632e64cec11461003b5780636057361d14610059575b600080fd5b6100",
+		"0143610075565b60405161005091906100d9565b60405180910390f35b610073",
+		"00600480360381019061006e919061009d565b61007e565b005b600080549050",
+		"0090565b8060008190555050565b60008135905061009781610103565b929150",
+		"0050565b6000602082840312156100b3576100b26100fe565b5b60006100c184",
+		"00828501610088565b91505092915050565b6100d3816100f4565b8252505056",
+		"005b60006020820190506100ee60008301846100ca565b92915050565b600081",
+		"009050919050565b600080fd5b61010c816100f4565b811461011757600080fd",
+		"005b5056fea2646970667358221220404e37f487a89a932dca5e77faaf6ca2de",
+		"0000000000000000000000000000000000000000000000000000000000000000",
+		"507a878a1965b9e2ce3f00000000000000000000000000000000000000000000",
+		"0200000000000000000000000000000000000000000000000000000000000000",
+		"c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+		"0000000000000000000000000000000000000000000000000000000000000000",
+	}
+	var (
+		vals        [][]byte
+		initialVals = map[string][]byte{}
+	)
+
+	for i, s := range valStrings {
+		if s == "" {
+			vals = append(vals, nil)
+			continue
+		}
+
+		v, _ := hex.DecodeString(s)
+		vals = append(vals, v)
+		tree.Insert(keys[i], v, nil)
+
+		initialVals[string(keys[i])] = v
+	}
+
+	// Insert the code chunk that isn't part of the proof
+	missingKey, _ := hex.DecodeString("744f493648c83c5ede1726a0cfbe36d3830fd5b64a820b79ca77fe159335268a")
+	missingVal, _ := hex.DecodeString("133b991f93d230604b1b8daaef64766264736f6c634300080700330000000000")
+	tree.Insert(missingKey, missingVal, nil)
+
+	r := tree.ComputeCommitment()
+
+	proof, cis, zis, yis := MakeVerkleMultiProof(tree, keys, initialVals)
+	serialized, _, err := SerializeProof(proof)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("serialized proof=%x", serialized)
+
+	cfg, _ := GetConfig()
+	if !VerifyVerkleProof(proof, cis, zis, yis, cfg) {
+		t.Fatal("proof didn't verify")
+	}
+
+	var kvp []KeyValuePair
+	for i := range keys {
+		kvp = append(kvp, KeyValuePair{Key: keys[i], Value: vals[i]})
+	}
+	dproof, err := DeserializeProof(serialized, kvp)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	droot, err := TreeFromProof(dproof, r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pe, _, _ := droot.GetProofItems(keys)
+
+	if !VerifyVerkleProof(dproof, pe.Cis, pe.Zis, pe.Yis, cfg) {
+		t.Fatal("deserialized proof didn't verify")
+	}
+}
