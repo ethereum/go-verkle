@@ -455,6 +455,30 @@ func (n *StatelessNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][
 		pe.Yis = append(pe.Yis, new(Fr).SetOne(), new(Fr).SetZero())
 		StemFromBytes(pe.Yis[len(pe.Yis)-1], n.stem)
 
+		// First pass: add top-level elements first
+		var hasC1, hasC2 bool
+		for _, key := range keys {
+			hasC1 = hasC1 || (key[31] < 128)
+			hasC2 = hasC2 || (key[31] >= 128)
+			if hasC2 {
+				break
+			}
+		}
+		if hasC1 {
+			var yi Fr
+			toFr(&yi, n.c1)
+			pe.Cis = append(pe.Cis, n.commitment)
+			pe.Zis = append(pe.Zis, 2)
+			pe.Yis = append(pe.Yis, &yi)
+		}
+		if hasC2 {
+			var yi Fr
+			toFr(&yi, n.c2)
+			pe.Cis = append(pe.Cis, n.commitment)
+			pe.Zis = append(pe.Zis, 3)
+			pe.Yis = append(pe.Yis, &yi)
+		}
+
 		for _, key := range keys {
 			pe.ByPath[string(key[:n.depth])] = n.commitment
 
@@ -487,19 +511,12 @@ func (n *StatelessNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][
 				suffix   = key[31]
 				suffSlot = 2 + suffix/128 // slot in suffix tree
 				scomm    *Point
-				yi       Fr
 			)
 
 			if suffix < 128 {
 				scomm = n.c1
-				if n.c1 != nil {
-					toFr(&yi, n.c1)
-				}
 			} else {
 				scomm = n.c2
-				if n.c2 != nil {
-					toFr(&yi, n.c2)
-				}
 			}
 
 			// Proof of absence: case of a missing suffix tree.
@@ -508,10 +525,7 @@ func (n *StatelessNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][
 			// values in the extension-and-suffix tree are grouped
 			// in the other suffix tree (e.g. C2 if we are looking
 			// at C1).
-			if yi.IsZero() {
-				pe.Cis = append(pe.Cis, n.commitment)
-				pe.Zis = append(pe.Zis, suffSlot)
-				pe.Yis = append(pe.Yis, &FrZero)
+			if scomm == nil {
 				esses = append(esses, extStatusAbsentEmpty|(n.depth<<3))
 				continue
 			}
@@ -526,9 +540,9 @@ func (n *StatelessNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][
 			// since after deletion the value would be set to zero
 			// but still contain the leaf marker 2^128.
 			if n.values[suffix] == nil {
-				pe.Cis = append(pe.Cis, n.commitment, scomm, scomm)
-				pe.Zis = append(pe.Zis, suffSlot, 2*suffix, 2*suffix+1)
-				pe.Yis = append(pe.Yis, &yi, &FrZero, &FrZero)
+				pe.Cis = append(pe.Cis, scomm, scomm)
+				pe.Zis = append(pe.Zis, 2*suffix, 2*suffix+1)
+				pe.Yis = append(pe.Yis, &FrZero, &FrZero)
 				if len(esses) == 0 || esses[len(esses)-1] != extStatusPresent|(n.depth<<3) {
 					esses = append(esses, extStatusPresent|(n.depth<<3))
 				}
@@ -539,9 +553,9 @@ func (n *StatelessNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][
 			// suffix tree is present and contains the key
 			var leaves [2]Fr
 			leafToComms(leaves[:], n.values[suffix])
-			pe.Cis = append(pe.Cis, n.commitment, scomm, scomm)
-			pe.Zis = append(pe.Zis, suffSlot, 2*suffix, 2*suffix+1)
-			pe.Yis = append(pe.Yis, &yi, &leaves[0], &leaves[1])
+			pe.Cis = append(pe.Cis, scomm, scomm)
+			pe.Zis = append(pe.Zis, 2*suffix, 2*suffix+1)
+			pe.Yis = append(pe.Yis, &leaves[0], &leaves[1])
 			if len(esses) == 0 || esses[len(esses)-1] != extStatusPresent|(n.depth<<3) {
 				esses = append(esses, extStatusPresent|(n.depth<<3))
 			}
