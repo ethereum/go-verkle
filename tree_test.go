@@ -1183,7 +1183,7 @@ func TestRustBanderwagonBlock48(t *testing.T) {
 
 	r := tree.ComputeCommitment()
 
-	proof, cis, zis, yis := MakeVerkleMultiProof(tree, keys, initialVals)
+	proof, cis, zis, yis, _ := MakeVerkleMultiProof(tree, keys, initialVals)
 	serialized, _, err := SerializeProof(proof)
 	if err != nil {
 		t.Fatal(err)

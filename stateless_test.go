@@ -273,7 +273,7 @@ func TestStatelessDeserialize(t *testing.T) {
 		{fourtyKeyTest, fourtyKeyTest},
 	}
 
-	proof, _, _, _ := MakeVerkleMultiProof(root, keylist{zeroKeyTest, fourtyKeyTest}, map[string][]byte{string(zeroKeyTest): fourtyKeyTest, string(fourtyKeyTest): fourtyKeyTest})
+	proof, _, _, _, _ := MakeVerkleMultiProof(root, keylist{zeroKeyTest, fourtyKeyTest}, map[string][]byte{string(zeroKeyTest): fourtyKeyTest, string(fourtyKeyTest): fourtyKeyTest})
 
 	serialized, _, err := SerializeProof(proof)
 	if err != nil {
@@ -313,7 +313,7 @@ func TestStatelessDeserializeMissginChildNode(t *testing.T) {
 		{fourtyKeyTest, nil},
 	}
 
-	proof, _, _, _ := MakeVerkleMultiProof(root, keylist{zeroKeyTest, fourtyKeyTest}, map[string][]byte{string(zeroKeyTest): fourtyKeyTest, string(fourtyKeyTest): nil})
+	proof, _, _, _, _ := MakeVerkleMultiProof(root, keylist{zeroKeyTest, fourtyKeyTest}, map[string][]byte{string(zeroKeyTest): fourtyKeyTest, string(fourtyKeyTest): nil})
 
 	serialized, _, err := SerializeProof(proof)
 	if err != nil {
@@ -354,7 +354,7 @@ func TestStatelessDeserializeDepth2(t *testing.T) {
 		{key1, nil},
 	}
 
-	proof, _, _, _ := MakeVerkleMultiProof(root, keylist{zeroKeyTest, key1}, map[string][]byte{string(zeroKeyTest): fourtyKeyTest, string(key1): nil})
+	proof, _, _, _, _ := MakeVerkleMultiProof(root, keylist{zeroKeyTest, key1}, map[string][]byte{string(zeroKeyTest): fourtyKeyTest, string(key1): nil})
 
 	serialized, _, err := SerializeProof(proof)
 	if err != nil {
@@ -393,7 +393,7 @@ func TestStatelessGetProofItems(t *testing.T) {
 		{fourtyKeyTest, nil},
 	}
 
-	proof, _, _, _ := MakeVerkleMultiProof(root, keylist(provenKeys), map[string][]byte{string(zeroKeyTest): fourtyKeyTest, string(fourtyKeyTest): nil})
+	proof, _, _, _, _ := MakeVerkleMultiProof(root, keylist(provenKeys), map[string][]byte{string(zeroKeyTest): fourtyKeyTest, string(fourtyKeyTest): nil})
 
 	serialized, _, err := SerializeProof(proof)
 	if err != nil {

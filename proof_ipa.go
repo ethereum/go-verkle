@@ -28,6 +28,7 @@ package verkle
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"sort"
 
 	ipa "github.com/crate-crypto/go-ipa"
@@ -49,7 +50,13 @@ func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte) (*ProofElements
 	return root.GetProofItems(keylist(keys))
 }
 
-func MakeVerkleMultiProof(root VerkleNode, keys [][]byte, keyvals map[string][]byte) (*Proof, []*Point, []byte, []*Fr) {
+func MakeVerkleMultiProof(root VerkleNode, keys [][]byte, keyvals map[string][]byte) (*Proof, []*Point, []byte, []*Fr, error) {
+	// go-ipa won't accept no key as an input, catch this corner case
+	// and return an empty result.
+	if len(keys) == 0 {
+		return nil, nil, nil, nil, errors.New("no key provided for proof")
+	}
+
 	tr := common.NewTranscript("vt")
 	root.ComputeCommitment()
 
@@ -90,7 +97,7 @@ func MakeVerkleMultiProof(root VerkleNode, keys [][]byte, keyvals map[string][]b
 		Keys:       keys,
 		Values:     vals,
 	}
-	return proof, pe.Cis, pe.Zis, pe.Yis
+	return proof, pe.Cis, pe.Zis, pe.Yis, nil
 }
 
 func VerifyVerkleProof(proof *Proof, Cs []*Point, indices []uint8, ys []*Fr, tc *Config) bool {

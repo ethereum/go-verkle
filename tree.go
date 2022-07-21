@@ -681,6 +681,11 @@ func (n *InternalNode) ComputeCommitment() *Point {
 
 // groupKeys groups a set of keys based on their byte at a given depth.
 func groupKeys(keys keylist, depth byte) []keylist {
+	// special case: no key
+	if len(keys) == 0 {
+		return []keylist{}
+	}
+
 	// special case: only one key left
 	if len(keys) == 1 {
 		return []keylist{keys}
