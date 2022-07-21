@@ -978,6 +978,29 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 	toFr(&poly[2], n.c1)
 	toFr(&poly[3], n.c2)
 
+	// First pass: add top-level elements first
+	var hasC1, hasC2 bool
+	for _, key := range keys {
+		hasC1 = hasC1 || (key[31] < 128)
+		hasC2 = hasC2 || (key[31] >= 128)
+		if hasC2 {
+			break
+		}
+	}
+	if hasC1 {
+		pe.Cis = append(pe.Cis, n.commitment)
+		pe.Zis = append(pe.Zis, 2)
+		pe.Yis = append(pe.Yis, &poly[2])
+		pe.Fis = append(pe.Fis, poly[:])
+	}
+	if hasC2 {
+		pe.Cis = append(pe.Cis, n.commitment)
+		pe.Zis = append(pe.Zis, 3)
+		pe.Yis = append(pe.Yis, &poly[3])
+		pe.Fis = append(pe.Fis, poly[:])
+	}
+
+	// Second pass: add the cn-level elements
 	for _, key := range keys {
 		pe.ByPath[string(key[:n.depth])] = n.commitment
 
@@ -1008,8 +1031,7 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 
 		var (
 			suffix   = key[31]
-			suffSlot = 2 + suffix/128 // slot in suffix tree
-			suffPoly [256]Fr          // suffix-level polynomial
+			suffPoly [256]Fr // suffix-level polynomial
 			count    int
 		)
 
@@ -1030,10 +1052,6 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 			// so that we know not to build the polynomials in this case,
 			// as all the information is available before fillSuffixTreePoly
 			// has to be called, save the count.
-			pe.Cis = append(pe.Cis, n.commitment)
-			pe.Zis = append(pe.Zis, suffSlot)
-			pe.Yis = append(pe.Yis, &FrZero)
-			pe.Fis = append(pe.Fis, poly[:])
 			esses = append(esses, extStatusAbsentEmpty|(n.depth<<3))
 			continue
 		}
@@ -1045,7 +1063,7 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 			scomm = n.c2
 		}
 
-		slotPath := string(key[:n.depth]) + string([]byte{suffSlot})
+		slotPath := string(key[:n.depth]) + string([]byte{2 + suffix/128})
 
 		// Proof of absence: case of a missing value.
 		//
@@ -1055,10 +1073,10 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 		// since after deletion the value would be set to zero
 		// but still contain the leaf marker 2^128.
 		if n.values[suffix] == nil {
-			pe.Cis = append(pe.Cis, n.commitment, scomm, scomm)
-			pe.Zis = append(pe.Zis, suffSlot, 2*suffix, 2*suffix+1)
-			pe.Yis = append(pe.Yis, &poly[suffSlot], &FrZero, &FrZero)
-			pe.Fis = append(pe.Fis, poly[:], suffPoly[:], suffPoly[:])
+			pe.Cis = append(pe.Cis, scomm, scomm)
+			pe.Zis = append(pe.Zis, 2*suffix, 2*suffix+1)
+			pe.Yis = append(pe.Yis, &FrZero, &FrZero)
+			pe.Fis = append(pe.Fis, suffPoly[:], suffPoly[:])
 			if len(esses) == 0 || esses[len(esses)-1] != extStatusPresent|(n.depth<<3) {
 				esses = append(esses, extStatusPresent|(n.depth<<3))
 			}
@@ -1069,10 +1087,10 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 		// suffix tree is present and contains the key
 		var leaves [2]Fr
 		leafToComms(leaves[:], n.values[suffix])
-		pe.Cis = append(pe.Cis, n.commitment, scomm, scomm)
-		pe.Zis = append(pe.Zis, suffSlot, 2*suffix, 2*suffix+1)
-		pe.Yis = append(pe.Yis, &poly[suffSlot], &leaves[0], &leaves[1])
-		pe.Fis = append(pe.Fis, poly[:], suffPoly[:], suffPoly[:])
+		pe.Cis = append(pe.Cis, scomm, scomm)
+		pe.Zis = append(pe.Zis, 2*suffix, 2*suffix+1)
+		pe.Yis = append(pe.Yis, &leaves[0], &leaves[1])
+		pe.Fis = append(pe.Fis, suffPoly[:], suffPoly[:])
 		if len(esses) == 0 || esses[len(esses)-1] != extStatusPresent|(n.depth<<3) {
 			esses = append(esses, extStatusPresent|(n.depth<<3))
 		}
