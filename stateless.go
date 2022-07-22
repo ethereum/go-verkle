@@ -114,7 +114,7 @@ func (n *StatelessNode) SetStem(stem []byte) {
 	n.stem = stem
 }
 
-func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn) error {
+func (n *StatelessNode) Insert(key, oldv, newv []byte, resolver NodeResolverFn) error {
 	// if this is a leaf value and the stems are different, intermediate
 	// nodes need to be inserted.
 	if n.values != nil {
@@ -127,7 +127,7 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 				// overwritten.
 				n.count++
 			}
-			n.values[key[31]] = value
+			n.values[key[31]] = newv
 			// TODO: instead of invalidating the commitment
 			// and recalulating it entirely, compute the diff.
 			n.hash = nil
@@ -166,7 +166,7 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 				n.children[nextWordInInsertedKey] = &StatelessNode{
 					depth:     n.depth + 1,
 					stem:      key[:31],
-					values:    map[byte][]byte{key[31]: value},
+					values:    map[byte][]byte{key[31]: newv},
 					committer: n.committer,
 					count:     1,
 				}
@@ -174,7 +174,7 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 			}
 
 			// recurse into the newly created child
-			if err := n.children[nextWordInInsertedKey].Insert(key, value, resolver); err != nil {
+			if err := n.children[nextWordInInsertedKey].Insert(key, oldv, newv, resolver); err != nil {
 				return err
 			}
 
@@ -196,7 +196,7 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 			n.children[nChild] = &StatelessNode{
 				depth:      n.depth + 1,
 				count:      1,
-				values:     map[byte][]byte{key[31]: value},
+				values:     map[byte][]byte{key[31]: newv},
 				committer:  n.committer,
 				stem:       key[:31],
 				commitment: Generator(),
@@ -213,7 +213,7 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 		var pre Fr
 		CopyFr(&pre, n.children[nChild].hash)
 
-		if err := n.children[nChild].Insert(key, value, resolver); err != nil {
+		if err := n.children[nChild].Insert(key, oldv, newv, resolver); err != nil {
 			return err
 		}
 

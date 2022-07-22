@@ -76,7 +76,7 @@ func TestInsertKey0Value0(t *testing.T) {
 		srs       = cfg.conf.SRSPrecompPoints.SRS
 	)
 
-	root.Insert(zeroKeyTest, zeroKeyTest, nil)
+	root.Insert(zeroKeyTest, nil, zeroKeyTest, nil)
 	comm := root.ComputeCommitment()
 
 	extensionAndSuffixOneKey(zeroKeyTest, zeroKeyTest, &expectedP)
@@ -105,7 +105,7 @@ func TestInsertKey1Value1(t *testing.T) {
 		1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
 		25, 26, 27, 28, 29, 30, 31, 32,
 	}
-	root.Insert(key, key, nil)
+	root.Insert(key, nil, key, nil)
 	comm := root.ComputeCommitment()
 
 	extensionAndSuffixOneKey(key, key, &expectedP)
@@ -139,8 +139,8 @@ func TestInsertSameStemTwoLeaves(t *testing.T) {
 		1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
 		25, 26, 27, 28, 29, 30, 31, 128,
 	}
-	root.Insert(key_a, key_a, nil)
-	root.Insert(key_b, key_b, nil)
+	root.Insert(key_a, nil, key_a, nil)
+	root.Insert(key_b, nil, key_b, nil)
 	comm := root.ComputeCommitment()
 
 	stemComm0 := srs[0]
@@ -181,8 +181,8 @@ func TestInsertKey1Val1Key2Val2(t *testing.T) {
 		srs                 = cfg.conf.SRSPrecompPoints.SRS
 	)
 	key_b, _ := hex.DecodeString("0101010101010101010101010101010101010101010101010101010101010101")
-	root.Insert(zeroKeyTest, zeroKeyTest, nil)
-	root.Insert(key_b, key_b, nil)
+	root.Insert(zeroKeyTest, nil, zeroKeyTest, nil)
+	root.Insert(key_b, nil, key_b, nil)
 	comm := root.ComputeCommitment()
 	fmt.Println(root.toDot("", ""))
 

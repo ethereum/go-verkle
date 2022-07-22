@@ -37,9 +37,9 @@ func TestStatelessChildren(t *testing.T) {
 	c2key, _ := hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000085")
 
 	root := NewStateless()
-	root.Insert(zeroKeyTest, fourtyKeyTest, nil)
-	root.Insert(oneKeyTest, fourtyKeyTest, nil)
-	root.Insert(c2key, fourtyKeyTest, nil)
+	root.Insert(zeroKeyTest, nil, fourtyKeyTest, nil)
+	root.Insert(oneKeyTest, nil, fourtyKeyTest, nil)
+	root.Insert(c2key, nil, fourtyKeyTest, nil)
 
 	list := root.Children()
 	if len(list) != NodeWidth {
@@ -68,9 +68,9 @@ func TestStatelessChildren(t *testing.T) {
 	}
 
 	rootRef := New()
-	rootRef.Insert(zeroKeyTest, fourtyKeyTest, nil)
-	rootRef.Insert(oneKeyTest, fourtyKeyTest, nil)
-	rootRef.Insert(c2key, fourtyKeyTest, nil)
+	rootRef.Insert(zeroKeyTest, nil, fourtyKeyTest, nil)
+	rootRef.Insert(oneKeyTest, nil, fourtyKeyTest, nil)
+	rootRef.Insert(c2key, nil, fourtyKeyTest, nil)
 
 	if !Equal(rootRef.ComputeCommitment(), root.commitment) {
 		t.Fatalf("differing state(less|ful) roots %x != %x", rootRef.ComputeCommitment(), root.commitment)
@@ -79,11 +79,11 @@ func TestStatelessChildren(t *testing.T) {
 
 func TestStatelessDelete(t *testing.T) {
 	root := NewStateless()
-	root.Insert(zeroKeyTest, fourtyKeyTest, nil)
+	root.Insert(zeroKeyTest, nil, fourtyKeyTest, nil)
 	var single Point
 	CopyPoint(&single, root.commitment)
 
-	root.Insert(oneKeyTest, fourtyKeyTest, nil)
+	root.Insert(oneKeyTest, nil, fourtyKeyTest, nil)
 	if root.commitment.Equal(&single) {
 		t.Fatal("second insert didn't update")
 	}
@@ -91,8 +91,8 @@ func TestStatelessDelete(t *testing.T) {
 	root.Delete(oneKeyTest, nil)
 
 	rootRef := New()
-	rootRef.Insert(zeroKeyTest, fourtyKeyTest, nil)
-	rootRef.Insert(oneKeyTest, fourtyKeyTest, nil)
+	rootRef.Insert(zeroKeyTest, nil, fourtyKeyTest, nil)
+	rootRef.Insert(oneKeyTest, nil, fourtyKeyTest, nil)
 	rootRef.Delete(oneKeyTest, nil)
 
 	if !Equal(rootRef.ComputeCommitment(), root.commitment) {
@@ -102,10 +102,10 @@ func TestStatelessDelete(t *testing.T) {
 
 func TestStatelessInsertLeafIntoRoot(t *testing.T) {
 	root := NewStateless()
-	root.Insert(zeroKeyTest, fourtyKeyTest, nil)
+	root.Insert(zeroKeyTest, nil, fourtyKeyTest, nil)
 
 	rootRef := New()
-	rootRef.Insert(zeroKeyTest, fourtyKeyTest, nil)
+	rootRef.Insert(zeroKeyTest, nil, fourtyKeyTest, nil)
 	hash := rootRef.ComputeCommitment()
 
 	if !Equal(hash, root.commitment) {
@@ -115,10 +115,10 @@ func TestStatelessInsertLeafIntoRoot(t *testing.T) {
 	// Overwrite one leaf and check that the update
 	// is what is expected.
 	rootRef = New()
-	rootRef.Insert(zeroKeyTest, oneKeyTest, nil)
+	rootRef.Insert(zeroKeyTest, nil, oneKeyTest, nil)
 	hash = rootRef.ComputeCommitment()
 
-	root.Insert(zeroKeyTest, oneKeyTest, nil)
+	root.Insert(zeroKeyTest, nil, oneKeyTest, nil)
 
 	if !Equal(hash, root.commitment) {
 		t.Fatalf("hashes differ after update %v %v", hash, root.hash)
@@ -127,12 +127,12 @@ func TestStatelessInsertLeafIntoRoot(t *testing.T) {
 
 func TestStatelessInsertLeafIntoLeaf(t *testing.T) {
 	root := NewStateless()
-	root.Insert(zeroKeyTest, fourtyKeyTest, nil)
-	root.Insert(oneKeyTest, fourtyKeyTest, nil)
+	root.Insert(zeroKeyTest, nil, fourtyKeyTest, nil)
+	root.Insert(oneKeyTest, nil, fourtyKeyTest, nil)
 
 	rootRef := New()
-	rootRef.Insert(zeroKeyTest, fourtyKeyTest, nil)
-	rootRef.Insert(oneKeyTest, fourtyKeyTest, nil)
+	rootRef.Insert(zeroKeyTest, nil, fourtyKeyTest, nil)
+	rootRef.Insert(oneKeyTest, nil, fourtyKeyTest, nil)
 	hash := rootRef.ComputeCommitment()
 
 	if !Equal(hash, root.commitment) {
@@ -140,11 +140,11 @@ func TestStatelessInsertLeafIntoLeaf(t *testing.T) {
 	}
 
 	rootRef = New()
-	rootRef.Insert(zeroKeyTest, fourtyKeyTest, nil)
-	rootRef.Insert(oneKeyTest, oneKeyTest, nil)
+	rootRef.Insert(zeroKeyTest, nil, fourtyKeyTest, nil)
+	rootRef.Insert(oneKeyTest, nil, oneKeyTest, nil)
 	hash = rootRef.ComputeCommitment()
 
-	root.Insert(oneKeyTest, oneKeyTest, nil)
+	root.Insert(oneKeyTest, nil, oneKeyTest, nil)
 
 	if !Equal(hash, root.commitment) {
 		t.Fatalf("hashes differ after update %v %v", hash, root.hash)
@@ -154,11 +154,11 @@ func TestStatelessInsertLeafIntoLeaf(t *testing.T) {
 func TestStatelessInsertLeafIntoInternal(t *testing.T) {
 	key1, _ := hex.DecodeString("0000100000000000000000000000000000000000000000000000000000000000")
 	root := NewStateless()
-	root.Insert(zeroKeyTest, fourtyKeyTest, nil)
-	root.Insert(key1, fourtyKeyTest, nil)
+	root.Insert(zeroKeyTest, nil, fourtyKeyTest, nil)
+	root.Insert(key1, nil, fourtyKeyTest, nil)
 	rootRef := New()
-	rootRef.Insert(zeroKeyTest, fourtyKeyTest, nil)
-	rootRef.Insert(key1, fourtyKeyTest, nil)
+	rootRef.Insert(zeroKeyTest, nil, fourtyKeyTest, nil)
+	rootRef.Insert(key1, nil, fourtyKeyTest, nil)
 	hash := rootRef.ComputeCommitment()
 
 	if !Equal(hash, root.commitment) {
@@ -176,12 +176,12 @@ func TestStatelessInsertOrdered(t *testing.T) {
 
 func TestStatelessCopy(t *testing.T) {
 	root := NewStateless()
-	root.Insert(zeroKeyTest, fourtyKeyTest, nil)
+	root.Insert(zeroKeyTest, nil, fourtyKeyTest, nil)
 	rootCopy := root.Copy()
 	if !Equal(rootCopy.ComputeCommitment(), root.commitment) {
 		t.Fatal("copy produced the wrong hash")
 	}
-	root.Insert(oneKeyTest, fourtyKeyTest, nil)
+	root.Insert(oneKeyTest, nil, fourtyKeyTest, nil)
 	if Equal(rootCopy.ComputeCommitment(), root.commitment) {
 		t.Fatal("copy did not update the hash")
 	}
@@ -189,7 +189,7 @@ func TestStatelessCopy(t *testing.T) {
 
 func TestStatelessGet(t *testing.T) {
 	root := NewStateless()
-	root.Insert(zeroKeyTest, fourtyKeyTest, nil)
+	root.Insert(zeroKeyTest, nil, fourtyKeyTest, nil)
 	data, err := root.Get(zeroKeyTest, nil)
 	if err != nil {
 		t.Fatalf("error while getting existing value %v", err)
@@ -229,13 +229,13 @@ func TestStatelessComputeCommitmentEmptyRoot(t *testing.T) {
 func TestStatelessToDot(t *testing.T) {
 	key1, _ := hex.DecodeString("0000100000000000000000000000000000000000000000000000000000000000")
 	root := NewStateless()
-	root.Insert(zeroKeyTest, fourtyKeyTest, nil)
-	root.Insert(oneKeyTest, fourtyKeyTest, nil)
-	root.Insert(key1, fourtyKeyTest, nil)
+	root.Insert(zeroKeyTest, nil, fourtyKeyTest, nil)
+	root.Insert(oneKeyTest, nil, fourtyKeyTest, nil)
+	root.Insert(key1, nil, fourtyKeyTest, nil)
 	rootRef := New()
-	rootRef.Insert(zeroKeyTest, fourtyKeyTest, nil)
-	rootRef.Insert(oneKeyTest, fourtyKeyTest, nil)
-	rootRef.Insert(key1, fourtyKeyTest, nil)
+	rootRef.Insert(zeroKeyTest, nil, fourtyKeyTest, nil)
+	rootRef.Insert(oneKeyTest, nil, fourtyKeyTest, nil)
+	rootRef.Insert(key1, nil, fourtyKeyTest, nil)
 	rootRef.ComputeCommitment()
 
 	var stl []string
@@ -266,7 +266,7 @@ func TestStatelessToDot(t *testing.T) {
 func TestStatelessDeserialize(t *testing.T) {
 	root := New()
 	for _, k := range [][]byte{zeroKeyTest, oneKeyTest, fourtyKeyTest, ffx32KeyTest} {
-		root.Insert(k, fourtyKeyTest, nil)
+		root.Insert(k, nil, fourtyKeyTest, nil)
 	}
 	keyvals := []KeyValuePair{
 		{zeroKeyTest, fourtyKeyTest},
@@ -306,7 +306,7 @@ func TestStatelessDeserialize(t *testing.T) {
 func TestStatelessDeserializeMissginChildNode(t *testing.T) {
 	root := New()
 	for _, k := range [][]byte{zeroKeyTest, oneKeyTest, ffx32KeyTest} {
-		root.Insert(k, fourtyKeyTest, nil)
+		root.Insert(k, nil, fourtyKeyTest, nil)
 	}
 	keyvals := []KeyValuePair{
 		{zeroKeyTest, fourtyKeyTest},
@@ -347,7 +347,7 @@ func TestStatelessDeserializeDepth2(t *testing.T) {
 	root := New()
 	key1, _ := hex.DecodeString("0000010000000000000000000000000000000000000000000000000000000000")
 	for _, k := range [][]byte{zeroKeyTest, key1} {
-		root.Insert(k, fourtyKeyTest, nil)
+		root.Insert(k, nil, fourtyKeyTest, nil)
 	}
 	keyvals := []KeyValuePair{
 		{zeroKeyTest, fourtyKeyTest},
@@ -386,7 +386,7 @@ func TestStatelessGetProofItems(t *testing.T) {
 
 	root := New()
 	for _, k := range insertedKeys {
-		root.Insert(k, fourtyKeyTest, nil)
+		root.Insert(k, nil, fourtyKeyTest, nil)
 	}
 	keyvals := []KeyValuePair{
 		{zeroKeyTest, fourtyKeyTest},

@@ -35,9 +35,9 @@ import (
 
 func TestProofVerifyTwoLeaves(t *testing.T) {
 	root := New()
-	root.Insert(zeroKeyTest, zeroKeyTest, nil)
-	root.Insert(oneKeyTest, zeroKeyTest, nil)
-	root.Insert(ffx32KeyTest, zeroKeyTest, nil)
+	root.Insert(zeroKeyTest, nil, zeroKeyTest, nil)
+	root.Insert(oneKeyTest, nil, zeroKeyTest, nil)
+	root.Insert(ffx32KeyTest, nil, zeroKeyTest, nil)
 
 	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, [][]byte{ffx32KeyTest}, map[string][]byte{string(ffx32KeyTest): zeroKeyTest})
 
@@ -56,7 +56,7 @@ func TestProofVerifyMultipleLeaves(t *testing.T) {
 		key := make([]byte, 32)
 		rand.Read(key)
 		keys[i] = key
-		root.Insert(key, fourtyKeyTest, nil)
+		root.Insert(key, nil, fourtyKeyTest, nil)
 	}
 
 	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, [][]byte{keys[0]}, map[string][]byte{string(keys[0]): fourtyKeyTest})
@@ -77,7 +77,7 @@ func TestMultiProofVerifyMultipleLeaves(t *testing.T) {
 		key := make([]byte, 32)
 		rand.Read(key)
 		keys[i] = key
-		root.Insert(key, fourtyKeyTest, nil)
+		root.Insert(key, nil, fourtyKeyTest, nil)
 		kv[string(key)] = fourtyKeyTest
 	}
 
@@ -101,7 +101,7 @@ func TestMultiProofVerifyMultipleLeavesWithAbsentStem(t *testing.T) {
 		key := make([]byte, 32)
 		key[2] = byte(i)
 		kv[string(key)] = fourtyKeyTest
-		root.Insert(key, fourtyKeyTest, nil)
+		root.Insert(key, nil, fourtyKeyTest, nil)
 		if i%2 == 0 {
 			keys = append(keys, key)
 		}
@@ -136,10 +136,10 @@ func TestMultiProofVerifyMultipleLeavesCommitmentRedundancy(t *testing.T) {
 	root := New()
 	keys[0] = zeroKeyTest
 	kv[string(zeroKeyTest)] = fourtyKeyTest
-	root.Insert(keys[0], fourtyKeyTest, nil)
+	root.Insert(keys[0], nil, fourtyKeyTest, nil)
 	keys[1] = oneKeyTest
 	kv[string(oneKeyTest)] = fourtyKeyTest
-	root.Insert(keys[1], fourtyKeyTest, nil)
+	root.Insert(keys[1], nil, fourtyKeyTest, nil)
 
 	proof, _, _, _, _ := MakeVerkleMultiProof(root, keys, kv)
 
@@ -152,8 +152,8 @@ func TestMultiProofVerifyMultipleLeavesCommitmentRedundancy(t *testing.T) {
 
 func TestProofOfAbsenceInternalVerify(t *testing.T) {
 	root := New()
-	root.Insert(zeroKeyTest, zeroKeyTest, nil)
-	root.Insert(oneKeyTest, zeroKeyTest, nil)
+	root.Insert(zeroKeyTest, nil, zeroKeyTest, nil)
+	root.Insert(oneKeyTest, nil, zeroKeyTest, nil)
 
 	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, [][]byte{ffx32KeyTest}, map[string][]byte{})
 
@@ -165,8 +165,8 @@ func TestProofOfAbsenceInternalVerify(t *testing.T) {
 
 func TestProofOfAbsenceLeafVerify(t *testing.T) {
 	root := New()
-	root.Insert(zeroKeyTest, zeroKeyTest, nil)
-	root.Insert(ffx32KeyTest, zeroKeyTest, nil)
+	root.Insert(zeroKeyTest, nil, zeroKeyTest, nil)
+	root.Insert(ffx32KeyTest, nil, zeroKeyTest, nil)
 
 	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, [][]byte{oneKeyTest}, map[string][]byte{})
 
@@ -177,8 +177,8 @@ func TestProofOfAbsenceLeafVerify(t *testing.T) {
 }
 func TestProofOfAbsenceLeafVerifyOtherSuffix(t *testing.T) {
 	root := New()
-	root.Insert(zeroKeyTest, zeroKeyTest, nil)
-	root.Insert(ffx32KeyTest, zeroKeyTest, nil)
+	root.Insert(zeroKeyTest, nil, zeroKeyTest, nil)
+	root.Insert(ffx32KeyTest, nil, zeroKeyTest, nil)
 
 	key := func() []byte {
 		ret, _ := hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000080")
@@ -195,7 +195,7 @@ func TestProofOfAbsenceLeafVerifyOtherSuffix(t *testing.T) {
 
 func TestProofOfAbsenceStemVerify(t *testing.T) {
 	root := New()
-	root.Insert(zeroKeyTest, zeroKeyTest, nil)
+	root.Insert(zeroKeyTest, nil, zeroKeyTest, nil)
 
 	key := func() []byte {
 		ret, _ := hex.DecodeString("0000000000000000000000000000000000000000100000000000000000000000")
@@ -217,7 +217,7 @@ func BenchmarkProofCalculation(b *testing.B) {
 		key := make([]byte, 32)
 		rand.Read(key)
 		keys[i] = key
-		root.Insert(key, zeroKeyTest, nil)
+		root.Insert(key, nil, zeroKeyTest, nil)
 	}
 
 	b.ResetTimer()
@@ -235,7 +235,7 @@ func BenchmarkProofVerification(b *testing.B) {
 		key := make([]byte, 32)
 		rand.Read(key)
 		keys[i] = key
-		root.Insert(key, zeroKeyTest, nil)
+		root.Insert(key, nil, zeroKeyTest, nil)
 	}
 
 	root.ComputeCommitment()
@@ -259,7 +259,7 @@ func TestProofSerializationNoAbsentStem(t *testing.T) {
 		key := make([]byte, 32)
 		rand.Read(key)
 		keys[i] = key
-		root.Insert(key, fourtyKeyTest, nil)
+		root.Insert(key, nil, fourtyKeyTest, nil)
 	}
 
 	proof, _, _, _, _ := MakeVerkleMultiProof(root, [][]byte{keys[0]}, map[string][]byte{})
@@ -291,7 +291,7 @@ func TestProofSerializationWithAbsentStem(t *testing.T) {
 		key := make([]byte, 32)
 		key[2] = byte(i)
 		keys[i] = key
-		root.Insert(key, fourtyKeyTest, nil)
+		root.Insert(key, nil, fourtyKeyTest, nil)
 	}
 
 	// Create stem  0x0000020100000.... that is not present in the tree,
@@ -331,7 +331,7 @@ func TestProofDeserialize(t *testing.T) {
 		key := make([]byte, 32)
 		key[2] = byte(i)
 		keys[i] = key
-		root.Insert(key, fourtyKeyTest, nil)
+		root.Insert(key, nil, fourtyKeyTest, nil)
 		keyvals = append(keyvals, KeyValuePair{
 			Key:   key,
 			Value: fourtyKeyTest,
@@ -420,7 +420,7 @@ func TestProofOfAbsenceOtherMultipleLeaves(t *testing.T) {
 	// but does look the same for most of its length.
 	root := New()
 	key, _ := hex.DecodeString("0303030303030303030303030303030303030303030303030303030303030000")
-	root.Insert(key, testValue, nil)
+	root.Insert(key, nil, testValue, nil)
 	root.ComputeCommitment()
 
 	ret1, _ := hex.DecodeString("0303030303030303030303030303030303030303030303030303030303030300")
@@ -439,7 +439,7 @@ func TestProofOfAbsenceOtherMultipleLeaves(t *testing.T) {
 func TestProofOfAbsenceNoneMultipleStems(t *testing.T) {
 	root := New()
 	key, _ := hex.DecodeString("0403030303030303030303030303030303030303030303030303030303030000")
-	root.Insert(key, testValue, nil)
+	root.Insert(key, nil, testValue, nil)
 	root.ComputeCommitment()
 
 	ret1, _ := hex.DecodeString("0303030303030303030303030303030303030303030303030303030303030300")

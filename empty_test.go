@@ -29,7 +29,7 @@ import "testing"
 
 func TestEmptyFuncs(t *testing.T) {
 	var e Empty
-	err := e.Insert(zeroKeyTest, zeroKeyTest, nil)
+	err := e.Insert(zeroKeyTest, nil, zeroKeyTest, nil)
 	if err == nil {
 		t.Fatal("got nil error when inserting into empty")
 	}

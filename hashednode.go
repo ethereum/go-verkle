@@ -36,7 +36,7 @@ type HashedNode struct {
 	stem       []byte
 }
 
-func (*HashedNode) Insert([]byte, []byte, NodeResolverFn) error {
+func (*HashedNode) Insert([]byte, []byte, []byte, NodeResolverFn) error {
 	return errInsertIntoHash
 }
 

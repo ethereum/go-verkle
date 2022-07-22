@@ -29,12 +29,12 @@ import "errors"
 
 type Empty struct{}
 
-func (Empty) Insert([]byte, []byte, NodeResolverFn) error {
+func (Empty) Insert([]byte, []byte, []byte, NodeResolverFn) error {
 	return errors.New("an empty node should not be inserted directly into")
 }
 
 func (e Empty) InsertOrdered(key []byte, value []byte, _ NodeFlushFn) error {
-	return e.Insert(key, value, nil)
+	return e.Insert(key, nil, value, nil)
 }
 
 func (Empty) Delete([]byte, NodeResolverFn) error {

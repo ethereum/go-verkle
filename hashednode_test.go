@@ -29,7 +29,7 @@ import "testing"
 
 func TestHashedNodeFuncs(t *testing.T) {
 	e := HashedNode{hash: new(Fr), commitment: new(Point)}
-	err := e.Insert(zeroKeyTest, zeroKeyTest, nil)
+	err := e.Insert(zeroKeyTest, nil, zeroKeyTest, nil)
 	if err == nil {
 		t.Fatal("got nil error when inserting into a hashed node")
 	}

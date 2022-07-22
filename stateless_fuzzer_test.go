@@ -39,8 +39,9 @@ func FuzzStatelessVsStateful(f *testing.F) {
 		rootL := NewStateless()
 
 		for i := 0; i < len(input)/64; i++ {
-			rootF.Insert(input[i*64:i*64+32], input[i*64+32:(i+1)*64], nil)
-			rootL.Insert(input[i*64:i*64+32], input[i*64+32:(i+1)*64], nil)
+			// previous values are unlikely to be non-nil
+			rootF.Insert(input[i*64:i*64+32], nil, input[i*64+32:(i+1)*64], nil)
+			rootL.Insert(input[i*64:i*64+32], nil, input[i*64+32:(i+1)*64], nil)
 		}
 
 		if !Equal(rootL.ComputeCommitment(), rootF.ComputeCommitment()) {
