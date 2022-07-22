@@ -44,6 +44,7 @@ var testValue = []byte("0123456789abcdef0123456789abcdef")
 var (
 	zeroKeyTest, _   = hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000000")
 	oneKeyTest, _    = hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000001")
+	tenKeyTest, _    = hex.DecodeString("0010000000000000000000000000000000000000000000000000000000000000")
 	fourtyKeyTest, _ = hex.DecodeString("4000000000000000000000000000000000000000000000000000000000000000")
 	ffx32KeyTest, _  = hex.DecodeString("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
 )
@@ -867,6 +868,7 @@ func TestGetKey(t *testing.T) {
 func TestInsertIntoHashedNode(t *testing.T) {
 	root := New()
 	root.Insert(zeroKeyTest, nil, zeroKeyTest, nil)
+	root.InsertOrdered(tenKeyTest, zeroKeyTest, nil) // force the hashing of an internal node
 	root.InsertOrdered(fourtyKeyTest, zeroKeyTest, nil)
 
 	if err := root.Insert(zeroKeyTest, nil, zeroKeyTest, nil); err != errInsertIntoHash {
@@ -886,13 +888,13 @@ func TestInsertIntoHashedNode(t *testing.T) {
 	// Check that the proper error is raised if the RLP data is invalid and the
 	// node can not be parsed.
 	invalidRLPResolver := func(h []byte) ([]byte, error) {
-		node := &LeafNode{stem: zeroKeyTest, values: make([][]byte, NodeWidth)}
-		node.values[0] = zeroKeyTest
+		node := &HashedNode{stem: zeroKeyTest, commitment: new(Point), hash: new(Fr)}
 
 		rlp, _ := node.Serialize()
 		return rlp[:len(rlp)-10], nil
 	}
-	if err := root.Copy().Insert(zeroKeyTest, nil, zeroKeyTest, invalidRLPResolver); !errors.Is(err, serializedPayloadTooShort) {
+	root2 := root.Copy()
+	if err := root2.Insert(oneKeyTest, nil, zeroKeyTest, invalidRLPResolver); !errors.Is(err, serializedPayloadTooShort) {
 		t.Fatalf("error detecting a decoding error after resolution: %v", err)
 	}
 
