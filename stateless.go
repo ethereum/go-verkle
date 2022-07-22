@@ -294,35 +294,6 @@ func (*StatelessNode) InsertOrdered([]byte, []byte, NodeFlushFn) error {
 	return errNotSupportedInStateless
 }
 
-func (n *StatelessNode) Delete(key []byte, resolver NodeResolverFn) error {
-	// Case of an ext node
-	if n.values != nil {
-		var zero [32]byte
-		// Set the value to 0, data can not be deleted
-		n.values[key[31]] = zero[:]
-		n.hash = nil
-		n.ComputeCommitment()
-		return nil
-	}
-
-	nChild := offset2key(key, n.depth)
-	child := n.children[nChild]
-	var pre Fr
-	CopyFr(&pre, child.hash)
-	if err := child.Delete(key, resolver); err != nil {
-		return err
-	}
-
-	pre.Sub(child.hash, &pre)
-
-	var tmp Point
-	cfg, _ := GetConfig()
-	tmp.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[nChild], &pre)
-	n.commitment.Add(n.commitment, &tmp)
-	toFr(n.hash, n.commitment)
-	return nil
-}
-
 func (n *StatelessNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 	if n.values != nil {
 		// if the stems are different, then the key is missing

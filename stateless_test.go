@@ -77,29 +77,6 @@ func TestStatelessChildren(t *testing.T) {
 	}
 }
 
-func TestStatelessDelete(t *testing.T) {
-	root := NewStateless()
-	root.Insert(zeroKeyTest, fourtyKeyTest, nil)
-	var single Point
-	CopyPoint(&single, root.commitment)
-
-	root.Insert(oneKeyTest, fourtyKeyTest, nil)
-	if root.commitment.Equal(&single) {
-		t.Fatal("second insert didn't update")
-	}
-
-	root.Delete(oneKeyTest, nil)
-
-	rootRef := New()
-	rootRef.Insert(zeroKeyTest, fourtyKeyTest, nil)
-	rootRef.Insert(oneKeyTest, fourtyKeyTest, nil)
-	rootRef.Delete(oneKeyTest, nil)
-
-	if !Equal(rootRef.ComputeCommitment(), root.commitment) {
-		t.Fatal("error in delete", rootRef.ComputeCommitment(), root.hash)
-	}
-}
-
 func TestStatelessInsertLeafIntoRoot(t *testing.T) {
 	root := NewStateless()
 	root.Insert(zeroKeyTest, fourtyKeyTest, nil)

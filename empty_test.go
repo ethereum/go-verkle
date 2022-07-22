@@ -37,10 +37,6 @@ func TestEmptyFuncs(t *testing.T) {
 	if err == nil {
 		t.Fatal("got nil error when inserting into empty")
 	}
-	err = e.Delete(zeroKeyTest, nil)
-	if err == nil {
-		t.Fatal("got nil error when deleting from empty")
-	}
 	v, err := e.Get(zeroKeyTest, nil)
 	if err != nil {
 		t.Fatal("got non-nil error when getting from empty")

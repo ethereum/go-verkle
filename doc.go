@@ -29,8 +29,6 @@ import "errors"
 
 var (
 	errInsertIntoHash          = errors.New("trying to insert into hashed node")
-	errDeleteNonExistent       = errors.New("trying to delete non-existent leaf")
-	errDeleteHash              = errors.New("trying to delete from a hashed subtree")
 	errReadFromInvalid         = errors.New("trying to read from an invalid child")
 	errSerializeHashedNode     = errors.New("trying to serialized a hashed node")
 	errNotSupportedInStateless = errors.New("not implemented in stateless")

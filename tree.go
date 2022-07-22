@@ -64,9 +64,6 @@ type VerkleNode interface {
 	// is clear that no more values will be inserted in there.
 	InsertOrdered([]byte, []byte, NodeFlushFn) error
 
-	// Delete a leaf with the given key
-	Delete([]byte, NodeResolverFn) error
-
 	// Get value at a given key
 	Get([]byte, NodeResolverFn) ([]byte, error)
 
@@ -551,36 +548,6 @@ func (n *InternalNode) InsertStemOrdered(key []byte, leaf *LeafNode, flush NodeF
 	return nil
 }
 
-func (n *InternalNode) Delete(key []byte, resolver NodeResolverFn) error {
-	// Clear cached commitment on modification
-	n.commitment = nil
-
-	nChild := offset2key(key, n.depth)
-	switch child := n.children[nChild].(type) {
-	case Empty:
-		return errDeleteNonExistent
-	case *HashedNode:
-		if resolver == nil {
-			return errDeleteHash
-		}
-		comm := child.commitment.Bytes()
-		payload, err := resolver(comm[:])
-		if err != nil {
-			return err
-		}
-		// deserialize the payload and set it as the child
-		c, err := ParseNode(payload, n.depth+1, comm[:])
-		if err != nil {
-			return err
-		}
-		c.ComputeCommitment()
-		n.children[nChild] = c
-		return n.Delete(key, resolver)
-	default:
-		return child.Delete(key, resolver)
-	}
-}
-
 // Flush hashes the children of an internal node and replaces them
 // with HashedNode. It also sends the current node on the flush channel.
 func (n *InternalNode) Flush(flush NodeFlushFn) {
@@ -875,18 +842,6 @@ func (n *LeafNode) InsertOrdered(key []byte, value []byte, _ NodeFlushFn) error 
 	// This is no longer the case, as all values at the last level get
 	// flushed at the same time.
 	return n.Insert(key, value, nil)
-}
-
-func (n *LeafNode) Delete(k []byte, _ NodeResolverFn) error {
-	// Sanity check: ensure the key header is the same:
-	if !equalPaths(k, n.stem) {
-		return errDeleteNonExistent
-	}
-
-	var zero [32]byte
-	n.commitment = nil
-	n.values[k[31]] = zero[:]
-	return nil
 }
 
 func (n *LeafNode) Get(k []byte, _ NodeResolverFn) ([]byte, error) {
