@@ -152,8 +152,9 @@ func (pe *ProofElements) Merge(other *ProofElements) {
 const (
 	// These types will distinguish internal
 	// and leaf nodes when decoding from RLP.
-	internalRLPType byte = 1
-	leafRLPType     byte = 2
+	internalRLPType = byte(iota)
+	leafRLPType
+	hashedLeafRLPType
 )
 
 type (
@@ -741,6 +742,53 @@ func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 		return c.Get(k, getter)
 	default: // InternalNode
 		return child.Get(k, getter)
+	}
+}
+
+// GetStem resolves a path up (and excluding) the leaf node. It is used in cases
+// when only the hashed node is stored in the db.
+func (n *InternalNode) GetStem(stem []byte, getter NodeResolverFn) error {
+	nChild := offset2key(stem, n.depth)
+
+	switch child := n.children[nChild].(type) {
+	case Empty, nil:
+		// Return nil as a signal that the value isn't
+		// present in the tree. This matches the behavior
+		// of SecureTrie in Geth.
+		return nil
+	case *HashedNode:
+		// Stop condition: is this a hashed leaf?
+		if len(child.stem) != 0 {
+			return nil
+		}
+
+		// if a resolution function is set, resolve the
+		// current hash node.
+		if getter == nil {
+			return errReadFromInvalid
+		}
+
+		commitment := child.commitment.Bytes()
+		payload, err := getter(commitment[:])
+		if err != nil {
+			return err
+		}
+
+		// deserialize the payload and set it as the child
+		c, err := ParseNode(payload, n.depth+1, commitment[:])
+		if err != nil {
+			return err
+		}
+		c.ComputeCommitment()
+		n.children[nChild] = c
+
+		// Recurse into self in order to go through the switch statement
+		// with a now deserialized non-hashed-leaf node.
+		return n.GetStem(stem, getter)
+	case *InternalNode:
+		return child.GetStem(stem, getter)
+	default:
+		return errReadFromInvalid
 	}
 }
 

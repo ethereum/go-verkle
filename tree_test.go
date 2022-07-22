@@ -784,6 +784,73 @@ func TestGetResolveFromHash(t *testing.T) {
 	}
 }
 
+// Test flushing a hashed leaf nodes. Goal:check that if a leaf node is
+// stored in the db as its hashed version, it can then be recovered and
+// updated by differential insertion.
+func TestGetResolveHashedNodeFromHash(t *testing.T) {
+	var (
+		count      uint
+		serialized = map[string][]byte{}
+	)
+
+	getter := func(key []byte) ([]byte, error) {
+		count++
+
+		if data, ok := serialized[string(key)]; ok {
+			return data, nil
+		}
+
+		return nil, fmt.Errorf("could not find %x in db", key)
+	}
+	flush := func(n VerkleNode) {
+		var (
+			s    []byte
+			comm = n.ComputeCommitment().Bytes()
+			err  error
+		)
+		switch node := n.(type) {
+		case *LeafNode:
+			// save the hashed node instead of the leaf, along with
+			// the leaf marker.
+			s, err = node.ToHashedNode().Serialize()
+		default:
+			s, err = n.Serialize()
+		}
+		if err != nil {
+			panic(err)
+		}
+		serialized[string(comm[:])] = s
+	}
+	root := New()
+	root.InsertOrdered(zeroKeyTest, zeroKeyTest, flush)
+	root.InsertOrdered(fourtyKeyTest, zeroKeyTest, flush)
+
+	intRoot := root.(*InternalNode)
+	err := intRoot.GetStem(zeroKeyTest, getter)
+	if err != nil {
+		t.Fatalf("error resolving hash: %v", err)
+	}
+
+	// The getter won't be called because no internal node is resolved
+	if count != 0 {
+		t.Fatalf("error getting the correct number of nodes: 0 != %d", count)
+	}
+
+	child, ok := intRoot.children[0].(*HashedNode)
+	if !ok {
+		t.Fatal("child #0 isn't a serialized leaf node")
+	}
+	if !bytes.Equal(child.stem, zeroKeyTest[:31]) {
+		t.Fatalf("invalid resolved stem: %x", child.stem)
+	}
+
+	// TODO check this can be inserted into with differential insertion
+	//err := root.InsertDiff(oneKeyTest, nil, zeroKeyTest, flush)
+	//if err != nil {
+	//t.Fatal(err)
+	//}
+}
+
 func TestGetKey(t *testing.T) {
 	root := &LeafNode{stem: fourtyKeyTest}
 	for i := 0; i < NodeWidth; i++ {

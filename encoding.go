@@ -78,6 +78,15 @@ func ParseNode(serialized []byte, depth byte, comm []byte) (VerkleNode, error) {
 		return ln, nil
 	case internalRLPType:
 		return CreateInternalNode(serialized[1:33], serialized[33:], depth, comm)
+	case hashedLeafRLPType:
+		ln := &HashedNode{
+			stem:       serialized[1:32],
+			commitment: new(Point),
+			hash:       new(Fr),
+		}
+		ln.commitment.SetBytes(serialized[32:])
+		ln.hash.SetBytes(comm)
+		return ln, nil
 	default:
 		return nil, ErrInvalidNodeEncoding
 	}

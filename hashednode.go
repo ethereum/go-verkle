@@ -60,8 +60,17 @@ func (*HashedNode) GetProofItems(keylist) (*ProofElements, []byte, [][]byte) {
 	panic("can not get the full path, and there is no proof of absence")
 }
 
-func (*HashedNode) Serialize() ([]byte, error) {
-	return nil, errSerializeHashedNode
+func (n *HashedNode) Serialize() ([]byte, error) {
+	if len(n.stem) == 0 {
+		return nil, errSerializeHashedNode
+	}
+
+	ser := make([]byte, 1, 1+31+32)
+	ser[0] = hashedLeafRLPType
+	ser = append(ser, n.stem...)
+	serComm := n.commitment.Bytes()
+	ser = append(ser, serComm[:]...)
+	return ser, nil
 }
 
 func (n *HashedNode) Copy() VerkleNode {
