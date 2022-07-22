@@ -953,7 +953,7 @@ func (n *LeafNode) ToHashedNode() *HashedNode {
 	return &HashedNode{&hash, n.commitment, n.stem}
 }
 
-func (n *LeafNode) Insert(k []byte, oldv, newv []byte, _ NodeResolverFn) error {
+func (n *LeafNode) Insert(k []byte, _, newv []byte, _ NodeResolverFn) error {
 	// Sanity check: ensure the key header is the same:
 	if !equalPaths(k, n.stem) {
 		return errInsertIntoOtherStem
