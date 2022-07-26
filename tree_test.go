@@ -1156,7 +1156,6 @@ func TestInsertStemOrdered(t *testing.T) {
 	root2.Insert(zeroKeyTest, nil, ffx32KeyTest, nil)
 	root2.Insert(key5[:], nil, zeroKeyTest, nil)
 	root2.Insert(key192[:], nil, fourtyKeyTest, nil)
-	root2.Insert(key192[:], nil, fourtyKeyTest, nil)
 	root2.Insert(key64[:], nil, zeroKeyTest, nil)
 	root2.Insert(keysplit[:], nil, ffx32KeyTest, nil)
 	r2c := root2.ComputeCommitment()

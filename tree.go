@@ -648,6 +648,16 @@ func (n *InternalNode) InsertStemOrdered(key []byte, leaf *LeafNode, flush NodeF
 		newBranch := newInternalNode(n.depth+1, n.committer).(*InternalNode)
 		n.children[nChild] = newBranch
 
+		// hack for compatibility with the diff insertion: since
+		// InsertStemOrdered does not perform differential inserts
+		// it relies on the old "recalculate the commitment iff it's
+		// nil" trick. But with the introduction of a default comm of
+		// 1 in newInternalNode, ComputeCommitment() doesn't calculate
+		// anything. Force the recalculation until InsertStemOrdered
+		// is ported to the new method. That'll be after InsertStem and
+		// InsertOrdered are removed.
+		newBranch.commitment = nil
+
 		nextWordInInsertedKey := offset2key(key, n.depth+1)
 		if nextWordInInsertedKey != nextWordInExistingKey {
 			// Directly hash the (left) node that was already
