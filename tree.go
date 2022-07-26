@@ -306,7 +306,7 @@ func (n *InternalNode) Insert(key []byte, oldv, newv []byte, resolver NodeResolv
 			}
 
 			// this got inserted into the same leaf, update the leaf's
-			// committment differentially.
+			// commitment differentially.
 			cfg, _ := GetConfig()
 			var diff Fr
 			var nv, ov Fr
