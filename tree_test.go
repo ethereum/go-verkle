@@ -1072,7 +1072,7 @@ func TestInsertStemOrdered(t *testing.T) {
 
 	// 26 for fourtyKeyTest + 2 children, 1 for zeroKeyTest,
 	if flushCount != 27 {
-		t.Fatalf("incorrect number of flushes %d != 26", flushCount)
+		t.Fatalf("incorrect number of flushes %d != 27", flushCount)
 	}
 
 	var key5, key32, key64, key192 [32]byte
