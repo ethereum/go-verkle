@@ -944,16 +944,21 @@ func (n *LeafNode) ToHashedNode() *HashedNode {
 }
 
 func (n *LeafNode) Insert(k []byte, value []byte, _ NodeResolverFn) error {
+	// Sanity check: ensure the key header is the same:
+	if !equalPaths(k, n.stem) {
+		return errInsertIntoOtherStem
+	}
+
+	return n.updateLeaf(k, value)
+}
+
+func (n *LeafNode) updateLeaf(k []byte, value []byte) error {
 	var (
 		old, new   [2]Fr
 		oldc, newc Fr
 		diff       Point
 		c          *Point
 	)
-	// Sanity check: ensure the key header is the same:
-	if !equalPaths(k, n.stem) {
-		return errInsertIntoOtherStem
-	}
 
 	if k[31] < 128 {
 		c = n.c1
@@ -1003,9 +1008,7 @@ func (n *LeafNode) Delete(k []byte, _ NodeResolverFn) error {
 	}
 
 	var zero [32]byte
-	n.commitment = nil
-	n.values[k[31]] = zero[:]
-	return nil
+	return n.updateLeaf(k, zero[:])
 }
 
 func (n *LeafNode) Get(k []byte, _ NodeResolverFn) ([]byte, error) {
