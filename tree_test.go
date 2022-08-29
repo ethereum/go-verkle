@@ -532,8 +532,8 @@ func benchmarkCommitNLeaves(b *testing.B, n int) {
 	for i := 0; i < n; i++ {
 		key := make([]byte, 32)
 		val := make([]byte, 32)
-		rand.Read(key)
-		rand.Read(val)
+		rand.Read(key) // skipcq: GSC-G404
+		rand.Read(val) // skipcq: GSC-G404
 		kvs[i] = kv{k: key, v: val}
 		sortedKVs[i] = kv{k: key, v: val}
 	}
@@ -576,7 +576,7 @@ func benchmarkCommitNLeaves(b *testing.B, n int) {
 }
 
 func BenchmarkModifyLeaves(b *testing.B) {
-	mRand.Seed(time.Now().UnixNano())
+	mRand.Seed(time.Now().UnixNano()) // skipcq: GO-S1033
 
 	n := 200000
 	toEdit := 10000
@@ -585,7 +585,7 @@ func BenchmarkModifyLeaves(b *testing.B) {
 	root := New()
 	for i := 0; i < n; i++ {
 		key := make([]byte, 32)
-		rand.Read(key)
+		rand.Read(key) // skipcq: GSC-G404
 		keys[i] = key
 		root.Insert(key, val, nil)
 	}
@@ -612,7 +612,7 @@ func randomKeys(n int) [][]byte {
 	keys := make([][]byte, n)
 	for i := 0; i < n; i++ {
 		key := make([]byte, 32)
-		rand.Read(key)
+		rand.Read(key) // skipcq: GSC-G404
 		keys[i] = key
 	}
 	return keys
