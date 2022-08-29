@@ -624,9 +624,6 @@ func (n *InternalNode) InsertStemOrdered(key []byte, leaf *LeafNode, flush NodeF
 }
 
 func (n *InternalNode) Delete(key []byte, resolver NodeResolverFn) error {
-	// Clear cached commitment on modification
-	n.commitment = nil
-
 	nChild := offset2key(key, n.depth)
 	switch child := n.children[nChild].(type) {
 	case Empty:
@@ -649,7 +646,21 @@ func (n *InternalNode) Delete(key []byte, resolver NodeResolverFn) error {
 		n.children[nChild] = c
 		return n.Delete(key, resolver)
 	default:
-		return child.Delete(key, resolver)
+		var old, new Fr
+		toFr(&old, child.ComputeCommitment())
+		err := child.Delete(key, resolver)
+		if err == nil {
+			toFr(&new, child.ComputeCommitment())
+			new.Sub(&new, &old)
+			var diff, newComm Point
+			// copy the point so any external references
+			// are still holding the old value
+			CopyPoint(&newComm, n.commitment)
+			diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[nChild], &new)
+			newComm.Add(n.commitment, &diff)
+			n.commitment = &newComm
+		}
+		return err
 	}
 }
 

@@ -333,6 +333,9 @@ func TestDelLeaf(t *testing.T) {
 		t.Error(err)
 	}
 
+	// the pre and post deletion hashes should be different,
+	// as deleting a value means replacing it with a 0 in verkle
+	// trees.
 	postHash := tree.ComputeCommitment()
 	if Equal(hash, postHash) {
 		t.Error("deleting leaf resulted in unexpected tree")
