@@ -944,12 +944,48 @@ func (n *LeafNode) ToHashedNode() *HashedNode {
 }
 
 func (n *LeafNode) Insert(k []byte, value []byte, _ NodeResolverFn) error {
+	var (
+		old, new   [2]Fr
+		oldc, newc Fr
+		diff       Point
+		c          *Point
+	)
 	// Sanity check: ensure the key header is the same:
 	if !equalPaths(k, n.stem) {
 		return errInsertIntoOtherStem
 	}
+
+	if k[31] < 128 {
+		c = n.c1
+	} else {
+		c = n.c2
+	}
+	toFr(&oldc, c)
+
+	// Optimization idea:
+	// If the value is created (i.e. not overwritten), the leaf marker
+	// is already present in the commitment. In order to save computations,
+	// do not include it. The result should be the same,
+	// but the computation time should be faster as one doesn't need to
+	// compute 1 - 1 mod N.
+	leafToComms(old[:], n.values[k[31]])
+	leafToComms(new[:], value)
+
+	new[0].Sub(&new[0], &old[0])
+	diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[2*(k[31]%128)], &new[0])
+	c.Add(c, &diff)
+
+	// TODO Add the two diffs to perform only one elliptic curve operation
+	new[1].Sub(&new[1], &old[1])
+	diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[2*(k[31]%128)+1], &new[1])
+	c.Add(c, &diff)
+
+	toFr(&newc, c)
+	newc.Sub(&newc, &oldc)
+	diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[2+(k[31]/128)], &newc)
+	n.commitment.Add(n.commitment, &diff)
+
 	n.values[k[31]] = value
-	n.commitment = nil
 	return nil
 }
 
