@@ -954,10 +954,10 @@ func (n *LeafNode) Insert(k []byte, value []byte, _ NodeResolverFn) error {
 
 func (n *LeafNode) updateLeaf(k []byte, value []byte) error {
 	var (
-		old, new   [2]Fr
-		oldc, newc Fr
-		diff       Point
-		c          *Point
+		old, new    [2]Fr
+		oldc, newc  Fr
+		diff, diff0 Point
+		c           *Point
 	)
 
 	if k[31] < 128 {
@@ -977,12 +977,11 @@ func (n *LeafNode) updateLeaf(k []byte, value []byte) error {
 	leafToComms(new[:], value)
 
 	new[0].Sub(&new[0], &old[0])
-	diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[2*(k[31]%128)], &new[0])
-	c.Add(c, &diff)
+	diff0.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[2*(k[31]%128)], &new[0])
 
-	// TODO Add the two diffs to perform only one elliptic curve operation
 	new[1].Sub(&new[1], &old[1])
 	diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[2*(k[31]%128)+1], &new[1])
+	diff.Add(&diff, &diff0)
 	c.Add(c, &diff)
 
 	toFr(&newc, c)
