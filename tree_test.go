@@ -963,7 +963,7 @@ func TestInsertStem(t *testing.T) {
 		values:    values,
 		committer: root1.(*InternalNode).committer,
 	}
-	root1.(*InternalNode).InsertStem(fourtyKeyTest[:31], leaf, nil)
+	root1.(*InternalNode).InsertStem(fourtyKeyTest[:31], leaf, nil, false)
 	r1c := root1.ComputeCommitment()
 
 	var key5, key192 [32]byte

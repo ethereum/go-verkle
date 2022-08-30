@@ -342,11 +342,19 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 	return err
 }
 
-// InsertStem inserts a pre-constructed node into the tree at stem stem.
-func (n *InternalNode) InsertStem(stem []byte, node VerkleNode, resolver NodeResolverFn) error {
-	// Clear cached commitment on modification
-	n.commitment = nil
-	nChild := offset2key(stem, n.depth)
+// InsertStem inserts a pre-constructed node into the tree at stem stem. If the `overwrite` bit is set to true,
+// if and the inserted node is a leaf, it will attempt to merge that leaf with the one already present in the
+// trie (if such a leaf is already present). Merging a leaf and another type of node (i.e. a subtree insertion)
+// will return an error.
+func (n *InternalNode) InsertStem(stem []byte, node VerkleNode, resolver NodeResolverFn, overwrite bool) error {
+	var (
+		err       error
+		pre, post Fr                          // serialized value of this node's commitment pre- and post-insertion
+		nChild    = offset2key(stem, n.depth) // index of the child pointed by the next byte in the key
+	)
+
+	// keep the initial value of the child commitment
+	toFr(&pre, n.children[nChild].ComputeCommitment())
 
 	switch child := n.children[nChild].(type) {
 	case Empty:
@@ -369,11 +377,27 @@ func (n *InternalNode) InsertStem(stem []byte, node VerkleNode, resolver NodeRes
 		n.children[nChild] = resolved
 		// recurse to handle the case of a LeafNode child that
 		// splits.
-		return n.InsertStem(stem, node, resolver)
+		return n.InsertStem(stem, node, resolver, overwrite)
 	case *LeafNode:
 		// overwriting leaves isn't allowed
 		if equalPaths(child.stem, stem) {
-			return errLeafOverwrite
+			if !overwrite {
+				return errLeafOverwrite
+			}
+			leaf, ok := node.(*LeafNode)
+			if !ok {
+				return errors.New("unsupported use case: inserting a non-leaf node into a leaf node")
+			}
+			// Merge the two leaves and recalculate the leaf's
+			// commitment.
+			for i, v := range leaf.values {
+				if len(v) != 0 {
+					err = child.updateLeaf(byte(i), v)
+					if err != nil {
+						return err
+					}
+				}
+			}
 		}
 		// A new branch node has to be inserted. Depending
 		// on the next word in both keys, a recursion into
@@ -390,14 +414,23 @@ func (n *InternalNode) InsertStem(stem []byte, node VerkleNode, resolver NodeRes
 			// Insert it directly into its final slot.
 			node.setDepth(n.depth + 2)
 			newBranch.children[nextWordInInsertedKey] = node
-		} else if err := newBranch.InsertStem(stem, node, resolver); err != nil {
-			return err
+		} else {
+			err = newBranch.InsertStem(stem, node, resolver, overwrite)
 		}
 	case *InternalNode:
-		return child.InsertStem(stem, node, resolver)
+		err = child.InsertStem(stem, node, resolver, overwrite)
 	default: // StatelessNode
 		return errStatelessAndStatefulMix
 	}
+
+	// diff-update this commitment upon exiting this method
+	if err == nil {
+		var diff Point
+		toFr(&post, n.children[nChild].ComputeCommitment())
+		diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[nChild], pre.Sub(&post, &pre))
+		n.commitment.Add(n.commitment, &diff)
+	}
+
 	return nil
 }
 
@@ -949,10 +982,10 @@ func (n *LeafNode) Insert(k []byte, value []byte, _ NodeResolverFn) error {
 		return errInsertIntoOtherStem
 	}
 
-	return n.updateLeaf(k, value)
+	return n.updateLeaf(k[31], value)
 }
 
-func (n *LeafNode) updateLeaf(k []byte, value []byte) error {
+func (n *LeafNode) updateLeaf(index byte, value []byte) error {
 	var (
 		old, new   [2]Fr
 		oldc, newc Fr
@@ -960,7 +993,7 @@ func (n *LeafNode) updateLeaf(k []byte, value []byte) error {
 		c          *Point
 	)
 
-	if k[31] < 128 {
+	if index < 128 {
 		c = n.c1
 	} else {
 		c = n.c2
@@ -973,23 +1006,23 @@ func (n *LeafNode) updateLeaf(k []byte, value []byte) error {
 	// do not include it. The result should be the same,
 	// but the computation time should be faster as one doesn't need to
 	// compute 1 - 1 mod N.
-	leafToComms(old[:], n.values[k[31]])
+	leafToComms(old[:], n.values[index])
 	leafToComms(new[:], value)
 
 	new[0].Sub(&new[0], &old[0])
-	diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[2*(k[31]%128)], &new[0])
+	diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[2*(index%128)], &new[0])
 	c.Add(c, &diff)
 
 	new[1].Sub(&new[1], &old[1])
-	diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[2*(k[31]%128)+1], &new[1])
+	diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[2*(index%128)+1], &new[1])
 	c.Add(c, &diff)
 
 	toFr(&newc, c)
 	newc.Sub(&newc, &oldc)
-	diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[2+(k[31]/128)], &newc)
+	diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[2+(index/128)], &newc)
 	n.commitment.Add(n.commitment, &diff)
 
-	n.values[k[31]] = value
+	n.values[index] = value
 	return nil
 }
 
@@ -1007,7 +1040,7 @@ func (n *LeafNode) Delete(k []byte, _ NodeResolverFn) error {
 	}
 
 	var zero [32]byte
-	return n.updateLeaf(k, zero[:])
+	return n.updateLeaf(k[31], zero[:])
 }
 
 func (n *LeafNode) Get(k []byte, _ NodeResolverFn) ([]byte, error) {
