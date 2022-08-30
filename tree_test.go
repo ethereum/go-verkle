@@ -333,6 +333,9 @@ func TestDelLeaf(t *testing.T) {
 		t.Error(err)
 	}
 
+	// the pre and post deletion hashes should be different,
+	// as deleting a value means replacing it with a 0 in verkle
+	// trees.
 	postHash := tree.ComputeCommitment()
 	if Equal(hash, postHash) {
 		t.Error("deleting leaf resulted in unexpected tree")
@@ -1072,7 +1075,7 @@ func TestInsertStemOrdered(t *testing.T) {
 
 	// 26 for fourtyKeyTest + 2 children, 1 for zeroKeyTest,
 	if flushCount != 27 {
-		t.Fatalf("incorrect number of flushes %d != 26", flushCount)
+		t.Fatalf("incorrect number of flushes %d != 27", flushCount)
 	}
 
 	var key5, key32, key64, key192 [32]byte
