@@ -391,7 +391,7 @@ func (n *InternalNode) InsertStem(stem []byte, node VerkleNode, resolver NodeRes
 			// Merge the two leaves and recalculate the leaf's
 			// commitment.
 			for i, v := range leaf.values {
-				if len(v) != 0 {
+				if len(v) != 0 && !bytes.Equal(v[:], child.values[i]) {
 					err = child.updateLeaf(byte(i), v)
 					if err != nil {
 						return err
