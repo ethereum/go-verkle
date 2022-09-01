@@ -373,6 +373,7 @@ func (n *InternalNode) InsertStem(stem []byte, node VerkleNode, resolver NodeRes
 		if err != nil {
 			return fmt.Errorf("verkle tree: error parsing resolved node %x: %w", stem, err)
 		}
+		resolved.setDepth(n.depth + 1)
 		resolved.ComputeCommitment()
 		n.children[nChild] = resolved
 		// recurse to handle the case of a LeafNode child that
@@ -391,7 +392,7 @@ func (n *InternalNode) InsertStem(stem []byte, node VerkleNode, resolver NodeRes
 			// Merge the two leaves and recalculate the leaf's
 			// commitment.
 			for i, v := range leaf.values {
-				if len(v) != 0 && !bytes.Equal(v[:], child.values[i]) {
+				if len(v) != 0 && !bytes.Equal(v, child.values[i]) {
 					err = child.updateLeaf(byte(i), v)
 					if err != nil {
 						return err
