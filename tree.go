@@ -380,7 +380,6 @@ func (n *InternalNode) InsertStem(stem []byte, node VerkleNode, resolver NodeRes
 		// splits.
 		return n.InsertStem(stem, node, resolver, overwrite)
 	case *LeafNode:
-		// overwriting leaves isn't allowed
 		if equalPaths(child.stem, stem) {
 			if !overwrite {
 				return errLeafOverwrite
@@ -399,24 +398,25 @@ func (n *InternalNode) InsertStem(stem []byte, node VerkleNode, resolver NodeRes
 					}
 				}
 			}
-		}
-		// A new branch node has to be inserted. Depending
-		// on the next word in both keys, a recursion into
-		// the moved leaf node can occur.
-		nextWordInExistingKey := offset2key(child.stem, n.depth+1)
-		newBranch := newInternalNodeNilCommitment(n.depth+1, n.committer).(*InternalNode)
-		n.children[nChild] = newBranch
-		newBranch.children[nextWordInExistingKey] = child
-		child.depth += 1
-
-		nextWordInInsertedKey := offset2key(stem, n.depth+1)
-		if nextWordInInsertedKey != nextWordInExistingKey {
-			// Next word differs, so this was the last level.
-			// Insert it directly into its final slot.
-			node.setDepth(n.depth + 2)
-			newBranch.children[nextWordInInsertedKey] = node
 		} else {
-			err = newBranch.InsertStem(stem, node, resolver, overwrite)
+			// A new branch node has to be inserted. Depending
+			// on the next word in both keys, a recursion into
+			// the moved leaf node can occur.
+			nextWordInExistingKey := offset2key(child.stem, n.depth+1)
+			newBranch := newInternalNodeNilCommitment(n.depth+1, n.committer).(*InternalNode)
+			n.children[nChild] = newBranch
+			newBranch.children[nextWordInExistingKey] = child
+			child.depth += 1
+
+			nextWordInInsertedKey := offset2key(stem, n.depth+1)
+			if nextWordInInsertedKey != nextWordInExistingKey {
+				// Next word differs, so this was the last level.
+				// Insert it directly into its final slot.
+				node.setDepth(n.depth + 2)
+				newBranch.children[nextWordInInsertedKey] = node
+			} else {
+				err = newBranch.InsertStem(stem, node, resolver, overwrite)
+			}
 		}
 	case *InternalNode:
 		err = child.InsertStem(stem, node, resolver, overwrite)
