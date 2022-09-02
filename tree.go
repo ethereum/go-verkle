@@ -1056,6 +1056,8 @@ func (n *LeafNode) updateMultipleLeaves(values [][]byte) {
 				}
 				n.updateCn(byte(i), v, c2)
 			}
+
+			n.values[i] = v[:]
 		}
 	}
 
