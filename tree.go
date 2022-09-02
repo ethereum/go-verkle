@@ -1044,7 +1044,7 @@ func (n *LeafNode) updateMultipleLeaves(values [][]byte) {
 	var c1, c2 *Point
 	var old1, old2 *Fr
 	for i, v := range values {
-		if len(v) != 0 && !bytes.Equal(v, values[i]) {
+		if len(v) != 0 && !bytes.Equal(v, n.values[i]) {
 			if i < 128 {
 				if c1 == nil {
 					c1, old1 = n.getOldCn(byte(i))
