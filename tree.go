@@ -390,14 +390,7 @@ func (n *InternalNode) InsertStem(stem []byte, node VerkleNode, resolver NodeRes
 			}
 			// Merge the two leaves and recalculate the leaf's
 			// commitment.
-			for i, v := range leaf.values {
-				if len(v) != 0 && !bytes.Equal(v, child.values[i]) {
-					err = child.updateLeaf(byte(i), v)
-					if err != nil {
-						return err
-					}
-				}
-			}
+			child.updateMultipleLeaves(leaf.values)
 		} else {
 			// A new branch node has to be inserted. Depending
 			// on the next word in both keys, a recursion into
@@ -983,23 +976,41 @@ func (n *LeafNode) Insert(k []byte, value []byte, _ NodeResolverFn) error {
 		return errInsertIntoOtherStem
 	}
 
-	return n.updateLeaf(k[31], value)
+	n.updateLeaf(k[31], value)
+	return nil
 }
 
-func (n *LeafNode) updateLeaf(index byte, value []byte) error {
+func (n *LeafNode) getOldCn(index byte) (*Point, *Fr) {
 	var (
-		old, new   [2]Fr
-		oldc, newc Fr
-		diff       Point
-		c          *Point
+		c    *Point
+		oldc Fr
 	)
-
 	if index < 128 {
 		c = n.c1
 	} else {
 		c = n.c2
 	}
 	toFr(&oldc, c)
+	return c, &oldc
+}
+
+func (n *LeafNode) updateC(index byte, c *Point, oldc *Fr) {
+	var (
+		newc Fr
+		diff Point
+	)
+
+	toFr(&newc, c)
+	newc.Sub(&newc, oldc)
+	diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[2+(index/128)], &newc)
+	n.commitment.Add(n.commitment, &diff)
+}
+
+func (n *LeafNode) updateCn(index byte, value []byte, c *Point) {
+	var (
+		old, new [2]Fr
+		diff     Point
+	)
 
 	// Optimization idea:
 	// If the value is created (i.e. not overwritten), the leaf marker
@@ -1017,14 +1028,43 @@ func (n *LeafNode) updateLeaf(index byte, value []byte) error {
 	new[1].Sub(&new[1], &old[1])
 	diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[2*(index%128)+1], &new[1])
 	c.Add(c, &diff)
+}
 
-	toFr(&newc, c)
-	newc.Sub(&newc, &oldc)
-	diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[2+(index/128)], &newc)
-	n.commitment.Add(n.commitment, &diff)
+func (n *LeafNode) updateLeaf(index byte, value []byte) {
+	c, oldc := n.getOldCn(index)
+
+	n.updateCn(index, value, c)
+
+	n.updateC(index, c, oldc)
 
 	n.values[index] = value
-	return nil
+}
+
+func (n *LeafNode) updateMultipleLeaves(values [][]byte) {
+	var c1, c2 *Point
+	var old1, old2 *Fr
+	for i, v := range values {
+		if len(v) != 0 && !bytes.Equal(v, values[i]) {
+			if i < 128 {
+				if c1 == nil {
+					c1, old1 = n.getOldCn(byte(i))
+				}
+				n.updateCn(byte(i), v, c1)
+			} else {
+				if c2 == nil {
+					c2, old2 = n.getOldCn(byte(i))
+				}
+				n.updateCn(byte(i), v, c2)
+			}
+		}
+	}
+
+	if c1 != nil {
+		n.updateC(0, c1, old1)
+	}
+	if c2 != nil {
+		n.updateC(128, c2, old2)
+	}
 }
 
 func (n *LeafNode) InsertOrdered(key []byte, value []byte, _ NodeFlushFn) error {
@@ -1041,7 +1081,8 @@ func (n *LeafNode) Delete(k []byte, _ NodeResolverFn) error {
 	}
 
 	var zero [32]byte
-	return n.updateLeaf(k[31], zero[:])
+	n.updateLeaf(k[31], zero[:])
+	return nil
 }
 
 func (n *LeafNode) Get(k []byte, _ NodeResolverFn) ([]byte, error) {
