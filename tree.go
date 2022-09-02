@@ -396,7 +396,7 @@ func (n *InternalNode) InsertStem(stem []byte, node VerkleNode, resolver NodeRes
 			// on the next word in both keys, a recursion into
 			// the moved leaf node can occur.
 			nextWordInExistingKey := offset2key(child.stem, n.depth+1)
-			newBranch := newInternalNodeNilCommitment(n.depth+1, n.committer).(*InternalNode)
+			newBranch := newInternalNode(n.depth+1, n.committer).(*InternalNode)
 			n.children[nChild] = newBranch
 			newBranch.children[nextWordInExistingKey] = child
 			child.depth += 1
