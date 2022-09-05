@@ -428,3 +428,35 @@ func TestStatelessGetProofItems(t *testing.T) {
 		t.Fatal("evaluations have different length")
 	}
 }
+
+// This test check that node resolution works for StatelessNode
+func TestStatelessInsertIntoHash(t *testing.T) {
+	root := NewStateless()
+	root.Insert(fourtyKeyTest, ffx32KeyTest, nil)
+
+	saved := root.children[fourtyKeyTest[0]].(*StatelessNode)
+	root.children[fourtyKeyTest[0]] = saved.toHashedNode()
+
+	// overwrite the value that has been hashed
+	root.Insert(fourtyKeyTest, zeroKeyTest, func(b []byte) ([]byte, error) {
+		// Since the root is a stateless node, so is the leaf. And stateless
+		// leaves can not currently be serialized. Create a stateful version
+		// of that key.
+		leaf := NewLeafNode(fourtyKeyTest[:31], make([][]byte, NodeWidth))
+		leaf.Insert(fourtyKeyTest, ffx32KeyTest, nil)
+		return leaf.Serialize()
+	})
+
+	recovered, err := root.Get(fourtyKeyTest, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(recovered, zeroKeyTest) {
+		t.Fatalf("incorrect value found: %x != %x", recovered, zeroKeyTest)
+	}
+
+	if _, ok := root.children[fourtyKeyTest[0]].(*StatelessNode); ok {
+		t.Fatalf("invalid node type %v isn't a LeafNode", root.children[fourtyKeyTest[0]])
+	}
+}

@@ -255,6 +255,21 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 			return nil
 		}
 
+		// If the child is a hash, the node needs to be resolved
+		// before there is an insert into it.
+		if h, ok := n.children[nChild].(*HashedNode); ok {
+			comm := h.ComputeCommitment().Bytes()
+			serialized, err := resolver(comm[:])
+			if err != nil {
+				return err
+			}
+			node, err := ParseNode(serialized, n.depth+1, comm[:])
+			if err != nil {
+				return err
+			}
+			n.children[nChild] = node
+		}
+
 		// Save the value of the initial child commitment
 		var pre Fr
 		CopyFr(&pre, n.children[nChild].Hash())
@@ -705,4 +720,8 @@ func (n *StatelessNode) toDot(parent, path string) string {
 
 func (n *StatelessNode) setDepth(d byte) {
 	n.depth = d
+}
+
+func (n *StatelessNode) toHashedNode() *HashedNode {
+	return &HashedNode{n.Hash(), n.commitment}
 }

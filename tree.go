@@ -223,8 +223,11 @@ func NewLeafNode(stem []byte, values [][]byte) *LeafNode {
 		committer: cfg,
 		// depth will be 0, but the commitment calculation
 		// does not need it, and so it won't be free.
-		values: values,
-		stem:   stem,
+		values:     values,
+		stem:       stem,
+		commitment: Generator(),
+		c1:         Generator(),
+		c2:         Generator(),
 	}
 }
 
