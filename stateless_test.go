@@ -500,3 +500,33 @@ func TestStatelessInsertIntoSerialized(t *testing.T) {
 		t.Fatalf("invalid node type %v isn't a LeafNode", root.(*StatelessNode).children[fourtyKeyTest[0]])
 	}
 }
+
+func TestStatelessInsertStem(t *testing.T) {
+	root := NewStateless()
+	root.InsertStem(zeroKeyTest[:31], [][]byte{ffx32KeyTest, fourtyKeyTest, zeroKeyTest, oneKeyTest}, nil, false)
+
+	out, err := root.Get(zeroKeyTest, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(out, ffx32KeyTest) {
+		t.Fatalf("invalid valud %x != %x\n", out, ffx32KeyTest)
+	}
+	out, err = root.Get(oneKeyTest, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(out, fourtyKeyTest) {
+		t.Fatalf("invalid valud %x != %x\n", out, fourtyKeyTest)
+	}
+
+	root.InsertStem(zeroKeyTest[:31], [][]byte{nil, ffx32KeyTest, nil, nil, oneKeyTest}, nil, false)
+
+	out, err = root.Get(oneKeyTest, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(out, ffx32KeyTest) {
+		t.Fatalf("invalid valud %x != %x\n", out, fourtyKeyTest)
+	}
+}
