@@ -208,22 +208,10 @@ func TestStatelessGet(t *testing.T) {
 }
 
 func TestStatelessComputeCommitmentEmptyRoot(t *testing.T) {
-	root := &StatelessNode{}
-	root.ComputeCommitment()
+	root := NewStateless()
 	if !root.hash.Equal(&FrZero) {
 		t.Fatal("invalid commitment for the empty root")
 	}
-
-	root.depth = 10
-	root.hash = nil
-	defer func() {
-		if err := recover(); err == nil {
-			t.Fatal("should have caught the computation of an invalid node")
-		}
-	}()
-	root.ComputeCommitment()
-
-	t.Fatal("should have panicked before")
 }
 
 func TestStatelessToDot(t *testing.T) {
@@ -294,11 +282,11 @@ func TestStatelessDeserialize(t *testing.T) {
 		t.Fatal("differing root commitments")
 	}
 
-	if !Equal(droot.(*StatelessNode).children[0].commitment, root.(*InternalNode).children[0].ComputeCommitment()) {
+	if !Equal(droot.(*StatelessNode).children[0].(*StatelessNode).commitment, root.(*InternalNode).children[0].ComputeCommitment()) {
 		t.Fatal("differing commitment for child #0")
 	}
 
-	if !Equal(droot.(*StatelessNode).children[64].commitment, root.(*InternalNode).children[64].ComputeCommitment()) {
+	if !Equal(droot.(*StatelessNode).children[64].ComputeCommitment(), root.(*InternalNode).children[64].ComputeCommitment()) {
 		t.Fatal("differing commitment for child #64")
 	}
 }
@@ -334,7 +322,7 @@ func TestStatelessDeserializeMissginChildNode(t *testing.T) {
 		t.Fatal("differing root commitments")
 	}
 
-	if !Equal(droot.(*StatelessNode).children[0].commitment, root.(*InternalNode).children[0].ComputeCommitment()) {
+	if !Equal(droot.(*StatelessNode).children[0].ComputeCommitment(), root.(*InternalNode).children[0].ComputeCommitment()) {
 		t.Fatal("differing commitment for child #0")
 	}
 
@@ -375,7 +363,7 @@ func TestStatelessDeserializeDepth2(t *testing.T) {
 		t.Fatal("differing root commitments")
 	}
 
-	if !Equal(droot.(*StatelessNode).children[0].commitment, root.(*InternalNode).children[0].ComputeCommitment()) {
+	if !Equal(droot.(*StatelessNode).children[0].ComputeCommitment(), root.(*InternalNode).children[0].ComputeCommitment()) {
 		t.Fatal("differing commitment for child #0")
 	}
 }

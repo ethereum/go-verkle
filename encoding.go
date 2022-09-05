@@ -77,10 +77,32 @@ func ParseNode(serialized []byte, depth byte, comm []byte) (VerkleNode, error) {
 		ln.ComputeCommitment()
 		return ln, nil
 	case internalRLPType:
-		return CreateInternalNode(serialized[1:33], serialized[33:], depth, comm)
+		return deserializeIntoStateless(serialized[1:33], serialized[33:], depth, comm)
 	default:
 		return nil, ErrInvalidNodeEncoding
 	}
+}
+
+func deserializeIntoStateless(bitlist []byte, raw []byte, depth byte, comm []byte) (*StatelessNode, error) {
+	tc, err := GetConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	// GetTreeConfig caches computation result, hence
+	// this op has low overhead
+	n := NewStateless()
+	indices := indicesFromBitlist(bitlist)
+	if len(raw)/32 != len(indices) {
+		return nil, ErrInvalidNodeEncoding
+	}
+	for i, index := range indices {
+		n.unresolved[byte(index)] = raw[i*32 : (i+1)*32]
+	}
+	n.commitment = new(Point)
+	n.commitment.SetBytes(comm)
+	n.committer = tc
+	return n, nil
 }
 
 func CreateInternalNode(bitlist []byte, raw []byte, depth byte, comm []byte) (*InternalNode, error) {

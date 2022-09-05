@@ -75,6 +75,9 @@ type VerkleNode interface {
 	// representation of its hash) are cached.
 	ComputeCommitment() *Point
 
+	// Hash returns the Pedersen hash of the commitment
+	Hash() *Fr
+
 	// GetProofItems collects the various proof elements, and
 	// returns them breadth-first. On top of that, it returns
 	// one "extension status" per stem, and an alternate stem
@@ -327,8 +330,10 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 		}
 	case *InternalNode:
 		err = child.Insert(key, value, resolver)
-	default: // StatelessNode
-		return errStatelessAndStatefulMix
+	case *StatelessNode:
+		err = child.Insert(key, value, resolver)
+	default:
+		return errUnknownNodeType
 	}
 
 	// diff-update this commitment upon exiting this method
@@ -767,6 +772,13 @@ func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 	}
 }
 
+func (n *InternalNode) Hash() *Fr {
+	// TODO activate caching to save some computation
+	var hash Fr
+	toFr(&hash, n.ComputeCommitment() /* TODO once InsertStemOrdered does differential insert, use n.commitment */)
+	return &hash
+}
+
 func (n *InternalNode) ComputeCommitment() *Point {
 	if n.commitment != nil {
 		return n.commitment
@@ -1097,6 +1109,15 @@ func (n *LeafNode) Get(k []byte, _ NodeResolverFn) ([]byte, error) {
 	}
 	// value can be nil, as expected by geth
 	return n.values[k[31]], nil
+}
+
+func (n *LeafNode) Hash() *Fr {
+	// TODO cache this in a subsequent PR, not done here
+	// to reduce complexity.
+	// TODO use n.commitment once all Insert* are diff-inserts
+	var hash Fr
+	toFr(&hash, n.ComputeCommitment())
+	return &hash
 }
 
 func (n *LeafNode) ComputeCommitment() *Point {

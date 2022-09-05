@@ -70,3 +70,7 @@ func (Empty) toDot(string, string) string {
 func (Empty) setDepth(_ byte) {
 	panic("should not be try to set the depth of an Empty node")
 }
+
+func (Empty) Hash() *Fr {
+	return &FrZero
+}
