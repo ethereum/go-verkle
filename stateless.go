@@ -243,16 +243,26 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 		// internal node
 		nChild := offset2key(key, n.depth)
 
-		// special case: missing child, insert a leaf
+		// special case: missing child, check whether there is a child node
+		// to deserialize, and if that is not the case, this is an empty child.
 		cfg, _ := GetConfig()
 		if n.children[nChild] == nil {
-			n.children[nChild] = n.newLeafChildFromSingleValue(key, value)
+			unresolved := n.unresolved[nChild]
+			if len(unresolved) == 0 {
+				n.children[nChild] = n.newLeafChildFromSingleValue(key, value)
 
-			var diff Point
-			diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[nChild], n.children[nChild].Hash())
-			n.commitment.Add(n.commitment, &diff)
-			toFr(n.hash, n.commitment)
-			return nil
+				var diff Point
+				diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[nChild], n.children[nChild].Hash())
+				n.commitment.Add(n.commitment, &diff)
+				toFr(n.hash, n.commitment)
+				return nil
+			}
+
+			newhash := &HashedNode{new(Fr), new(Point)}
+			newhash.commitment.SetBytes(unresolved[:])
+			toFr(newhash.hash, newhash.commitment)
+			n.children[nChild] = newhash
+			// fallthrough to hash resolution
 		}
 
 		// If the child is a hash, the node needs to be resolved

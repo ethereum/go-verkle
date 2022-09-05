@@ -456,7 +456,47 @@ func TestStatelessInsertIntoHash(t *testing.T) {
 		t.Fatalf("incorrect value found: %x != %x", recovered, zeroKeyTest)
 	}
 
-	if _, ok := root.children[fourtyKeyTest[0]].(*StatelessNode); ok {
+	if _, ok := root.children[fourtyKeyTest[0]].(*LeafNode); !ok {
 		t.Fatalf("invalid node type %v isn't a LeafNode", root.children[fourtyKeyTest[0]])
+	}
+}
+
+// This test checks that a serialized node will be deserialized before
+// being inserted into, during leaf insertion.
+func TestStatelessInsertIntoSerialized(t *testing.T) {
+	flushed := map[string][]byte{}
+	rootF := New()
+	rootF.Insert(fourtyKeyTest, ffx32KeyTest, nil)
+	rootc := rootF.ComputeCommitment().Bytes()
+	rootF.(*InternalNode).Flush(func(vn VerkleNode) {
+		ser, err := vn.Serialize()
+		if err != nil {
+			panic(err)
+		}
+		comm := vn.ComputeCommitment().Bytes()
+		flushed[string(comm[:])] = ser
+	})
+
+	root, err := ParseNode(flushed[string(rootc[:])], 0, rootc[:])
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// overwrite the value that has been hashed
+	root.Insert(fourtyKeyTest, zeroKeyTest, func(b []byte) ([]byte, error) {
+		return flushed[string(b)], nil
+	})
+
+	recovered, err := root.Get(fourtyKeyTest, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(recovered, zeroKeyTest) {
+		t.Fatalf("incorrect value found: %x != %x", recovered, zeroKeyTest)
+	}
+
+	if _, ok := root.(*StatelessNode).children[fourtyKeyTest[0]].(*LeafNode); !ok {
+		t.Fatalf("invalid node type %v isn't a LeafNode", root.(*StatelessNode).children[fourtyKeyTest[0]])
 	}
 }
