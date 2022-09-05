@@ -501,9 +501,9 @@ func TestStatelessInsertIntoSerialized(t *testing.T) {
 	}
 }
 
-func TestStatelessInsertStem(t *testing.T) {
+func TestStatelessInsertAtStem(t *testing.T) {
 	root := NewStateless()
-	root.InsertStem(zeroKeyTest[:31], [][]byte{ffx32KeyTest, fourtyKeyTest, zeroKeyTest, oneKeyTest}, nil, false)
+	root.InsertAtStem(zeroKeyTest[:31], [][]byte{ffx32KeyTest, fourtyKeyTest, zeroKeyTest, oneKeyTest}, nil, false)
 
 	out, err := root.Get(zeroKeyTest, nil)
 	if err != nil {
@@ -520,7 +520,7 @@ func TestStatelessInsertStem(t *testing.T) {
 		t.Fatalf("invalid valud %x != %x\n", out, fourtyKeyTest)
 	}
 
-	root.InsertStem(zeroKeyTest[:31], [][]byte{nil, ffx32KeyTest, nil, nil, oneKeyTest}, nil, false)
+	root.InsertAtStem(zeroKeyTest[:31], [][]byte{nil, ffx32KeyTest, nil, nil, oneKeyTest}, nil, false)
 
 	out, err = root.Get(oneKeyTest, nil)
 	if err != nil {

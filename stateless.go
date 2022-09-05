@@ -327,7 +327,7 @@ func (n *StatelessNode) updateMultipleLeaves(values [][]byte) {
 	}
 }
 
-func (n *StatelessNode) InsertStem(stem []byte, values [][]byte, resolver NodeResolverFn, _ bool) error {
+func (n *StatelessNode) InsertAtStem(stem []byte, values [][]byte, resolver NodeResolverFn, _ bool) error {
 	var (
 		nChild = offset2key(stem, n.depth) // index of the child pointed by the next byte in the key
 	)
@@ -373,8 +373,19 @@ func (n *StatelessNode) InsertStem(stem []byte, values [][]byte, resolver NodeRe
 	var pre Fr
 	CopyFr(&pre, n.children[nChild].Hash())
 
-	// Require the child to be a stateless node for now
-	if err := n.children[nChild].(*StatelessNode).InsertStem(stem, values, resolver, false); err != nil {
+	var err error
+	switch child := n.children[nChild].(type) {
+	case *InternalNode:
+		leaf := NewLeafNode(stem, values)
+		err = child.InsertStem(stem, leaf, resolver, true)
+	case *StatelessNode:
+		err = child.InsertAtStem(stem, values, resolver, false)
+	case *LeafNode:
+		child.updateMultipleLeaves(values)
+	default:
+		return errNotSupportedInStateless
+	}
+	if err != nil {
 		return err
 	}
 
