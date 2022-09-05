@@ -988,6 +988,7 @@ func (n *LeafNode) ToHashedNode() *HashedNode {
 func (n *LeafNode) Insert(k []byte, value []byte, _ NodeResolverFn) error {
 	// Sanity check: ensure the key header is the same:
 	if !equalPaths(k, n.stem) {
+		fmt.Printf("k=%x stem=%x\n", k, n.stem)
 		return errInsertIntoOtherStem
 	}
 
