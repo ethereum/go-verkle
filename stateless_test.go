@@ -527,6 +527,29 @@ func TestStatelessInsertAtStem(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(out, ffx32KeyTest) {
-		t.Fatalf("invalid valud %x != %x\n", out, fourtyKeyTest)
+		t.Fatalf("invalid value %x != %x\n", out, fourtyKeyTest)
 	}
+}
+
+func TestStatelessInsertIntoLeaf(t *testing.T) {
+	flushed := map[string][]byte{}
+	rootF := New()
+	rootF.Insert(zeroKeyTest, ffx32KeyTest, nil)
+	rootc := rootF.ComputeCommitment().Bytes()
+	rootF.(*InternalNode).Flush(func(vn VerkleNode) {
+		ser, err := vn.Serialize()
+		if err != nil {
+			panic(err)
+		}
+		comm := vn.ComputeCommitment().Bytes()
+		flushed[string(comm[:])] = ser
+	})
+
+	root, err := ParseNode(flushed[string(rootc[:])], 0, rootc[:])
+	if err != nil {
+		t.Fatal(err)
+	}
+	root.Insert(splitKeyTest, zeroKeyTest, func(b []byte) ([]byte, error) {
+		return flushed[string(b)], nil
+	})
 }

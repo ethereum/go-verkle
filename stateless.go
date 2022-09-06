@@ -284,7 +284,34 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 		var pre Fr
 		CopyFr(&pre, n.children[nChild].Hash())
 
-		if err := n.children[nChild].Insert(key, value, resolver); err != nil {
+		var err error
+		switch child := n.children[nChild].(type) {
+		case *StatelessNode:
+			err = child.Insert(key, value, resolver)
+		case *LeafNode:
+			if !bytes.Equal(child.stem, key[:31]) {
+				child.setDepth(child.depth + 1)
+				newbranch := &StatelessNode{
+					children:   map[byte]VerkleNode{child.stem[n.depth+1]: child},
+					depth:      n.depth + 1,
+					commitment: Generator(),
+					c1:         Generator(),
+					c2:         Generator(),
+					hash:       new(Fr),
+				}
+				if child.stem[child.depth] != key[child.depth] {
+					values := make([][]byte, NodeWidth)
+					newbranch.children[key[n.depth+1]] = NewLeafNode(key[:31], values)
+				}
+				n.children[nChild] = newbranch
+				err = newbranch.Insert(key, value, resolver)
+			} else {
+				err = child.Insert(key, value, resolver)
+			}
+		default:
+			err = errNotSupportedInStateless
+		}
+		if err != nil {
 			return err
 		}
 
@@ -381,6 +408,10 @@ func (n *StatelessNode) InsertAtStem(stem []byte, values [][]byte, resolver Node
 	case *StatelessNode:
 		err = child.InsertAtStem(stem, values, resolver, false)
 	case *LeafNode:
+		// XXX c'est pas forcément la même leaf
+		if !bytes.Equal(child.stem, stem) {
+			panic("boum")
+		}
 		child.updateMultipleLeaves(values)
 	default:
 		return errNotSupportedInStateless
