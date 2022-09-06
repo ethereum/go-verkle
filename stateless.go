@@ -914,3 +914,18 @@ func (n *StatelessNode) setDepth(d byte) {
 func (n *StatelessNode) toHashedNode() *HashedNode {
 	return &HashedNode{n.Hash(), n.commitment}
 }
+
+func (n *StatelessNode) Flush(flush NodeFlushFn) {
+	if n.values != nil {
+		for _, child := range n.children {
+			switch child := child.(type) {
+			case *InternalNode:
+				child.Flush(flush)
+			case *StatelessNode:
+				child.Flush(flush)
+			}
+		}
+	}
+
+	flush(n)
+}
