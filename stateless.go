@@ -194,7 +194,7 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 			// A new branch node has to be inserted. Depending
 			// on the next word in both keys, a recursion into
 			// the moved leaf node can occur.
-			nextWordInExistingKey := offset2key(n.stem, n.depth)
+			nextexisting := offset2key(n.stem, n.depth)
 			oldExtNode := &StatelessNode{
 				depth:      n.depth + 1,
 				committer:  n.committer,
@@ -207,7 +207,7 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 				c2:         n.c2,
 			}
 			n.children = map[byte]VerkleNode{
-				nextWordInExistingKey: oldExtNode,
+				nextexisting: oldExtNode,
 			}
 			n.values = nil
 			n.stem = nil
@@ -218,23 +218,23 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 			n.hash = new(Fr)
 
 			var newchild *StatelessNode
-			nextWordInInsertedKey := offset2key(key, n.depth)
-			if nextWordInInsertedKey != nextWordInExistingKey {
+			nextinserted := offset2key(key, n.depth)
+			if nextinserted != nextexisting {
 				// Next word differs, so the branching point
 				// has been reached. Create the "new" child.
 				newchild = n.newLeafChildFromSingleValue(key, value)
-				n.children[nextWordInInsertedKey] = newchild
+				n.children[nextinserted] = newchild
 			}
 
 			// recurse into the newly created child
-			if err := n.children[nextWordInInsertedKey].Insert(key, value, resolver); err != nil {
+			err := n.children[nextinserted].Insert(key, value, resolver)
+			if err != nil {
 				return err
 			}
-
 			var poly [NodeWidth]Fr
-			CopyFr(&poly[nextWordInExistingKey], oldExtNode.Hash())
-			if nextWordInExistingKey != nextWordInInsertedKey {
-				CopyFr(&poly[nextWordInInsertedKey], newchild.Hash())
+			CopyFr(&poly[nextexisting], oldExtNode.Hash())
+			if nextexisting != nextinserted {
+				CopyFr(&poly[nextinserted], newchild.Hash())
 			}
 			n.commitment = n.committer.CommitToPoly(poly[:], NodeWidth-2)
 			toFr(n.hash, n.commitment)
@@ -355,9 +355,7 @@ func (n *StatelessNode) updateMultipleLeaves(values [][]byte) {
 }
 
 func (n *StatelessNode) InsertAtStem(stem []byte, values [][]byte, resolver NodeResolverFn, _ bool) error {
-	var (
-		nChild = offset2key(stem, n.depth) // index of the child pointed by the next byte in the key
-	)
+	nChild := offset2key(stem, n.depth) // index of the child pointed by the next byte in the key
 
 	if n.values != nil {
 		n.updateMultipleLeaves(values)
@@ -408,11 +406,28 @@ func (n *StatelessNode) InsertAtStem(stem []byte, values [][]byte, resolver Node
 	case *StatelessNode:
 		err = child.InsertAtStem(stem, values, resolver, false)
 	case *LeafNode:
-		// XXX c'est pas forcément la même leaf
-		if !bytes.Equal(child.stem, stem) {
-			panic("boum")
+		if equalPaths(child.stem, stem) {
+			child.updateMultipleLeaves(values)
+		} else {
+			nextexisting := offset2key(child.stem, child.depth)
+			// Insert multiple intermediate nodes
+			newbranch := &StatelessNode{
+				children:   map[byte]VerkleNode{nextexisting: child},
+				commitment: Generator(),
+				depth:      child.depth,
+				committer:  n.committer,
+			}
+			child.setDepth(child.depth + 1)
+			n.children[nChild] = newbranch
+			n.count++
+
+			// pre-insertion commitment - it's a bit wasteful since
+			// it is computed once and then updated. TODO see if this
+			// can be optimized by inserting intermediate nodes iteratively.
+			newbranch.commitment.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[nextexisting], child.Hash())
+
+			err = newbranch.InsertAtStem(stem, values, resolver, false)
 		}
-		child.updateMultipleLeaves(values)
 	default:
 		return errNotSupportedInStateless
 	}

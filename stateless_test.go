@@ -553,3 +553,58 @@ func TestStatelessInsertIntoLeaf(t *testing.T) {
 		return flushed[string(b)], nil
 	})
 }
+
+func TestStatelessInsertAtStemIntoLeaf(t *testing.T) {
+	flushed := map[string][]byte{}
+	rootF := New()
+	rootF.Insert(zeroKeyTest, ffx32KeyTest, nil)
+	rootc := rootF.ComputeCommitment().Bytes()
+	rootF.(*InternalNode).Flush(func(vn VerkleNode) {
+		ser, err := vn.Serialize()
+		if err != nil {
+			panic(err)
+		}
+		comm := vn.ComputeCommitment().Bytes()
+		flushed[string(comm[:])] = ser
+	})
+
+	root, err := ParseNode(flushed[string(rootc[:])], 0, rootc[:])
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// test updating an existing key
+	root.(*StatelessNode).InsertAtStem(zeroKeyTest[:31], [][]byte{nil, ffx32KeyTest, nil, nil, oneKeyTest}, func(b []byte) ([]byte, error) {
+		return flushed[string(b)], nil
+	}, false)
+
+	// test inserting a new key
+	root.(*StatelessNode).InsertAtStem(splitKeyTest[:31], [][]byte{nil, ffx32KeyTest, nil, nil, oneKeyTest}, func(b []byte) ([]byte, error) {
+		return flushed[string(b)], nil
+	}, false)
+
+	out, err := root.Get(splitKeyTest, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != nil {
+		t.Fatalf("got %x, expected nil", out)
+	}
+	out, err = root.Get(zeroKeyTest, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(ffx32KeyTest, out) {
+		t.Fatalf("got %x, expected %x", out, ffx32KeyTest)
+	}
+	var key1 [32]byte
+	copy(key1[:], splitKeyTest[:])
+	key1[31] = 1
+	out, err = root.Get(key1[:], nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(ffx32KeyTest, out) {
+		t.Fatalf("got %x, expected %x", out, ffx32KeyTest)
+	}
+}
