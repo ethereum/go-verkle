@@ -92,6 +92,7 @@ func deserializeIntoStateless(bitlist []byte, raw []byte, depth byte, comm []byt
 	// GetTreeConfig caches computation result, hence
 	// this op has low overhead
 	n := NewStateless()
+	n.setDepth(depth)
 	indices := indicesFromBitlist(bitlist)
 	if len(raw)/32 != len(indices) {
 		return nil, ErrInvalidNodeEncoding

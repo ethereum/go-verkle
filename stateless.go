@@ -217,13 +217,11 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 			CopyPoint(oldExtNode.commitment, n.commitment)
 			n.hash = new(Fr)
 
-			var newchild *StatelessNode
 			nextinserted := offset2key(key, n.depth)
 			if nextinserted != nextexisting {
 				// Next word differs, so the branching point
 				// has been reached. Create the "new" child.
-				newchild = n.newLeafChildFromSingleValue(key, value)
-				n.children[nextinserted] = newchild
+				n.children[nextinserted] = n.newLeafChildFromSingleValue(key, value)
 			}
 
 			// recurse into the newly created child
@@ -234,7 +232,7 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 			var poly [NodeWidth]Fr
 			CopyFr(&poly[nextexisting], oldExtNode.Hash())
 			if nextexisting != nextinserted {
-				CopyFr(&poly[nextinserted], newchild.Hash())
+				CopyFr(&poly[nextinserted], n.children[nextinserted].Hash())
 			}
 			n.commitment = n.committer.CommitToPoly(poly[:], NodeWidth-2)
 			toFr(n.hash, n.commitment)
@@ -374,6 +372,7 @@ func (n *StatelessNode) InsertAtStem(stem []byte, values [][]byte, resolver Node
 
 		newhash := &HashedNode{new(Fr), new(Point)}
 		newhash.commitment.SetBytes(unresolved[:])
+		newhash.setDepth(n.depth + 1)
 		toFr(newhash.hash, newhash.commitment)
 		n.children[nChild] = newhash
 		// fallthrough to hash resolution
@@ -385,7 +384,7 @@ func (n *StatelessNode) InsertAtStem(stem []byte, values [][]byte, resolver Node
 		comm := h.ComputeCommitment().Bytes()
 		serialized, err := resolver(comm[:])
 		if err != nil {
-			return err
+			return fmt.Errorf("stem insertion failed (node resolution error) %x %w", stem, err)
 		}
 		node, err := ParseNode(serialized, n.depth+1, comm[:])
 		if err != nil {
@@ -442,33 +441,9 @@ func (n *StatelessNode) InsertAtStem(stem []byte, values [][]byte, resolver Node
 	return nil
 }
 
-func (n *StatelessNode) newLeafChildFromSingleValue(key, value []byte) *StatelessNode {
-	newchild := &StatelessNode{
-		depth:     n.depth + 1,
-		stem:      key[:31],
-		values:    map[byte][]byte{key[31]: value},
-		committer: n.committer,
-		count:     1,
-		hash:      new(Fr),
-		c1:        Generator(),
-		c2:        Generator(),
-	}
-	var (
-		poly  [4]Fr
-		cpoly [256]Fr
-	)
-	poly[0].SetUint64(1)
-	StemFromBytes(&poly[1], newchild.stem)
-	leafToComms(cpoly[(key[31]%128)*2:], value)
-	if key[31] < 128 {
-		newchild.c1 = n.committer.CommitToPoly(cpoly[:], 2)
-		toFr(&poly[2], newchild.c1)
-	} else {
-		newchild.c2 = n.committer.CommitToPoly(cpoly[:], 2)
-		toFr(&poly[3], newchild.c2)
-	}
-	newchild.commitment = n.committer.CommitToPoly(poly[:], 4)
-	toFr(newchild.hash, newchild.commitment)
+func (n *StatelessNode) newLeafChildFromSingleValue(key, value []byte) *LeafNode {
+	newchild := NewLeafNode(key[:31], make([][]byte, NodeWidth))
+	newchild.Insert(key, value, nil)
 	return newchild
 }
 
@@ -916,13 +891,19 @@ func (n *StatelessNode) toHashedNode() *HashedNode {
 }
 
 func (n *StatelessNode) Flush(flush NodeFlushFn) {
-	if n.values != nil {
+	if n.values == nil {
 		for _, child := range n.children {
 			switch child := child.(type) {
 			case *InternalNode:
 				child.Flush(flush)
 			case *StatelessNode:
-				child.Flush(flush)
+				if child.values != nil {
+					flush(child)
+				} else {
+					child.Flush(flush)
+				}
+			case *LeafNode:
+				flush(child)
 			}
 		}
 	}
