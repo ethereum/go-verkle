@@ -289,20 +289,34 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 		case *LeafNode:
 			if !bytes.Equal(child.stem, key[:31]) {
 				child.setDepth(child.depth + 1)
+				existing := child.stem[n.depth+1]
+				inserted := key[n.depth+1]
 				newbranch := &StatelessNode{
-					children:   map[byte]VerkleNode{child.stem[n.depth+1]: child},
+					children:   map[byte]VerkleNode{existing: child},
 					depth:      n.depth + 1,
 					commitment: Generator(),
-					c1:         Generator(),
-					c2:         Generator(),
 					hash:       new(Fr),
 				}
-				if child.stem[child.depth] != key[child.depth] {
-					values := make([][]byte, NodeWidth)
-					newbranch.children[key[n.depth+1]] = NewLeafNode(key[:31], values)
-				}
 				n.children[nChild] = newbranch
-				err = newbranch.Insert(key, value, resolver)
+
+				// reuse pre here, since the child commitment is the same for this
+				// new branch as it was for the current node before the insertion.
+				newbranch.commitment.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[existing], &pre)
+
+				if inserted != existing {
+					values := make([][]byte, NodeWidth)
+					lastnode := NewLeafNode(key[:31], values)
+					newbranch.children[inserted] = lastnode
+					newbranch.children[inserted].setDepth(child.depth + 1)
+					lastnode.Insert(key, value, nil)
+					var lnComm Fr
+					var diff Point
+					toFr(&lnComm, lastnode.ComputeCommitment())
+					diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[inserted], &lnComm)
+					newbranch.commitment.Add(newbranch.commitment, &diff)
+				} else {
+					err = newbranch.Insert(key, value, resolver)
+				}
 			} else {
 				err = child.Insert(key, value, resolver)
 			}
@@ -829,7 +843,7 @@ func (n *StatelessNode) Copy() VerkleNode {
 	if n.children != nil {
 		ret.children = make(map[byte]VerkleNode, len(n.children))
 		for i, child := range n.children {
-			ret.children[i] = child.Copy().(*StatelessNode)
+			ret.children[i] = child.Copy()
 		}
 	} else {
 		ret.values = make(map[byte][]byte, len(n.values))

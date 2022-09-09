@@ -104,24 +104,22 @@ func TestStatelessInsertLeafIntoRoot(t *testing.T) {
 	root := NewStateless()
 	root.Insert(zeroKeyTest, fourtyKeyTest, nil)
 
-	rootRef := New()
+	rootRef := New().(*InternalNode)
 	rootRef.Insert(zeroKeyTest, fourtyKeyTest, nil)
-	hash := rootRef.ComputeCommitment()
 
-	if !Equal(hash, root.commitment) {
-		t.Fatalf("hashes differ after insertion %v %v", hash, root.hash)
+	if !Equal(rootRef.commitment, root.commitment) {
+		t.Fatalf("hashes differ after insertion %v %v", rootRef.commitment, root.commitment)
 	}
 
 	// Overwrite one leaf and check that the update
 	// is what is expected.
-	rootRef = New()
+	rootRef = New().(*InternalNode)
 	rootRef.Insert(zeroKeyTest, oneKeyTest, nil)
-	hash = rootRef.ComputeCommitment()
 
 	root.Insert(zeroKeyTest, oneKeyTest, nil)
 
-	if !Equal(hash, root.commitment) {
-		t.Fatalf("hashes differ after update %v %v", hash, root.hash)
+	if !Equal(rootRef.commitment, root.commitment) {
+		t.Fatalf("hashes differ after update %v %v", rootRef.commitment, root.commitment)
 	}
 }
 
@@ -156,13 +154,12 @@ func TestStatelessInsertLeafIntoInternal(t *testing.T) {
 	root := NewStateless()
 	root.Insert(zeroKeyTest, fourtyKeyTest, nil)
 	root.Insert(key1, fourtyKeyTest, nil)
-	rootRef := New()
+	rootRef := New().(*InternalNode)
 	rootRef.Insert(zeroKeyTest, fourtyKeyTest, nil)
 	rootRef.Insert(key1, fourtyKeyTest, nil)
-	hash := rootRef.ComputeCommitment()
 
-	if !Equal(hash, root.commitment) {
-		t.Fatalf("hashes differ after insertion %v %v", hash, root.hash)
+	if !Equal(rootRef.commitment, root.commitment) {
+		t.Fatalf("hashes differ after insertion %v %v", rootRef.commitment, root.commitment)
 	}
 }
 
@@ -434,8 +431,8 @@ func TestStatelessInsertIntoHash(t *testing.T) {
 	root := NewStateless()
 	root.Insert(fourtyKeyTest, ffx32KeyTest, nil)
 
-	saved := root.children[fourtyKeyTest[0]].(*StatelessNode)
-	root.children[fourtyKeyTest[0]] = saved.toHashedNode()
+	saved := root.children[fourtyKeyTest[0]].(*LeafNode)
+	root.children[fourtyKeyTest[0]] = saved.ToHashedNode()
 
 	// overwrite the value that has been hashed
 	root.Insert(fourtyKeyTest, zeroKeyTest, func(b []byte) ([]byte, error) {
