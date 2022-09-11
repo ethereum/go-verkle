@@ -595,7 +595,7 @@ func TestStatelessInsertAtStemIntoLeaf(t *testing.T) {
 		t.Fatalf("got %x, expected %x", out, ffx32KeyTest)
 	}
 	var key1 [32]byte
-	copy(key1[:], splitKeyTest[:])
+	copy(key1[:], splitKeyTest)
 	key1[31] = 1
 	out, err = root.Get(key1[:], nil)
 	if err != nil {

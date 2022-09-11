@@ -147,8 +147,8 @@ func (n *StatelessNode) updateC(index byte, c *Point, oldc *Fr) {
 
 func (n *StatelessNode) updateCn(index byte, value []byte, c *Point) {
 	var (
-		old, new [2]Fr
-		diff     Point
+		oldVal, newVal [2]Fr
+		diff           Point
 	)
 
 	// Optimization idea:
@@ -157,15 +157,15 @@ func (n *StatelessNode) updateCn(index byte, value []byte, c *Point) {
 	// do not include it. The result should be the same,
 	// but the computation time should be faster as one doesn't need to
 	// compute 1 - 1 mod N.
-	leafToComms(old[:], n.values[index])
-	leafToComms(new[:], value)
+	leafToComms(oldVal[:], n.values[index])
+	leafToComms(newVal[:], value)
 
-	new[0].Sub(&new[0], &old[0])
-	diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[2*(index%128)], &new[0])
+	newVal[0].Sub(&newVal[0], &oldVal[0])
+	diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[2*(index%128)], &newVal[0])
 	c.Add(c, &diff)
 
-	new[1].Sub(&new[1], &old[1])
-	diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[2*(index%128)+1], &new[1])
+	newVal[1].Sub(&newVal[1], &oldVal[1])
+	diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[2*(index%128)+1], &newVal[1])
 	c.Add(c, &diff)
 }
 
@@ -257,7 +257,7 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 			}
 
 			newhash := &HashedNode{new(Fr), new(Point)}
-			newhash.commitment.SetBytes(unresolved[:])
+			newhash.commitment.SetBytes(unresolved)
 			toFr(newhash.hash, newhash.commitment)
 			n.children[nChild] = newhash
 			// fallthrough to hash resolution
@@ -354,7 +354,7 @@ func (n *StatelessNode) updateMultipleLeaves(values [][]byte) {
 				n.updateCn(byte(i), v, c2)
 			}
 
-			n.values[byte(i)] = v[:]
+			n.values[byte(i)] = v
 		}
 	}
 
@@ -385,7 +385,7 @@ func (n *StatelessNode) InsertAtStem(stem []byte, values [][]byte, resolver Node
 		}
 
 		newhash := &HashedNode{new(Fr), new(Point)}
-		newhash.commitment.SetBytes(unresolved[:])
+		newhash.commitment.SetBytes(unresolved)
 		newhash.setDepth(n.depth + 1)
 		toFr(newhash.hash, newhash.commitment)
 		n.children[nChild] = newhash
@@ -457,6 +457,7 @@ func (n *StatelessNode) InsertAtStem(stem []byte, values [][]byte, resolver Node
 
 func (n *StatelessNode) newLeafChildFromSingleValue(key, value []byte) *LeafNode {
 	newchild := NewLeafNode(key[:31], make([][]byte, NodeWidth))
+	newchild.setDepth(n.depth + 1)
 	newchild.Insert(key, value, nil)
 	return newchild
 }
@@ -479,7 +480,7 @@ func (n *StatelessNode) newLeafChildFromMultipleValues(stem []byte, values [][]b
 
 	for i, v := range values {
 		var cpoly [256]Fr
-		newchild.values[byte(i)] = v[:]
+		newchild.values[byte(i)] = v
 
 		leafToComms(cpoly[byte(i%128)*2:], v)
 		if i < 128 {
@@ -917,7 +918,7 @@ func (n *StatelessNode) setDepth(d byte) {
 	n.depth = d
 }
 
-func (n *StatelessNode) toHashedNode() *HashedNode {
+func (n *StatelessNode) ToHashedNode() *HashedNode {
 	return &HashedNode{n.Hash(), n.commitment}
 }
 
