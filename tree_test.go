@@ -44,6 +44,7 @@ var testValue = []byte("0123456789abcdef0123456789abcdef")
 var (
 	zeroKeyTest, _   = hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000000")
 	oneKeyTest, _    = hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000001")
+	splitKeyTest, _  = hex.DecodeString("0000000000720000000000000000000000000000000000000000000000000000")
 	fourtyKeyTest, _ = hex.DecodeString("4000000000000000000000000000000000000000000000000000000000000000")
 	ffx32KeyTest, _  = hex.DecodeString("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
 )
@@ -672,7 +673,7 @@ func TestNodeSerde(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	resRoot := res.(*InternalNode)
+	resRoot := res.(*StatelessNode).toInternalNode()
 
 	resRoot.children[0] = resLeaf0
 	resRoot.children[64] = resLeaf64

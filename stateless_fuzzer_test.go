@@ -44,7 +44,7 @@ func FuzzStatelessVsStateful(f *testing.F) {
 		}
 
 		if !Equal(rootL.ComputeCommitment(), rootF.ComputeCommitment()) {
-			t.Fatalf("root commitment for state-less != -ful %x != %x", rootF.ComputeCommitment().Bytes(), rootL.ComputeCommitment().Bytes())
+			t.Fatalf("root commitment for state-less != -ful %x != %x", rootL.ComputeCommitment().Bytes(), rootF.ComputeCommitment().Bytes())
 		}
 	})
 }

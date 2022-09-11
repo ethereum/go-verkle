@@ -75,6 +75,9 @@ type VerkleNode interface {
 	// representation of its hash) are cached.
 	ComputeCommitment() *Point
 
+	// Hash returns the Pedersen hash of the commitment
+	Hash() *Fr
+
 	// GetProofItems collects the various proof elements, and
 	// returns them breadth-first. On top of that, it returns
 	// one "extension status" per stem, and an alternate stem
@@ -216,13 +219,24 @@ func New() VerkleNode {
 // New creates a new leaf node
 func NewLeafNode(stem []byte, values [][]byte) *LeafNode {
 	cfg, _ := GetConfig()
-	return &LeafNode{
+	leaf := &LeafNode{
 		committer: cfg,
 		// depth will be 0, but the commitment calculation
 		// does not need it, and so it won't be free.
 		values: values,
 		stem:   stem,
+		c1:     Generator(),
+		c2:     Generator(),
 	}
+
+	// Initialize the commitment with the extension tree
+	// marker and the stem.
+	var poly [256]Fr
+	poly[0].SetUint64(1)
+	StemFromBytes(&poly[1], leaf.stem)
+	leaf.commitment = leaf.committer.CommitToPoly(poly[:], 2)
+
+	return leaf
 }
 
 func (n *InternalNode) Children() []VerkleNode {
@@ -293,14 +307,11 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 			child.depth += 1
 
 			// Initialize the intermediate branch commitment with the value
-			// of the child that we know for sure is present.
-			var (
-				childComm Fr
-				diff      Point
-			)
-			toFr(&childComm, child.ComputeCommitment())
-			diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[nextWordInExistingKey], &childComm)
-			newBranch.commitment.Add(newBranch.commitment, &diff)
+			// of the child that we know for sure is present. `pre` can be
+			// reused here, as is it the hash of the commitment to the node
+			// we are simply moving.
+			newBranch.commitment.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[nextWordInExistingKey], &pre)
+			// newBranch.commitment.Add(newBranch.commitment, &diff)
 
 			nextWordInInsertedKey := offset2key(key, n.depth+1)
 			if nextWordInInsertedKey != nextWordInExistingKey {
@@ -317,7 +328,10 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 
 				// diff-update the commitment of newBranch by adding the
 				// newly-inserted child.
-				var lnComm Fr
+				var (
+					lnComm Fr
+					diff   Point
+				)
 				toFr(&lnComm, lastNode.ComputeCommitment())
 				diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[nextWordInInsertedKey], &lnComm)
 				newBranch.commitment.Add(newBranch.commitment, &diff)
@@ -327,8 +341,10 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 		}
 	case *InternalNode:
 		err = child.Insert(key, value, resolver)
-	default: // StatelessNode
-		return errStatelessAndStatefulMix
+	case *StatelessNode:
+		err = child.Insert(key, value, resolver)
+	default:
+		return errUnknownNodeType
 	}
 
 	// diff-update this commitment upon exiting this method
@@ -767,6 +783,13 @@ func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 	}
 }
 
+func (n *InternalNode) Hash() *Fr {
+	// TODO activate caching to save some computation
+	var hash Fr
+	toFr(&hash, n.ComputeCommitment() /* TODO once InsertStemOrdered does differential insert, use n.commitment */)
+	return &hash
+}
+
 func (n *InternalNode) ComputeCommitment() *Point {
 	if n.commitment != nil {
 		return n.commitment
@@ -973,6 +996,7 @@ func (n *LeafNode) ToHashedNode() *HashedNode {
 func (n *LeafNode) Insert(k []byte, value []byte, _ NodeResolverFn) error {
 	// Sanity check: ensure the key header is the same:
 	if !equalPaths(k, n.stem) {
+		fmt.Printf("k=%x stem=%x\n", k, n.stem)
 		return errInsertIntoOtherStem
 	}
 
@@ -1097,6 +1121,15 @@ func (n *LeafNode) Get(k []byte, _ NodeResolverFn) ([]byte, error) {
 	}
 	// value can be nil, as expected by geth
 	return n.values[k[31]], nil
+}
+
+func (n *LeafNode) Hash() *Fr {
+	// TODO cache this in a subsequent PR, not done here
+	// to reduce complexity.
+	// TODO use n.commitment once all Insert* are diff-inserts
+	var hash Fr
+	toFr(&hash, n.ComputeCommitment())
+	return &hash
 }
 
 func (n *LeafNode) ComputeCommitment() *Point {

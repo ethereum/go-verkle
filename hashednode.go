@@ -85,3 +85,7 @@ func (n *HashedNode) toDot(parent, path string) string {
 func (*HashedNode) setDepth(_ byte) {
 	// do nothing
 }
+
+func (n *HashedNode) Hash() *Fr {
+	return n.hash
+}
