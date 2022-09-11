@@ -822,7 +822,7 @@ func (n *StatelessNode) Serialize() ([]byte, error) {
 				return nil, errNotSupportedInStateless
 			}
 			if v != nil {
-				setBit(bitlist[:], int(i))
+				setBit(bitlist[:], i)
 				children = append(children, v...)
 				if len(v) < 32 {
 					padding := make([]byte, 32-len(v))
