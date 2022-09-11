@@ -811,9 +811,26 @@ func (n *StatelessNode) Serialize() ([]byte, error) {
 		bitlist  [32]byte
 		children = make([]byte, 0, NodeWidth*32)
 	)
-	// Only serialize internal nodes
+	// Only serialize leaf nodes if all the values are loaded,
+	// otherwise we are facing a partially-loaded node and it
+	// would be impossible to serialize it without overwriting
+	// unloaded data.
 	if n.children == nil {
-		return nil, errNotSupportedInStateless
+		for i := 0; i < NodeWidth; i++ {
+			v, present := n.values[byte(i)]
+			if !present {
+				return nil, errNotSupportedInStateless
+			}
+			if v != nil {
+				setBit(bitlist[:], int(i))
+				children = append(children, v...)
+				if len(v) < 32 {
+					padding := make([]byte, 32-len(v))
+					children = append(children, padding...)
+				}
+			}
+		}
+		return append(append(append([]byte{leafRLPType}, n.stem...), bitlist[:]...), children...), nil
 	}
 
 	for i := 0; i < NodeWidth; i++ {
