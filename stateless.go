@@ -257,7 +257,7 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 			}
 
 			newhash := &HashedNode{new(Fr), new(Point)}
-			newhash.commitment.SetBytes(unresolved)
+			newhash.commitment.SetBytesTrusted(unresolved)
 			toFr(newhash.hash, newhash.commitment)
 			n.children[nChild] = newhash
 			// fallthrough to hash resolution
@@ -385,7 +385,7 @@ func (n *StatelessNode) InsertAtStem(stem []byte, values [][]byte, resolver Node
 		}
 
 		newhash := &HashedNode{new(Fr), new(Point)}
-		newhash.commitment.SetBytes(unresolved)
+		newhash.commitment.SetBytesTrusted(unresolved)
 		newhash.setDepth(n.depth + 1)
 		toFr(newhash.hash, newhash.commitment)
 		n.children[nChild] = newhash
@@ -449,8 +449,9 @@ func (n *StatelessNode) InsertAtStem(stem []byte, values [][]byte, resolver Node
 	}
 
 	// update the commitment
-	var diff Point
-	diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[nChild], pre.Sub(n.children[nChild].Hash(), &pre))
+	var poly [256]Fr
+	poly[nChild].Sub(n.children[nChild].Hash(), &pre)
+	diff := cfg.conf.Commit(poly[:])
 	n.commitment.Add(n.commitment, &diff)
 	return nil
 }
@@ -796,7 +797,7 @@ func (n *StatelessNode) toInternalNode() *InternalNode {
 			internal.children[i] = child
 		} else if serialized, ok := n.unresolved[byte(i)]; ok {
 			hashed := &HashedNode{hash: new(Fr), commitment: new(Point)}
-			hashed.commitment.SetBytes(serialized)
+			hashed.commitment.SetBytesTrusted(serialized)
 			toFr(hashed.hash, hashed.commitment)
 			internal.children[byte(i)] = hashed
 		} else {

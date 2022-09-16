@@ -29,6 +29,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+
+	"github.com/crate-crypto/go-ipa/banderwagon"
 )
 
 type NodeFlushFn func(VerkleNode)
@@ -310,7 +312,10 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 			// of the child that we know for sure is present. `pre` can be
 			// reused here, as is it the hash of the commitment to the node
 			// we are simply moving.
-			newBranch.commitment.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[nextWordInExistingKey], &pre)
+			var poly [256]Fr
+			poly[nextWordInExistingKey] = pre
+			*newBranch.commitment = cfg.conf.Commit(poly[:])
+			poly[nextWordInExistingKey].SetZero()
 			// newBranch.commitment.Add(newBranch.commitment, &diff)
 
 			nextWordInInsertedKey := offset2key(key, n.depth+1)
@@ -328,12 +333,9 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 
 				// diff-update the commitment of newBranch by adding the
 				// newly-inserted child.
-				var (
-					lnComm Fr
-					diff   Point
-				)
-				toFr(&lnComm, lastNode.ComputeCommitment())
-				diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[nextWordInInsertedKey], &lnComm)
+				var diff Point
+				toFr(&poly[nextWordInInsertedKey], lastNode.ComputeCommitment())
+				diff = cfg.conf.Commit(poly[:])
 				newBranch.commitment.Add(newBranch.commitment, &diff)
 			} else {
 				err = newBranch.Insert(key, value, resolver)
@@ -904,13 +906,16 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 
 func (n *InternalNode) Serialize() ([]byte, error) {
 	var bitlist [32]byte
-	children := make([]byte, 0, NodeWidth*32)
+	commitments := make([]*Point, 0, NodeWidth)
 	for i, c := range n.children {
 		if _, ok := c.(Empty); !ok {
 			setBit(bitlist[:], i)
-			digits := c.ComputeCommitment().Bytes()
-			children = append(children, digits[:]...)
+			commitments = append(commitments, c.ComputeCommitment())
 		}
+	}
+	children := make([]byte, 0, len(commitments)*32)
+	for _, c := range banderwagon.ElementsToBytes(commitments) {
+		children = append(children, c[:]...)
 	}
 	return append(append([]byte{internalRLPType}, bitlist[:]...), children...), nil
 }
@@ -1022,11 +1027,14 @@ func (n *LeafNode) updateC(index byte, c *Point, oldc *Fr) {
 	var (
 		newc Fr
 		diff Point
+		poly [256]Fr
 	)
 
 	toFr(&newc, c)
 	newc.Sub(&newc, oldc)
-	diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[2+(index/128)], &newc)
+	poly[2+(index/128)] = newc
+	diff = cfg.conf.Commit(poly[:])
+	// diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[2+(index/128)], &newc)
 	n.commitment.Add(n.commitment, &diff)
 }
 
@@ -1034,6 +1042,7 @@ func (n *LeafNode) updateCn(index byte, value []byte, c *Point) {
 	var (
 		old, new [2]Fr
 		diff     Point
+		poly     [256]Fr
 	)
 
 	// Optimization idea:
@@ -1046,11 +1055,14 @@ func (n *LeafNode) updateCn(index byte, value []byte, c *Point) {
 	leafToComms(new[:], value)
 
 	new[0].Sub(&new[0], &old[0])
-	diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[2*(index%128)], &new[0])
+	poly[2*(index%128)] = new[0] // XXX faire gaffe aux copies
+	diff = cfg.conf.Commit(poly[:])
+	poly[2*(index%128)].SetZero()
 	c.Add(c, &diff)
 
 	new[1].Sub(&new[1], &old[1])
-	diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[2*(index%128)+1], &new[1])
+	poly[2*(index%128)+1] = new[1] // XXX faire gaffe aux copies
+	diff = cfg.conf.Commit(poly[:])
 	c.Add(c, &diff)
 }
 

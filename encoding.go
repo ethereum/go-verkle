@@ -101,7 +101,7 @@ func deserializeIntoStateless(bitlist []byte, raw []byte, depth byte, comm []byt
 		n.unresolved[byte(index)] = raw[i*32 : (i+1)*32]
 	}
 	n.commitment = new(Point)
-	n.commitment.SetBytes(comm)
+	n.commitment.SetBytesTrusted(comm)
 	n.committer = tc
 	return n, nil
 }
