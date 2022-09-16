@@ -1034,7 +1034,6 @@ func (n *LeafNode) updateC(index byte, c *Point, oldc *Fr) {
 	newc.Sub(&newc, oldc)
 	poly[2+(index/128)] = newc
 	diff = cfg.conf.Commit(poly[:])
-	// diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[2+(index/128)], &newc)
 	n.commitment.Add(n.commitment, &diff)
 }
 
@@ -1055,13 +1054,13 @@ func (n *LeafNode) updateCn(index byte, value []byte, c *Point) {
 	leafToComms(new[:], value)
 
 	new[0].Sub(&new[0], &old[0])
-	poly[2*(index%128)] = new[0] // XXX faire gaffe aux copies
+	poly[2*(index%128)] = new[0]
 	diff = cfg.conf.Commit(poly[:])
 	poly[2*(index%128)].SetZero()
 	c.Add(c, &diff)
 
 	new[1].Sub(&new[1], &old[1])
-	poly[2*(index%128)+1] = new[1] // XXX faire gaffe aux copies
+	poly[2*(index%128)+1] = new[1]
 	diff = cfg.conf.Commit(poly[:])
 	c.Add(c, &diff)
 }
