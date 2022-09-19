@@ -266,14 +266,16 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 	switch child := n.children[nChild].(type) {
 	case Empty:
 		lastNode := &LeafNode{
-			stem:      key[:31],
-			values:    make([][]byte, NodeWidth),
-			committer: n.committer,
-			depth:     n.depth + 1,
+			stem:       key[:31],
+			values:     make([][]byte, NodeWidth),
+			committer:  n.committer,
+			depth:      n.depth + 1,
+			commitment: Generator(),
+			c1:         Generator(),
+			c2:         Generator(),
 		}
-		lastNode.values[key[31]] = value
+		lastNode.updateLeaf(key[31], value)
 		n.children[nChild] = lastNode
-		lastNode.ComputeCommitment()
 	case *HashedNode:
 		if resolver == nil {
 			return errInsertIntoHash
@@ -323,12 +325,15 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 				// Next word differs, so this was the last level.
 				// Insert it directly into its final slot.
 				lastNode := &LeafNode{
-					stem:      key[:31],
-					values:    make([][]byte, NodeWidth),
-					committer: n.committer,
-					depth:     n.depth + 2,
+					stem:       key[:31],
+					values:     make([][]byte, NodeWidth),
+					committer:  n.committer,
+					depth:      n.depth + 2,
+					commitment: Generator(),
+					c1:         Generator(),
+					c2:         Generator(),
 				}
-				lastNode.values[key[31]] = value
+				lastNode.updateLeaf(key[31], value)
 				newBranch.children[nextWordInInsertedKey] = lastNode
 
 				// diff-update the commitment of newBranch by adding the
@@ -793,24 +798,6 @@ func (n *InternalNode) Hash() *Fr {
 }
 
 func (n *InternalNode) ComputeCommitment() *Point {
-	if n.commitment != nil {
-		return n.commitment
-	}
-
-	emptyChildren := 0
-	poly := make([]Fr, NodeWidth)
-	for idx, child := range n.children {
-		switch child.(type) {
-		case Empty:
-			emptyChildren++
-		default:
-			toFr(&poly[idx], child.ComputeCommitment())
-		}
-	}
-
-	// All the coefficients have been computed, evaluate the polynomial,
-	// serialize and hash the resulting point - this is the commitment.
-	n.commitment = n.committer.CommitToPoly(poly, emptyChildren)
 	return n.commitment
 }
 
@@ -1143,23 +1130,6 @@ func (n *LeafNode) Hash() *Fr {
 }
 
 func (n *LeafNode) ComputeCommitment() *Point {
-	if n.commitment != nil {
-		return n.commitment
-	}
-
-	count := 0
-	var poly, c1poly, c2poly [256]Fr
-	poly[0].SetUint64(1)
-	StemFromBytes(&poly[1], n.stem)
-
-	count = fillSuffixTreePoly(c1poly[:], n.values[:128])
-	n.c1 = n.committer.CommitToPoly(c1poly[:], 256-count)
-	toFr(&poly[2], n.c1)
-	count = fillSuffixTreePoly(c2poly[:], n.values[128:])
-	n.c2 = n.committer.CommitToPoly(c2poly[:], 256-count)
-	toFr(&poly[3], n.c2)
-
-	n.commitment = n.committer.CommitToPoly(poly[:], 252)
 	return n.commitment
 }
 
