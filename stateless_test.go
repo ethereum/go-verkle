@@ -605,3 +605,18 @@ func TestStatelessInsertAtStemIntoLeaf(t *testing.T) {
 		t.Fatalf("got %x, expected %x", out, ffx32KeyTest)
 	}
 }
+
+func TestSerialization(t *testing.T) {
+	rootf := New()
+	roots := NewStateless()
+
+	rootf.Insert(zeroKeyTest, ffx32KeyTest, nil)
+	roots.Insert(zeroKeyTest, ffx32KeyTest, nil)
+
+	serf, _ := rootf.Serialize()
+	sers, _ := roots.Serialize()
+
+	if !bytes.Equal(serf, sers) {
+		t.Fatalf("invalid serialization: %x != %x", sers, serf)
+	}
+}
