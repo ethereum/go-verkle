@@ -249,10 +249,8 @@ func TestCopy(t *testing.T) {
 	tree.Insert(key1, fourtyKeyTest, nil)
 	tree.Insert(key2, fourtyKeyTest, nil)
 	tree.Insert(key3, fourtyKeyTest, nil)
-	tree.ComputeCommitment()
 
 	copied := tree.Copy()
-	copied.(*InternalNode).clearCache()
 
 	got1 := copied.ComputeCommitment().Bytes()
 	got2 := tree.ComputeCommitment().Bytes()
@@ -295,28 +293,6 @@ func TestCachedCommitment(t *testing.T) {
 	}
 	if tree.(*InternalNode).children[1].(*InternalNode).commitment == nil {
 		t.Error("internal node has mistakenly cleared cached commitment")
-	}
-}
-
-func TestClearCache(t *testing.T) {
-	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
-	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
-	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
-	tree := New()
-	tree.Insert(key1, fourtyKeyTest, nil)
-	tree.Insert(key2, fourtyKeyTest, nil)
-	tree.Insert(key3, fourtyKeyTest, nil)
-	tree.ComputeCommitment()
-
-	root := tree.(*InternalNode)
-	root.clearCache()
-
-	if root.commitment != nil {
-		t.Error("root cached commitment should have been cleared")
-	}
-
-	if root.children[1].(*InternalNode).commitment != nil {
-		t.Error("internal child's cached commitment should have been cleared")
 	}
 }
 

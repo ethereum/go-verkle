@@ -265,15 +265,8 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 
 	switch child := n.children[nChild].(type) {
 	case Empty:
-		lastNode := &LeafNode{
-			stem:       key[:31],
-			values:     make([][]byte, NodeWidth),
-			committer:  n.committer,
-			depth:      n.depth + 1,
-			commitment: Generator(),
-			c1:         Generator(),
-			c2:         Generator(),
-		}
+		lastNode := NewLeafNode(key[:31], make([][]byte, NodeWidth))
+		lastNode.setDepth(n.depth + 1)
 		lastNode.updateLeaf(key[31], value)
 		n.children[nChild] = lastNode
 	case *HashedNode:
@@ -324,15 +317,8 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 			if nextWordInInsertedKey != nextWordInExistingKey {
 				// Next word differs, so this was the last level.
 				// Insert it directly into its final slot.
-				lastNode := &LeafNode{
-					stem:       key[:31],
-					values:     make([][]byte, NodeWidth),
-					committer:  n.committer,
-					depth:      n.depth + 2,
-					commitment: Generator(),
-					c1:         Generator(),
-					c2:         Generator(),
-				}
+				lastNode := NewLeafNode(key[:31], make([][]byte, NodeWidth))
+				lastNode.setDepth(n.depth + 2)
 				lastNode.updateLeaf(key[31], value)
 				newBranch.children[nextWordInInsertedKey] = lastNode
 
@@ -509,15 +495,10 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 		}
 
 		// NOTE: these allocations are inducing a noticeable slowdown
-		lastNode := &LeafNode{
-			stem:      key[:31],
-			values:    make([][]byte, NodeWidth),
-			committer: n.committer,
-			depth:     n.depth + 1,
-		}
-		lastNode.values[key[31]] = value
+		lastNode := NewLeafNode(key[:31], make([][]byte, NodeWidth))
+		lastNode.setDepth(n.depth + 1)
+		lastNode.updateLeaf(key[31], value)
 		n.children[nChild] = lastNode
-		lastNode.ComputeCommitment()
 
 		// If the node was already created, then there was at least one
 		// child. As a result, inserting this new leaf means there are
@@ -559,13 +540,9 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 				newBranch.children[nextWordInExistingKey] = child.ToHashedNode()
 				// Next word differs, so this was the last level.
 				// Insert it directly into its final slot.
-				lastNode := &LeafNode{
-					stem:      key[:31],
-					values:    make([][]byte, NodeWidth),
-					committer: n.committer,
-					depth:     n.depth + 1,
-				}
-				lastNode.values[key[31]] = value
+				lastNode := NewLeafNode(key[:31], make([][]byte, NodeWidth))
+				lastNode.setDepth(n.depth + 1)
+				lastNode.updateLeaf(key[31], value)
 				newBranch.children[nextWordInInsertedKey] = lastNode
 
 				// diff-update the commitment of newBranch by adding the
@@ -924,19 +901,6 @@ func (n *InternalNode) Copy() VerkleNode {
 	}
 
 	return ret
-}
-
-// clearCache sets the commitment field of node
-// and all of its children (recursively) to nil.
-func (n *InternalNode) clearCache() {
-	for _, c := range n.children {
-		in, ok := c.(*InternalNode)
-		if !ok {
-			continue
-		}
-		in.clearCache()
-	}
-	n.commitment = nil
 }
 
 func (n *InternalNode) toDot(parent, path string) string {
