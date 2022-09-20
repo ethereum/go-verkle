@@ -935,11 +935,7 @@ func TestInsertStem(t *testing.T) {
 	values[5] = zeroKeyTest
 	values[192] = fourtyKeyTest
 
-	leaf := &LeafNode{
-		stem:      fourtyKeyTest[:31],
-		values:    values,
-		committer: root1.(*InternalNode).committer,
-	}
+	leaf := NewLeafNode(fourtyKeyTest[:31], values)
 	root1.(*InternalNode).InsertStem(fourtyKeyTest[:31], leaf, nil, false)
 	r1c := root1.ComputeCommitment()
 
@@ -1029,21 +1025,12 @@ func TestInsertStemOrdered(t *testing.T) {
 	var keysplit [32]byte // a key to check stem splitting in insert
 	copy(keysplit[:], fourtyKeyTest)
 	keysplit[24] = 72
-	leaf1 := &LeafNode{
-		stem:      fourtyKeyTest[:31],
-		values:    values1,
-		committer: root1.(*InternalNode).committer,
-	}
-	leaf2 := &LeafNode{
-		stem:      keysplit[:31],
-		values:    values2,
-		committer: root1.(*InternalNode).committer,
-	}
-	leaf3 := &LeafNode{
-		stem:      ffx32KeyTest[:31],
-		values:    values3,
-		committer: root1.(*InternalNode).committer,
-	}
+	leaf1 := NewLeafNode(fourtyKeyTest[:31], make([][]byte, NodeWidth))
+	leaf1.updateMultipleLeaves(values1)
+	leaf2 := NewLeafNode(keysplit[:31], make([][]byte, NodeWidth))
+	leaf2.updateMultipleLeaves(values2)
+	leaf3 := NewLeafNode(ffx32KeyTest[:31], make([][]byte, NodeWidth))
+	leaf3.updateMultipleLeaves(values3)
 	root1.(*InternalNode).Insert(zeroKeyTest, ffx32KeyTest, nil)
 	root1.(*InternalNode).InsertStemOrdered(fourtyKeyTest[:31], leaf1, flush)
 	root1.(*InternalNode).InsertStemOrdered(keysplit[:31], leaf2, flush)

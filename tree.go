@@ -200,18 +200,6 @@ func newInternalNode(depth byte, cmtr Committer) VerkleNode {
 	return node
 }
 
-func newInternalNodeNilCommitment(depth byte, cmtr Committer) VerkleNode {
-	node := new(InternalNode)
-	node.children = make([]VerkleNode, NodeWidth)
-	for idx := range node.children {
-		node.children[idx] = Empty(struct{}{})
-	}
-	node.depth = depth
-	node.committer = cmtr
-	node.commitment = nil
-	return node
-}
-
 // New creates a new tree root
 func New() VerkleNode {
 	cfg, _ := GetConfig()
@@ -568,8 +556,6 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 // InsertStemOrdered does the same thing as InsertOrdered but is meant to insert a pre-build
 // LeafNode at a given stem, instead of individual leaves.
 func (n *InternalNode) InsertStemOrdered(key []byte, leaf *LeafNode, flush NodeFlushFn) error {
-	n.commitment = nil
-
 	nChild := offset2key(key, n.depth)
 
 	switch child := n.children[nChild].(type) {
