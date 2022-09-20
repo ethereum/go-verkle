@@ -115,10 +115,6 @@ func (n *StatelessNode) SetChild(i int, v VerkleNode) error {
 	return nil
 }
 
-// SetStem is an accessor for a stateless leaf node stem
-func (n *StatelessNode) SetStem(stem []byte) {
-	n.stem = stem
-}
 func (n *StatelessNode) getOldCn(index byte) (*Point, *Fr) {
 	var (
 		c    *Point
