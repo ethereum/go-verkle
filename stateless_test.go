@@ -275,7 +275,7 @@ func TestStatelessDeserialize(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !Equal(droot.Commit(), root.Commit()) {
+	if !Equal(droot.Commit(), root.Commitment()) {
 		t.Log(ToDot(droot), ToDot(root))
 		t.Fatalf("differing root commitments %x != %x", droot.Commitment().Bytes(), root.Commitment().Bytes())
 	}

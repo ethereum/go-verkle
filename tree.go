@@ -271,7 +271,7 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 	)
 
 	// keep the initial value of the child commitment
-	toFr(&pre, n.children[nChild].Commit())
+	toFr(&pre, n.children[nChild].Commitment())
 
 	switch child := n.children[nChild].(type) {
 	case Empty:
@@ -362,7 +362,7 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 	// diff-update this commitment upon exiting this method
 	if err == nil {
 		var diff Point
-		toFr(&post, n.children[nChild].Commit())
+		toFr(&post, n.children[nChild].Commitment())
 		diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[nChild], pre.Sub(&post, &pre))
 		n.commitment.Add(n.commitment, &diff)
 	}
@@ -382,7 +382,7 @@ func (n *InternalNode) InsertStem(stem []byte, node VerkleNode, resolver NodeRes
 	)
 
 	// keep the initial value of the child commitment
-	toFr(&pre, n.children[nChild].Commit())
+	toFr(&pre, n.children[nChild].Commitment())
 
 	switch child := n.children[nChild].(type) {
 	case Empty:
@@ -401,8 +401,6 @@ func (n *InternalNode) InsertStem(stem []byte, node VerkleNode, resolver NodeRes
 		if err != nil {
 			return fmt.Errorf("verkle tree: error parsing resolved node %x: %w", stem, err)
 		}
-		resolved.setDepth(n.depth + 1)
-		resolved.Commit()
 		n.children[nChild] = resolved
 		// recurse to handle the case of a LeafNode child that
 		// splits.
@@ -472,13 +470,13 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 	)
 
 	// keep the initial value of the child commitment
-	toFr(&pre, n.children[nChild].Commit())
+	toFr(&pre, n.children[nChild].Commitment())
 
 	// diff-update this commitment upon exiting this method
 	defer func() {
 		if err == nil {
 			var diff Point
-			toFr(&post, n.children[nChild].Commit())
+			toFr(&post, n.children[nChild].Commitment())
 			diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[nChild], pre.Sub(&post, &pre))
 			n.commitment.Add(n.commitment, &diff)
 		}
@@ -702,10 +700,10 @@ func (n *InternalNode) Delete(key []byte, resolver NodeResolverFn) error {
 		return n.Delete(key, resolver)
 	default:
 		var old, new Fr
-		toFr(&old, child.Commit())
+		toFr(&old, child.Commitment())
 		err := child.Delete(key, resolver)
 		if err == nil {
-			toFr(&new, child.Commit())
+			toFr(&new, child.Commitment())
 			new.Sub(&new, &old)
 			var diff, newComm Point
 			// copy the point so any external references
@@ -875,7 +873,7 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 	// fill in the polynomial for this node
 	fi := make([]Fr, NodeWidth)
 	for i, child := range n.children {
-		toFr(&fi[i], child.Commit())
+		toFr(&fi[i], child.Commitment())
 	}
 
 	for _, group := range groups {
@@ -922,7 +920,7 @@ func (n *InternalNode) Serialize() ([]byte, error) {
 	for i, c := range n.children {
 		if _, ok := c.(Empty); !ok {
 			setBit(bitlist[:], i)
-			commitments = append(commitments, c.Commit())
+			commitments = append(commitments, c.Commitment())
 		}
 	}
 	children := make([]byte, 0, len(commitments)*32)
@@ -1161,10 +1159,6 @@ func (n *LeafNode) Commitment() *Point {
 }
 
 func (n *LeafNode) Commit() *Point {
-	if n.commitment != nil {
-		return n.commitment
-	}
-
 	count := 0
 	var poly, c1poly, c2poly [256]Fr
 	poly[0].SetUint64(1)

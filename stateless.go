@@ -638,7 +638,7 @@ func (n *StatelessNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][
 			if n.children[childIdx] == nil {
 				yi.SetZero()
 			} else {
-				toFr(&yi, n.children[childIdx].Commit())
+				toFr(&yi, n.children[childIdx].Commitment())
 			}
 
 			pe.Cis = append(pe.Cis, n.commitment)
@@ -842,7 +842,7 @@ func (n *StatelessNode) Serialize() ([]byte, error) {
 		// is an empty node, to be skipped.
 		if c, ok := n.children[byte(i)]; ok {
 			setBit(bitlist[:], i)
-			digits := c.Commit().Bytes()
+			digits := c.Commitment().Bytes()
 			children = append(children, digits[:]...)
 		} else if bytes, ok := n.unresolved[byte(i)]; ok {
 			setBit(bitlist[:], i)
