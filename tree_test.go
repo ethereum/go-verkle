@@ -197,8 +197,8 @@ func TestInsertVsOrdered(t *testing.T) {
 		}
 	}
 
-	h2 := root2.ComputeCommitment().Bytes()
-	h1 := root1.ComputeCommitment().Bytes()
+	h2 := root2.Commit().Bytes()
+	h1 := root1.Commit().Bytes()
 
 	if !bytes.Equal(h1[:], h2[:]) {
 		t.Errorf("Insert and InsertOrdered produce different trees %x != %x", h1, h2)
@@ -249,19 +249,19 @@ func TestCopy(t *testing.T) {
 	tree.Insert(key1, fourtyKeyTest, nil)
 	tree.Insert(key2, fourtyKeyTest, nil)
 	tree.Insert(key3, fourtyKeyTest, nil)
-	tree.ComputeCommitment()
+	tree.Commit()
 
 	copied := tree.Copy()
 	copied.(*InternalNode).clearCache()
 
-	got1 := copied.ComputeCommitment().Bytes()
-	got2 := tree.ComputeCommitment().Bytes()
+	got1 := copied.Commit().Bytes()
+	got2 := tree.Commit().Bytes()
 	if !bytes.Equal(got1[:], got2[:]) {
 		t.Fatalf("error copying commitments %x != %x", got1, got2)
 	}
 	tree.Insert(key2, oneKeyTest, nil)
-	tree.ComputeCommitment()
-	got2 = tree.ComputeCommitment().Bytes()
+	tree.Commit()
+	got2 = tree.Commit().Bytes()
 	if bytes.Equal(got1[:], got2[:]) {
 		t1, _ := tree.Get(key2, nil)
 		t2, _ := copied.Get(key2, nil)
@@ -278,7 +278,7 @@ func TestCachedCommitment(t *testing.T) {
 	tree.Insert(key1, fourtyKeyTest, nil)
 	tree.Insert(key2, fourtyKeyTest, nil)
 	tree.Insert(key3, fourtyKeyTest, nil)
-	oldRoot := tree.ComputeCommitment().Bytes()
+	oldRoot := tree.Commit().Bytes()
 	oldInternal := tree.(*InternalNode).children[4].(*LeafNode).commitment.Bytes()
 
 	if tree.(*InternalNode).commitment == nil {
@@ -287,7 +287,7 @@ func TestCachedCommitment(t *testing.T) {
 
 	tree.Insert(key4, fourtyKeyTest, nil)
 
-	if tree.(*InternalNode).ComputeCommitment().Bytes() == oldRoot {
+	if tree.(*InternalNode).Commitment().Bytes() == oldRoot {
 		t.Error("root has stale commitment")
 	}
 	if tree.(*InternalNode).children[4].(*InternalNode).commitment.Bytes() == oldInternal {
@@ -306,7 +306,7 @@ func TestClearCache(t *testing.T) {
 	tree.Insert(key1, fourtyKeyTest, nil)
 	tree.Insert(key2, fourtyKeyTest, nil)
 	tree.Insert(key3, fourtyKeyTest, nil)
-	tree.ComputeCommitment()
+	tree.Commit()
 
 	root := tree.(*InternalNode)
 	root.clearCache()
@@ -327,7 +327,7 @@ func TestDelLeaf(t *testing.T) {
 	tree := New()
 	tree.Insert(key1, fourtyKeyTest, nil)
 	tree.Insert(key2, fourtyKeyTest, nil)
-	hash := tree.ComputeCommitment()
+	hash := tree.Commit()
 
 	tree.Insert(key3, fourtyKeyTest, nil)
 	if err := tree.Delete(key3, nil); err != nil {
@@ -337,7 +337,7 @@ func TestDelLeaf(t *testing.T) {
 	// the pre and post deletion hashes should be different,
 	// as deleting a value means replacing it with a 0 in verkle
 	// trees.
-	postHash := tree.ComputeCommitment()
+	postHash := tree.Commit()
 	if Equal(hash, postHash) {
 		t.Error("deleting leaf resulted in unexpected tree")
 	}
@@ -372,15 +372,15 @@ func TestDeletePrune(t *testing.T) {
 	tree.Insert(key1, fourtyKeyTest, nil)
 	tree.Insert(key2, fourtyKeyTest, nil)
 
-	hash1 := tree.ComputeCommitment()
+	hash1 := tree.Commit()
 	tree.Insert(key3, fourtyKeyTest, nil)
-	hash2 := tree.ComputeCommitment()
+	hash2 := tree.Commit()
 	tree.Insert(key4, fourtyKeyTest, nil)
 
 	if err := tree.Delete(key4, nil); err != nil {
 		t.Error(err)
 	}
-	postHash := tree.ComputeCommitment()
+	postHash := tree.Commit()
 	if Equal(hash2, postHash) {
 		t.Error("deleting leaf #4 resulted in unexpected tree")
 	}
@@ -395,7 +395,7 @@ func TestDeletePrune(t *testing.T) {
 	if err := tree.Delete(key3, nil); err != nil {
 		t.Error(err)
 	}
-	postHash = tree.ComputeCommitment()
+	postHash = tree.Commit()
 	if Equal(hash1, postHash) {
 		t.Error("deleting leaf #3 resulted in unexpected tree")
 	}
@@ -416,7 +416,7 @@ func TestDeleteHash(t *testing.T) {
 	tree.Insert(key1, fourtyKeyTest, nil)
 	tree.InsertOrdered(key2, fourtyKeyTest, nil)
 	tree.InsertOrdered(key3, fourtyKeyTest, nil)
-	tree.ComputeCommitment()
+	tree.Commit()
 	if err := tree.Delete(key2, nil); err != errDeleteHash {
 		t.Fatalf("did not report the correct error while deleting from a hash: %v", err)
 	}
@@ -429,7 +429,7 @@ func TestDeleteUnequalPath(t *testing.T) {
 	tree := New()
 	tree.Insert(key1, fourtyKeyTest, nil)
 	tree.Insert(key3, fourtyKeyTest, nil)
-	tree.ComputeCommitment()
+	tree.Commit()
 
 	if err := tree.Delete(key2, nil); err != errDeleteNonExistent {
 		t.Fatalf("didn't catch the deletion of non-existing key, err =%v", err)
@@ -447,13 +447,13 @@ func TestDeleteResolve(t *testing.T) {
 	tree.InsertOrdered(key1, fourtyKeyTest, saveNode)
 	tree.InsertOrdered(key2, fourtyKeyTest, saveNode)
 	tree.InsertOrdered(key3, fourtyKeyTest, saveNode)
-	tree.ComputeCommitment()
+	tree.Commit()
 
 	var called bool
 	err := tree.Delete(key2, func(comm []byte) ([]byte, error) {
 		called = true
 		for _, node := range savedNodes {
-			c := node.ComputeCommitment().Bytes()
+			c := node.Commit().Bytes()
 			if bytes.Equal(comm, c[:]) {
 				return node.Serialize()
 			}
@@ -475,14 +475,14 @@ func TestConcurrentTrees(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expected := tree.ComputeCommitment()
+	expected := tree.Commit()
 
 	threads := 2
 	ch := make(chan *Point)
 	builder := func() {
 		tree := New()
 		tree.Insert(zeroKeyTest, fourtyKeyTest, nil)
-		ch <- tree.ComputeCommitment()
+		ch <- tree.Commit()
 	}
 
 	for i := 0; i < threads; i++ {
@@ -521,7 +521,7 @@ func BenchmarkCommitFullNode(b *testing.B) {
 				b.Fatal(err)
 			}
 		}
-		root.ComputeCommitment()
+		root.Commit()
 	}
 }
 
@@ -559,7 +559,7 @@ func benchmarkCommitNLeaves(b *testing.B, n int) {
 					b.Error(err)
 				}
 			}
-			root.ComputeCommitment()
+			root.Commit()
 		}
 	})
 
@@ -574,7 +574,7 @@ func benchmarkCommitNLeaves(b *testing.B, n int) {
 					b.Fatal(err)
 				}
 			}
-			root.ComputeCommitment()
+			root.Commit()
 		}
 	})
 }
@@ -593,7 +593,7 @@ func BenchmarkModifyLeaves(b *testing.B) {
 		keys[i] = key
 		root.Insert(key, val, nil)
 	}
-	root.ComputeCommitment()
+	root.Commit()
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -608,7 +608,7 @@ func BenchmarkModifyLeaves(b *testing.B) {
 				b.Error(err)
 			}
 		}
-		root.ComputeCommitment()
+		root.Commit()
 	}
 }
 
@@ -632,7 +632,7 @@ func TestNodeSerde(t *testing.T) {
 	tree := New()
 	tree.Insert(zeroKeyTest, testValue, nil)
 	tree.Insert(fourtyKeyTest, testValue, nil)
-	origComm := tree.ComputeCommitment().Bytes()
+	origComm := tree.Commit().Bytes()
 	root := tree.(*InternalNode)
 
 	// Serialize all the nodes
@@ -682,7 +682,7 @@ func TestNodeSerde(t *testing.T) {
 		t.Errorf("parsed node not equal, %x != %x", root.commitment.Bytes(), resRoot.commitment.Bytes())
 	}
 
-	if resRoot.ComputeCommitment().Bytes() != origComm {
+	if resRoot.Commitment().Bytes() != origComm {
 		t.Fatal("invalid deserialized commitment")
 	}
 }
@@ -856,7 +856,7 @@ func TestToDot(*testing.T) {
 func TestEmptyCommitment(t *testing.T) {
 	root := New()
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
-	root.ComputeCommitment()
+	root.Commit()
 	pe, _, _ := root.GetProofItems(keylist{ffx32KeyTest})
 	if len(pe.Cis) != 1 || len(pe.Zis) != 1 || len(pe.Yis) != 1 || len(pe.Fis) != 1 {
 		t.Fatalf("invalid parameter list length")
@@ -945,7 +945,7 @@ func TestWithRustCompatibility(t *testing.T) {
 		}
 	}
 
-	commBytes := root.ComputeCommitment().Bytes()
+	commBytes := root.Commit().Bytes()
 	if !bytes.Equal(commBytes[:], testAccountRootCommRust) {
 		t.Fatalf("rust and golang impl are not compatible rust=%x, go=%x", testAccountRootCommRust, commBytes)
 	}
@@ -965,7 +965,7 @@ func TestInsertStem(t *testing.T) {
 		committer: root1.(*InternalNode).committer,
 	}
 	root1.(*InternalNode).InsertStem(fourtyKeyTest[:31], leaf, nil, false)
-	r1c := root1.ComputeCommitment()
+	r1c := root1.Commit()
 
 	var key5, key192 [32]byte
 	copy(key5[:], fourtyKeyTest[:31])
@@ -974,7 +974,7 @@ func TestInsertStem(t *testing.T) {
 	key192[31] = 192
 	root2.Insert(key5[:], zeroKeyTest, nil)
 	root2.Insert(key192[:], fourtyKeyTest, nil)
-	r2c := root2.ComputeCommitment()
+	r2c := root2.Commit()
 
 	if !Equal(r1c, r2c) {
 		t.Fatalf("differing commitments %x != %x", r1c.Bytes(), r2c.Bytes())
@@ -1007,7 +1007,7 @@ func TestInsertResolveSplitLeaf(t *testing.T) {
 	// Now insert another leaf, with a resolver function
 	key, _ := hex.DecodeString("0000100000000000000000000000000000000000000000000000000000000000")
 	if err := root.Insert(key, ffx32KeyTest, func(comm []byte) ([]byte, error) {
-		leafcomm := leaf.ComputeCommitment().Bytes()
+		leafcomm := leaf.Commitment().Bytes()
 		if bytes.Equal(comm, leafcomm[:]) {
 			ls, err := leaf.Serialize()
 			if err != nil {
@@ -1072,7 +1072,7 @@ func TestInsertStemOrdered(t *testing.T) {
 	root1.(*InternalNode).InsertStemOrdered(fourtyKeyTest[:31], leaf1, flush)
 	root1.(*InternalNode).InsertStemOrdered(keysplit[:31], leaf2, flush)
 	root1.(*InternalNode).InsertStemOrdered(ffx32KeyTest[:31], leaf3, flush)
-	r1c := root1.ComputeCommitment()
+	r1c := root1.Commit()
 
 	// 26 for fourtyKeyTest + 2 children, 1 for zeroKeyTest,
 	if flushCount != 27 {
@@ -1093,7 +1093,7 @@ func TestInsertStemOrdered(t *testing.T) {
 	root2.Insert(key192[:], fourtyKeyTest, nil)
 	root2.Insert(key64[:], zeroKeyTest, nil)
 	root2.Insert(keysplit[:], ffx32KeyTest, nil)
-	r2c := root2.ComputeCommitment()
+	r2c := root2.Commit()
 
 	if !Equal(r1c, r2c) {
 		t.Fatalf("differing commitments %x != %x", r1c.Bytes(), r2c.Bytes())
@@ -1185,7 +1185,7 @@ func TestRustBanderwagonBlock48(t *testing.T) {
 	missingVal, _ := hex.DecodeString("133b991f93d230604b1b8daaef64766264736f6c634300080700330000000000")
 	tree.Insert(missingKey, missingVal, nil)
 
-	r := tree.ComputeCommitment()
+	r := tree.Commit()
 
 	proof, cis, zis, yis, _ := MakeVerkleMultiProof(tree, keys, initialVals)
 	serialized, _, err := SerializeProof(proof)

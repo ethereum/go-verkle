@@ -51,7 +51,17 @@ func (*HashedNode) Get([]byte, NodeResolverFn) ([]byte, error) {
 	return nil, errors.New("can not read from a hash node")
 }
 
-func (n *HashedNode) ComputeCommitment() *Point {
+func (n *HashedNode) Commit() *Point {
+	if n.commitment == nil {
+		panic("nil commitment")
+	}
+	return n.commitment
+}
+
+func (n *HashedNode) Commitment() *Point {
+	if n.commitment == nil {
+		panic("nil commitment")
+	}
 	return n.commitment
 }
 

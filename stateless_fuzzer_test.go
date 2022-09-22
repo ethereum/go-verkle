@@ -43,8 +43,8 @@ func FuzzStatelessVsStateful(f *testing.F) {
 			rootL.Insert(input[i*64:i*64+32], input[i*64+32:(i+1)*64], nil)
 		}
 
-		if !Equal(rootL.ComputeCommitment(), rootF.ComputeCommitment()) {
-			t.Fatalf("root commitment for state-less != -ful %x != %x", rootL.ComputeCommitment().Bytes(), rootF.ComputeCommitment().Bytes())
+		if !Equal(rootL.Commitment(), rootF.Commit()) {
+			t.Fatalf("root commitment for state-less != -ful %x != %x", rootL.Commitment().Bytes(), rootF.Commit().Bytes())
 		}
 	})
 }

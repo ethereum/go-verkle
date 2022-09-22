@@ -77,7 +77,7 @@ func TestInsertKey0Value0(t *testing.T) {
 	)
 
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
-	comm := root.ComputeCommitment()
+	comm := root.Commit()
 
 	extensionAndSuffixOneKey(zeroKeyTest, zeroKeyTest, &expectedP)
 
@@ -106,7 +106,7 @@ func TestInsertKey1Value1(t *testing.T) {
 		25, 26, 27, 28, 29, 30, 31, 32,
 	}
 	root.Insert(key, key, nil)
-	comm := root.ComputeCommitment()
+	comm := root.Commit()
 
 	extensionAndSuffixOneKey(key, key, &expectedP)
 	toFr(&v, &expectedP)
@@ -141,7 +141,7 @@ func TestInsertSameStemTwoLeaves(t *testing.T) {
 	}
 	root.Insert(key_a, key_a, nil)
 	root.Insert(key_b, key_b, nil)
-	comm := root.ComputeCommitment()
+	comm := root.Commit()
 
 	stemComm0 := srs[0]
 	StemFromBytes(&v, key_a[:31])
@@ -183,7 +183,7 @@ func TestInsertKey1Val1Key2Val2(t *testing.T) {
 	key_b, _ := hex.DecodeString("0101010101010101010101010101010101010101010101010101010101010101")
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
 	root.Insert(key_b, key_b, nil)
-	comm := root.ComputeCommitment()
+	comm := root.Commit()
 	fmt.Println(root.toDot("", ""))
 
 	extensionAndSuffixOneKey(zeroKeyTest, zeroKeyTest, &t1)
@@ -206,7 +206,7 @@ func TestInsertKey1Val1Key2Val2(t *testing.T) {
 
 func TestEmptyTrie(t *testing.T) {
 	root := New()
-	comm := root.ComputeCommitment()
+	comm := root.Commit()
 
 	if !comm.Equal(identity) {
 		t.Fatalf("invalid root commitment %v != %v", comm, identity)

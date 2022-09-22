@@ -72,8 +72,8 @@ func TestStatelessChildren(t *testing.T) {
 	rootRef.Insert(oneKeyTest, fourtyKeyTest, nil)
 	rootRef.Insert(c2key, fourtyKeyTest, nil)
 
-	if !Equal(rootRef.ComputeCommitment(), root.commitment) {
-		t.Fatalf("differing state(less|ful) roots %x != %x", rootRef.ComputeCommitment(), root.commitment)
+	if !Equal(rootRef.Commit(), root.commitment) {
+		t.Fatalf("differing state(less|ful) roots %x != %x", rootRef.Commit(), root.commitment)
 	}
 }
 
@@ -95,8 +95,8 @@ func TestStatelessDelete(t *testing.T) {
 	rootRef.Insert(oneKeyTest, fourtyKeyTest, nil)
 	rootRef.Delete(oneKeyTest, nil)
 
-	if !Equal(rootRef.ComputeCommitment(), root.commitment) {
-		t.Fatal("error in delete", rootRef.ComputeCommitment(), root.hash)
+	if !Equal(rootRef.Commit(), root.commitment) {
+		t.Fatal("error in delete", rootRef.Commit(), root.hash)
 	}
 }
 
@@ -131,7 +131,7 @@ func TestStatelessInsertLeafIntoLeaf(t *testing.T) {
 	rootRef := New()
 	rootRef.Insert(zeroKeyTest, fourtyKeyTest, nil)
 	rootRef.Insert(oneKeyTest, fourtyKeyTest, nil)
-	hash := rootRef.ComputeCommitment()
+	hash := rootRef.Commit()
 
 	if !Equal(hash, root.commitment) {
 		t.Fatalf("hashes differ after insertion %v %v", hash, root.hash)
@@ -140,7 +140,7 @@ func TestStatelessInsertLeafIntoLeaf(t *testing.T) {
 	rootRef = New()
 	rootRef.Insert(zeroKeyTest, fourtyKeyTest, nil)
 	rootRef.Insert(oneKeyTest, oneKeyTest, nil)
-	hash = rootRef.ComputeCommitment()
+	hash = rootRef.Commit()
 
 	root.Insert(oneKeyTest, oneKeyTest, nil)
 
@@ -175,11 +175,11 @@ func TestStatelessCopy(t *testing.T) {
 	root := NewStateless()
 	root.Insert(zeroKeyTest, fourtyKeyTest, nil)
 	rootCopy := root.Copy()
-	if !Equal(rootCopy.ComputeCommitment(), root.commitment) {
+	if !Equal(rootCopy.Commit(), root.commitment) {
 		t.Fatal("copy produced the wrong hash")
 	}
 	root.Insert(oneKeyTest, fourtyKeyTest, nil)
-	if Equal(rootCopy.ComputeCommitment(), root.commitment) {
+	if Equal(rootCopy.Commit(), root.commitment) {
 		t.Fatal("copy did not update the hash")
 	}
 }
@@ -221,7 +221,7 @@ func TestStatelessToDot(t *testing.T) {
 	rootRef.Insert(zeroKeyTest, fourtyKeyTest, nil)
 	rootRef.Insert(oneKeyTest, fourtyKeyTest, nil)
 	rootRef.Insert(key1, fourtyKeyTest, nil)
-	rootRef.ComputeCommitment()
+	rootRef.Commit()
 
 	var stl []string
 	for _, str := range strings.Split(root.toDot("", ""), "\n") {
@@ -270,20 +270,21 @@ func TestStatelessDeserialize(t *testing.T) {
 		t.Fatalf("error deserializing proof: %v", err)
 	}
 
-	droot, err := TreeFromProof(dproof, root.ComputeCommitment())
+	droot, err := TreeFromProof(dproof, root.Commit())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if droot.ComputeCommitment() != root.ComputeCommitment() {
-		t.Fatal("differing root commitments")
+	if !Equal(droot.Commit(), root.Commit()) {
+		t.Log(ToDot(droot), ToDot(root))
+		t.Fatalf("differing root commitments %x != %x", droot.Commitment().Bytes(), root.Commitment().Bytes())
 	}
 
-	if !Equal(droot.(*StatelessNode).children[0].(*StatelessNode).commitment, root.(*InternalNode).children[0].ComputeCommitment()) {
+	if !Equal(droot.(*StatelessNode).children[0].(*StatelessNode).commitment, root.(*InternalNode).children[0].Commit()) {
 		t.Fatal("differing commitment for child #0")
 	}
 
-	if !Equal(droot.(*StatelessNode).children[64].ComputeCommitment(), root.(*InternalNode).children[64].ComputeCommitment()) {
+	if !Equal(droot.(*StatelessNode).children[64].Commit(), root.(*InternalNode).children[64].Commit()) {
 		t.Fatal("differing commitment for child #64")
 	}
 }
@@ -310,16 +311,16 @@ func TestStatelessDeserializeMissginChildNode(t *testing.T) {
 		t.Fatalf("error deserializing proof: %v", err)
 	}
 
-	droot, err := TreeFromProof(dproof, root.ComputeCommitment())
+	droot, err := TreeFromProof(dproof, root.Commit())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if droot.ComputeCommitment() != root.ComputeCommitment() {
+	if !Equal(droot.Commit(), root.Commit()) {
 		t.Fatal("differing root commitments")
 	}
 
-	if !Equal(droot.(*StatelessNode).children[0].ComputeCommitment(), root.(*InternalNode).children[0].ComputeCommitment()) {
+	if !Equal(droot.(*StatelessNode).children[0].Commit(), root.(*InternalNode).children[0].Commit()) {
 		t.Fatal("differing commitment for child #0")
 	}
 
@@ -351,16 +352,16 @@ func TestStatelessDeserializeDepth2(t *testing.T) {
 		t.Fatalf("error deserializing proof: %v", err)
 	}
 
-	droot, err := TreeFromProof(dproof, root.ComputeCommitment())
+	droot, err := TreeFromProof(dproof, root.Commit())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if droot.ComputeCommitment() != root.ComputeCommitment() {
+	if !Equal(droot.Commit(), root.Commit()) {
 		t.Fatal("differing root commitments")
 	}
 
-	if !Equal(droot.(*StatelessNode).children[0].ComputeCommitment(), root.(*InternalNode).children[0].ComputeCommitment()) {
+	if !Equal(droot.(*StatelessNode).children[0].Commit(), root.(*InternalNode).children[0].Commit()) {
 		t.Fatal("differing commitment for child #0")
 	}
 }
@@ -390,7 +391,7 @@ func TestStatelessGetProofItems(t *testing.T) {
 		t.Fatalf("error deserializing proof: %v", err)
 	}
 
-	droot, err := TreeFromProof(dproof, root.ComputeCommitment())
+	droot, err := TreeFromProof(dproof, root.Commit())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -464,13 +465,13 @@ func TestStatelessInsertIntoSerialized(t *testing.T) {
 	flushed := map[string][]byte{}
 	rootF := New()
 	rootF.Insert(fourtyKeyTest, ffx32KeyTest, nil)
-	rootc := rootF.ComputeCommitment().Bytes()
+	rootc := rootF.Commit().Bytes()
 	rootF.(*InternalNode).Flush(func(vn VerkleNode) {
 		ser, err := vn.Serialize()
 		if err != nil {
 			panic(err)
 		}
-		comm := vn.ComputeCommitment().Bytes()
+		comm := vn.Commit().Bytes()
 		flushed[string(comm[:])] = ser
 	})
 
@@ -532,13 +533,13 @@ func TestStatelessInsertIntoLeaf(t *testing.T) {
 	flushed := map[string][]byte{}
 	rootF := New()
 	rootF.Insert(zeroKeyTest, ffx32KeyTest, nil)
-	rootc := rootF.ComputeCommitment().Bytes()
+	rootc := rootF.Commit().Bytes()
 	rootF.(*InternalNode).Flush(func(vn VerkleNode) {
 		ser, err := vn.Serialize()
 		if err != nil {
 			panic(err)
 		}
-		comm := vn.ComputeCommitment().Bytes()
+		comm := vn.Commit().Bytes()
 		flushed[string(comm[:])] = ser
 	})
 
@@ -555,13 +556,13 @@ func TestStatelessInsertAtStemIntoLeaf(t *testing.T) {
 	flushed := map[string][]byte{}
 	rootF := New()
 	rootF.Insert(zeroKeyTest, ffx32KeyTest, nil)
-	rootc := rootF.ComputeCommitment().Bytes()
+	rootc := rootF.Commit().Bytes()
 	rootF.(*InternalNode).Flush(func(vn VerkleNode) {
 		ser, err := vn.Serialize()
 		if err != nil {
 			panic(err)
 		}
-		comm := vn.ComputeCommitment().Bytes()
+		comm := vn.Commit().Bytes()
 		flushed[string(comm[:])] = ser
 	})
 

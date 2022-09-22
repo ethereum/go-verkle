@@ -238,7 +238,7 @@ func BenchmarkProofVerification(b *testing.B) {
 		root.Insert(key, zeroKeyTest, nil)
 	}
 
-	root.ComputeCommitment()
+	root.Commit()
 	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, [][]byte{keys[len(keys)/2]}, map[string][]byte{})
 
 	b.ResetTimer()
@@ -405,7 +405,7 @@ func TestProofDeserializeErrors(t *testing.T) {
 
 func TestProofOfAbsenceEdgeCase(t *testing.T) {
 	root := New()
-	root.ComputeCommitment()
+	root.Commit()
 
 	ret, _ := hex.DecodeString("0303030303030303030303030303030303030303030303030303030303030303")
 	proof, cs, zis, yis, _ := MakeVerkleMultiProof(root, [][]byte{ret}, map[string][]byte{string(ret): nil})
@@ -421,7 +421,7 @@ func TestProofOfAbsenceOtherMultipleLeaves(t *testing.T) {
 	root := New()
 	key, _ := hex.DecodeString("0303030303030303030303030303030303030303030303030303030303030000")
 	root.Insert(key, testValue, nil)
-	root.ComputeCommitment()
+	root.Commit()
 
 	ret1, _ := hex.DecodeString("0303030303030303030303030303030303030303030303030303030303030300")
 	ret2, _ := hex.DecodeString("0303030303030303030303030303030303030303030303030303030303030301")
@@ -440,7 +440,7 @@ func TestProofOfAbsenceNoneMultipleStems(t *testing.T) {
 	root := New()
 	key, _ := hex.DecodeString("0403030303030303030303030303030303030303030303030303030303030000")
 	root.Insert(key, testValue, nil)
-	root.ComputeCommitment()
+	root.Commit()
 
 	ret1, _ := hex.DecodeString("0303030303030303030303030303030303030303030303030303030303030300")
 	ret2, _ := hex.DecodeString("0303030303030303030303030303030303030303030303030303030303030200")

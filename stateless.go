@@ -262,7 +262,7 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 		// If the child is a hash, the node needs to be resolved
 		// before there is an insert into it.
 		if h, ok := n.children[nChild].(*HashedNode); ok {
-			comm := h.ComputeCommitment().Bytes()
+			comm := h.Commitment().Bytes()
 			serialized, err := resolver(comm[:])
 			if err != nil {
 				return err
@@ -307,7 +307,7 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 					lastnode.Insert(key, value, nil)
 					var lnComm Fr
 					var diff Point
-					toFr(&lnComm, lastnode.ComputeCommitment())
+					toFr(&lnComm, lastnode.Commitment())
 					diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[inserted], &lnComm)
 					newbranch.commitment.Add(newbranch.commitment, &diff)
 				} else {
@@ -391,7 +391,7 @@ func (n *StatelessNode) InsertAtStem(stem []byte, values [][]byte, resolver Node
 	// If the child is a hash, the node needs to be resolved
 	// before there is an insert into it.
 	if h, ok := n.children[nChild].(*HashedNode); ok {
-		comm := h.ComputeCommitment().Bytes()
+		comm := h.Commitment().Bytes()
 		serialized, err := resolver(comm[:])
 		if err != nil {
 			return fmt.Errorf("stem insertion failed (node resolution error) %x %w", stem, err)
@@ -593,7 +593,13 @@ func (n *StatelessNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 	return child.Get(k, getter)
 }
 
-func (n *StatelessNode) ComputeCommitment() *Point {
+func (n *StatelessNode) Commitment() *Point {
+	return n.commitment
+}
+
+func (n *StatelessNode) Commit() *Point {
+	// TODO go over dirty children and update the
+	// current commitment.
 	return n.commitment
 }
 
@@ -632,7 +638,7 @@ func (n *StatelessNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][
 			if n.children[childIdx] == nil {
 				yi.SetZero()
 			} else {
-				toFr(&yi, n.children[childIdx].ComputeCommitment())
+				toFr(&yi, n.children[childIdx].Commit())
 			}
 
 			pe.Cis = append(pe.Cis, n.commitment)
@@ -836,7 +842,7 @@ func (n *StatelessNode) Serialize() ([]byte, error) {
 		// is an empty node, to be skipped.
 		if c, ok := n.children[byte(i)]; ok {
 			setBit(bitlist[:], i)
-			digits := c.ComputeCommitment().Bytes()
+			digits := c.Commit().Bytes()
 			children = append(children, digits[:]...)
 		} else if bytes, ok := n.unresolved[byte(i)]; ok {
 			setBit(bitlist[:], i)
@@ -880,7 +886,7 @@ func (n *StatelessNode) Copy() VerkleNode {
 }
 
 func (n *StatelessNode) toDot(parent, path string) string {
-	n.ComputeCommitment()
+	n.Commit()
 	me := fmt.Sprintf("internal%s", path)
 	var ret string
 	if len(n.values) != 0 {

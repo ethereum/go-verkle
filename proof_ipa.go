@@ -58,7 +58,7 @@ func MakeVerkleMultiProof(root VerkleNode, keys [][]byte, keyvals map[string][]b
 	}
 
 	tr := common.NewTranscript("vt")
-	root.ComputeCommitment()
+	root.Commit()
 
 	pe, es, poas := GetCommitmentsForMultiproof(root, keys)
 

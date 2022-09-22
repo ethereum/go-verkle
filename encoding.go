@@ -64,17 +64,9 @@ func ParseNode(serialized []byte, depth byte, comm []byte) (VerkleNode, error) {
 		if NodeWidth != len(values) {
 			return nil, fmt.Errorf("invalid number of nodes in decoded child expected %d, got %d", NodeWidth, len(values))
 		}
-		cfg, err := GetConfig()
-		if err != nil {
-			return nil, err
-		}
-		ln := &LeafNode{
-			stem:      serialized[1:32],
-			values:    values[:],
-			committer: cfg,
-			depth:     depth,
-		}
-		ln.ComputeCommitment()
+		ln := NewLeafNode(serialized[1:32], values[:])
+		ln.setDepth(depth)
+		ln.Commit()
 		return ln, nil
 	case internalRLPType:
 		return deserializeIntoStateless(serialized[1:33], serialized[33:], depth, comm)

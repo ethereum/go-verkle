@@ -45,7 +45,11 @@ func (Empty) Get([]byte, NodeResolverFn) ([]byte, error) {
 	return nil, nil
 }
 
-func (Empty) ComputeCommitment() *Point {
+func (n Empty) Commit() *Point {
+	return n.Commitment()
+}
+
+func (Empty) Commitment() *Point {
 	var id Point
 	id.Identity()
 	return &id
