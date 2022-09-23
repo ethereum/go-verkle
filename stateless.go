@@ -588,7 +588,22 @@ func (n *StatelessNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 
 	child := n.children[nChild]
 	if child == nil {
-		return nil, nil
+		if n.unresolved[nChild] == nil {
+
+			return nil, nil
+		}
+
+		// resolve the child before recursing
+		serialized, err := getter(n.unresolved[nChild])
+		if err != nil {
+			return nil, fmt.Errorf("could not resolve unresolved item: %w", err)
+		}
+		child, err = ParseNode(serialized, n.depth+1, n.unresolved[nChild])
+		if err != nil {
+			return nil, fmt.Errorf("could not deserialize node: %w", err)
+		}
+		n.children[nChild] = child
+		delete(n.unresolved, nChild)
 	}
 	return child.Get(k, getter)
 }
