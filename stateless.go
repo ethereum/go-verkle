@@ -643,22 +643,34 @@ func (n *StatelessNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][
 	if len(n.values) == 0 {
 		var (
 			groups = groupKeys(keys, n.depth)
+			fi     = make([]Fr, NodeWidth)
 		)
+
+		for i := 0; i < NodeWidth; i++ {
+			if n.children[byte(i)] == nil && n.unresolved[byte(i)] == nil {
+				fi[i].SetZero()
+			} else {
+				if n.children[byte(i)] == nil {
+					h := &HashedNode{commitment: new(Point), hash: new(Fr)}
+					n.children[byte(i)] = h
+					h.commitment.SetBytesTrusted(n.unresolved[byte(i)])
+					toFr(h.hash, h.commitment)
+					delete(n.unresolved, byte(i))
+				}
+				CopyFr(&fi[i], n.children[byte(i)].Hash())
+			}
+		}
 
 		for _, group := range groups {
 			childIdx := offset2key(group[0], n.depth)
 
 			var yi Fr
 			// when proving that a key is not in the tree
-			if n.children[childIdx] == nil {
-				yi.SetZero()
-			} else {
-				toFr(&yi, n.children[childIdx].Commitment())
-			}
-
+			CopyFr(&yi, &fi[childIdx])
 			pe.Cis = append(pe.Cis, n.commitment)
 			pe.Zis = append(pe.Zis, childIdx)
 			pe.Yis = append(pe.Yis, &yi)
+			pe.Fis = append(pe.Fis, fi)
 			pe.ByPath[string(group[0][:n.depth])] = n.commitment
 
 		}
