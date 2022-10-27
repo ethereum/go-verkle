@@ -1008,7 +1008,7 @@ func (n *LeafNode) Insert(k []byte, value []byte, _ NodeResolverFn) error {
 	return n.insert(k, value, nil, true)
 }
 
-func (n *LeafNode) insert(k []byte, v []byte, r NodeResolverFn, update bool) error {
+func (n *LeafNode) insert(k []byte, v []byte, _ NodeResolverFn, update bool) error {
 	// Sanity check: ensure the key header is the same:
 	if !equalPaths(k, n.stem) {
 		return errInsertIntoOtherStem
