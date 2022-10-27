@@ -39,6 +39,10 @@ func (*HashedNode) Insert([]byte, []byte, NodeResolverFn) error {
 	return errInsertIntoHash
 }
 
+func (*HashedNode) insert([]byte, []byte, NodeResolverFn, bool) error {
+	return errInsertIntoHash
+}
+
 func (*HashedNode) InsertOrdered([]byte, []byte, NodeFlushFn) error {
 	return errInsertIntoHash
 }

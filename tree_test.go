@@ -442,6 +442,7 @@ func TestDeleteResolve(t *testing.T) {
 	tree := New()
 	var savedNodes []VerkleNode
 	saveNode := func(node VerkleNode) {
+		node.Commit()
 		savedNodes = append(savedNodes, node)
 	}
 	tree.InsertOrdered(key1, fourtyKeyTest, saveNode)
@@ -847,6 +848,7 @@ func TestToDot(*testing.T) {
 	root := New()
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
 	root.InsertOrdered(fourtyKeyTest, zeroKeyTest, nil)
+	root.Commit()
 	fourtytwoKeyTest, _ := hex.DecodeString("4020000000000000000000000000000000000000000000000000000000000000")
 	root.Insert(fourtytwoKeyTest, zeroKeyTest, nil)
 
@@ -1216,5 +1218,39 @@ func TestRustBanderwagonBlock48(t *testing.T) {
 
 	if !VerifyVerkleProof(dproof, pe.Cis, pe.Zis, pe.Yis, cfg) {
 		t.Fatal("deserialized proof didn't verify")
+	}
+}
+
+func TestInsertNoCommUpdateTwoLeaves(t *testing.T) {
+	root := New().(*InternalNode)
+	root.InsertNoCommUpdate(zeroKeyTest, testValue, nil)
+	root.InsertNoCommUpdate(ffx32KeyTest, testValue, nil)
+
+	leaf0, ok := root.children[0].(*LeafNode)
+	if !ok {
+		t.Fatalf("invalid leaf node type %v", root.children[0])
+	}
+
+	leaff, ok := root.children[255].(*LeafNode)
+	if !ok {
+		t.Fatalf("invalid leaf node type %v", root.children[255])
+	}
+
+	if !bytes.Equal(leaf0.values[zeroKeyTest[31]], testValue) {
+		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaf0.values[zeroKeyTest[31]])
+	}
+
+	if !bytes.Equal(leaff.values[255], testValue) {
+		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaff.values[ffx32KeyTest[31]])
+	}
+
+	if root.commitment != nil {
+		t.Fatalf("non-nil commitment %x", root.commitment.Bytes())
+	}
+
+	root.Commit()
+
+	if root.commitment == nil {
+		t.Fatal("commitment is still nil")
 	}
 }

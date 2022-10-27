@@ -178,6 +178,14 @@ func (n *StatelessNode) updateLeaf(index byte, value []byte) {
 }
 
 func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn) error {
+	return n.insert(key, value, resolver, true)
+}
+
+func (n *StatelessNode) insert(key []byte, value []byte, resolver NodeResolverFn, updateC bool) error {
+	if !updateC {
+		return errors.New("not updating a ")
+	}
+
 	// if this is a leaf value and the stems are different, intermediate
 	// nodes need to be inserted.
 	if n.values != nil {

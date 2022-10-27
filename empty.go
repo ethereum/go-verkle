@@ -29,7 +29,11 @@ import "errors"
 
 type Empty struct{}
 
-func (Empty) Insert([]byte, []byte, NodeResolverFn) error {
+func (n Empty) Insert(k []byte, v []byte, r NodeResolverFn) error {
+	return n.insert(k, v, r, true)
+}
+
+func (Empty) insert([]byte, []byte, NodeResolverFn, bool) error {
 	return errors.New("an empty node should not be inserted directly into")
 }
 

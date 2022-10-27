@@ -57,13 +57,20 @@ func (kl keylist) Swap(i, j int) {
 }
 
 type VerkleNode interface {
-	// Insert or Update value into the tree
+	// Insert or Update value into the tree, the commitment
+	// will be updated upon insert.
 	Insert([]byte, []byte, NodeResolverFn) error
+
+	// Same as Insert, but gives the choice whether to
+	// clear the commitment or not.
+	insert([]byte, []byte, NodeResolverFn, bool) error
 
 	// Insert "à la" Stacktrie. Same thing as insert, except that
 	// values are expected to be ordered, and the commitments and
 	// hashes for each subtrie are computed online, as soon as it
 	// is clear that no more values will be inserted in there.
+	// Only the commitments to the flushed nodes are computed, so
+	// Commit mustbe called on the root after inserting all keys.
 	InsertOrdered([]byte, []byte, NodeFlushFn) error
 
 	// Delete a leaf with the given key
@@ -264,14 +271,28 @@ func (n *InternalNode) SetChild(i int, c VerkleNode) error {
 }
 
 func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn) error {
+	return n.insert(key, value, resolver, true)
+}
+
+// InsertNoCommUpdate does the same thing as Insert, but it will invalidate commitments
+// so that they can be recomputed in one batch.
+func (n *InternalNode) InsertNoCommUpdate(key []byte, value []byte, resolver NodeResolverFn) error {
+	return n.insert(key, value, resolver, false)
+}
+
+func (n *InternalNode) insert(key []byte, value []byte, resolver NodeResolverFn, updateC bool) error {
 	var (
 		err       error
 		pre, post Fr                         // serialized value of this node's commitment pre- and post-insertion
 		nChild    = offset2key(key, n.depth) // index of the child pointed by the next byte in the key
 	)
 
-	// keep the initial value of the child commitment
-	toFr(&pre, n.children[nChild].Commitment())
+	if updateC {
+		// keep the initial value of the child commitment
+		toFr(&pre, n.children[nChild].Commitment())
+	} else {
+		n.commitment = nil
+	}
 
 	switch child := n.children[nChild].(type) {
 	case Empty:
@@ -283,7 +304,9 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 		}
 		lastNode.values[key[31]] = value
 		n.children[nChild] = lastNode
-		lastNode.Commit()
+		if updateC {
+			lastNode.Commit()
+		}
 	case *HashedNode:
 		if resolver == nil {
 			return errInsertIntoHash
@@ -301,13 +324,13 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 		// recurse to handle the case of a LeafNode child that
 		// splits, short-cut the diff-update path as it will be
 		// called again during the recursion.
-		return n.Insert(key, value, resolver)
+		return n.insert(key, value, resolver, updateC)
 	case *LeafNode:
 		// Need to add a new branch node to differentiate
 		// between two keys, if the keys are different.
 		// Otherwise, just update the key.
 		if equalPaths(child.stem, key) {
-			err = child.Insert(key, value, resolver)
+			err = child.insert(key, value, resolver, updateC)
 		} else {
 			// A new branch node has to be inserted. Depending
 			// on the next word in both keys, a recursion into
@@ -341,18 +364,20 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 				lastNode.values[key[31]] = value
 				newBranch.children[nextWordInInsertedKey] = lastNode
 
-				// diff-update the commitment of newBranch by adding the
-				// newly-inserted child.
-				var diff Point
-				toFr(&poly[nextWordInInsertedKey], lastNode.Commit())
-				diff = cfg.conf.Commit(poly[:])
-				newBranch.commitment.Add(newBranch.commitment, &diff)
+				if updateC {
+					// diff-update the commitment of newBranch by adding the
+					// newly-inserted child.
+					var diff Point
+					toFr(&poly[nextWordInInsertedKey], lastNode.Commit())
+					diff = cfg.conf.Commit(poly[:])
+					newBranch.commitment.Add(newBranch.commitment, &diff)
+				}
 			} else {
-				err = newBranch.Insert(key, value, resolver)
+				err = newBranch.insert(key, value, resolver, updateC)
 			}
 		}
 	case *InternalNode:
-		err = child.Insert(key, value, resolver)
+		err = child.insert(key, value, resolver, updateC)
 	case *StatelessNode:
 		err = child.Insert(key, value, resolver)
 	default:
@@ -360,7 +385,7 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 	}
 
 	// diff-update this commitment upon exiting this method
-	if err == nil {
+	if err == nil && updateC {
 		var diff Point
 		toFr(&post, n.children[nChild].Commitment())
 		diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[nChild], pre.Sub(&post, &pre))
@@ -463,24 +488,11 @@ func (n *InternalNode) toHashedNode() *HashedNode {
 	return &HashedNode{&hash, n.commitment}
 }
 
-func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn) (err error) {
-	var (
-		pre, post Fr                         // serialized value of this node's commitment pre- and post-insertion
-		nChild    = offset2key(key, n.depth) // index of the child pointed by the next byte in the key
-	)
+func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn) error {
+	nChild := offset2key(key, n.depth) // index of the child pointed by the next byte in the key
 
-	// keep the initial value of the child commitment
-	toFr(&pre, n.children[nChild].Commitment())
-
-	// diff-update this commitment upon exiting this method
-	defer func() {
-		if err == nil {
-			var diff Point
-			toFr(&post, n.children[nChild].Commitment())
-			diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[nChild], pre.Sub(&post, &pre))
-			n.commitment.Add(n.commitment, &diff)
-		}
-	}()
+	// invalidate the commitment
+	n.commitment = nil
 
 	switch child := n.children[nChild].(type) {
 	case Empty:
@@ -520,13 +532,12 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 		}
 		lastNode.values[key[31]] = value
 		n.children[nChild] = lastNode
-		lastNode.Commit()
 
 		// If the node was already created, then there was at least one
 		// child. As a result, inserting this new leaf means there are
 		// now more than one child in this node.
 	case *HashedNode:
-		err = errInsertIntoHash
+		return errInsertIntoHash
 	case *LeafNode:
 		// Need to add a new branch node to differentiate
 		// between two keys, if the keys are different.
@@ -541,20 +552,13 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 			newBranch := newInternalNode(n.depth+1, n.committer).(*InternalNode)
 			n.children[nChild] = newBranch
 
-			// Initialize the intermediate branch commitment with the value
-			// of the child that we know for sure is present.
-			var (
-				childComm Fr
-				diff      Point
-			)
-			toFr(&childComm, child.Commitment())
-			diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[nextWordInExistingKey], &childComm)
-			newBranch.commitment.Add(newBranch.commitment, &diff)
-
 			nextWordInInsertedKey := offset2key(key, n.depth+1)
 			if nextWordInInsertedKey != nextWordInExistingKey {
 				// Directly hash the (left) node that was already
-				// inserted.
+				// inserted. In case the commitment update should
+				// not be updated, the left node's commitment has
+				// to be calculated anyways, in order to flush it
+				// to disk.
 				child.Commit()
 				if flush != nil {
 					flush(child)
@@ -570,25 +574,18 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 				}
 				lastNode.values[key[31]] = value
 				newBranch.children[nextWordInInsertedKey] = lastNode
-
-				// diff-update the commitment of newBranch by adding the
-				// newly-inserted child.
-				var lnComm Fr
-				toFr(&lnComm, lastNode.Commit())
-				diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[nextWordInInsertedKey], &lnComm)
-				newBranch.commitment.Add(newBranch.commitment, &diff)
 			} else {
 				// Reinsert the leaf in order to recurse
 				newBranch.children[nextWordInExistingKey] = child
-				err = newBranch.InsertOrdered(key, value, flush)
+				return newBranch.InsertOrdered(key, value, flush)
 			}
 		}
 	case *InternalNode: // InternalNode
-		err = child.InsertOrdered(key, value, flush)
+		return child.InsertOrdered(key, value, flush)
 	default: // StatelessNode
-		err = errStatelessAndStatefulMix
+		return errStatelessAndStatefulMix
 	}
-	return
+	return nil
 }
 
 // InsertStemOrdered does the same thing as InsertOrdered but is meant to insert a pre-build
@@ -1008,12 +1005,25 @@ func (n *LeafNode) ToHashedNode() *HashedNode {
 }
 
 func (n *LeafNode) Insert(k []byte, value []byte, _ NodeResolverFn) error {
+	return n.insert(k, value, nil, true)
+}
+
+func (n *LeafNode) insert(k []byte, v []byte, r NodeResolverFn, update bool) error {
 	// Sanity check: ensure the key header is the same:
 	if !equalPaths(k, n.stem) {
 		return errInsertIntoOtherStem
 	}
 
-	n.updateLeaf(k[31], value)
+	if update {
+		n.updateLeaf(k[31], v)
+	} else {
+		if k[31] < 128 {
+			n.c1 = nil
+		} else {
+			n.c2 = nil
+		}
+		n.commitment = nil
+	}
 	return nil
 }
 
@@ -1164,11 +1174,15 @@ func (n *LeafNode) Commit() *Point {
 	poly[0].SetUint64(1)
 	StemFromBytes(&poly[1], n.stem)
 
-	count = fillSuffixTreePoly(c1poly[:], n.values[:128])
-	n.c1 = n.committer.CommitToPoly(c1poly[:], 256-count)
+	if n.c1 == nil {
+		count = fillSuffixTreePoly(c1poly[:], n.values[:128])
+		n.c1 = n.committer.CommitToPoly(c1poly[:], 256-count)
+	}
 	toFr(&poly[2], n.c1)
-	count = fillSuffixTreePoly(c2poly[:], n.values[128:])
-	n.c2 = n.committer.CommitToPoly(c2poly[:], 256-count)
+	if n.c2 == nil {
+		count = fillSuffixTreePoly(c2poly[:], n.values[128:])
+		n.c2 = n.committer.CommitToPoly(c2poly[:], 256-count)
+	}
 	toFr(&poly[3], n.c2)
 
 	n.commitment = n.committer.CommitToPoly(poly[:], 252)
