@@ -201,6 +201,8 @@ func TestInsertVsOrdered(t *testing.T) {
 	h1 := root1.Commit().Bytes()
 
 	if !bytes.Equal(h1[:], h2[:]) {
+		t.Logf(root1.toDot("", ""))
+		t.Logf(root2.toDot("", ""))
 		t.Errorf("Insert and InsertOrdered produce different trees %x != %x", h1, h2)
 	}
 }
@@ -1218,39 +1220,5 @@ func TestRustBanderwagonBlock48(t *testing.T) {
 
 	if !VerifyVerkleProof(dproof, pe.Cis, pe.Zis, pe.Yis, cfg) {
 		t.Fatal("deserialized proof didn't verify")
-	}
-}
-
-func TestInsertNoCommUpdateTwoLeaves(t *testing.T) {
-	root := New().(*InternalNode)
-	root.InsertNoCommUpdate(zeroKeyTest, testValue, nil)
-	root.InsertNoCommUpdate(ffx32KeyTest, testValue, nil)
-
-	leaf0, ok := root.children[0].(*LeafNode)
-	if !ok {
-		t.Fatalf("invalid leaf node type %v", root.children[0])
-	}
-
-	leaff, ok := root.children[255].(*LeafNode)
-	if !ok {
-		t.Fatalf("invalid leaf node type %v", root.children[255])
-	}
-
-	if !bytes.Equal(leaf0.values[zeroKeyTest[31]], testValue) {
-		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaf0.values[zeroKeyTest[31]])
-	}
-
-	if !bytes.Equal(leaff.values[255], testValue) {
-		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaff.values[ffx32KeyTest[31]])
-	}
-
-	if root.commitment != nil {
-		t.Fatalf("non-nil commitment %x", root.commitment.Bytes())
-	}
-
-	root.Commit()
-
-	if root.commitment == nil {
-		t.Fatal("commitment is still nil")
 	}
 }

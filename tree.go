@@ -61,10 +61,6 @@ type VerkleNode interface {
 	// will be updated upon insert.
 	Insert([]byte, []byte, NodeResolverFn) error
 
-	// Same as Insert, but gives the choice whether to
-	// clear the commitment or not.
-	insert([]byte, []byte, NodeResolverFn, bool) error
-
 	// Insert "à la" Stacktrie. Same thing as insert, except that
 	// values are expected to be ordered, and the commitments and
 	// hashes for each subtrie are computed online, as soon as it
@@ -176,6 +172,7 @@ type (
 	InternalNode struct {
 		// List of child nodes of this internal node.
 		children []VerkleNode
+		cow      map[byte]*Point
 
 		// node depth in the tree, in bits
 		depth byte
@@ -189,6 +186,7 @@ type (
 	LeafNode struct {
 		stem   []byte
 		values [][]byte
+		cow    map[byte][]byte
 
 		commitment *Point
 		c1, c2     *Point
@@ -271,42 +269,34 @@ func (n *InternalNode) SetChild(i int, c VerkleNode) error {
 }
 
 func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn) error {
-	return n.insert(key, value, resolver, true)
-}
-
-// InsertNoCommUpdate does the same thing as Insert, but it will invalidate commitments
-// so that they can be recomputed in one batch.
-func (n *InternalNode) InsertNoCommUpdate(key []byte, value []byte, resolver NodeResolverFn) error {
-	return n.insert(key, value, resolver, false)
-}
-
-func (n *InternalNode) insert(key []byte, value []byte, resolver NodeResolverFn, updateC bool) error {
 	var (
-		err       error
-		pre, post Fr                         // serialized value of this node's commitment pre- and post-insertion
-		nChild    = offset2key(key, n.depth) // index of the child pointed by the next byte in the key
+		err    error
+		nChild = offset2key(key, n.depth) // index of the child pointed by the next byte in the key
 	)
 
-	if updateC {
-		// keep the initial value of the child commitment
-		toFr(&pre, n.children[nChild].Commitment())
-	} else {
-		n.commitment = nil
+	// keep the initial value of the child commitment, if this is
+	// the first time it gets inserted into.
+	if n.cow == nil || n.cow[nChild] == nil {
+		if n.cow == nil {
+			n.cow = make(map[byte]*Point)
+		}
+		// toFr(&pre, n.children[nChild].Commitment())
+		n.cow[nChild] = n.children[nChild].Commitment()
 	}
 
 	switch child := n.children[nChild].(type) {
 	case Empty:
 		lastNode := &LeafNode{
-			stem:      key[:31],
-			values:    make([][]byte, NodeWidth),
-			committer: n.committer,
-			depth:     n.depth + 1,
+			stem:       key[:31],
+			values:     make([][]byte, NodeWidth),
+			cow:        map[byte][]byte{key[31]: value},
+			committer:  n.committer,
+			commitment: Generator(),
+			c1:         Generator(),
+			c2:         Generator(),
+			depth:      n.depth + 1,
 		}
-		lastNode.values[key[31]] = value
 		n.children[nChild] = lastNode
-		if updateC {
-			lastNode.Commit()
-		}
 	case *HashedNode:
 		if resolver == nil {
 			return errInsertIntoHash
@@ -324,13 +314,13 @@ func (n *InternalNode) insert(key []byte, value []byte, resolver NodeResolverFn,
 		// recurse to handle the case of a LeafNode child that
 		// splits, short-cut the diff-update path as it will be
 		// called again during the recursion.
-		return n.insert(key, value, resolver, updateC)
+		return n.Insert(key, value, resolver)
 	case *LeafNode:
 		// Need to add a new branch node to differentiate
 		// between two keys, if the keys are different.
 		// Otherwise, just update the key.
 		if equalPaths(child.stem, key) {
-			err = child.insert(key, value, resolver, updateC)
+			err = child.Insert(key, value, resolver)
 		} else {
 			// A new branch node has to be inserted. Depending
 			// on the next word in both keys, a recursion into
@@ -345,52 +335,53 @@ func (n *InternalNode) insert(key []byte, value []byte, resolver NodeResolverFn,
 			// of the child that we know for sure is present. `pre` can be
 			// reused here, as is it the hash of the commitment to the node
 			// we are simply moving.
-			var poly [256]Fr
-			poly[nextWordInExistingKey] = pre
-			*newBranch.commitment = cfg.conf.Commit(poly[:])
-			poly[nextWordInExistingKey].SetZero()
-			// newBranch.commitment.Add(newBranch.commitment, &diff)
+			// var poly [256]Fr
+			// poly[nextWordInExistingKey] = pre
+			// *newBranch.commitment = cfg.conf.Commit(poly[:])
+			// poly[nextWordInExistingKey].SetZero()
+			// // newBranch.commitment.Add(newBranch.commitment, &diff)
 
 			nextWordInInsertedKey := offset2key(key, n.depth+1)
 			if nextWordInInsertedKey != nextWordInExistingKey {
 				// Next word differs, so this was the last level.
 				// Insert it directly into its final slot.
 				lastNode := &LeafNode{
-					stem:      key[:31],
-					values:    make([][]byte, NodeWidth),
-					committer: n.committer,
-					depth:     n.depth + 2,
+					stem:       key[:31],
+					values:     make([][]byte, NodeWidth),
+					cow:        map[byte][]byte{key[31]: value},
+					committer:  n.committer,
+					commitment: Generator(),
+					c1:         Generator(),
+					c2:         Generator(),
+					depth:      n.depth + 2,
 				}
-				lastNode.values[key[31]] = value
 				newBranch.children[nextWordInInsertedKey] = lastNode
 
-				if updateC {
-					// diff-update the commitment of newBranch by adding the
-					// newly-inserted child.
-					var diff Point
-					toFr(&poly[nextWordInInsertedKey], lastNode.Commit())
-					diff = cfg.conf.Commit(poly[:])
-					newBranch.commitment.Add(newBranch.commitment, &diff)
-				}
+				// if updateC {
+				// 	// diff-update the commitment of newBranch by adding the
+				// 	// newly-inserted child.
+				// 	var diff Point
+				// 	toFr(&poly[nextWordInInsertedKey], lastNode.Commit())
+				// 	diff = cfg.conf.Commit(poly[:])
+				// 	newBranch.commitment.Add(newBranch.commitment, &diff)
+				// }
 			} else {
-				err = newBranch.insert(key, value, resolver, updateC)
+				err = newBranch.Insert(key, value, resolver)
 			}
 		}
-	case *InternalNode:
-		err = child.insert(key, value, resolver, updateC)
-	case *StatelessNode:
+	case *InternalNode, *StatelessNode:
 		err = child.Insert(key, value, resolver)
 	default:
 		return errUnknownNodeType
 	}
 
 	// diff-update this commitment upon exiting this method
-	if err == nil && updateC {
-		var diff Point
-		toFr(&post, n.children[nChild].Commitment())
-		diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[nChild], pre.Sub(&post, &pre))
-		n.commitment.Add(n.commitment, &diff)
-	}
+	// if err == nil && updateC {
+	// 	var diff Point
+	// 	toFr(&post, n.children[nChild].Commitment())
+	// 	diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[nChild], pre.Sub(&post, &pre))
+	// 	n.commitment.Add(n.commitment, &diff)
+	// }
 
 	return err
 }
@@ -804,20 +795,23 @@ func (n *InternalNode) Commitment() *Point {
 }
 
 func (n *InternalNode) Commit() *Point {
-	emptyChildren := 0
-	poly := make([]Fr, NodeWidth)
-	for idx, child := range n.children {
-		switch child.(type) {
-		case Empty:
-			emptyChildren++
-		default:
-			toFr(&poly[idx], child.Commit())
-		}
+	if len(n.cow) == 0 {
+		return n.commitment
 	}
 
-	// All the coefficients have been computed, evaluate the polynomial,
-	// serialize and hash the resulting point - this is the commitment.
-	n.commitment = n.committer.CommitToPoly(poly, emptyChildren)
+	emptyChildren := 0
+	poly := make([]Fr, NodeWidth)
+	for idx, childC := range n.cow {
+		// TODO use kev's multimaptofield
+		var pre Fr
+		toFr(&pre, childC)
+		toFr(&poly[idx], n.children[idx].Commit())
+		poly[idx].Sub(&poly[idx], &pre)
+	}
+
+	// Add the evaluated diff-polynomial to the current commitment
+	// in order to update it.
+	n.commitment.Add(n.commitment, n.committer.CommitToPoly(poly, emptyChildren))
 	return n.commitment
 }
 
@@ -1005,25 +999,20 @@ func (n *LeafNode) ToHashedNode() *HashedNode {
 }
 
 func (n *LeafNode) Insert(k []byte, value []byte, _ NodeResolverFn) error {
-	return n.insert(k, value, nil, true)
-}
-
-func (n *LeafNode) insert(k []byte, v []byte, _ NodeResolverFn, update bool) error {
 	// Sanity check: ensure the key header is the same:
 	if !equalPaths(k, n.stem) {
 		return errInsertIntoOtherStem
 	}
 
-	if update {
-		n.updateLeaf(k[31], v)
-	} else {
-		if k[31] < 128 {
-			n.c1 = nil
-		} else {
-			n.c2 = nil
+	// n.updateLeaf(k[31], v)
+	if n.cow == nil || n.cow[k[31]] == nil {
+		if n.cow == nil {
+			n.cow = make(map[byte][]byte)
 		}
-		n.commitment = nil
+
+		n.cow[k[31]] = n.values[k[31]]
 	}
+	n.values[k[31]] = value
 	return nil
 }
 
@@ -1169,23 +1158,30 @@ func (n *LeafNode) Commitment() *Point {
 }
 
 func (n *LeafNode) Commit() *Point {
-	count := 0
+	if len(n.cow) == 0 {
+		return n.commitment
+	}
+
 	var poly, c1poly, c2poly [256]Fr
 	poly[0].SetUint64(1)
 	StemFromBytes(&poly[1], n.stem)
 
-	if n.c1 == nil {
-		count = fillSuffixTreePoly(c1poly[:], n.values[:128])
-		n.c1 = n.committer.CommitToPoly(c1poly[:], 256-count)
+	for idx, val := range n.cow {
+		if idx < 128 {
+			leafToComms(c1poly[byte(idx<<1):], val)
+		} else {
+			leafToComms(c2poly[byte((idx-128)<<1):], val)
+		}
 	}
+
+	n.c1.Add(n.c1, n.committer.CommitToPoly(c1poly[:], NodeWidth))
+	n.c2.Add(n.c2, n.committer.CommitToPoly(c2poly[:], NodeWidth))
+
+	// TODO also perform the multimaptofield here for c1 & c2
 	toFr(&poly[2], n.c1)
-	if n.c2 == nil {
-		count = fillSuffixTreePoly(c2poly[:], n.values[128:])
-		n.c2 = n.committer.CommitToPoly(c2poly[:], 256-count)
-	}
 	toFr(&poly[3], n.c2)
 
-	n.commitment = n.committer.CommitToPoly(poly[:], 252)
+	n.commitment.Add(n.commitment, n.committer.CommitToPoly(poly[:], 252))
 	return n.commitment
 }
 

@@ -181,8 +181,14 @@ func TestInsertKey1Val1Key2Val2(t *testing.T) {
 		srs                 = cfg.conf.SRSPrecompPoints.SRS
 	)
 	key_b, _ := hex.DecodeString("0101010101010101010101010101010101010101010101010101010101010101")
-	root.Insert(zeroKeyTest, zeroKeyTest, nil)
-	root.Insert(key_b, key_b, nil)
+	err := root.Insert(zeroKeyTest, zeroKeyTest, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = root.Insert(key_b, key_b, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	comm := root.Commit()
 	fmt.Println(root.toDot("", ""))
 
@@ -199,8 +205,12 @@ func TestInsertKey1Val1Key2Val2(t *testing.T) {
 		t.Fatal("commitment is identity")
 	}
 
+	if !expectedP.IsOnCurve() {
+		t.Fatalf("commitment %x isn't on curve", expectedP.Bytes())
+	}
+
 	if !Equal(comm, &expectedP) {
-		t.Fatalf("invalid root commitment %v != %v", comm, &expected)
+		t.Fatalf("invalid root commitment %x != %x", comm.Bytes(), expected.Bytes())
 	}
 }
 
