@@ -808,6 +808,7 @@ func (n *InternalNode) Commit() *Point {
 		toFr(&poly[idx], n.children[idx].Commit())
 		poly[idx].Sub(&poly[idx], &pre)
 	}
+	n.cow = nil
 
 	// Add the evaluated diff-polynomial to the current commitment
 	// in order to update it.
@@ -1173,6 +1174,7 @@ func (n *LeafNode) Commit() *Point {
 			leafToComms(c2poly[byte((idx-128)<<1):], val)
 		}
 	}
+	n.cow = nil
 
 	n.c1.Add(n.c1, n.committer.CommitToPoly(c1poly[:], NodeWidth))
 	n.c2.Add(n.c2, n.committer.CommitToPoly(c2poly[:], NodeWidth))
