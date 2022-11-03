@@ -74,7 +74,7 @@ func TestStatelessChildren(t *testing.T) {
 	rootRef.Insert(c2key, fourtyKeyTest, nil)
 
 	if !Equal(rootRef.Commit(), root.commitment) {
-		t.Fatalf("differing state(less|ful) roots %x != %x", rootRef.Commit(), root.commitment)
+		t.Fatalf("differing state(less|ful) roots %x != %x", rootRef.Commitment().Bytes(), root.Commit().Bytes())
 	}
 }
 
