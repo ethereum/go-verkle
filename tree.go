@@ -1386,7 +1386,16 @@ func (n *LeafNode) Copy() VerkleNode {
 		copy(l.values[i], v)
 	}
 	if n.commitment != nil {
-		l.commitment = n.commitment
+		l.commitment = new(Point)
+		CopyPoint(l.commitment, n.commitment)
+	}
+	if n.c1 != nil {
+		l.c1 = new(Point)
+		CopyPoint(l.c1, n.c1)
+	}
+	if n.c2 != nil {
+		l.c2 = new(Point)
+		CopyPoint(l.c2, n.c2)
 	}
 
 	return l
