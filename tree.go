@@ -348,7 +348,7 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 				lastNode := &LeafNode{
 					stem:       key[:31],
 					values:     make([][]byte, NodeWidth),
-					cow:        map[byte][]byte{key[31]: value},
+					cow:        map[byte][]byte{key[31]: nil},
 					committer:  n.committer,
 					commitment: Generator(),
 					c1:         Generator(),
@@ -356,6 +356,7 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 					depth:      n.depth + 2,
 				}
 				newBranch.children[nextWordInInsertedKey] = lastNode
+				lastNode.values[key[31]] = value
 
 				// if updateC {
 				// 	// diff-update the commitment of newBranch by adding the
@@ -796,6 +797,18 @@ func (n *InternalNode) Commitment() *Point {
 
 func (n *InternalNode) Commit() *Point {
 	if len(n.cow) == 0 {
+		poly := make([]Fr, NodeWidth)
+		// XXX InsertOrdered doesn't use the CoW method, so use the old
+		// method, which is fine since it will be computed once and for
+		// all anyway.
+		for idx, child := range n.children {
+			switch child.(type) {
+			case Empty:
+			default:
+				toFr(&poly[idx], child.Commit())
+			}
+		}
+		n.commitment = n.committer.CommitToPoly(poly, 256)
 		return n.commitment
 	}
 
@@ -1160,6 +1173,31 @@ func (n *LeafNode) Commitment() *Point {
 
 func (n *LeafNode) Commit() *Point {
 	if len(n.cow) == 0 {
+
+		if n.commitment == nil {
+			// XXX Special case, to be removed, of InsertOrdered, that
+			// sets the commitment values to 0 upon inserting. That func
+			// should be updated to the new CoW concept. In the mean time,
+			// use the old, full commitment calculation.
+			var poly, c1poly, c2poly [256]Fr
+			var count int
+			poly[0].SetUint64(1)
+			StemFromBytes(&poly[1], n.stem)
+
+			if n.c1 == nil {
+				count = fillSuffixTreePoly(c1poly[:], n.values[:128])
+				n.c1 = n.committer.CommitToPoly(c1poly[:], 256-count)
+			}
+			toFr(&poly[2], n.c1)
+			if n.c2 == nil {
+				count = fillSuffixTreePoly(c2poly[:], n.values[128:])
+				n.c2 = n.committer.CommitToPoly(c2poly[:], 256-count)
+			}
+			toFr(&poly[3], n.c2)
+
+			n.commitment = n.committer.CommitToPoly(poly[:], 252)
+		}
+
 		return n.commitment
 	}
 
@@ -1169,9 +1207,9 @@ func (n *LeafNode) Commit() *Point {
 
 	for idx, val := range n.cow {
 		if idx < 128 {
-			leafToComms(c1poly[byte(idx<<1):], val)
+			leafToComms(c1poly[byte(idx<<1):], n.values[idx])
 		} else {
-			leafToComms(c2poly[byte((idx-128)<<1):], val)
+			leafToComms(c2poly[byte((idx-128)<<1):], n.values[idx])
 		}
 	}
 	n.cow = nil
@@ -1183,7 +1221,7 @@ func (n *LeafNode) Commit() *Point {
 	toFr(&poly[2], n.c1)
 	toFr(&poly[3], n.c2)
 
-	n.commitment.Add(n.commitment, n.committer.CommitToPoly(poly[:], 252))
+	n.commitment = n.committer.CommitToPoly(poly[:], 252)
 	return n.commitment
 }
 

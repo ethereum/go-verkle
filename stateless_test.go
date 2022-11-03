@@ -175,12 +175,13 @@ func TestStatelessCopy(t *testing.T) {
 	root := NewStateless()
 	root.Insert(zeroKeyTest, fourtyKeyTest, nil)
 	rootCopy := root.Copy()
-	if !Equal(rootCopy.Commit(), root.commitment) {
-		t.Fatal("copy produced the wrong hash")
+	if !Equal(rootCopy.Commit(), root.Commit()) {
+		t.Fatalf("copy produced the wrong hash %x != %x", root.commitment.Bytes(), rootCopy.Commitment().Bytes())
 	}
 	root.Insert(oneKeyTest, fourtyKeyTest, nil)
+	root.Commit()
 	if Equal(rootCopy.Commit(), root.commitment) {
-		t.Fatal("copy did not update the hash")
+		t.Fatalf("copy updated the hash %x == %x", root.commitment.Bytes(), rootCopy.Commitment().Bytes())
 	}
 }
 
@@ -217,11 +218,17 @@ func TestStatelessToDot(t *testing.T) {
 	root.Insert(zeroKeyTest, fourtyKeyTest, nil)
 	root.Insert(oneKeyTest, fourtyKeyTest, nil)
 	root.Insert(key1, fourtyKeyTest, nil)
+	root.Commit()
 	rootRef := New()
 	rootRef.Insert(zeroKeyTest, fourtyKeyTest, nil)
 	rootRef.Insert(oneKeyTest, fourtyKeyTest, nil)
 	rootRef.Insert(key1, fourtyKeyTest, nil)
 	rootRef.Commit()
+
+	if !Equal(rootRef.Commitment(), root.Commitment()) {
+		t.Logf("%s %s", ToDot(rootRef), ToDot(root))
+		t.Fatalf("differing root commitmentsi %x != %x", rootRef.Commitment().Bytes(), root.commitment.Bytes())
+	}
 
 	var stl []string
 	for _, str := range strings.Split(root.toDot("", ""), "\n") {
@@ -229,6 +236,14 @@ func TestStatelessToDot(t *testing.T) {
 			continue
 		}
 		stl = append(stl, strings.ReplaceAll(str, " ", ""))
+	}
+
+	// sanity check: ensure that toDot didn't change the commitment:
+	// this can happen if the commitment calculation function, that
+	// is called above, didn't clear the dirty state.
+	if !Equal(rootRef.Commitment(), root.Commitment()) {
+		t.Logf("%s %s", ToDot(rootRef), ToDot(root))
+		t.Fatalf("differing root commitmentsi %x != %x", rootRef.Commitment().Bytes(), root.commitment.Bytes())
 	}
 
 	var stf []string
@@ -244,7 +259,7 @@ func TestStatelessToDot(t *testing.T) {
 	stlJ := strings.Join(stl, "\n")
 
 	if stfJ != stlJ {
-		t.Fatalf("hashes differ after insertion %v ||| %v", stf, stl)
+		t.Fatalf("hashes differ after insertion %v ||| %v", ToDot(rootRef), ToDot(root))
 	}
 }
 
@@ -613,6 +628,8 @@ func TestSerialization(t *testing.T) {
 
 	rootf.Insert(zeroKeyTest, ffx32KeyTest, nil)
 	roots.Insert(zeroKeyTest, ffx32KeyTest, nil)
+	rootf.Commit()
+	roots.Commit()
 
 	serf, _ := rootf.Serialize()
 	sers, _ := roots.Serialize()

@@ -64,6 +64,8 @@ type StatelessNode struct {
 	commitment, c1, c2 *Point
 
 	committer Committer
+
+	cow map[byte]*Point
 }
 
 func NewStateless() *StatelessNode {
@@ -178,14 +180,6 @@ func (n *StatelessNode) updateLeaf(index byte, value []byte) {
 }
 
 func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn) error {
-	return n.insert(key, value, resolver, true)
-}
-
-func (n *StatelessNode) insert(key []byte, value []byte, resolver NodeResolverFn, updateC bool) error {
-	if !updateC {
-		return errors.New("not updating a ")
-	}
-
 	// if this is a leaf value and the stems are different, intermediate
 	// nodes need to be inserted.
 	if n.values != nil {
@@ -205,10 +199,11 @@ func (n *StatelessNode) insert(key []byte, value []byte, resolver NodeResolverFn
 				count:      n.count,
 				values:     n.values,
 				stem:       n.stem,
-				commitment: new(Point),
+				commitment: n.commitment,
 				hash:       n.hash,
 				c1:         n.c1,
 				c2:         n.c2,
+				cow:        n.cow,
 			}
 			n.children = map[byte]VerkleNode{
 				nextexisting: oldExtNode,
@@ -217,6 +212,7 @@ func (n *StatelessNode) insert(key []byte, value []byte, resolver NodeResolverFn
 			n.stem = nil
 			n.c1 = nil
 			n.c2 = nil
+			n.commitment = Generator()
 			n.count++
 			CopyPoint(oldExtNode.commitment, n.commitment)
 			n.hash = new(Fr)
@@ -247,16 +243,15 @@ func (n *StatelessNode) insert(key []byte, value []byte, resolver NodeResolverFn
 
 		// special case: missing child, check whether there is a child node
 		// to deserialize, and if that is not the case, this is an empty child.
-		cfg, _ := GetConfig()
 		if n.children[nChild] == nil {
 			unresolved := n.unresolved[nChild]
 			if len(unresolved) == 0 {
 				n.children[nChild] = n.newLeafChildFromSingleValue(key, value)
 
-				var diff Point
-				diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[nChild], n.children[nChild].Hash())
-				n.commitment.Add(n.commitment, &diff)
-				toFr(n.hash, n.commitment)
+				if n.cow == nil {
+					n.cow = make(map[byte]*Point)
+				}
+				n.cow[nChild] = Generator() // old value was non-existent
 				return nil
 			}
 
@@ -282,9 +277,12 @@ func (n *StatelessNode) insert(key []byte, value []byte, resolver NodeResolverFn
 			n.children[nChild] = node
 		}
 
-		// Save the value of the initial child commitment
-		var pre Fr
-		CopyFr(&pre, n.children[nChild].Hash())
+		if n.cow == nil || n.cow[nChild] == nil {
+			if n.cow == nil {
+				n.cow = make(map[byte]*Point)
+			}
+			n.cow[nChild] = n.children[nChild].Commitment()
+		}
 
 		var err error
 		switch child := n.children[nChild].(type) {
@@ -300,8 +298,16 @@ func (n *StatelessNode) insert(key []byte, value []byte, resolver NodeResolverFn
 					depth:      n.depth + 1,
 					commitment: Generator(),
 					hash:       new(Fr),
+					cow:       map[byte]*Point{existing: Generator()},
+					committer: n.committer,
 				}
 				n.children[nChild] = newbranch
+
+				// if the leaf that is split to isn't marked as 'dirty'
+				// then this insertion should mark it as such.
+				if n.cow[existing] == nil {
+					n.cow[existing] = child.Commitment()
+				}
 
 				// reuse pre here, since the child commitment is the same for this
 				// new branch as it was for the current node before the insertion.
@@ -313,11 +319,7 @@ func (n *StatelessNode) insert(key []byte, value []byte, resolver NodeResolverFn
 					newbranch.children[inserted] = lastnode
 					newbranch.children[inserted].setDepth(child.depth + 1)
 					lastnode.Insert(key, value, nil)
-					var lnComm Fr
-					var diff Point
-					toFr(&lnComm, lastnode.Commitment())
-					diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[inserted], &lnComm)
-					newbranch.commitment.Add(newbranch.commitment, &diff)
+					newbranch.cow[inserted] = Generator()
 				} else {
 					err = newbranch.Insert(key, value, resolver)
 				}
@@ -330,14 +332,8 @@ func (n *StatelessNode) insert(key []byte, value []byte, resolver NodeResolverFn
 		if err != nil {
 			return err
 		}
-
-		// update the commitment
-		var diff Point
-		diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[nChild], pre.Sub(n.children[nChild].Hash(), &pre))
-		n.commitment.Add(n.commitment, &diff)
 	}
 
-	toFr(n.hash, n.commitment)
 	return nil
 }
 
@@ -580,6 +576,14 @@ func (*StatelessNode) InsertOrdered([]byte, []byte, NodeFlushFn) error {
 // was never present.
 func (n *StatelessNode) Delete(key []byte, resolver NodeResolverFn) error {
 	var zero [32]byte
+	v, err := n.Get(key, resolver)
+	if err != nil {
+		return err
+	}
+	if len(v) == 0 {
+		return errDeleteNonExistent
+	}
+
 	return n.Insert(key, zero[:], resolver)
 }
 
@@ -617,10 +621,36 @@ func (n *StatelessNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 }
 
 func (n *StatelessNode) Commitment() *Point {
+	if n.commitment == nil {
+		panic("nil commitment")
+	}
 	return n.commitment
 }
 
 func (n *StatelessNode) Commit() *Point {
+	if n.commitment == nil {
+		panic("nil commitment")
+	}
+
+	if len(n.values) != 0 {
+		// stateless leaves are still updated during insert
+		return n.commitment
+	}
+
+	if len(n.cow) == 0 {
+		return n.commitment
+	}
+
+	var poly [NodeWidth]Fr
+	for idx, old := range n.cow {
+		var pre Fr
+		toFr(&poly[idx], n.children[idx].Commit())
+		toFr(&pre, old)
+		poly[idx].Sub(&poly[idx], &pre)
+	}
+	n.cow = nil
+
+	n.commitment.Add(n.commitment, n.committer.CommitToPoly(poly[:], 256))
 	// TODO go over dirty children and update the
 	// current commitment.
 	return n.commitment
@@ -888,6 +918,13 @@ func (n *StatelessNode) Copy() VerkleNode {
 		ret.children = make(map[byte]VerkleNode, len(n.children))
 		for i, child := range n.children {
 			ret.children[i] = child.Copy()
+		}
+		if len(n.cow) > 0 {
+			ret.cow = make(map[byte]*Point, len(n.cow))
+			for k := range n.cow {
+				ret.cow[k] = new(Point)
+				CopyPoint(ret.cow[k], n.cow[k])
+			}
 		}
 	} else {
 		ret.values = make(map[byte][]byte, len(n.values))

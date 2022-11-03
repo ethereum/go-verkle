@@ -201,8 +201,7 @@ func TestInsertVsOrdered(t *testing.T) {
 	h1 := root1.Commit().Bytes()
 
 	if !bytes.Equal(h1[:], h2[:]) {
-		t.Logf(root1.toDot("", ""))
-		t.Logf(root2.toDot("", ""))
+		t.Logf("%s != %s", ToDot(root1), ToDot(root2))
 		t.Errorf("Insert and InsertOrdered produce different trees %x != %x", h1, h2)
 	}
 }
@@ -288,6 +287,7 @@ func TestCachedCommitment(t *testing.T) {
 	}
 
 	tree.Insert(key4, fourtyKeyTest, nil)
+	tree.Commit()
 
 	if tree.(*InternalNode).Commitment().Bytes() == oldRoot {
 		t.Error("root has stale commitment")
@@ -415,7 +415,7 @@ func TestDeleteHash(t *testing.T) {
 	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
 	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
 	tree := New()
-	tree.Insert(key1, fourtyKeyTest, nil)
+	tree.InsertOrdered(key1, fourtyKeyTest, nil)
 	tree.InsertOrdered(key2, fourtyKeyTest, nil)
 	tree.InsertOrdered(key3, fourtyKeyTest, nil)
 	tree.Commit()
@@ -848,7 +848,7 @@ func TestInsertIntoHashedNode(t *testing.T) {
 
 func TestToDot(*testing.T) {
 	root := New()
-	root.Insert(zeroKeyTest, zeroKeyTest, nil)
+	root.InsertOrdered(zeroKeyTest, zeroKeyTest, nil)
 	root.InsertOrdered(fourtyKeyTest, zeroKeyTest, nil)
 	root.Commit()
 	fourtytwoKeyTest, _ := hex.DecodeString("4020000000000000000000000000000000000000000000000000000000000000")
@@ -1072,7 +1072,7 @@ func TestInsertStemOrdered(t *testing.T) {
 		values:    values3,
 		committer: root1.(*InternalNode).committer,
 	}
-	root1.(*InternalNode).Insert(zeroKeyTest, ffx32KeyTest, nil)
+	root1.(*InternalNode).InsertOrdered(zeroKeyTest, ffx32KeyTest, nil)
 	root1.(*InternalNode).InsertStemOrdered(fourtyKeyTest[:31], leaf1, flush)
 	root1.(*InternalNode).InsertStemOrdered(keysplit[:31], leaf2, flush)
 	root1.(*InternalNode).InsertStemOrdered(ffx32KeyTest[:31], leaf3, flush)
