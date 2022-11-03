@@ -912,6 +912,8 @@ func (n *StatelessNode) toDot(parent, path string) string {
 		if n.c2 != nil {
 			c2bytes = n.c2.Bytes()
 		}
+		var hash Fr
+		toFr(&hash, n.commitment)
 		ret = fmt.Sprintf("leaf%s [label=\"L: %x\nC: %x\nC₁: %x\nC₂:%x\"]\n%s -> leaf%s\n", path, n.hash.Bytes(), n.commitment.Bytes(), c1bytes, c2bytes, parent, path)
 		for i, v := range n.values {
 			if v != nil {
