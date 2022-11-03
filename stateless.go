@@ -109,7 +109,7 @@ func (n *StatelessNode) SetChild(i int, v VerkleNode) error {
 	}
 	c, ok := v.(*StatelessNode)
 	if !ok {
-		return errors.New("inserting non-stateless node into a stateless node")
+		return errStatelessAndStatefulMix
 	}
 	n.children[byte(i)] = c
 	return nil

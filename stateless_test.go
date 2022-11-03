@@ -28,6 +28,7 @@ package verkle
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
 	"sort"
 	"strings"
 	"testing"
@@ -56,7 +57,7 @@ func TestStatelessChildren(t *testing.T) {
 		t.Fatal("invalid number of children")
 	}
 
-	if err := root.SetChild(72, Empty{}); err == nil {
+	if err := root.SetChild(72, Empty{}); !errors.Is(err, errStatelessAndStatefulMix) {
 		t.Fatal("didn't catch a stateful node being inserted in a stateless node")
 	}
 	if err := root.SetChild(512, Empty{}); err == nil {
