@@ -328,7 +328,8 @@ func TestDelLeaf(t *testing.T) {
 	tree := New()
 	tree.Insert(key1, fourtyKeyTest, nil)
 	tree.Insert(key2, fourtyKeyTest, nil)
-	hash := tree.Commit()
+	var init Point
+	CopyPoint(&init, tree.Commit())
 
 	tree.Insert(key3, fourtyKeyTest, nil)
 	if err := tree.Delete(key3, nil); err != nil {
@@ -339,8 +340,8 @@ func TestDelLeaf(t *testing.T) {
 	// as deleting a value means replacing it with a 0 in verkle
 	// trees.
 	postHash := tree.Commit()
-	if Equal(hash, postHash) {
-		t.Error("deleting leaf resulted in unexpected tree")
+	if Equal(&init, postHash) {
+		t.Errorf("deleting leaf resulted in unexpected tree %x %x", init.Bytes(), postHash.Bytes())
 	}
 
 	res, err := tree.Get(key3, nil)
@@ -373,16 +374,18 @@ func TestDeletePrune(t *testing.T) {
 	tree.Insert(key1, fourtyKeyTest, nil)
 	tree.Insert(key2, fourtyKeyTest, nil)
 
-	hash1 := tree.Commit()
+	var hash1, hash2 Point
+	CopyPoint(&hash1, tree.Commit())
 	tree.Insert(key3, fourtyKeyTest, nil)
-	hash2 := tree.Commit()
+	CopyPoint(&hash2, tree.Commit())
 	tree.Insert(key4, fourtyKeyTest, nil)
+	tree.Commit()
 
 	if err := tree.Delete(key4, nil); err != nil {
 		t.Error(err)
 	}
 	postHash := tree.Commit()
-	if Equal(hash2, postHash) {
+	if Equal(&hash2, postHash) {
 		t.Error("deleting leaf #4 resulted in unexpected tree")
 	}
 	res, err := tree.Get(key4, nil)
@@ -397,7 +400,7 @@ func TestDeletePrune(t *testing.T) {
 		t.Error(err)
 	}
 	postHash = tree.Commit()
-	if Equal(hash1, postHash) {
+	if Equal(&hash1, postHash) {
 		t.Error("deleting leaf #3 resulted in unexpected tree")
 	}
 	res, err = tree.Get(key3, nil)

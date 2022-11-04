@@ -177,6 +177,8 @@ type (
 		commitment *Point
 
 		committer Committer
+
+		cow map[byte]*Point
 	}
 
 	LeafNode struct {
@@ -256,6 +258,17 @@ func (n *InternalNode) SetChild(i int, c VerkleNode) error {
 	return nil
 }
 
+func (n *InternalNode) cowChild(index byte) {
+	if n.cow == nil {
+		n.cow = make(map[byte]*Point)
+	}
+
+	if n.cow[index] == nil {
+		n.cow[index] = new(Point)
+		CopyPoint(n.cow[index], n.children[index].Commitment())
+	}
+}
+
 func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn) error {
 	values := make([][]byte, NodeWidth)
 	values[key[31]] = value
@@ -264,11 +277,13 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 
 func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeResolverFn) error {
 	nChild := offset2key(stem, n.depth) // index of the child pointed by the next byte in the key
+	n.cowChild(nChild)
 
 	switch child := n.children[nChild].(type) {
 	case Empty:
 		n.children[nChild] = NewLeafNode(stem, values)
 		n.children[nChild].setDepth(n.depth + 1)
+		n.children[nChild].Commit()
 	case *HashedNode:
 		if resolver == nil {
 			return errInsertIntoHash
@@ -296,6 +311,7 @@ func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeRes
 		// the moved leaf node can occur.
 		nextWordInExistingKey := offset2key(child.stem, n.depth+1)
 		newBranch := newInternalNode(n.depth+1, n.committer).(*InternalNode)
+		newBranch.cowChild(nextWordInExistingKey)
 		n.children[nChild] = newBranch
 		newBranch.children[nextWordInExistingKey] = child
 		child.depth += 1
@@ -308,7 +324,9 @@ func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeRes
 		// Next word differs, so this was the last level.
 		// Insert it directly into its final slot.
 		leaf := NewLeafNode(stem, values)
+		leaf.Commit()
 		leaf.setDepth(n.depth + 2)
+		newBranch.cowChild(nextWordInInsertedKey)
 		newBranch.children[nextWordInInsertedKey] = leaf
 	case *InternalNode:
 		return child.InsertStem(stem, values, resolver)
@@ -329,9 +347,7 @@ func (n *InternalNode) toHashedNode() *HashedNode {
 }
 func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn) error {
 	nChild := offset2key(key, n.depth) // index of the child pointed by the next byte in the key
-
-	// invalidate the commitment
-	n.commitment = nil
+	n.cowChild(nChild)
 
 	switch child := n.children[nChild].(type) {
 	case Empty:
@@ -370,6 +386,7 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 		}
 		lastNode.values[key[31]] = value
 		n.children[nChild] = lastNode
+		lastNode.Commit()
 
 		// If the node was already created, then there was at least one
 		// child. As a result, inserting this new leaf means there are
@@ -381,13 +398,16 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 		// between two keys, if the keys are different.
 		// Otherwise, just update the key.
 		if equalPaths(child.stem, key) {
-			child.values[key[31]] = value
+			// TODO only set the value when LeafNode has been
+			// converted back to not update on insert.
+			child.updateLeaf(key[31], value)
 		} else {
 			// A new branch node has to be inserted. Depending
 			// on the next word in both keys, a recursion into
 			// the moved leaf node can occur.
 			nextWordInExistingKey := offset2key(child.stem, n.depth+1)
 			newBranch := newInternalNode(n.depth+1, n.committer).(*InternalNode)
+			newBranch.cowChild(nextWordInExistingKey)
 			n.children[nChild] = newBranch
 
 			nextWordInInsertedKey := offset2key(key, n.depth+1)
@@ -411,6 +431,8 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 					depth:     n.depth + 1,
 				}
 				lastNode.values[key[31]] = value
+				lastNode.Commit()
+				newBranch.cowChild(nextWordInInsertedKey)
 				newBranch.children[nextWordInInsertedKey] = lastNode
 			} else {
 				// Reinsert the leaf in order to recurse
@@ -534,21 +556,8 @@ func (n *InternalNode) Delete(key []byte, resolver NodeResolverFn) error {
 		n.children[nChild] = c
 		return n.Delete(key, resolver)
 	default:
-		var old, new Fr
-		toFr(&old, child.Commitment())
-		err := child.Delete(key, resolver)
-		if err == nil {
-			toFr(&new, child.Commitment())
-			new.Sub(&new, &old)
-			var diff, newComm Point
-			// copy the point so any external references
-			// are still holding the old value
-			CopyPoint(&newComm, n.commitment)
-			diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[nChild], &new)
-			newComm.Add(n.commitment, &diff)
-			n.commitment = &newComm
-		}
-		return err
+		n.cowChild(nChild)
+		return child.Delete(key, resolver)
 	}
 }
 
@@ -642,13 +651,31 @@ func (n *InternalNode) Commitment() *Point {
 }
 
 func (n *InternalNode) Commit() *Point {
-	emptyChildren := 0
 	poly := make([]Fr, NodeWidth)
+	emptyChildren := 256
+
+	if len(n.cow) != 0 {
+		for idx, comm := range n.cow {
+			emptyChildren--
+			var pre Fr
+			toFr(&pre, comm)
+			// child in cow, so its child has also been
+			// modified, so call `Commit()` instead of
+			// `Commitment()`
+			toFr(&poly[idx], n.children[idx].Commit())
+			poly[idx].Sub(&poly[idx], &pre)
+		}
+		n.cow = nil
+
+		n.commitment.Add(n.commitment, n.committer.CommitToPoly(poly, emptyChildren))
+		return n.commitment
+	}
+
 	for idx, child := range n.children {
 		switch child.(type) {
 		case Empty:
-			emptyChildren++
 		default:
+			emptyChildren--
 			toFr(&poly[idx], child.Commit())
 		}
 	}

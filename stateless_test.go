@@ -94,6 +94,7 @@ func TestStatelessDelete(t *testing.T) {
 	rootRef := New()
 	rootRef.Insert(zeroKeyTest, fourtyKeyTest, nil)
 	rootRef.Insert(oneKeyTest, fourtyKeyTest, nil)
+	rootRef.Commit()
 	rootRef.Delete(oneKeyTest, nil)
 
 	if !Equal(rootRef.Commit(), root.commitment) {
