@@ -327,25 +327,11 @@ func (n *InternalNode) toHashedNode() *HashedNode {
 	toFr(&hash, n.commitment)
 	return &HashedNode{&hash, n.commitment}
 }
+func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn) error {
+	nChild := offset2key(key, n.depth) // index of the child pointed by the next byte in the key
 
-func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn) (err error) {
-	var (
-		pre, post Fr                         // serialized value of this node's commitment pre- and post-insertion
-		nChild    = offset2key(key, n.depth) // index of the child pointed by the next byte in the key
-	)
-
-	// keep the initial value of the child commitment
-	toFr(&pre, n.children[nChild].Commitment())
-
-	// diff-update this commitment upon exiting this method
-	defer func() {
-		if err == nil {
-			var diff Point
-			toFr(&post, n.children[nChild].Commitment())
-			diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[nChild], pre.Sub(&post, &pre))
-			n.commitment.Add(n.commitment, &diff)
-		}
-	}()
+	// invalidate the commitment
+	n.commitment = nil
 
 	switch child := n.children[nChild].(type) {
 	case Empty:
@@ -375,7 +361,6 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 				break searchFirstNonEmptyChild
 			}
 		}
-
 		// NOTE: these allocations are inducing a noticeable slowdown
 		lastNode := &LeafNode{
 			stem:      key[:31],
@@ -385,13 +370,12 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 		}
 		lastNode.values[key[31]] = value
 		n.children[nChild] = lastNode
-		lastNode.Commit()
 
 		// If the node was already created, then there was at least one
 		// child. As a result, inserting this new leaf means there are
 		// now more than one child in this node.
 	case *HashedNode:
-		err = errInsertIntoHash
+		return errInsertIntoHash
 	case *LeafNode:
 		// Need to add a new branch node to differentiate
 		// between two keys, if the keys are different.
@@ -406,20 +390,13 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 			newBranch := newInternalNode(n.depth+1, n.committer).(*InternalNode)
 			n.children[nChild] = newBranch
 
-			// Initialize the intermediate branch commitment with the value
-			// of the child that we know for sure is present.
-			var (
-				childComm Fr
-				diff      Point
-			)
-			toFr(&childComm, child.Commitment())
-			diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[nextWordInExistingKey], &childComm)
-			newBranch.commitment.Add(newBranch.commitment, &diff)
-
 			nextWordInInsertedKey := offset2key(key, n.depth+1)
 			if nextWordInInsertedKey != nextWordInExistingKey {
 				// Directly hash the (left) node that was already
-				// inserted.
+				// inserted. In case the commitment update should
+				// not be updated, the left node's commitment has
+				// to be calculated anyways, in order to flush it
+				// to disk.
 				child.Commit()
 				if flush != nil {
 					flush(child)
@@ -435,25 +412,18 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 				}
 				lastNode.values[key[31]] = value
 				newBranch.children[nextWordInInsertedKey] = lastNode
-
-				// diff-update the commitment of newBranch by adding the
-				// newly-inserted child.
-				var lnComm Fr
-				toFr(&lnComm, lastNode.Commit())
-				diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[nextWordInInsertedKey], &lnComm)
-				newBranch.commitment.Add(newBranch.commitment, &diff)
 			} else {
 				// Reinsert the leaf in order to recurse
 				newBranch.children[nextWordInExistingKey] = child
-				err = newBranch.InsertOrdered(key, value, flush)
+				return newBranch.InsertOrdered(key, value, flush)
 			}
 		}
 	case *InternalNode: // InternalNode
-		err = child.InsertOrdered(key, value, flush)
+		return child.InsertOrdered(key, value, flush)
 	default: // StatelessNode
-		err = errStatelessAndStatefulMix
+		return errStatelessAndStatefulMix
 	}
-	return
+	return nil
 }
 
 // InsertStemOrdered does the same thing as InsertOrdered but is meant to insert a pre-build
@@ -1309,5 +1279,6 @@ func setBit(bitlist []byte, index int) {
 }
 
 func ToDot(root VerkleNode) string {
+	root.Commit()
 	return fmt.Sprintf("digraph D {\n%s}", root.toDot("", ""))
 }

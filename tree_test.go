@@ -851,7 +851,7 @@ func TestToDot(*testing.T) {
 	fourtytwoKeyTest, _ := hex.DecodeString("4020000000000000000000000000000000000000000000000000000000000000")
 	root.Insert(fourtytwoKeyTest, zeroKeyTest, nil)
 
-	fmt.Println(root.toDot("", ""))
+	fmt.Println(ToDot(root))
 }
 
 func TestEmptyCommitment(t *testing.T) {
