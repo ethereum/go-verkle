@@ -107,20 +107,22 @@ func TestStatelessInsertLeafIntoRoot(t *testing.T) {
 
 	rootRef := New().(*InternalNode)
 	rootRef.Insert(zeroKeyTest, fourtyKeyTest, nil)
+	rootRef.Commit()
 
 	if !Equal(rootRef.commitment, root.commitment) {
-		t.Fatalf("hashes differ after insertion %v %v", rootRef.commitment, root.commitment)
+		t.Fatalf("hashes differ after insertion %x %x", rootRef.commitment.Bytes(), root.commitment.Bytes())
 	}
 
 	// Overwrite one leaf and check that the update
 	// is what is expected.
 	rootRef = New().(*InternalNode)
 	rootRef.Insert(zeroKeyTest, oneKeyTest, nil)
+	rootRef.Commit()
 
 	root.Insert(zeroKeyTest, oneKeyTest, nil)
 
 	if !Equal(rootRef.commitment, root.commitment) {
-		t.Fatalf("hashes differ after update %v %v", rootRef.commitment, root.commitment)
+		t.Fatalf("hashes differ after update %x %x", rootRef.commitment.Bytes(), root.commitment.Bytes())
 	}
 }
 
@@ -158,6 +160,7 @@ func TestStatelessInsertLeafIntoInternal(t *testing.T) {
 	rootRef := New().(*InternalNode)
 	rootRef.Insert(zeroKeyTest, fourtyKeyTest, nil)
 	rootRef.Insert(key1, fourtyKeyTest, nil)
+	rootRef.Commit()
 
 	if !Equal(rootRef.commitment, root.commitment) {
 		t.Fatalf("hashes differ after insertion %v %v", rootRef.commitment, root.commitment)
@@ -245,7 +248,7 @@ func TestStatelessToDot(t *testing.T) {
 	stlJ := strings.Join(stl, "\n")
 
 	if stfJ != stlJ {
-		t.Fatalf("hashes differ after insertion %v ||| %v", stf, stl)
+		t.Fatalf("hashes differ after insertion %v ||| %v %s %s", stf, stl, ToDot(rootRef), ToDot(root))
 	}
 }
 
@@ -614,6 +617,7 @@ func TestSerialization(t *testing.T) {
 
 	rootf.Insert(zeroKeyTest, ffx32KeyTest, nil)
 	roots.Insert(zeroKeyTest, ffx32KeyTest, nil)
+	rootf.Commit()
 
 	serf, _ := rootf.Serialize()
 	sers, _ := roots.Serialize()

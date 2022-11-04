@@ -29,8 +29,10 @@ import "errors"
 
 type Empty struct{}
 
+var errDirectInsertIntoEmptyNode = errors.New("an empty node should not be inserted directly into")
+
 func (Empty) Insert([]byte, []byte, NodeResolverFn) error {
-	return errors.New("an empty node should not be inserted directly into")
+	return errDirectInsertIntoEmptyNode
 }
 
 func (e Empty) InsertOrdered(key []byte, value []byte, _ NodeFlushFn) error {

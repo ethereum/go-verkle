@@ -305,6 +305,7 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 					newbranch.children[inserted] = lastnode
 					newbranch.children[inserted].setDepth(child.depth + 1)
 					lastnode.Insert(key, value, nil)
+					lastnode.Commit()
 					var lnComm Fr
 					var diff Point
 					toFr(&lnComm, lastnode.Commitment())
@@ -315,6 +316,7 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 				}
 			} else {
 				err = child.Insert(key, value, resolver)
+				child.Commit()
 			}
 		default:
 			err = errNotSupportedInStateless
@@ -410,8 +412,8 @@ func (n *StatelessNode) InsertAtStem(stem []byte, values [][]byte, resolver Node
 	var err error
 	switch child := n.children[nChild].(type) {
 	case *InternalNode:
-		leaf := NewLeafNode(stem, values)
-		err = child.InsertStem(stem, leaf, resolver, true)
+		err = child.InsertStem(stem, values, resolver)
+		child.Commit()
 	case *StatelessNode:
 		err = child.InsertAtStem(stem, values, resolver, false)
 	case *LeafNode:
@@ -456,6 +458,7 @@ func (n *StatelessNode) newLeafChildFromSingleValue(key, value []byte) *LeafNode
 	newchild := NewLeafNode(key[:31], make([][]byte, NodeWidth))
 	newchild.setDepth(n.depth + 1)
 	newchild.Insert(key, value, nil)
+	newchild.Commit()
 	return newchild
 }
 

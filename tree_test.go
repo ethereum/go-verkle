@@ -286,6 +286,7 @@ func TestCachedCommitment(t *testing.T) {
 	}
 
 	tree.Insert(key4, fourtyKeyTest, nil)
+	tree.Commit()
 
 	if tree.(*InternalNode).Commitment().Bytes() == oldRoot {
 		t.Error("root has stale commitment")
@@ -959,12 +960,7 @@ func TestInsertStem(t *testing.T) {
 	values[5] = zeroKeyTest
 	values[192] = fourtyKeyTest
 
-	leaf := &LeafNode{
-		stem:      fourtyKeyTest[:31],
-		values:    values,
-		committer: root1.(*InternalNode).committer,
-	}
-	root1.(*InternalNode).InsertStem(fourtyKeyTest[:31], leaf, nil, false)
+	root1.(*InternalNode).InsertStem(fourtyKeyTest[:31], values, nil)
 	r1c := root1.Commit()
 
 	var key5, key192 [32]byte
