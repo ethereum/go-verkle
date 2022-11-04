@@ -201,7 +201,7 @@ func TestInsertVsOrdered(t *testing.T) {
 	h1 := root1.Commit().Bytes()
 
 	if !bytes.Equal(h1[:], h2[:]) {
-		t.Errorf("Insert and InsertOrdered produce different trees %x != %x", h1, h2)
+		t.Errorf("Insert and InsertOrdered produce different trees %x != %x %s %s", h1, h2, ToDot(root1), ToDot(root2))
 	}
 }
 
@@ -248,24 +248,20 @@ func TestCopy(t *testing.T) {
 	tree := New()
 	tree.Insert(key1, fourtyKeyTest, nil)
 	tree.Insert(key2, fourtyKeyTest, nil)
-	tree.Insert(key3, fourtyKeyTest, nil)
 	tree.Commit()
 
 	copied := tree.Copy()
-	copied.(*InternalNode).clearCache()
 
-	got1 := copied.Commit().Bytes()
-	got2 := tree.Commit().Bytes()
-	if !bytes.Equal(got1[:], got2[:]) {
-		t.Fatalf("error copying commitments %x != %x", got1, got2)
+	tree.Insert(key3, fourtyKeyTest, nil)
+
+	if Equal(tree.Commit(), copied.Commit()) {
+		t.Fatal("inserting the copy into the original tree updated the copy's commitment")
 	}
-	tree.Insert(key2, oneKeyTest, nil)
-	tree.Commit()
-	got2 = tree.Commit().Bytes()
-	if bytes.Equal(got1[:], got2[:]) {
-		t1, _ := tree.Get(key2, nil)
-		t2, _ := copied.Get(key2, nil)
-		t.Fatalf("error tree and its copy should have a different commitment after the update: %x == %x %s %s", got1, got2, t1, t2)
+
+	copied.Insert(key3, fourtyKeyTest, nil)
+
+	if !Equal(tree.Commitment(), copied.Commit()) {
+		t.Fatalf("differing final commitments %x != %x", tree.Commitment().Bytes(), copied.Commitment().Bytes())
 	}
 }
 
@@ -286,6 +282,7 @@ func TestCachedCommitment(t *testing.T) {
 	}
 
 	tree.Insert(key4, fourtyKeyTest, nil)
+	tree.Commit()
 
 	if tree.(*InternalNode).Commitment().Bytes() == oldRoot {
 		t.Error("root has stale commitment")
@@ -298,28 +295,6 @@ func TestCachedCommitment(t *testing.T) {
 	}
 }
 
-func TestClearCache(t *testing.T) {
-	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
-	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
-	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
-	tree := New()
-	tree.Insert(key1, fourtyKeyTest, nil)
-	tree.Insert(key2, fourtyKeyTest, nil)
-	tree.Insert(key3, fourtyKeyTest, nil)
-	tree.Commit()
-
-	root := tree.(*InternalNode)
-	root.clearCache()
-
-	if root.commitment != nil {
-		t.Error("root cached commitment should have been cleared")
-	}
-
-	if root.children[1].(*InternalNode).commitment != nil {
-		t.Error("internal child's cached commitment should have been cleared")
-	}
-}
-
 func TestDelLeaf(t *testing.T) {
 	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
 	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
@@ -327,7 +302,8 @@ func TestDelLeaf(t *testing.T) {
 	tree := New()
 	tree.Insert(key1, fourtyKeyTest, nil)
 	tree.Insert(key2, fourtyKeyTest, nil)
-	hash := tree.Commit()
+	var init Point
+	CopyPoint(&init, tree.Commit())
 
 	tree.Insert(key3, fourtyKeyTest, nil)
 	if err := tree.Delete(key3, nil); err != nil {
@@ -338,8 +314,8 @@ func TestDelLeaf(t *testing.T) {
 	// as deleting a value means replacing it with a 0 in verkle
 	// trees.
 	postHash := tree.Commit()
-	if Equal(hash, postHash) {
-		t.Error("deleting leaf resulted in unexpected tree")
+	if Equal(&init, postHash) {
+		t.Errorf("deleting leaf resulted in unexpected tree %x %x", init.Bytes(), postHash.Bytes())
 	}
 
 	res, err := tree.Get(key3, nil)
@@ -372,16 +348,18 @@ func TestDeletePrune(t *testing.T) {
 	tree.Insert(key1, fourtyKeyTest, nil)
 	tree.Insert(key2, fourtyKeyTest, nil)
 
-	hash1 := tree.Commit()
+	var hash1, hash2 Point
+	CopyPoint(&hash1, tree.Commit())
 	tree.Insert(key3, fourtyKeyTest, nil)
-	hash2 := tree.Commit()
+	CopyPoint(&hash2, tree.Commit())
 	tree.Insert(key4, fourtyKeyTest, nil)
+	tree.Commit()
 
 	if err := tree.Delete(key4, nil); err != nil {
 		t.Error(err)
 	}
 	postHash := tree.Commit()
-	if Equal(hash2, postHash) {
+	if Equal(&hash2, postHash) {
 		t.Error("deleting leaf #4 resulted in unexpected tree")
 	}
 	res, err := tree.Get(key4, nil)
@@ -396,7 +374,7 @@ func TestDeletePrune(t *testing.T) {
 		t.Error(err)
 	}
 	postHash = tree.Commit()
-	if Equal(hash1, postHash) {
+	if Equal(&hash1, postHash) {
 		t.Error("deleting leaf #3 resulted in unexpected tree")
 	}
 	res, err = tree.Get(key3, nil)
@@ -850,7 +828,7 @@ func TestToDot(*testing.T) {
 	fourtytwoKeyTest, _ := hex.DecodeString("4020000000000000000000000000000000000000000000000000000000000000")
 	root.Insert(fourtytwoKeyTest, zeroKeyTest, nil)
 
-	fmt.Println(root.toDot("", ""))
+	fmt.Println(ToDot(root))
 }
 
 func TestEmptyCommitment(t *testing.T) {
@@ -959,12 +937,7 @@ func TestInsertStem(t *testing.T) {
 	values[5] = zeroKeyTest
 	values[192] = fourtyKeyTest
 
-	leaf := &LeafNode{
-		stem:      fourtyKeyTest[:31],
-		values:    values,
-		committer: root1.(*InternalNode).committer,
-	}
-	root1.(*InternalNode).InsertStem(fourtyKeyTest[:31], leaf, nil, false)
+	root1.(*InternalNode).InsertStem(fourtyKeyTest[:31], values, nil)
 	r1c := root1.Commit()
 
 	var key5, key192 [32]byte
@@ -977,7 +950,7 @@ func TestInsertStem(t *testing.T) {
 	r2c := root2.Commit()
 
 	if !Equal(r1c, r2c) {
-		t.Fatalf("differing commitments %x != %x", r1c.Bytes(), r2c.Bytes())
+		t.Fatalf("differing commitments %x != %x %s %s", r1c.Bytes(), r2c.Bytes(), ToDot(root1), ToDot(root2))
 	}
 }
 
@@ -1053,25 +1026,10 @@ func TestInsertStemOrdered(t *testing.T) {
 	var keysplit [32]byte // a key to check stem splitting in insert
 	copy(keysplit[:], fourtyKeyTest)
 	keysplit[24] = 72
-	leaf1 := &LeafNode{
-		stem:      fourtyKeyTest[:31],
-		values:    values1,
-		committer: root1.(*InternalNode).committer,
-	}
-	leaf2 := &LeafNode{
-		stem:      keysplit[:31],
-		values:    values2,
-		committer: root1.(*InternalNode).committer,
-	}
-	leaf3 := &LeafNode{
-		stem:      ffx32KeyTest[:31],
-		values:    values3,
-		committer: root1.(*InternalNode).committer,
-	}
 	root1.(*InternalNode).Insert(zeroKeyTest, ffx32KeyTest, nil)
-	root1.(*InternalNode).InsertStemOrdered(fourtyKeyTest[:31], leaf1, flush)
-	root1.(*InternalNode).InsertStemOrdered(keysplit[:31], leaf2, flush)
-	root1.(*InternalNode).InsertStemOrdered(ffx32KeyTest[:31], leaf3, flush)
+	root1.(*InternalNode).InsertStemOrdered(fourtyKeyTest[:31], values1, flush)
+	root1.(*InternalNode).InsertStemOrdered(keysplit[:31], values2, flush)
+	root1.(*InternalNode).InsertStemOrdered(ffx32KeyTest[:31], values3, flush)
 	r1c := root1.Commit()
 
 	// 26 for fourtyKeyTest + 2 children, 1 for zeroKeyTest,
@@ -1101,7 +1059,7 @@ func TestInsertStemOrdered(t *testing.T) {
 
 	// Check that a previous key was flushed and hashed, and that one can no
 	// longer insert in it.
-	err := root1.(*InternalNode).InsertStemOrdered(fourtyKeyTest[:31], leaf1, nil)
+	err := root1.(*InternalNode).InsertStemOrdered(fourtyKeyTest[:31], values1, nil)
 	if err != errInsertIntoHash {
 		t.Fatalf("received wrong error %v != %v", err, errInsertIntoHash)
 	}

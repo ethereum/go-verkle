@@ -38,12 +38,13 @@ func TestProofVerifyTwoLeaves(t *testing.T) {
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
 	root.Insert(oneKeyTest, zeroKeyTest, nil)
 	root.Insert(ffx32KeyTest, zeroKeyTest, nil)
+	root.Commit()
 
 	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, [][]byte{ffx32KeyTest}, map[string][]byte{string(ffx32KeyTest): zeroKeyTest})
 
 	cfg := GetConfig()
 	if !VerifyVerkleProof(proof, cis, zis, yis, cfg) {
-		t.Fatal("could not verify verkle proof")
+		t.Fatalf("could not verify verkle proof: %s", ToDot(root))
 	}
 }
 
