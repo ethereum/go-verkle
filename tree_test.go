@@ -1052,25 +1052,10 @@ func TestInsertStemOrdered(t *testing.T) {
 	var keysplit [32]byte // a key to check stem splitting in insert
 	copy(keysplit[:], fourtyKeyTest)
 	keysplit[24] = 72
-	leaf1 := &LeafNode{
-		stem:      fourtyKeyTest[:31],
-		values:    values1,
-		committer: root1.(*InternalNode).committer,
-	}
-	leaf2 := &LeafNode{
-		stem:      keysplit[:31],
-		values:    values2,
-		committer: root1.(*InternalNode).committer,
-	}
-	leaf3 := &LeafNode{
-		stem:      ffx32KeyTest[:31],
-		values:    values3,
-		committer: root1.(*InternalNode).committer,
-	}
 	root1.(*InternalNode).Insert(zeroKeyTest, ffx32KeyTest, nil)
-	root1.(*InternalNode).InsertStemOrdered(fourtyKeyTest[:31], leaf1, flush)
-	root1.(*InternalNode).InsertStemOrdered(keysplit[:31], leaf2, flush)
-	root1.(*InternalNode).InsertStemOrdered(ffx32KeyTest[:31], leaf3, flush)
+	root1.(*InternalNode).InsertStemOrdered(fourtyKeyTest[:31], values1, flush)
+	root1.(*InternalNode).InsertStemOrdered(keysplit[:31], values2, flush)
+	root1.(*InternalNode).InsertStemOrdered(ffx32KeyTest[:31], values3, flush)
 	r1c := root1.Commit()
 
 	// 26 for fourtyKeyTest + 2 children, 1 for zeroKeyTest,
@@ -1100,7 +1085,7 @@ func TestInsertStemOrdered(t *testing.T) {
 
 	// Check that a previous key was flushed and hashed, and that one can no
 	// longer insert in it.
-	err := root1.(*InternalNode).InsertStemOrdered(fourtyKeyTest[:31], leaf1, nil)
+	err := root1.(*InternalNode).InsertStemOrdered(fourtyKeyTest[:31], values1, nil)
 	if err != errInsertIntoHash {
 		t.Fatalf("received wrong error %v != %v", err, errInsertIntoHash)
 	}
