@@ -283,7 +283,6 @@ func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeRes
 	case Empty:
 		n.children[nChild] = NewLeafNode(stem, values)
 		n.children[nChild].setDepth(n.depth + 1)
-		n.children[nChild].Commit()
 	case *HashedNode:
 		if resolver == nil {
 			return errInsertIntoHash
@@ -324,7 +323,6 @@ func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeRes
 		// Next word differs, so this was the last level.
 		// Insert it directly into its final slot.
 		leaf := NewLeafNode(stem, values)
-		leaf.Commit()
 		leaf.setDepth(n.depth + 2)
 		newBranch.cowChild(nextWordInInsertedKey)
 		newBranch.children[nextWordInInsertedKey] = leaf
@@ -390,7 +388,6 @@ func (n *InternalNode) InsertStemOrdered(key []byte, values [][]byte, flush Node
 		lastNode := NewLeafNode(key[:31], values)
 		lastNode.setDepth(n.depth + 1)
 		n.children[nChild] = lastNode
-		lastNode.Commit()
 
 		// If the node was already created, then there was at least one
 		// child. As a result, inserting this new leaf means there are
@@ -431,7 +428,6 @@ func (n *InternalNode) InsertStemOrdered(key []byte, values [][]byte, flush Node
 				// Insert it directly into its final slot.
 				lastNode := NewLeafNode(key[:31], values)
 				lastNode.setDepth(n.depth + 1)
-				lastNode.Commit()
 				newBranch.cowChild(nextWordInInsertedKey)
 				newBranch.children[nextWordInInsertedKey] = lastNode
 			} else {
@@ -467,7 +463,6 @@ func (n *InternalNode) Delete(key []byte, resolver NodeResolverFn) error {
 		if err != nil {
 			return err
 		}
-		c.Commit()
 		n.children[nChild] = c
 		return n.Delete(key, resolver)
 	default:
@@ -543,7 +538,6 @@ func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		c.Commit()
 		n.children[nChild] = c
 
 		return c.Get(k, getter)
@@ -573,6 +567,7 @@ func (n *InternalNode) Commit() *Point {
 		for idx, comm := range n.cow {
 			emptyChildren--
 			var pre Fr
+			// TODO use kev's multimaptofield
 			toFr(&pre, comm)
 			// child in cow, so its child has also been
 			// modified, so call `Commit()` instead of
@@ -586,6 +581,8 @@ func (n *InternalNode) Commit() *Point {
 		return n.commitment
 	}
 
+	// TODO remove this when stateless nodes no longer need that
+	// TODO use kev's multimaptofield
 	for idx, child := range n.children {
 		switch child.(type) {
 		case Empty:
@@ -796,11 +793,7 @@ func (n *LeafNode) insertMultiple(k []byte, values [][]byte) error {
 		return errInsertIntoOtherStem
 	}
 
-	for i, v := range values {
-		if len(v) > 0 {
-			n.values[i] = v
-		}
-	}
+	n.updateMultipleLeaves(values)
 
 	return nil
 }
