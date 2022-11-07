@@ -113,7 +113,7 @@ type KeyValuePair struct {
 
 // SerializeProof serializes the proof in the rust-verkle format:
 // * len(Proof of absence stem) || Proof of absence stems
-// * len(depths) || serialize(depthi || ext statusi)
+// * len(depths) || serialize(depth || ext statusi)
 // * len(commitments) || serialize(commitment)
 // * Multipoint proof
 // it also returns the serialized keys and values
