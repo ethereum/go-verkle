@@ -178,161 +178,9 @@ func (n *StatelessNode) updateLeaf(index byte, value []byte) {
 }
 
 func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn) error {
-	// if this is a leaf value and the stems are different, intermediate
-	// nodes need to be inserted.
-	if n.values != nil {
-		// Need to add a new branch node to differentiate
-		// between two keys, if the keys are different.
-		// Otherwise, just update the key.
-		if equalPaths(n.stem, key) {
-			n.updateLeaf(key[31], value)
-		} else {
-			// A new branch node has to be inserted. Depending
-			// on the next word in both keys, a recursion into
-			// the moved leaf node can occur.
-			nextexisting := offset2key(n.stem, n.depth)
-			oldExtNode := &StatelessNode{
-				depth:      n.depth + 1,
-				committer:  n.committer,
-				count:      n.count,
-				values:     n.values,
-				stem:       n.stem,
-				commitment: new(Point),
-				hash:       n.hash,
-				c1:         n.c1,
-				c2:         n.c2,
-			}
-			n.children = map[byte]VerkleNode{
-				nextexisting: oldExtNode,
-			}
-			n.values = nil
-			n.stem = nil
-			n.c1 = nil
-			n.c2 = nil
-			n.count++
-			CopyPoint(oldExtNode.commitment, n.commitment)
-			n.hash = new(Fr)
-
-			nextinserted := offset2key(key, n.depth)
-			if nextinserted != nextexisting {
-				// Next word differs, so the branching point
-				// has been reached. Create the "new" child.
-				n.children[nextinserted] = n.newLeafChildFromSingleValue(key, value)
-			}
-
-			// recurse into the newly created child
-			err := n.children[nextinserted].Insert(key, value, resolver)
-			if err != nil {
-				return err
-			}
-			var poly [NodeWidth]Fr
-			CopyFr(&poly[nextexisting], oldExtNode.Hash())
-			if nextexisting != nextinserted {
-				CopyFr(&poly[nextinserted], n.children[nextinserted].Hash())
-			}
-			n.commitment = n.committer.CommitToPoly(poly[:], NodeWidth-2)
-			toFr(n.hash, n.commitment)
-		}
-	} else {
-		// internal node
-		nChild := offset2key(key, n.depth)
-
-		// special case: missing child, check whether there is a child node
-		// to deserialize, and if that is not the case, this is an empty child.
-		cfg, _ := GetConfig()
-		if n.children[nChild] == nil {
-			unresolved := n.unresolved[nChild]
-			if len(unresolved) == 0 {
-				n.children[nChild] = n.newLeafChildFromSingleValue(key, value)
-
-				var diff Point
-				diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[nChild], n.children[nChild].Hash())
-				n.commitment.Add(n.commitment, &diff)
-				toFr(n.hash, n.commitment)
-				return nil
-			}
-
-			newhash := &HashedNode{new(Fr), new(Point)}
-			newhash.commitment.SetBytesTrusted(unresolved)
-			toFr(newhash.hash, newhash.commitment)
-			n.children[nChild] = newhash
-			// fallthrough to hash resolution
-		}
-
-		// If the child is a hash, the node needs to be resolved
-		// before there is an insert into it.
-		if h, ok := n.children[nChild].(*HashedNode); ok {
-			comm := h.Commitment().Bytes()
-			serialized, err := resolver(comm[:])
-			if err != nil {
-				return err
-			}
-			node, err := ParseNode(serialized, n.depth+1, comm[:])
-			if err != nil {
-				return err
-			}
-			n.children[nChild] = node
-		}
-
-		// Save the value of the initial child commitment
-		var pre Fr
-		CopyFr(&pre, n.children[nChild].Hash())
-
-		var err error
-		switch child := n.children[nChild].(type) {
-		case *StatelessNode:
-			err = child.Insert(key, value, resolver)
-		case *LeafNode:
-			if !bytes.Equal(child.stem, key[:31]) {
-				child.setDepth(child.depth + 1)
-				existing := child.stem[n.depth+1]
-				inserted := key[n.depth+1]
-				newbranch := &StatelessNode{
-					children:   map[byte]VerkleNode{existing: child},
-					depth:      n.depth + 1,
-					commitment: Generator(),
-					hash:       new(Fr),
-				}
-				n.children[nChild] = newbranch
-
-				// reuse pre here, since the child commitment is the same for this
-				// new branch as it was for the current node before the insertion.
-				newbranch.commitment.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[existing], &pre)
-
-				if inserted != existing {
-					values := make([][]byte, NodeWidth)
-					lastnode := NewLeafNode(key[:31], values)
-					newbranch.children[inserted] = lastnode
-					newbranch.children[inserted].setDepth(child.depth + 1)
-					lastnode.Insert(key, value, nil)
-					lastnode.Commit()
-					var lnComm Fr
-					var diff Point
-					toFr(&lnComm, lastnode.Commitment())
-					diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[inserted], &lnComm)
-					newbranch.commitment.Add(newbranch.commitment, &diff)
-				} else {
-					err = newbranch.Insert(key, value, resolver)
-				}
-			} else {
-				err = child.Insert(key, value, resolver)
-				child.Commit()
-			}
-		default:
-			err = errNotSupportedInStateless
-		}
-		if err != nil {
-			return err
-		}
-
-		// update the commitment
-		var diff Point
-		diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[nChild], pre.Sub(n.children[nChild].Hash(), &pre))
-		n.commitment.Add(n.commitment, &diff)
-	}
-
-	toFr(n.hash, n.commitment)
-	return nil
+	values := make([][]byte, NodeWidth)
+	values[key[31]] = value
+	return n.InsertAtStem(key[:31], values, resolver, true)
 }
 
 func (n *StatelessNode) updateMultipleLeaves(values [][]byte) {
@@ -379,6 +227,9 @@ func (n *StatelessNode) InsertAtStem(stem []byte, values [][]byte, resolver Node
 		unresolved := n.unresolved[nChild]
 		if len(unresolved) == 0 {
 			n.children[nChild] = n.newLeafChildFromMultipleValues(stem, values)
+			var diff Point
+			diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[nChild], n.children[nChild].Hash())
+			n.commitment.Add(n.commitment, &diff)
 			return nil
 		}
 
@@ -462,38 +313,14 @@ func (n *StatelessNode) newLeafChildFromSingleValue(key, value []byte) *LeafNode
 	return newchild
 }
 
-func (n *StatelessNode) newLeafChildFromMultipleValues(stem []byte, values [][]byte) *StatelessNode {
-	newchild := &StatelessNode{
-		depth:     n.depth + 1,
-		stem:      stem,
-		values:    map[byte][]byte{},
-		committer: n.committer,
-		count:     1,
-		hash:      new(Fr),
-		c1:        Generator(),
-		c2:        Generator(),
+func (n *StatelessNode) newLeafChildFromMultipleValues(stem []byte, values [][]byte) *LeafNode {
+	if len(values) != 256 {
+		panic("expecting a 256 leaf values")
 	}
 
-	var poly [4]Fr
-	poly[0].SetUint64(1)
-	StemFromBytes(&poly[1], newchild.stem)
-
-	for i, v := range values {
-		var cpoly [256]Fr
-		newchild.values[byte(i)] = v
-
-		leafToComms(cpoly[byte(i%128)*2:], v)
-		if i < 128 {
-			newchild.c1 = n.committer.CommitToPoly(cpoly[:], 2)
-			toFr(&poly[2], newchild.c1)
-		} else {
-			newchild.c2 = n.committer.CommitToPoly(cpoly[:], 2)
-			toFr(&poly[3], newchild.c2)
-		}
-		newchild.commitment = n.committer.CommitToPoly(poly[:], 4)
-		toFr(newchild.hash, newchild.commitment)
-	}
-
+	newchild := NewLeafNode(stem, values)
+	newchild.setDepth(n.depth + 1)
+	newchild.Commit()
 	return newchild
 }
 
@@ -616,6 +443,18 @@ func (n *StatelessNode) Commitment() *Point {
 }
 
 func (n *StatelessNode) Commit() *Point {
+	if n.commitment == nil {
+		if len(n.values) != 0 {
+
+		} else {
+			var poly [NodeWidth]Fr
+			for idx, child := range n.children {
+				toFr(&poly[idx], child.Commit())
+			}
+			cfg, _ := GetConfig()
+			n.commitment = cfg.CommitToPoly(poly[:], 256)
+		}
+	}
 	// TODO go over dirty children and update the
 	// current commitment.
 	return n.commitment
@@ -924,7 +763,9 @@ func (n *StatelessNode) toDot(parent, path string) string {
 			}
 		}
 	} else {
-		ret = fmt.Sprintf("%s [label=\"I: %x\"]\n", me, n.hash.BytesLE())
+		var hash Fr
+		toFr(&hash, n.Commit())
+		ret = fmt.Sprintf("%s [label=\"I: %x\"]\n", me, hash.BytesLE())
 		if len(parent) > 0 {
 			ret += fmt.Sprintf(" %s -> %s\n", parent, me)
 		}

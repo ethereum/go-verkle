@@ -201,7 +201,7 @@ func TestInsertVsOrdered(t *testing.T) {
 	h1 := root1.Commit().Bytes()
 
 	if !bytes.Equal(h1[:], h2[:]) {
-		t.Errorf("Insert and InsertOrdered produce different trees %x != %x", h1, h2)
+		t.Errorf("Insert and InsertOrdered produce different trees %x != %x %s %s", h1, h2, ToDot(root1), ToDot(root2))
 	}
 }
 

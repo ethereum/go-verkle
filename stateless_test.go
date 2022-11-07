@@ -64,6 +64,8 @@ func TestStatelessChildren(t *testing.T) {
 		t.Fatal("didn't catch a node being inserted at an invalid index in a stateless node")
 	}
 
+	// Adds a node that isn't in the tree, but since its commitmenht will be 0,
+	// it shouldn't have an impact.
 	if err := root.SetChild(3, &StatelessNode{}); err != nil {
 		t.Fatal("error inserting stateless node")
 	}
@@ -74,7 +76,7 @@ func TestStatelessChildren(t *testing.T) {
 	rootRef.Insert(c2key, fourtyKeyTest, nil)
 
 	if !Equal(rootRef.Commit(), root.commitment) {
-		t.Fatalf("differing state(less|ful) roots %x != %x", rootRef.Commitment().Bytes(), root.Commit().Bytes())
+		t.Fatalf("differing state(less|ful) roots %x != %x %s %s", rootRef.Commitment().Bytes(), root.Commit().Bytes(), ToDot(rootRef), ToDot(root))
 	}
 }
 
@@ -432,7 +434,7 @@ func TestStatelessGetProofItems(t *testing.T) {
 	}
 }
 
-// This test check that node resolution works for StatelessNode
+// This test checks that node resolution works for StatelessNode
 func TestStatelessInsertIntoHash(t *testing.T) {
 	root := NewStateless()
 	root.Insert(fourtyKeyTest, ffx32KeyTest, nil)
@@ -506,7 +508,8 @@ func TestStatelessInsertIntoSerialized(t *testing.T) {
 
 func TestStatelessInsertAtStem(t *testing.T) {
 	root := NewStateless()
-	root.InsertAtStem(zeroKeyTest[:31], [][]byte{ffx32KeyTest, fourtyKeyTest, zeroKeyTest, oneKeyTest}, nil, false)
+	values := [256][]byte{ffx32KeyTest, fourtyKeyTest, zeroKeyTest, oneKeyTest}
+	root.InsertAtStem(zeroKeyTest[:31], values[:], nil, false)
 
 	out, err := root.Get(zeroKeyTest, nil)
 	if err != nil {
@@ -576,13 +579,14 @@ func TestStatelessInsertAtStemIntoLeaf(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	values := [256][]byte{nil, ffx32KeyTest, nil, nil, oneKeyTest}
 	// test updating an existing key
-	root.(*StatelessNode).InsertAtStem(zeroKeyTest[:31], [][]byte{nil, ffx32KeyTest, nil, nil, oneKeyTest}, func(b []byte) ([]byte, error) {
+	root.(*StatelessNode).InsertAtStem(zeroKeyTest[:31], values[:], func(b []byte) ([]byte, error) {
 		return flushed[string(b)], nil
 	}, false)
 
 	// test inserting a new key
-	root.(*StatelessNode).InsertAtStem(splitKeyTest[:31], [][]byte{nil, ffx32KeyTest, nil, nil, oneKeyTest}, func(b []byte) ([]byte, error) {
+	root.(*StatelessNode).InsertAtStem(splitKeyTest[:31], values[:], func(b []byte) ([]byte, error) {
 		return flushed[string(b)], nil
 	}, false)
 
