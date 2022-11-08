@@ -205,18 +205,6 @@ func newInternalNode(depth byte, cmtr Committer) VerkleNode {
 	return node
 }
 
-func newInternalNodeNilCommitment(depth byte, cmtr Committer) VerkleNode {
-	node := new(InternalNode)
-	node.children = make([]VerkleNode, NodeWidth)
-	for idx := range node.children {
-		node.children[idx] = Empty(struct{}{})
-	}
-	node.depth = depth
-	node.committer = cmtr
-	node.commitment = nil
-	return node
-}
-
 // New creates a new tree root
 func New() VerkleNode {
 	cfg, _ := GetConfig()
@@ -871,7 +859,7 @@ func (n *LeafNode) updateMultipleLeaves(values [][]byte) {
 				n.updateCn(byte(i), v, c2)
 			}
 
-			n.values[i] = v[:]
+			n.values[i] = v
 		}
 	}
 
