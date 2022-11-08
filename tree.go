@@ -818,9 +818,9 @@ func (n *LeafNode) updateC(index byte, c *Point, oldc *Fr) {
 
 func (n *LeafNode) updateCn(index byte, value []byte, c *Point) {
 	var (
-		old, new [2]Fr
-		diff     Point
-		poly     [256]Fr
+		old, newH [2]Fr
+		diff      Point
+		poly      [256]Fr
 	)
 
 	// Optimization idea:
@@ -830,16 +830,16 @@ func (n *LeafNode) updateCn(index byte, value []byte, c *Point) {
 	// but the computation time should be faster as one doesn't need to
 	// compute 1 - 1 mod N.
 	leafToComms(old[:], n.values[index])
-	leafToComms(new[:], value)
+	leafToComms(newH[:], value)
 
-	new[0].Sub(&new[0], &old[0])
-	poly[2*(index%128)] = new[0]
+	newH[0].Sub(&newH[0], &old[0])
+	poly[2*(index%128)] = newH[0]
 	diff = cfg.conf.Commit(poly[:])
 	poly[2*(index%128)].SetZero()
 	c.Add(c, &diff)
 
-	new[1].Sub(&new[1], &old[1])
-	poly[2*(index%128)+1] = new[1]
+	newH[1].Sub(&newH[1], &old[1])
+	poly[2*(index%128)+1] = newH[1]
 	diff = cfg.conf.Commit(poly[:])
 	c.Add(c, &diff)
 }
