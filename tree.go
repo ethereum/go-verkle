@@ -238,10 +238,19 @@ func NewLeafNode(stem []byte, values [][]byte) *LeafNode {
 
 	// Initialize the commitment with the extension tree
 	// marker and the stem.
-	var poly [256]Fr
+	count := 0
+	var poly, c1poly, c2poly [256]Fr
 	poly[0].SetUint64(1)
 	StemFromBytes(&poly[1], leaf.stem)
-	leaf.commitment = leaf.committer.CommitToPoly(poly[:], 2)
+
+	count = fillSuffixTreePoly(c1poly[:], values[:128])
+	leaf.c1 = leaf.committer.CommitToPoly(c1poly[:], 256-count)
+	toFr(&poly[2], leaf.c1)
+	count = fillSuffixTreePoly(c2poly[:], values[128:])
+	leaf.c2 = leaf.committer.CommitToPoly(c2poly[:], 256-count)
+	toFr(&poly[3], leaf.c2)
+
+	leaf.commitment = leaf.committer.CommitToPoly(poly[:], 252)
 
 	return leaf
 }
@@ -809,9 +818,9 @@ func (n *LeafNode) updateC(index byte, c *Point, oldc *Fr) {
 
 func (n *LeafNode) updateCn(index byte, value []byte, c *Point) {
 	var (
-		old, new [2]Fr
-		diff     Point
-		poly     [256]Fr
+		old, newH [2]Fr
+		diff      Point
+		poly      [256]Fr
 	)
 
 	// Optimization idea:
@@ -821,16 +830,16 @@ func (n *LeafNode) updateCn(index byte, value []byte, c *Point) {
 	// but the computation time should be faster as one doesn't need to
 	// compute 1 - 1 mod N.
 	leafToComms(old[:], n.values[index])
-	leafToComms(new[:], value)
+	leafToComms(newH[:], value)
 
-	new[0].Sub(&new[0], &old[0])
-	poly[2*(index%128)] = new[0]
+	newH[0].Sub(&newH[0], &old[0])
+	poly[2*(index%128)] = newH[0]
 	diff = cfg.conf.Commit(poly[:])
 	poly[2*(index%128)].SetZero()
 	c.Add(c, &diff)
 
-	new[1].Sub(&new[1], &old[1])
-	poly[2*(index%128)+1] = new[1]
+	newH[1].Sub(&newH[1], &old[1])
+	poly[2*(index%128)+1] = newH[1]
 	diff = cfg.conf.Commit(poly[:])
 	c.Add(c, &diff)
 }
@@ -921,19 +930,6 @@ func (n *LeafNode) Commitment() *Point {
 }
 
 func (n *LeafNode) Commit() *Point {
-	count := 0
-	var poly, c1poly, c2poly [256]Fr
-	poly[0].SetUint64(1)
-	StemFromBytes(&poly[1], n.stem)
-
-	count = fillSuffixTreePoly(c1poly[:], n.values[:128])
-	n.c1 = n.committer.CommitToPoly(c1poly[:], 256-count)
-	toFr(&poly[2], n.c1)
-	count = fillSuffixTreePoly(c2poly[:], n.values[128:])
-	n.c2 = n.committer.CommitToPoly(c2poly[:], 256-count)
-	toFr(&poly[3], n.c2)
-
-	n.commitment = n.committer.CommitToPoly(poly[:], 252)
 	return n.commitment
 }
 

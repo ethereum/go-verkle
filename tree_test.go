@@ -295,28 +295,6 @@ func TestCachedCommitment(t *testing.T) {
 	}
 }
 
-func TestClearCache(t *testing.T) {
-	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
-	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
-	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
-	tree := New()
-	tree.Insert(key1, fourtyKeyTest, nil)
-	tree.Insert(key2, fourtyKeyTest, nil)
-	tree.Insert(key3, fourtyKeyTest, nil)
-	tree.Commit()
-
-	root := tree.(*InternalNode)
-	root.clearCache()
-
-	if root.commitment != nil {
-		t.Error("root cached commitment should have been cleared")
-	}
-
-	if root.children[1].(*InternalNode).commitment != nil {
-		t.Error("internal child's cached commitment should have been cleared")
-	}
-}
-
 func TestDelLeaf(t *testing.T) {
 	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
 	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
@@ -972,7 +950,7 @@ func TestInsertStem(t *testing.T) {
 	r2c := root2.Commit()
 
 	if !Equal(r1c, r2c) {
-		t.Fatalf("differing commitments %x != %x", r1c.Bytes(), r2c.Bytes())
+		t.Fatalf("differing commitments %x != %x %s %s", r1c.Bytes(), r2c.Bytes(), ToDot(root1), ToDot(root2))
 	}
 }
 

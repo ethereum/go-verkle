@@ -169,17 +169,17 @@ func (n *StatelessNode) updateCn(index byte, value []byte, c *Point) {
 	c.Add(c, &diff)
 }
 
-func (n *StatelessNode) updateLeaf(index byte, value []byte) {
-	c, oldc := n.getOldCn(index)
-	n.updateCn(index, value, c)
-	n.updateC(index, c, oldc)
-	if n.values[index] == nil {
-		// only increase the count if no value is
-		// overwritten.
-		n.count++
-	}
-	n.values[index] = value
-}
+// func (n *StatelessNode) updateLeaf(index byte, value []byte) {
+// 	c, oldc := n.getOldCn(index)
+// 	n.updateCn(index, value, c)
+// 	n.updateC(index, c, oldc)
+// 	if n.values[index] == nil {
+// 		// only increase the count if no value is
+// 		// overwritten.
+// 		n.count++
+// 	}
+// 	n.values[index] = value
+// }
 
 func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn) error {
 	values := make([][]byte, NodeWidth)
@@ -320,14 +320,6 @@ func (n *StatelessNode) InsertAtStem(stem []byte, values [][]byte, resolver Node
 	}
 
 	return err
-}
-
-func (n *StatelessNode) newLeafChildFromSingleValue(key, value []byte) *LeafNode {
-	newchild := NewLeafNode(key[:31], make([][]byte, NodeWidth))
-	newchild.setDepth(n.depth + 1)
-	newchild.Insert(key, value, nil)
-	newchild.Commit()
-	return newchild
 }
 
 func (n *StatelessNode) newLeafChildFromMultipleValues(stem []byte, values [][]byte) *LeafNode {
