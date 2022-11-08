@@ -581,20 +581,6 @@ func (n *InternalNode) Commit() *Point {
 		return n.commitment
 	}
 
-	// TODO remove this when stateless nodes no longer need that
-	// TODO use kev's multimaptofield
-	for idx, child := range n.children {
-		switch child.(type) {
-		case Empty:
-		default:
-			emptyChildren--
-			toFr(&poly[idx], child.Commit())
-		}
-	}
-
-	// All the coefficients have been computed, evaluate the polynomial,
-	// serialize and hash the resulting point - this is the commitment.
-	n.commitment = n.committer.CommitToPoly(poly, emptyChildren)
 	return n.commitment
 }
 
@@ -720,20 +706,15 @@ func (n *InternalNode) Copy() VerkleNode {
 		CopyPoint(ret.commitment, n.commitment)
 	}
 
-	return ret
-}
-
-// clearCache sets the commitment field of node
-// and all of its children (recursively) to nil.
-func (n *InternalNode) clearCache() {
-	for _, c := range n.children {
-		in, ok := c.(*InternalNode)
-		if !ok {
-			continue
+	if n.cow != nil {
+		ret.cow = make(map[byte]*Point)
+		for k, v := range n.cow {
+			ret.cow[k] = new(Point)
+			CopyPoint(ret.cow[k], v)
 		}
-		in.clearCache()
 	}
-	n.commitment = nil
+
+	return ret
 }
 
 func (n *InternalNode) toDot(parent, path string) string {

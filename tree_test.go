@@ -248,24 +248,20 @@ func TestCopy(t *testing.T) {
 	tree := New()
 	tree.Insert(key1, fourtyKeyTest, nil)
 	tree.Insert(key2, fourtyKeyTest, nil)
-	tree.Insert(key3, fourtyKeyTest, nil)
 	tree.Commit()
 
 	copied := tree.Copy()
-	copied.(*InternalNode).clearCache()
 
-	got1 := copied.Commit().Bytes()
-	got2 := tree.Commit().Bytes()
-	if !bytes.Equal(got1[:], got2[:]) {
-		t.Fatalf("error copying commitments %x != %x", got1, got2)
+	tree.Insert(key3, fourtyKeyTest, nil)
+
+	if Equal(tree.Commit(), copied.Commit()) {
+		t.Fatal("inserting the copy into the original tree updated the copy's commitment")
 	}
-	tree.Insert(key2, oneKeyTest, nil)
-	tree.Commit()
-	got2 = tree.Commit().Bytes()
-	if bytes.Equal(got1[:], got2[:]) {
-		t1, _ := tree.Get(key2, nil)
-		t2, _ := copied.Get(key2, nil)
-		t.Fatalf("error tree and its copy should have a different commitment after the update: %x == %x %s %s", got1, got2, t1, t2)
+
+	copied.Insert(key3, fourtyKeyTest, nil)
+
+	if !Equal(tree.Commitment(), copied.Commit()) {
+		t.Fatalf("differing final commitments %x != %x", tree.Commitment().Bytes(), copied.Commitment().Bytes())
 	}
 }
 
