@@ -41,6 +41,7 @@ func TestStatelessChildren(t *testing.T) {
 	root.Insert(zeroKeyTest, fourtyKeyTest, nil)
 	root.Insert(oneKeyTest, fourtyKeyTest, nil)
 	root.Insert(c2key, fourtyKeyTest, nil)
+	root.Commit()
 
 	list := root.Children()
 	if len(list) != NodeWidth {
@@ -66,7 +67,7 @@ func TestStatelessChildren(t *testing.T) {
 
 	// Adds a node that isn't in the tree, but since its commitmenht will be 0,
 	// it shouldn't have an impact.
-	if err := root.SetChild(3, &StatelessNode{}); err != nil {
+	if err := root.SetChild(3, &StatelessNode{commitment: Generator()}); err != nil {
 		t.Fatal("error inserting stateless node")
 	}
 
@@ -84,10 +85,10 @@ func TestStatelessDelete(t *testing.T) {
 	root := NewStateless()
 	root.Insert(zeroKeyTest, fourtyKeyTest, nil)
 	var single Point
-	CopyPoint(&single, root.commitment)
+	CopyPoint(&single, root.Commit())
 
 	root.Insert(oneKeyTest, fourtyKeyTest, nil)
-	if root.commitment.Equal(&single) {
+	if root.Commit().Equal(&single) {
 		t.Fatal("second insert didn't update")
 	}
 
@@ -99,7 +100,7 @@ func TestStatelessDelete(t *testing.T) {
 	rootRef.Commit()
 	rootRef.Delete(oneKeyTest, nil)
 
-	if !Equal(rootRef.Commit(), root.commitment) {
+	if !Equal(rootRef.Commit(), root.Commit()) {
 		t.Fatal("error in delete", rootRef.Commit(), root.hash)
 	}
 }
@@ -107,6 +108,7 @@ func TestStatelessDelete(t *testing.T) {
 func TestStatelessInsertLeafIntoRoot(t *testing.T) {
 	root := NewStateless()
 	root.Insert(zeroKeyTest, fourtyKeyTest, nil)
+	root.Commit()
 
 	rootRef := New().(*InternalNode)
 	rootRef.Insert(zeroKeyTest, fourtyKeyTest, nil)
@@ -124,7 +126,7 @@ func TestStatelessInsertLeafIntoRoot(t *testing.T) {
 
 	root.Insert(zeroKeyTest, oneKeyTest, nil)
 
-	if !Equal(rootRef.commitment, root.commitment) {
+	if !Equal(rootRef.commitment, root.Commit()) {
 		t.Fatalf("hashes differ after update %x %x", rootRef.commitment.Bytes(), root.commitment.Bytes())
 	}
 }
@@ -139,7 +141,7 @@ func TestStatelessInsertLeafIntoLeaf(t *testing.T) {
 	rootRef.Insert(oneKeyTest, fourtyKeyTest, nil)
 	hash := rootRef.Commit()
 
-	if !Equal(hash, root.commitment) {
+	if !Equal(hash, root.Commit()) {
 		t.Fatalf("hashes differ after insertion %v %v", hash, root.hash)
 	}
 
@@ -150,7 +152,7 @@ func TestStatelessInsertLeafIntoLeaf(t *testing.T) {
 
 	root.Insert(oneKeyTest, oneKeyTest, nil)
 
-	if !Equal(hash, root.commitment) {
+	if !Equal(hash, root.Commit()) {
 		t.Fatalf("hashes differ after update %v %v", hash, root.hash)
 	}
 }
@@ -165,8 +167,8 @@ func TestStatelessInsertLeafIntoInternal(t *testing.T) {
 	rootRef.Insert(key1, fourtyKeyTest, nil)
 	rootRef.Commit()
 
-	if !Equal(rootRef.commitment, root.commitment) {
-		t.Fatalf("hashes differ after insertion %v %v", rootRef.commitment, root.commitment)
+	if !Equal(rootRef.commitment, root.Commit()) {
+		t.Fatalf("hashes differ after insertion %x %x %s %s", rootRef.commitment.Bytes(), root.commitment.Bytes(), ToDot(rootRef), ToDot(root))
 	}
 }
 
@@ -182,11 +184,11 @@ func TestStatelessCopy(t *testing.T) {
 	root := NewStateless()
 	root.Insert(zeroKeyTest, fourtyKeyTest, nil)
 	rootCopy := root.Copy()
-	if !Equal(rootCopy.Commit(), root.commitment) {
-		t.Fatal("copy produced the wrong hash")
+	if !Equal(rootCopy.Commit(), root.Commit()) {
+		t.Fatalf("copy produced the wrong hash: %x != %x", rootCopy.Commitment().Bytes(), root.commitment.Bytes())
 	}
 	root.Insert(oneKeyTest, fourtyKeyTest, nil)
-	if Equal(rootCopy.Commit(), root.commitment) {
+	if Equal(rootCopy.Commit(), root.Commit()) {
 		t.Fatal("copy did not update the hash")
 	}
 }
@@ -224,6 +226,7 @@ func TestStatelessToDot(t *testing.T) {
 	root.Insert(zeroKeyTest, fourtyKeyTest, nil)
 	root.Insert(oneKeyTest, fourtyKeyTest, nil)
 	root.Insert(key1, fourtyKeyTest, nil)
+	root.Commit()
 	rootRef := New()
 	rootRef.Insert(zeroKeyTest, fourtyKeyTest, nil)
 	rootRef.Insert(oneKeyTest, fourtyKeyTest, nil)

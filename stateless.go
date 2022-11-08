@@ -60,6 +60,10 @@ type StatelessNode struct {
 	// of the current node.
 	hash *Fr
 
+	// cow keeps a copy of the original value of a child's
+	// commitment when writing to it.
+	cow map[byte]*Point
+
 	// Cache the commitment value
 	commitment, c1, c2 *Point
 
@@ -212,6 +216,21 @@ func (n *StatelessNode) updateMultipleLeaves(values [][]byte) {
 	}
 }
 
+func (n *StatelessNode) cowChild(index byte) {
+	if n.children == nil {
+		return // only internal nodes are supported
+	}
+
+	if n.cow == nil {
+		n.cow = make(map[byte]*Point)
+	}
+
+	if n.cow[index] == nil {
+		n.cow[index] = new(Point)
+		CopyPoint(n.cow[index], n.children[index].Commitment())
+	}
+}
+
 func (n *StatelessNode) InsertAtStem(stem []byte, values [][]byte, resolver NodeResolverFn, _ bool) error {
 	nChild := offset2key(stem, n.depth) // index of the child pointed by the next byte in the key
 
@@ -222,14 +241,18 @@ func (n *StatelessNode) InsertAtStem(stem []byte, values [][]byte, resolver Node
 
 	// special case: missing child, check whether there is a child node
 	// to deserialize, and if that is not the case, this is an empty child.
-	cfg, _ := GetConfig()
 	if n.children[nChild] == nil {
 		unresolved := n.unresolved[nChild]
 		if len(unresolved) == 0 {
+			// This is a hack so that n.cowChild can recover a 0
+			// commitment as the 'pre' value. newLeafChildFromMultipleValues
+			// will compute the commitment of the leaf node, and
+			// its 'default' value will be lost. This becomes unnecessary
+			// when/if LeafNode also implements CoW.
+			n.children[nChild] = Empty{}
+
+			n.cowChild(nChild)
 			n.children[nChild] = n.newLeafChildFromMultipleValues(stem, values)
-			var diff Point
-			diff.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[nChild], n.children[nChild].Hash())
-			n.commitment.Add(n.commitment, &diff)
 			return nil
 		}
 
@@ -256,9 +279,7 @@ func (n *StatelessNode) InsertAtStem(stem []byte, values [][]byte, resolver Node
 		n.children[nChild] = node
 	}
 
-	// Save the value of the initial child commitment
-	var pre Fr
-	CopyFr(&pre, n.children[nChild].Hash())
+	n.cowChild(nChild)
 
 	var err error
 	switch child := n.children[nChild].(type) {
@@ -278,31 +299,27 @@ func (n *StatelessNode) InsertAtStem(stem []byte, values [][]byte, resolver Node
 				commitment: Generator(),
 				depth:      child.depth,
 				committer:  n.committer,
+				// manually set the commitment to 0 so that it doesn't
+				// capture that of `child` in case it has already been
+				// calculated. This would cause the resulting child
+				// commitment to be subtracted from itself later on.
+				// TODO Implement cow for LeafNode, this issue will
+				// disappear.
+				cow: map[byte]*Point{nextexisting: Generator()},
 			}
 			child.setDepth(child.depth + 1)
 			n.children[nChild] = newbranch
 			n.count++
 
-			// pre-insertion commitment - it's a bit wasteful since
-			// it is computed once and then updated. TODO see if this
-			// can be optimized by inserting intermediate nodes iteratively.
-			newbranch.commitment.ScalarMul(&cfg.conf.SRSPrecompPoints.SRS[nextexisting], child.Hash())
-
+			// NOTE: No cowChild() for the inserted node, that case
+			// is handled when recursing.
 			err = newbranch.InsertAtStem(stem, values, resolver, false)
 		}
 	default:
-		return errNotSupportedInStateless
-	}
-	if err != nil {
-		return err
+		err = errNotSupportedInStateless
 	}
 
-	// update the commitment
-	var poly [256]Fr
-	poly[nChild].Sub(n.children[nChild].Hash(), &pre)
-	diff := cfg.conf.Commit(poly[:])
-	n.commitment.Add(n.commitment, &diff)
-	return nil
+	return err
 }
 
 func (n *StatelessNode) newLeafChildFromSingleValue(key, value []byte) *LeafNode {
@@ -443,20 +460,25 @@ func (n *StatelessNode) Commitment() *Point {
 }
 
 func (n *StatelessNode) Commit() *Point {
-	if n.commitment == nil {
-		if len(n.values) != 0 {
-
-		} else {
-			var poly [NodeWidth]Fr
-			for idx, child := range n.children {
-				toFr(&poly[idx], child.Commit())
+	if len(n.values) != 0 {
+		// skip this, stateless leaf nodes are currently broken
+	} else {
+		var poly [NodeWidth]Fr
+		empty := 256
+		if len(n.cow) != 0 {
+			for idx, comm := range n.cow {
+				empty--
+				var pre Fr
+				toFr(&pre, comm)
+				toFr(&poly[idx], n.children[idx].Commit())
+				poly[idx].Sub(&poly[idx], &pre)
 			}
-			cfg, _ := GetConfig()
-			n.commitment = cfg.CommitToPoly(poly[:], 256)
+			n.cow = nil
+			n.commitment.Add(n.commitment, n.committer.CommitToPoly(poly[:], empty))
+			return n.commitment
 		}
 	}
-	// TODO go over dirty children and update the
-	// current commitment.
+
 	return n.commitment
 }
 
@@ -738,12 +760,21 @@ func (n *StatelessNode) Copy() VerkleNode {
 	if n.commitment != nil {
 		CopyPoint(ret.commitment, n.commitment)
 	}
+	if n.cow != nil {
+		ret.cow = make(map[byte]*Point)
+		for k, v := range n.cow {
+			ret.cow[k] = new(Point)
+			CopyPoint(ret.cow[k], v)
+		}
+	}
 
 	return ret
 }
 
 func (n *StatelessNode) toDot(parent, path string) string {
 	n.Commit()
+	var hash Fr
+	toFr(&hash, n.Commitment())
 	me := fmt.Sprintf("internal%s", path)
 	var ret string
 	if len(n.values) != 0 {
@@ -754,8 +785,6 @@ func (n *StatelessNode) toDot(parent, path string) string {
 		if n.c2 != nil {
 			c2bytes = n.c2.Bytes()
 		}
-		var hash Fr
-		toFr(&hash, n.commitment)
 		ret = fmt.Sprintf("leaf%s [label=\"L: %x\nC: %x\nC₁: %x\nC₂:%x\"]\n%s -> leaf%s\n", path, n.hash.Bytes(), n.commitment.Bytes(), c1bytes, c2bytes, parent, path)
 		for i, v := range n.values {
 			if v != nil {
@@ -763,8 +792,6 @@ func (n *StatelessNode) toDot(parent, path string) string {
 			}
 		}
 	} else {
-		var hash Fr
-		toFr(&hash, n.Commit())
 		ret = fmt.Sprintf("%s [label=\"I: %x\"]\n", me, hash.BytesLE())
 		if len(parent) > 0 {
 			ret += fmt.Sprintf(" %s -> %s\n", parent, me)
