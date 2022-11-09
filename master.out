@@ -1,0 +1,47 @@
+goos: linux
+goarch: amd64
+pkg: github.com/gballet/go-verkle
+cpu: AMD Ryzen 7 3800XT 8-Core Processor            
+BenchmarkProofCalculation-16     	       1	4624627725 ns/op	2773923840 B/op	 1270628 allocs/op
+BenchmarkProofCalculation-16     	       1	4682111556 ns/op	2771725080 B/op	 1269198 allocs/op
+BenchmarkProofCalculation-16     	       1	4614775986 ns/op	2772902208 B/op	 1269453 allocs/op
+BenchmarkProofCalculation-16     	       1	4657198948 ns/op	2772325488 B/op	 1269592 allocs/op
+BenchmarkProofCalculation-16     	       1	4670726146 ns/op	2772663072 B/op	 1269708 allocs/op
+BenchmarkProofVerification-16    	      45	  26893683 ns/op	  178911 B/op	     827 allocs/op
+BenchmarkProofVerification-16    	      42	  26083681 ns/op	  178759 B/op	     821 allocs/op
+BenchmarkProofVerification-16    	      43	  27057308 ns/op	  178918 B/op	     827 allocs/op
+BenchmarkProofVerification-16    	      42	  26744724 ns/op	  178930 B/op	     827 allocs/op
+BenchmarkProofVerification-16    	      44	  26374463 ns/op	  178900 B/op	     827 allocs/op
+BenchmarkCommitLeaves/insert/leaves/1000-16         	       5	 217656391 ns/op	59809579 B/op	   28888 allocs/op
+BenchmarkCommitLeaves/insert/leaves/1000-16         	       5	 215668936 ns/op	59810004 B/op	   28894 allocs/op
+BenchmarkCommitLeaves/insert/leaves/1000-16         	       5	 214178447 ns/op	59809804 B/op	   28891 allocs/op
+BenchmarkCommitLeaves/insert/leaves/1000-16         	       5	 215425561 ns/op	59809875 B/op	   28892 allocs/op
+BenchmarkCommitLeaves/insert/leaves/1000-16         	       5	 213533952 ns/op	59809897 B/op	   28893 allocs/op
+BenchmarkCommitLeaves/insertOrdered/leaves/1000-16  	       5	 235298728 ns/op	59819691 B/op	   31362 allocs/op
+BenchmarkCommitLeaves/insertOrdered/leaves/1000-16  	       5	 240276152 ns/op	59819704 B/op	   31362 allocs/op
+BenchmarkCommitLeaves/insertOrdered/leaves/1000-16  	       5	 239798238 ns/op	59819316 B/op	   31356 allocs/op
+BenchmarkCommitLeaves/insertOrdered/leaves/1000-16  	       5	 237943103 ns/op	59819297 B/op	   31356 allocs/op
+BenchmarkCommitLeaves/insertOrdered/leaves/1000-16  	       5	 236160021 ns/op	59819456 B/op	   31358 allocs/op
+BenchmarkCommitLeaves/insert/leaves/10000-16        	       1	2456512931 ns/op	579469136 B/op	  283109 allocs/op
+BenchmarkCommitLeaves/insert/leaves/10000-16        	       1	2439114395 ns/op	579468864 B/op	  283104 allocs/op
+BenchmarkCommitLeaves/insert/leaves/10000-16        	       1	2482118116 ns/op	579469712 B/op	  283118 allocs/op
+BenchmarkCommitLeaves/insert/leaves/10000-16        	       1	2464321893 ns/op	579469240 B/op	  283112 allocs/op
+BenchmarkCommitLeaves/insert/leaves/10000-16        	       1	2467887015 ns/op	579467400 B/op	  283084 allocs/op
+BenchmarkCommitLeaves/insertOrdered/leaves/10000-16 	       1	2515679088 ns/op	579839152 B/op	  309409 allocs/op
+BenchmarkCommitLeaves/insertOrdered/leaves/10000-16 	       1	2524151983 ns/op	579837832 B/op	  309389 allocs/op
+BenchmarkCommitLeaves/insertOrdered/leaves/10000-16 	       1	2504350063 ns/op	579839648 B/op	  309418 allocs/op
+BenchmarkCommitLeaves/insertOrdered/leaves/10000-16 	       1	2451000816 ns/op	579839152 B/op	  309409 allocs/op
+BenchmarkCommitLeaves/insertOrdered/leaves/10000-16 	       1	2506292993 ns/op	579838400 B/op	  309399 allocs/op
+BenchmarkCommitFullNode-16                          	      37	  31754348 ns/op	14532788 B/op	    6303 allocs/op
+BenchmarkCommitFullNode-16                          	      38	  32048709 ns/op	14532792 B/op	    6304 allocs/op
+BenchmarkCommitFullNode-16                          	      37	  32171848 ns/op	14532782 B/op	    6303 allocs/op
+BenchmarkCommitFullNode-16                          	      33	  31890193 ns/op	14532713 B/op	    6303 allocs/op
+BenchmarkCommitFullNode-16                          	      36	  32028731 ns/op	14532804 B/op	    6303 allocs/op
+BenchmarkModifyLeaves-16                            	       1	9204770324 ns/op	5498499136 B/op	 2609584 allocs/op
+BenchmarkModifyLeaves-16                            	       1	9336190107 ns/op	5499687536 B/op	 2610616 allocs/op
+BenchmarkModifyLeaves-16                            	       1	9452768426 ns/op	5499293096 B/op	 2610568 allocs/op
+BenchmarkModifyLeaves-16                            	       1	9395543546 ns/op	5499225752 B/op	 2611337 allocs/op
+BenchmarkModifyLeaves-16                            	       1	9335032913 ns/op	5500244616 B/op	 2610337 allocs/op
+PASS
+ok  	github.com/gballet/go-verkle	804.431s
+?   	github.com/gballet/go-verkle/benchs	[no test files]

@@ -30,8 +30,10 @@ import (
 	"github.com/crate-crypto/go-ipa/banderwagon"
 )
 
-type Fr = fr.Element
-type Point = banderwagon.Element
+type (
+	Fr    = fr.Element
+	Point = banderwagon.Element
+)
 
 func CopyFr(dst, src *Fr) {
 	copy(dst[:], src[:])
@@ -45,6 +47,15 @@ func CopyPoint(dst, src *Point) {
 func toFr(fr *Fr, p *Point) {
 	bytes := p.MapToBaseFieldBytes()
 	fr.SetBytesLE(bytes[:])
+}
+
+func toFrMultiple(ps []*Point) []Fr {
+	pss := banderwagon.MultiMapToBaseFieldBytes(ps)
+	frs := make([]Fr, len(ps))
+	for i := range pss {
+		frs[i].SetBytesLE(pss[i][:])
+	}
+	return frs
 }
 
 func FromLEBytes(fr *Fr, data []byte) {

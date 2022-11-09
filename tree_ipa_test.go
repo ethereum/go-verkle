@@ -28,7 +28,9 @@ package verkle
 import (
 	"encoding/hex"
 	"fmt"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/crate-crypto/go-ipa/banderwagon"
 )
@@ -222,6 +224,39 @@ func TestGroupToField(t *testing.T) {
 	if hexStr != "d1e7de2aaea9603d5bc6c208d319596376556ecd8336671ba7670c2139772d14" {
 		t.Fatalf("group to field not working")
 	}
+}
+
+func BenchmarkGroupToField(b *testing.B) {
+	b.Run("single", func(b *testing.B) {
+		point := banderwagon.Generator
+		var v Fr
+		for i := 0; i < b.N; i++ {
+			toFr(&v, &point)
+		}
+	})
+
+	b.Run("multiple", func(b *testing.B) {
+		for i := 1; i <= 256; i *= 2 {
+			b.Run(strconv.Itoa(i), func(b *testing.B) {
+				// Generate `i` ~distinct points
+				points := make([]*Point, i)
+				points[0] = &banderwagon.Generator
+				for k := 1; k < i; k++ {
+					points[k] = &Point{}
+					points[k].Add(points[k-1], &banderwagon.Generator)
+				}
+				var sink []Fr
+				now := time.Now()
+				b.ReportAllocs()
+				b.ResetTimer()
+				for k := 0; k < b.N; k++ {
+					sink = toFrMultiple(points)
+				}
+				b.ReportMetric(float64(time.Since(now).Nanoseconds()/int64(i))/float64(b.N), "ns/value")
+				_ = sink
+			})
+		}
+	})
 }
 
 func TestPaddingInFromLEBytes(t *testing.T) {
