@@ -45,17 +45,12 @@ func CopyPoint(dst, src *Point) {
 }
 
 func toFr(fr *Fr, p *Point) {
-	bytes := p.MapToBaseFieldBytes()
-	fr.SetBytesLE(bytes[:])
+	res := p.MapToScalarField()
+	*fr = res
 }
 
 func toFrMultiple(ps []*Point) []Fr {
-	pss := banderwagon.MultiMapToBaseFieldBytes(ps)
-	frs := make([]Fr, len(ps))
-	for i := range pss {
-		frs[i].SetBytesLE(pss[i][:])
-	}
-	return frs
+	return banderwagon.MultiMapToScalarField(ps)
 }
 
 func FromLEBytes(fr *Fr, data []byte) {
