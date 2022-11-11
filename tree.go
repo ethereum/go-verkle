@@ -243,6 +243,20 @@ func NewLeafNode(stem []byte, values [][]byte) *LeafNode {
 	return leaf
 }
 
+// NewLeafNodeWithNoComms create a leaf node but does compute its
+// commitments. The created node's commitments are intended to be
+// initialized with `SetTrustedBytes` in a deserialization context.
+func NewLeafNodeWithNoComms(stem []byte, values [][]byte) *LeafNode {
+	cfg, _ := GetConfig()
+	return &LeafNode{
+		committer: cfg,
+		// depth will be 0, but the commitment calculation
+		// does not need it, and so it won't be free.
+		values: values,
+		stem:   stem,
+	}
+}
+
 func (n *InternalNode) Children() []VerkleNode {
 	return n.children
 }
@@ -1117,7 +1131,9 @@ func (n *LeafNode) Serialize() ([]byte, error) {
 			}
 		}
 	}
-	return append(append(append([]byte{leafRLPType}, n.stem...), bitlist[:]...), children...), nil
+	c1bytes := n.c1.Bytes()
+	c2bytes := n.c2.Bytes()
+	return append(append(append(append(append([]byte{leafRLPType}, n.stem...), bitlist[:]...), c1bytes[:]...), c2bytes[:]...), children...), nil
 }
 
 func (n *LeafNode) Copy() VerkleNode {
