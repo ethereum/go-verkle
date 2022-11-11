@@ -39,7 +39,7 @@ func CopyFr(dst, src *Fr) {
 
 func CopyPoint(dst, src *Point) {
 	bytes := src.Bytes()
-	dst.SetBytes(bytes[:])
+	dst.SetBytesTrusted(bytes[:])
 }
 
 func toFr(fr *Fr, p *Point) {
