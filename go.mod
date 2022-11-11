@@ -2,9 +2,6 @@ module github.com/gballet/go-verkle
 
 go 1.18
 
-require github.com/crate-crypto/go-ipa v0.0.0-20221110230207-a6614766d44b
+require github.com/crate-crypto/go-ipa v0.0.0-20221111143132-9aa5d42120bc
 
 require golang.org/x/sys v0.0.0-20220919091848-fb04ddd9f9c8 // indirect
-
-// Temp replace to see the results of https://github.com/crate-crypto/go-ipa/pull/30
-replace github.com/crate-crypto/go-ipa => github.com/jsign/go-ipa v0.0.0-20221111020207-a50da66c4f8b
