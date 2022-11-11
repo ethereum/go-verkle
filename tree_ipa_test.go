@@ -245,12 +245,16 @@ func BenchmarkGroupToField(b *testing.B) {
 					points[k] = &Point{}
 					points[k].Add(points[k-1], &banderwagon.Generator)
 				}
-				var sink []Fr
+				sink := make([]Fr, i)
+				ptrs := make([]*Fr, i)
+				for i := range sink {
+					ptrs[i] = &sink[i]
+				}
 				now := time.Now()
 				b.ReportAllocs()
 				b.ResetTimer()
 				for k := 0; k < b.N; k++ {
-					sink = toFrMultiple(points)
+					toFrMultiple(ptrs, points)
 				}
 				b.ReportMetric(float64(time.Since(now).Nanoseconds()/int64(i))/float64(b.N), "ns/value")
 				_ = sink
