@@ -67,7 +67,7 @@ type StatelessNode struct {
 }
 
 func NewStateless() *StatelessNode {
-	cfg, _ := GetConfig()
+	cfg := GetConfig()
 	return &StatelessNode{
 		children:   make(map[byte]VerkleNode),
 		hash:       new(Fr).SetZero(),
@@ -82,7 +82,7 @@ func NewStatelessWithCommitment(point *Point) *StatelessNode {
 		xfr Fr
 	)
 	toFr(&xfr, point)
-	cfg, _ := GetConfig()
+	cfg := GetConfig()
 	return &StatelessNode{
 		children:   make(map[byte]VerkleNode),
 		hash:       &xfr,
@@ -239,7 +239,7 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 
 		// special case: missing child, check whether there is a child node
 		// to deserialize, and if that is not the case, this is an empty child.
-		cfg, _ := GetConfig()
+		cfg := GetConfig()
 		if n.children[nChild] == nil {
 			unresolved := n.unresolved[nChild]
 			if len(unresolved) == 0 {
@@ -372,7 +372,7 @@ func (n *StatelessNode) InsertAtStem(stem []byte, values [][]byte, resolver Node
 
 	// special case: missing child, check whether there is a child node
 	// to deserialize, and if that is not the case, this is an empty child.
-	cfg, _ := GetConfig()
+	cfg := GetConfig()
 	if n.children[nChild] == nil {
 		unresolved := n.unresolved[nChild]
 		if len(unresolved) == 0 {

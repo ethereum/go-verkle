@@ -1194,7 +1194,7 @@ func TestRustBanderwagonBlock48(t *testing.T) {
 	}
 	t.Logf("serialized proof=%x", serialized)
 
-	cfg, _ := GetConfig()
+	cfg := GetConfig()
 	if !VerifyVerkleProof(proof, cis, zis, yis, cfg) {
 		t.Fatal("proof didn't verify")
 	}

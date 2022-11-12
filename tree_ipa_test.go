@@ -45,7 +45,7 @@ func extensionAndSuffixOneKey(key, value []byte, ret *Point) {
 	var (
 		v                               Fr
 		vs                              [2]Fr
-		cfg, _                          = GetConfig()
+		cfg                             = GetConfig()
 		srs                             = cfg.conf.SRSPrecompPoints.SRS
 		stemComm1, stemComm3, stemComm2 Point
 		t1, t2, c1                      Point
@@ -72,7 +72,7 @@ func TestInsertKey0Value0(t *testing.T) {
 		expected  Fr
 		root      = New()
 		expectedP Point
-		cfg, _    = GetConfig()
+		cfg       = GetConfig()
 		srs       = cfg.conf.SRSPrecompPoints.SRS
 	)
 
@@ -98,7 +98,7 @@ func TestInsertKey1Value1(t *testing.T) {
 		v, expected Fr
 		root        = New()
 		expectedP   Point
-		cfg, _      = GetConfig()
+		cfg         = GetConfig()
 		srs         = cfg.conf.SRSPrecompPoints.SRS
 	)
 	key := []byte{
@@ -128,7 +128,7 @@ func TestInsertSameStemTwoLeaves(t *testing.T) {
 		root                            = New()
 		expectedP, c1, c2, t1, t2       Point
 		stemComm1, stemComm3, stemComm2 Point
-		cfg, _                          = GetConfig()
+		cfg                             = GetConfig()
 		srs                             = cfg.conf.SRSPrecompPoints.SRS
 	)
 	key_a := []byte{
@@ -177,7 +177,7 @@ func TestInsertKey1Val1Key2Val2(t *testing.T) {
 		v, v1, v2, expected Fr
 		root                = New()
 		expectedP, t1, t2   Point
-		cfg, _              = GetConfig()
+		cfg                 = GetConfig()
 		srs                 = cfg.conf.SRSPrecompPoints.SRS
 	)
 	key_b, _ := hex.DecodeString("0101010101010101010101010101010101010101010101010101010101010101")

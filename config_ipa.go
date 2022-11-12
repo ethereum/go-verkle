@@ -26,8 +26,7 @@
 package verkle
 
 import (
-	"fmt"
-	"io/ioutil"
+	"os"
 
 	"github.com/crate-crypto/go-ipa/ipa"
 )
@@ -47,27 +46,27 @@ var cfg *Config
 
 const precompFileName = "precomp"
 
-func GetConfig() (*Config, error) {
+func GetConfig() *Config {
 	if cfg == nil {
 		var ipacfg *ipa.IPAConfig
-		if precompSer, err := ioutil.ReadFile(precompFileName); err != nil {
+		if precompSer, err := os.ReadFile(precompFileName); err != nil {
 			ipacfg = ipa.NewIPASettings()
 			serialized, err := ipacfg.SRSPrecompPoints.SerializeSRSPrecomp()
 			if err != nil {
-				return nil, fmt.Errorf("error writing serialized precomputed Lagrange points: %w", err)
-			} else if err = ioutil.WriteFile(precompFileName, serialized, 0555); err != nil {
-				return nil, fmt.Errorf("error saving the precomp: %w", err)
+				panic("error writing serialized precomputed Lagrange points:" + err.Error())
+			} else if err = os.WriteFile(precompFileName, serialized, 0555); err != nil {
+				panic("error saving the precomp: " + err.Error())
 			}
 		} else {
 			srs, err := ipa.DeserializeSRSPrecomp(precompSer)
 			if err != nil {
-				return nil, fmt.Errorf("error deserializing precomputed Lagrange points, regenerating")
+				panic("error deserializing precomputed Lagrange points:" + err.Error())
 			}
 			ipacfg = ipa.NewIPASettingsWithSRSPrecomp(srs)
 		}
 		cfg = &IPAConfig{conf: ipacfg}
 	}
-	return cfg, nil
+	return cfg
 }
 
 var FrZero Fr
