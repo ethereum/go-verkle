@@ -76,10 +76,7 @@ func ParseNode(serialized []byte, depth byte, comm []byte) (VerkleNode, error) {
 }
 
 func deserializeIntoStateless(bitlist []byte, raw []byte, depth byte, comm []byte) (*StatelessNode, error) {
-	tc, err := GetConfig()
-	if err != nil {
-		return nil, err
-	}
+	tc := GetConfig()
 
 	// GetTreeConfig caches computation result, hence
 	// this op has low overhead
@@ -99,10 +96,7 @@ func deserializeIntoStateless(bitlist []byte, raw []byte, depth byte, comm []byt
 }
 
 func CreateInternalNode(bitlist []byte, raw []byte, depth byte, comm []byte) (*InternalNode, error) {
-	tc, err := GetConfig()
-	if err != nil {
-		return nil, err
-	}
+	tc := GetConfig()
 
 	// GetTreeConfig caches computation result, hence
 	// this op has low overhead

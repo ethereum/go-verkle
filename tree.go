@@ -217,13 +217,13 @@ func newInternalNodeNilCommitment(depth byte, cmtr Committer) VerkleNode {
 
 // New creates a new tree root
 func New() VerkleNode {
-	cfg, _ := GetConfig()
+	cfg := GetConfig()
 	return newInternalNode(0, cfg)
 }
 
 // New creates a new leaf node
 func NewLeafNode(stem []byte, values [][]byte) *LeafNode {
-	cfg, _ := GetConfig()
+	cfg := GetConfig()
 	leaf := &LeafNode{
 		committer: cfg,
 		// depth will be 0, but the commitment calculation

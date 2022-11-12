@@ -70,7 +70,7 @@ func MakeVerkleMultiProof(root VerkleNode, keys [][]byte, keyvals map[string][]b
 		vals = append(vals, keyvals[string(k)])
 	}
 
-	cfg, _ := GetConfig()
+	cfg := GetConfig()
 	mpArg := ipa.CreateMultiProof(tr, cfg.conf, pe.Cis, pe.Fis, pe.Zis)
 
 	// It's wheel-reinvention time again 🎉: reimplement a basic
