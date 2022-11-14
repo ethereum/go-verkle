@@ -35,7 +35,7 @@ import (
 func FuzzStatelessVsStateful(f *testing.F) {
 	f.Add([]byte{})
 	f.Fuzz(func(t *testing.T, input []byte) {
-		rootF := New()
+		rootF := New[StatefulChildren]()
 		rootL := NewStateless()
 
 		for i := 0; i < len(input)/64; i++ {

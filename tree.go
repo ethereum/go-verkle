@@ -27,7 +27,6 @@ package verkle
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 
 	"github.com/crate-crypto/go-ipa/banderwagon"
@@ -54,6 +53,29 @@ func (kl keylist) Less(i, j int) bool {
 
 func (kl keylist) Swap(i, j int) {
 	kl[i], kl[j] = kl[j], kl[i]
+}
+
+type Children interface {
+	Child(byte) VerkleNode
+	SetChild(byte, VerkleNode)
+}
+
+type StatefulChildren []VerkleNode
+
+func (sfc StatefulChildren) Child(cindex byte) VerkleNode {
+	return sfc[cindex]
+}
+
+func (sfc StatefulChildren) SetChild(cindex byte, node VerkleNode) {
+	sfc[cindex] = node
+}
+
+func newStateFulChildren() StatefulChildren {
+	children := make([]VerkleNode, NodeWidth)
+	for idx := range children {
+		children[idx] = Empty(struct{}{})
+	}
+	return children
 }
 
 type VerkleNode interface {
@@ -166,9 +188,9 @@ const (
 
 type (
 	// Represents an internal node at any level
-	InternalNode struct {
+	InternalNode[T Children] struct {
 		// List of child nodes of this internal node.
-		children []VerkleNode
+		children T
 
 		// node depth in the tree, in bits
 		depth byte
@@ -193,12 +215,9 @@ type (
 	}
 )
 
-func newInternalNode(depth byte, cmtr Committer) VerkleNode {
-	node := new(InternalNode)
-	node.children = make([]VerkleNode, NodeWidth)
-	for idx := range node.children {
-		node.children[idx] = Empty(struct{}{})
-	}
+func newInternalNode[T Children](depth byte, cmtr Committer) VerkleNode {
+	node := new(InternalNode[StatefulChildren])
+	node.children = newStateFulChildren()
 	node.depth = depth
 	node.committer = cmtr
 	node.commitment = new(Point).Identity()
@@ -206,9 +225,9 @@ func newInternalNode(depth byte, cmtr Committer) VerkleNode {
 }
 
 // New creates a new tree root
-func New() VerkleNode {
+func New[T Children]() VerkleNode {
 	cfg, _ := GetConfig()
-	return newInternalNode(0, cfg)
+	return newInternalNode[T](0, cfg)
 }
 
 // New creates a new leaf node
@@ -243,43 +262,31 @@ func NewLeafNode(stem []byte, values [][]byte) *LeafNode {
 	return leaf
 }
 
-func (n *InternalNode) Children() []VerkleNode {
-	return n.children
-}
-
-func (n *InternalNode) SetChild(i int, c VerkleNode) error {
-	if i >= NodeWidth-1 {
-		return errors.New("child index higher than node width")
-	}
-	n.children[i] = c
-	return nil
-}
-
-func (n *InternalNode) cowChild(index byte) {
+func (n *InternalNode[T]) cowChild(index byte) {
 	if n.cow == nil {
 		n.cow = make(map[byte]*Point)
 	}
 
 	if n.cow[index] == nil {
 		n.cow[index] = new(Point)
-		CopyPoint(n.cow[index], n.children[index].Commitment())
+		CopyPoint(n.cow[index], n.children.Child(index).Commitment())
 	}
 }
 
-func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn) error {
+func (n *InternalNode[T]) Insert(key []byte, value []byte, resolver NodeResolverFn) error {
 	values := make([][]byte, NodeWidth)
 	values[key[31]] = value
 	return n.InsertStem(key[:31], values, resolver)
 }
 
-func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeResolverFn) error {
+func (n *InternalNode[T]) InsertStem(stem []byte, values [][]byte, resolver NodeResolverFn) error {
 	nChild := offset2key(stem, n.depth) // index of the child pointed by the next byte in the key
 	n.cowChild(nChild)
 
-	switch child := n.children[nChild].(type) {
+	switch child := n.children.Child(nChild).(type) {
 	case Empty:
-		n.children[nChild] = NewLeafNode(stem, values)
-		n.children[nChild].setDepth(n.depth + 1)
+		n.children.SetChild(nChild, NewLeafNode(stem, values))
+		n.children.Child(nChild).setDepth(n.depth + 1)
 	case *HashedNode:
 		if resolver == nil {
 			return errInsertIntoHash
@@ -293,7 +300,7 @@ func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeRes
 		if err != nil {
 			return fmt.Errorf("verkle tree: error parsing resolved node %x: %w", stem, err)
 		}
-		n.children[nChild] = resolved
+		n.children.SetChild(nChild, resolved)
 		// recurse to handle the case of a LeafNode child that
 		// splits.
 		return n.InsertStem(stem, values, resolver)
@@ -306,10 +313,10 @@ func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeRes
 		// on the next word in both keys, a recursion into
 		// the moved leaf node can occur.
 		nextWordInExistingKey := offset2key(child.stem, n.depth+1)
-		newBranch := newInternalNode(n.depth+1, n.committer).(*InternalNode)
+		newBranch := newInternalNode[T](n.depth+1, n.committer).(*InternalNode[T])
 		newBranch.cowChild(nextWordInExistingKey)
-		n.children[nChild] = newBranch
-		newBranch.children[nextWordInExistingKey] = child
+		n.children.SetChild(nChild, newBranch)
+		newBranch.children.SetChild(nextWordInExistingKey, child)
 		child.depth += 1
 
 		nextWordInInsertedKey := offset2key(stem, n.depth+1)
@@ -322,8 +329,8 @@ func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeRes
 		leaf := NewLeafNode(stem, values)
 		leaf.setDepth(n.depth + 2)
 		newBranch.cowChild(nextWordInInsertedKey)
-		newBranch.children[nextWordInInsertedKey] = leaf
-	case *InternalNode:
+		newBranch.children.SetChild(nextWordInInsertedKey, leaf)
+	case *InternalNode[T]:
 		return child.InsertStem(stem, values, resolver)
 	default: // StatelessNode
 		return errStatelessAndStatefulMix
@@ -332,7 +339,7 @@ func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeRes
 	return nil
 }
 
-func (n *InternalNode) toHashedNode() *HashedNode {
+func (n *InternalNode[T]) toHashedNode() *HashedNode {
 	var hash Fr
 	if n.commitment == nil {
 		panic("nil commitment")
@@ -340,7 +347,7 @@ func (n *InternalNode) toHashedNode() *HashedNode {
 	toFr(&hash, n.commitment)
 	return &HashedNode{&hash, n.commitment}
 }
-func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn) error {
+func (n *InternalNode[T]) InsertOrdered(key []byte, value []byte, flush NodeFlushFn) error {
 	values := make([][]byte, NodeWidth)
 	values[key[31]] = value
 	return n.InsertStemOrdered(key[:31], values, flush)
@@ -348,18 +355,18 @@ func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn
 
 // InsertStemOrdered does the same thing as InsertOrdered but is meant to insert a pre-build
 // LeafNode at a given stem, instead of individual leaves.
-func (n *InternalNode) InsertStemOrdered(key []byte, values [][]byte, flush NodeFlushFn) error {
+func (n *InternalNode[T]) InsertStemOrdered(key []byte, values [][]byte, flush NodeFlushFn) error {
 	nChild := offset2key(key, n.depth)
 	n.cowChild(nChild)
 
-	switch child := n.children[nChild].(type) {
+	switch child := n.children.Child(nChild).(type) {
 	case Empty:
 		// Insert into a new subtrie, which means that the
 		// subtree directly preceding this new one, can
 		// safely be flushed.
 	searchFirstNonEmptyChild:
 		for i := int(nChild) - 1; i >= 0; i-- {
-			switch child := n.children[i].(type) {
+			switch child := n.children.Child(byte(i)).(type) {
 			case Empty:
 				continue
 			case *LeafNode:
@@ -367,16 +374,16 @@ func (n *InternalNode) InsertStemOrdered(key []byte, values [][]byte, flush Node
 				if flush != nil {
 					flush(child)
 				}
-				n.children[i] = child.ToHashedNode()
+				n.children.SetChild(byte(i), child.ToHashedNode())
 				break searchFirstNonEmptyChild
 			case *HashedNode:
 				break searchFirstNonEmptyChild
-			case *InternalNode:
-				n.children[i].Commit()
+			case *InternalNode[T]:
+				n.children.Child(byte(i)).Commit()
 				if flush != nil {
 					child.Flush(flush)
 				}
-				n.children[i] = child.toHashedNode()
+				n.children.SetChild(byte(i), child.toHashedNode())
 				break searchFirstNonEmptyChild
 			}
 		}
@@ -384,7 +391,7 @@ func (n *InternalNode) InsertStemOrdered(key []byte, values [][]byte, flush Node
 		// NOTE: these allocations are inducing a noticeable slowdown
 		lastNode := NewLeafNode(key[:31], values)
 		lastNode.setDepth(n.depth + 1)
-		n.children[nChild] = lastNode
+		n.children.SetChild(nChild, lastNode)
 
 		// If the node was already created, then there was at least one
 		// child. As a result, inserting this new leaf means there are
@@ -404,9 +411,9 @@ func (n *InternalNode) InsertStemOrdered(key []byte, values [][]byte, flush Node
 			// on the next word in both keys, a recursion into
 			// the moved leaf node can occur.
 			nextWordInExistingKey := offset2key(child.stem, n.depth+1)
-			newBranch := newInternalNode(n.depth+1, n.committer).(*InternalNode)
+			newBranch := newInternalNode[T](n.depth+1, n.committer).(*InternalNode[T])
 			newBranch.cowChild(nextWordInExistingKey)
-			n.children[nChild] = newBranch
+			n.children.SetChild(nChild, newBranch)
 
 			nextWordInInsertedKey := offset2key(key, n.depth+1)
 			if nextWordInInsertedKey != nextWordInExistingKey {
@@ -419,21 +426,21 @@ func (n *InternalNode) InsertStemOrdered(key []byte, values [][]byte, flush Node
 				if flush != nil {
 					flush(child)
 				}
-				newBranch.children[nextWordInExistingKey] = child.ToHashedNode()
+				newBranch.children.SetChild(nextWordInExistingKey, child.ToHashedNode())
 
 				// Next word differs, so this was the last level.
 				// Insert it directly into its final slot.
 				lastNode := NewLeafNode(key[:31], values)
 				lastNode.setDepth(n.depth + 1)
 				newBranch.cowChild(nextWordInInsertedKey)
-				newBranch.children[nextWordInInsertedKey] = lastNode
+				newBranch.children.SetChild(nextWordInInsertedKey, lastNode)
 			} else {
 				// Reinsert the leaf in order to recurse
-				newBranch.children[nextWordInExistingKey] = child
+				newBranch.children.SetChild(nextWordInExistingKey, child)
 				return newBranch.InsertStemOrdered(key, values, flush)
 			}
 		}
-	case *InternalNode: // InternalNode
+	case *InternalNode[T]: // InternalNode
 		return child.InsertStemOrdered(key, values, flush)
 	default: // StatelessNode
 		return errStatelessAndStatefulMix
@@ -441,9 +448,9 @@ func (n *InternalNode) InsertStemOrdered(key []byte, values [][]byte, flush Node
 	return nil
 }
 
-func (n *InternalNode) Delete(key []byte, resolver NodeResolverFn) error {
+func (n *InternalNode[T]) Delete(key []byte, resolver NodeResolverFn) error {
 	nChild := offset2key(key, n.depth)
-	switch child := n.children[nChild].(type) {
+	switch child := n.children.Child(nChild).(type) {
 	case Empty:
 		return errDeleteNonExistent
 	case *HashedNode:
@@ -460,7 +467,7 @@ func (n *InternalNode) Delete(key []byte, resolver NodeResolverFn) error {
 		if err != nil {
 			return err
 		}
-		n.children[nChild] = c
+		n.children.SetChild(nChild, c)
 		return n.Delete(key, resolver)
 	default:
 		n.cowChild(nChild)
@@ -470,16 +477,18 @@ func (n *InternalNode) Delete(key []byte, resolver NodeResolverFn) error {
 
 // Flush hashes the children of an internal node and replaces them
 // with HashedNode. It also sends the current node on the flush channel.
-func (n *InternalNode) Flush(flush NodeFlushFn) {
-	for i, child := range n.children {
-		if c, ok := child.(*InternalNode); ok {
+func (n *InternalNode[T]) Flush(flush NodeFlushFn) {
+	for k := 0; k < NodeWidth; k++ {
+		i := byte(k)
+		child := n.children.Child(i)
+		if c, ok := child.(*InternalNode[T]); ok {
 			c.Commit()
 			c.Flush(flush)
-			n.children[i] = c.toHashedNode()
+			n.children.SetChild(i, c.toHashedNode())
 		} else if c, ok := child.(*LeafNode); ok {
 			c.Commit()
-			flush(n.children[i])
-			n.children[i] = c.ToHashedNode()
+			flush(n.children.Child(i))
+			n.children.SetChild(i, c.ToHashedNode())
 		}
 	}
 	flush(n)
@@ -488,10 +497,13 @@ func (n *InternalNode) Flush(flush NodeFlushFn) {
 // FlushAtDepth goes over all internal nodes of a given depth, and
 // flushes them to disk. Its purpose it to free up space if memory
 // is running scarce.
-func (n *InternalNode) FlushAtDepth(depth uint8, flush NodeFlushFn) {
-	for i, child := range n.children {
+func (n *InternalNode[T]) FlushAtDepth(depth uint8, flush NodeFlushFn) {
+	for k := 0; k < NodeWidth; k++ {
+		i := byte(k)
+		child := n.children.Child(i)
+
 		// Skip non-internal nodes
-		c, ok := child.(*InternalNode)
+		c, ok := child.(*InternalNode[T])
 		if !ok {
 			continue
 		}
@@ -504,14 +516,14 @@ func (n *InternalNode) FlushAtDepth(depth uint8, flush NodeFlushFn) {
 
 		child.Commit()
 		c.Flush(flush)
-		n.children[i] = c.toHashedNode()
+		n.children.SetChild(i, c.toHashedNode())
 	}
 }
 
-func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
+func (n *InternalNode[T]) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 	nChild := offset2key(k, n.depth)
 
-	switch child := n.children[nChild].(type) {
+	switch child := n.children.Child(nChild).(type) {
 	case Empty, nil:
 		// Return nil as a signal that the value isn't
 		// present in the tree. This matches the behavior
@@ -535,7 +547,7 @@ func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		n.children[nChild] = c
+		n.children.SetChild(nChild, c)
 
 		return c.Get(k, getter)
 	default: // InternalNode
@@ -543,20 +555,20 @@ func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 	}
 }
 
-func (n *InternalNode) Hash() *Fr {
+func (n *InternalNode[T]) Hash() *Fr {
 	var hash Fr
 	toFr(&hash, n.Commitment())
 	return &hash
 }
 
-func (n *InternalNode) Commitment() *Point {
+func (n *InternalNode[T]) Commitment() *Point {
 	if n.commitment == nil {
 		panic("nil commitment")
 	}
 	return n.commitment
 }
 
-func (n *InternalNode) Commit() *Point {
+func (n *InternalNode[T]) Commit() *Point {
 	poly := make([]Fr, NodeWidth)
 	emptyChildren := 256
 
@@ -569,7 +581,7 @@ func (n *InternalNode) Commit() *Point {
 			// child in cow, so its child has also been
 			// modified, so call `Commit()` instead of
 			// `Commitment()`
-			toFr(&poly[idx], n.children[idx].Commit())
+			toFr(&poly[idx], n.children.Child(idx).Commit())
 			poly[idx].Sub(&poly[idx], &pre)
 		}
 		n.cow = nil
@@ -612,7 +624,7 @@ func groupKeys(keys keylist, depth byte) []keylist {
 	return groups
 }
 
-func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte) {
+func (n *InternalNode[T]) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte) {
 	var (
 		groups = groupKeys(keys, n.depth)
 		pe     = &ProofElements{
@@ -629,7 +641,10 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 
 	// fill in the polynomial for this node
 	fi := make([]Fr, NodeWidth)
-	for i, child := range n.children {
+	for k := 0; k < NodeWidth; k++ {
+		i := byte(k)
+		child := n.children.Child(i)
+
 		toFr(&fi[i], child.Commitment())
 	}
 
@@ -653,7 +668,7 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 
 		// Special case of a proof of absence: no children
 		// commitment, as the value is 0.
-		if _, ok := n.children[childIdx].(Empty); ok {
+		if _, ok := n.children.Child(childIdx).(Empty); ok {
 			// A question arises here: what if this proof of absence
 			// corresponds to several stems? Should the ext status be
 			// repeated as many times? It would be wasteful, so the
@@ -662,7 +677,7 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 			continue
 		}
 
-		pec, es, other := n.children[childIdx].GetProofItems(group)
+		pec, es, other := n.children.Child(childIdx).GetProofItems(group)
 		pe.Merge(pec)
 		poass = append(poass, other...)
 		esses = append(esses, es...)
@@ -671,12 +686,15 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 	return pe, esses, poass
 }
 
-func (n *InternalNode) Serialize() ([]byte, error) {
+func (n *InternalNode[T]) Serialize() ([]byte, error) {
 	var bitlist [32]byte
 	commitments := make([]*Point, 0, NodeWidth)
-	for i, c := range n.children {
+	for k := 0; k < NodeWidth; k++ {
+		i := byte(k)
+		c := n.children.Child(i)
+
 		if _, ok := c.(Empty); !ok {
-			setBit(bitlist[:], i)
+			setBit(bitlist[:], k)
 			commitments = append(commitments, c.Commitment())
 		}
 	}
@@ -687,16 +705,14 @@ func (n *InternalNode) Serialize() ([]byte, error) {
 	return append(append([]byte{internalRLPType}, bitlist[:]...), children...), nil
 }
 
-func (n *InternalNode) Copy() VerkleNode {
-	ret := &InternalNode{
-		children:   make([]VerkleNode, len(n.children)),
-		commitment: new(Point),
-		depth:      n.depth,
-		committer:  n.committer,
-	}
+func (n *InternalNode[T]) Copy() VerkleNode {
+	ret := newInternalNode[T](n.depth, n.committer).(*InternalNode[T])
 
-	for i, child := range n.children {
-		ret.children[i] = child.Copy()
+	for k := 0; k < NodeWidth; k++ {
+		i := byte(k)
+		child := n.children.Child(i)
+
+		ret.children.SetChild(i, child.Copy())
 	}
 
 	if n.commitment != nil {
@@ -714,7 +730,7 @@ func (n *InternalNode) Copy() VerkleNode {
 	return ret
 }
 
-func (n *InternalNode) toDot(parent, path string) string {
+func (n *InternalNode[T]) toDot(parent, path string) string {
 	me := fmt.Sprintf("internal%s", path)
 	var hash Fr
 	toFr(&hash, n.commitment)
@@ -723,27 +739,30 @@ func (n *InternalNode) toDot(parent, path string) string {
 		ret = fmt.Sprintf("%s %s -> %s\n", ret, parent, me)
 	}
 
-	for i, child := range n.children {
+	for k := 0; k < NodeWidth; k++ {
+		i := byte(k)
+		child := n.children.Child(i)
+
 		ret = fmt.Sprintf("%s%s", ret, child.toDot(me, fmt.Sprintf("%s%02x", path, i)))
 	}
 
 	return ret
 }
 
-func (n *InternalNode) setDepth(d byte) {
+func (n *InternalNode[T]) setDepth(d byte) {
 	n.depth = d
 }
 
 // MergeTrees takes a series of subtrees that got filled following
 // a command-and-conquer method, and merges them into a single tree.
-func MergeTrees(subroots []*InternalNode) VerkleNode {
-	root := New().(*InternalNode)
+func MergeTrees[T Children](subroots []*InternalNode[T]) VerkleNode {
+	root := New[T]().(*InternalNode[T])
 	for _, subroot := range subroots {
 		for i := 0; i < 256; i++ {
-			if _, ok := subroot.children[i].(Empty); ok {
+			if _, ok := subroot.children.Child(byte(i)).(Empty); ok {
 				continue
 			}
-			root.children[i] = subroot.children[i]
+			root.children.SetChild(byte(i), subroot.children.Child(byte(i)))
 		}
 	}
 

@@ -71,7 +71,7 @@ func TestStatelessChildren(t *testing.T) {
 		t.Fatal("error inserting stateless node")
 	}
 
-	rootRef := New()
+	rootRef := New[StatefulChildren]()
 	rootRef.Insert(zeroKeyTest, fourtyKeyTest, nil)
 	rootRef.Insert(oneKeyTest, fourtyKeyTest, nil)
 	rootRef.Insert(c2key, fourtyKeyTest, nil)
@@ -94,7 +94,7 @@ func TestStatelessDelete(t *testing.T) {
 
 	root.Delete(oneKeyTest, nil)
 
-	rootRef := New()
+	rootRef := New[StatefulChildren]()
 	rootRef.Insert(zeroKeyTest, fourtyKeyTest, nil)
 	rootRef.Insert(oneKeyTest, fourtyKeyTest, nil)
 	rootRef.Commit()
@@ -110,7 +110,7 @@ func TestStatelessInsertLeafIntoRoot(t *testing.T) {
 	root.Insert(zeroKeyTest, fourtyKeyTest, nil)
 	root.Commit()
 
-	rootRef := New().(*InternalNode)
+	rootRef := New[StatefulChildren]().(*InternalNode[StatefulChildren])
 	rootRef.Insert(zeroKeyTest, fourtyKeyTest, nil)
 	rootRef.Commit()
 
@@ -120,7 +120,7 @@ func TestStatelessInsertLeafIntoRoot(t *testing.T) {
 
 	// Overwrite one leaf and check that the update
 	// is what is expected.
-	rootRef = New().(*InternalNode)
+	rootRef = New[StatefulChildren]().(*InternalNode[StatefulChildren])
 	rootRef.Insert(zeroKeyTest, oneKeyTest, nil)
 	rootRef.Commit()
 
@@ -136,7 +136,7 @@ func TestStatelessInsertLeafIntoLeaf(t *testing.T) {
 	root.Insert(zeroKeyTest, fourtyKeyTest, nil)
 	root.Insert(oneKeyTest, fourtyKeyTest, nil)
 
-	rootRef := New()
+	rootRef := New[StatefulChildren]()
 	rootRef.Insert(zeroKeyTest, fourtyKeyTest, nil)
 	rootRef.Insert(oneKeyTest, fourtyKeyTest, nil)
 	hash := rootRef.Commit()
@@ -145,7 +145,7 @@ func TestStatelessInsertLeafIntoLeaf(t *testing.T) {
 		t.Fatalf("hashes differ after insertion %v %v", hash, root.hash)
 	}
 
-	rootRef = New()
+	rootRef = New[StatefulChildren]()
 	rootRef.Insert(zeroKeyTest, fourtyKeyTest, nil)
 	rootRef.Insert(oneKeyTest, oneKeyTest, nil)
 	hash = rootRef.Commit()
@@ -162,7 +162,7 @@ func TestStatelessInsertLeafIntoInternal(t *testing.T) {
 	root := NewStateless()
 	root.Insert(zeroKeyTest, fourtyKeyTest, nil)
 	root.Insert(key1, fourtyKeyTest, nil)
-	rootRef := New().(*InternalNode)
+	rootRef := New[StatefulChildren]().(*InternalNode[StatefulChildren])
 	rootRef.Insert(zeroKeyTest, fourtyKeyTest, nil)
 	rootRef.Insert(key1, fourtyKeyTest, nil)
 	rootRef.Commit()
@@ -227,7 +227,7 @@ func TestStatelessToDot(t *testing.T) {
 	root.Insert(oneKeyTest, fourtyKeyTest, nil)
 	root.Insert(key1, fourtyKeyTest, nil)
 	root.Commit()
-	rootRef := New()
+	rootRef := New[StatefulChildren]()
 	rootRef.Insert(zeroKeyTest, fourtyKeyTest, nil)
 	rootRef.Insert(oneKeyTest, fourtyKeyTest, nil)
 	rootRef.Insert(key1, fourtyKeyTest, nil)
@@ -259,7 +259,7 @@ func TestStatelessToDot(t *testing.T) {
 }
 
 func TestStatelessDeserialize(t *testing.T) {
-	root := New()
+	root := New[StatefulChildren]()
 	for _, k := range [][]byte{zeroKeyTest, oneKeyTest, fourtyKeyTest, ffx32KeyTest} {
 		root.Insert(k, fourtyKeyTest, nil)
 	}
@@ -290,17 +290,17 @@ func TestStatelessDeserialize(t *testing.T) {
 		t.Fatalf("differing root commitments %x != %x", droot.Commitment().Bytes(), root.Commitment().Bytes())
 	}
 
-	if !Equal(droot.(*StatelessNode).children[0].(*StatelessNode).commitment, root.(*InternalNode).children[0].Commit()) {
+	if !Equal(droot.(*StatelessNode).children[0].(*StatelessNode).commitment, root.(*InternalNode[StatefulChildren]).children[0].Commit()) {
 		t.Fatal("differing commitment for child #0")
 	}
 
-	if !Equal(droot.(*StatelessNode).children[64].Commit(), root.(*InternalNode).children[64].Commit()) {
+	if !Equal(droot.(*StatelessNode).children[64].Commit(), root.(*InternalNode[StatefulChildren]).children[64].Commit()) {
 		t.Fatal("differing commitment for child #64")
 	}
 }
 
 func TestStatelessDeserializeMissginChildNode(t *testing.T) {
-	root := New()
+	root := New[StatefulChildren]()
 	for _, k := range [][]byte{zeroKeyTest, oneKeyTest, ffx32KeyTest} {
 		root.Insert(k, fourtyKeyTest, nil)
 	}
@@ -330,7 +330,7 @@ func TestStatelessDeserializeMissginChildNode(t *testing.T) {
 		t.Fatal("differing root commitments")
 	}
 
-	if !Equal(droot.(*StatelessNode).children[0].Commit(), root.(*InternalNode).children[0].Commit()) {
+	if !Equal(droot.(*StatelessNode).children[0].Commit(), root.(*InternalNode[StatefulChildren]).children[0].Commit()) {
 		t.Fatal("differing commitment for child #0")
 	}
 
@@ -340,7 +340,7 @@ func TestStatelessDeserializeMissginChildNode(t *testing.T) {
 }
 
 func TestStatelessDeserializeDepth2(t *testing.T) {
-	root := New()
+	root := New[StatefulChildren]()
 	key1, _ := hex.DecodeString("0000010000000000000000000000000000000000000000000000000000000000")
 	for _, k := range [][]byte{zeroKeyTest, key1} {
 		root.Insert(k, fourtyKeyTest, nil)
@@ -371,7 +371,7 @@ func TestStatelessDeserializeDepth2(t *testing.T) {
 		t.Fatal("differing root commitments")
 	}
 
-	if !Equal(droot.(*StatelessNode).children[0].Commit(), root.(*InternalNode).children[0].Commit()) {
+	if !Equal(droot.(*StatelessNode).children[0].Commit(), root.(*InternalNode[StatefulChildren]).children[0].Commit()) {
 		t.Fatal("differing commitment for child #0")
 	}
 }
@@ -380,7 +380,7 @@ func TestStatelessGetProofItems(t *testing.T) {
 	insertedKeys := [][]byte{zeroKeyTest, oneKeyTest, ffx32KeyTest}
 	provenKeys := [][]byte{zeroKeyTest, fourtyKeyTest}
 
-	root := New()
+	root := New[StatefulChildren]()
 	for _, k := range insertedKeys {
 		root.Insert(k, fourtyKeyTest, nil)
 	}
@@ -473,10 +473,10 @@ func TestStatelessInsertIntoHash(t *testing.T) {
 // being inserted into, during leaf insertion.
 func TestStatelessInsertIntoSerialized(t *testing.T) {
 	flushed := map[string][]byte{}
-	rootF := New()
+	rootF := New[StatefulChildren]()
 	rootF.Insert(fourtyKeyTest, ffx32KeyTest, nil)
 	rootc := rootF.Commit().Bytes()
-	rootF.(*InternalNode).Flush(func(vn VerkleNode) {
+	rootF.(*InternalNode[StatefulChildren]).Flush(func(vn VerkleNode) {
 		ser, err := vn.Serialize()
 		if err != nil {
 			panic(err)
@@ -542,10 +542,10 @@ func TestStatelessInsertAtStem(t *testing.T) {
 
 func TestStatelessInsertIntoLeaf(t *testing.T) {
 	flushed := map[string][]byte{}
-	rootF := New()
+	rootF := New[StatefulChildren]()
 	rootF.Insert(zeroKeyTest, ffx32KeyTest, nil)
 	rootc := rootF.Commit().Bytes()
-	rootF.(*InternalNode).Flush(func(vn VerkleNode) {
+	rootF.(*InternalNode[StatefulChildren]).Flush(func(vn VerkleNode) {
 		ser, err := vn.Serialize()
 		if err != nil {
 			panic(err)
@@ -565,10 +565,10 @@ func TestStatelessInsertIntoLeaf(t *testing.T) {
 
 func TestStatelessInsertAtStemIntoLeaf(t *testing.T) {
 	flushed := map[string][]byte{}
-	rootF := New()
+	rootF := New[StatefulChildren]()
 	rootF.Insert(zeroKeyTest, ffx32KeyTest, nil)
 	rootc := rootF.Commit().Bytes()
-	rootF.(*InternalNode).Flush(func(vn VerkleNode) {
+	rootF.(*InternalNode[StatefulChildren]).Flush(func(vn VerkleNode) {
 		ser, err := vn.Serialize()
 		if err != nil {
 			panic(err)
@@ -620,7 +620,7 @@ func TestStatelessInsertAtStemIntoLeaf(t *testing.T) {
 }
 
 func TestSerialization(t *testing.T) {
-	rootf := New()
+	rootf := New[StatefulChildren]()
 	roots := NewStateless()
 
 	rootf.Insert(zeroKeyTest, ffx32KeyTest, nil)

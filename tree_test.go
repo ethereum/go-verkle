@@ -50,15 +50,15 @@ var (
 )
 
 func TestInsertIntoRoot(t *testing.T) {
-	root := New()
+	root := New[StatefulChildren]()
 	err := root.Insert(zeroKeyTest, testValue, nil)
 	if err != nil {
 		t.Fatalf("error inserting: %v", err)
 	}
 
-	leaf, ok := root.(*InternalNode).children[0].(*LeafNode)
+	leaf, ok := root.(*InternalNode[StatefulChildren]).children[0].(*LeafNode)
 	if !ok {
-		t.Fatalf("invalid leaf node type %v", root.(*InternalNode).children[0])
+		t.Fatalf("invalid leaf node type %v", root.(*InternalNode[StatefulChildren]).children[0])
 	}
 
 	if !bytes.Equal(leaf.values[zeroKeyTest[31]], testValue) {
@@ -67,18 +67,18 @@ func TestInsertIntoRoot(t *testing.T) {
 }
 
 func TestInsertTwoLeaves(t *testing.T) {
-	root := New()
+	root := New[StatefulChildren]()
 	root.Insert(zeroKeyTest, testValue, nil)
 	root.Insert(ffx32KeyTest, testValue, nil)
 
-	leaf0, ok := root.(*InternalNode).children[0].(*LeafNode)
+	leaf0, ok := root.(*InternalNode[StatefulChildren]).children[0].(*LeafNode)
 	if !ok {
-		t.Fatalf("invalid leaf node type %v", root.(*InternalNode).children[0])
+		t.Fatalf("invalid leaf node type %v", root.(*InternalNode[StatefulChildren]).children[0])
 	}
 
-	leaff, ok := root.(*InternalNode).children[255].(*LeafNode)
+	leaff, ok := root.(*InternalNode[StatefulChildren]).children[255].(*LeafNode)
 	if !ok {
-		t.Fatalf("invalid leaf node type %v", root.(*InternalNode).children[255])
+		t.Fatalf("invalid leaf node type %v", root.(*InternalNode[StatefulChildren]).children[255])
 	}
 
 	if !bytes.Equal(leaf0.values[zeroKeyTest[31]], testValue) {
@@ -91,13 +91,13 @@ func TestInsertTwoLeaves(t *testing.T) {
 }
 
 func TestInsertTwoLeavesLastLevel(t *testing.T) {
-	root := New()
+	root := New[StatefulChildren]()
 	root.Insert(zeroKeyTest, testValue, nil)
 	root.Insert(oneKeyTest, testValue, nil)
 
-	leaf, ok := root.(*InternalNode).children[0].(*LeafNode)
+	leaf, ok := root.(*InternalNode[StatefulChildren]).children[0].(*LeafNode)
 	if !ok {
-		t.Fatalf("invalid leaf node type %v", root.(*InternalNode).children[0])
+		t.Fatalf("invalid leaf node type %v", root.(*InternalNode[StatefulChildren]).children[0])
 	}
 
 	if !bytes.Equal(leaf.values[1], testValue) {
@@ -110,7 +110,7 @@ func TestInsertTwoLeavesLastLevel(t *testing.T) {
 }
 
 func TestGetTwoLeaves(t *testing.T) {
-	root := New()
+	root := New[StatefulChildren]()
 	root.Insert(zeroKeyTest, testValue, nil)
 	root.Insert(ffx32KeyTest, testValue, nil)
 
@@ -142,18 +142,18 @@ func TestComputeRootCommitmentOnlineThreeLeavesFlush(t *testing.T) {
 		flushCh <- node
 	}
 	go func() {
-		root := New()
+		root := New[StatefulChildren]()
 		root.InsertOrdered(zeroKeyTest, testValue, flush)
 		root.InsertOrdered(fourtyKeyTest, testValue, flush)
 		root.InsertOrdered(ffx32KeyTest, testValue, flush)
-		root.(*InternalNode).Flush(flush)
+		root.(*InternalNode[StatefulChildren]).Flush(flush)
 		close(flushCh)
 	}()
 
 	count := 0
 	for n := range flushCh {
 		_, isLeaf := n.(*LeafNode)
-		_, isInternal := n.(*InternalNode)
+		_, isInternal := n.(*InternalNode[StatefulChildren])
 		if !isLeaf && !isInternal {
 			t.Fatal("invalid node type received, expected leaf")
 		}
@@ -182,14 +182,14 @@ func TestInsertVsOrdered(t *testing.T) {
 	copy(sortedKeys, keys)
 	sort.Slice(sortedKeys, func(i, j int) bool { return bytes.Compare(sortedKeys[i], sortedKeys[j]) < 0 })
 
-	root1 := New()
+	root1 := New[StatefulChildren]()
 	for _, k := range keys {
 		err := root1.Insert(k, fourtyKeyTest, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
-	root2 := New()
+	root2 := New[StatefulChildren]()
 	for _, k := range sortedKeys {
 		err := root2.InsertOrdered(k, fourtyKeyTest, nil)
 		if err != nil {
@@ -214,11 +214,11 @@ func TestFlush1kLeaves(t *testing.T) {
 		flushCh <- node
 	}
 	go func() {
-		root := New()
+		root := New[StatefulChildren]()
 		for _, k := range keys {
 			root.InsertOrdered(k, fourtyKeyTest, flush)
 		}
-		root.(*InternalNode).Flush(flush)
+		root.(*InternalNode[StatefulChildren]).Flush(flush)
 		close(flushCh)
 	}()
 
@@ -226,7 +226,7 @@ func TestFlush1kLeaves(t *testing.T) {
 	leaves := 0
 	for n := range flushCh {
 		_, isLeaf := n.(*LeafNode)
-		_, isInternal := n.(*InternalNode)
+		_, isInternal := n.(*InternalNode[StatefulChildren])
 		if !isLeaf && !isInternal {
 			t.Fatal("invalid node type received, expected leaf")
 		}
@@ -245,7 +245,7 @@ func TestCopy(t *testing.T) {
 	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
 	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
 	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
-	tree := New()
+	tree := New[StatefulChildren]()
 	tree.Insert(key1, fourtyKeyTest, nil)
 	tree.Insert(key2, fourtyKeyTest, nil)
 	tree.Commit()
@@ -270,27 +270,27 @@ func TestCachedCommitment(t *testing.T) {
 	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
 	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
 	key4, _ := hex.DecodeString("0407000000000000000000000000000000000000000000000000000000000000")
-	tree := New()
+	tree := New[StatefulChildren]()
 	tree.Insert(key1, fourtyKeyTest, nil)
 	tree.Insert(key2, fourtyKeyTest, nil)
 	tree.Insert(key3, fourtyKeyTest, nil)
 	oldRoot := tree.Commit().Bytes()
-	oldInternal := tree.(*InternalNode).children[4].(*LeafNode).commitment.Bytes()
+	oldInternal := tree.(*InternalNode[StatefulChildren]).children[4].(*LeafNode).commitment.Bytes()
 
-	if tree.(*InternalNode).commitment == nil {
+	if tree.(*InternalNode[StatefulChildren]).commitment == nil {
 		t.Error("root has not cached commitment")
 	}
 
 	tree.Insert(key4, fourtyKeyTest, nil)
 	tree.Commit()
 
-	if tree.(*InternalNode).Commitment().Bytes() == oldRoot {
+	if tree.(*InternalNode[StatefulChildren]).Commitment().Bytes() == oldRoot {
 		t.Error("root has stale commitment")
 	}
-	if tree.(*InternalNode).children[4].(*InternalNode).commitment.Bytes() == oldInternal {
+	if tree.(*InternalNode[StatefulChildren]).children[4].(*InternalNode[StatefulChildren]).commitment.Bytes() == oldInternal {
 		t.Error("internal node has stale commitment")
 	}
-	if tree.(*InternalNode).children[1].(*InternalNode).commitment == nil {
+	if tree.(*InternalNode[StatefulChildren]).children[1].(*InternalNode[StatefulChildren]).commitment == nil {
 		t.Error("internal node has mistakenly cleared cached commitment")
 	}
 }
@@ -299,7 +299,7 @@ func TestDelLeaf(t *testing.T) {
 	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
 	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
 	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
-	tree := New()
+	tree := New[StatefulChildren]()
 	tree.Insert(key1, fourtyKeyTest, nil)
 	tree.Insert(key2, fourtyKeyTest, nil)
 	var init Point
@@ -331,7 +331,7 @@ func TestDeleteNonExistent(t *testing.T) {
 	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
 	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
 	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
-	tree := New()
+	tree := New[StatefulChildren]()
 	tree.Insert(key1, fourtyKeyTest, nil)
 	tree.Insert(key2, fourtyKeyTest, nil)
 	if err := tree.Delete(key3, nil); err != errDeleteNonExistent {
@@ -344,7 +344,7 @@ func TestDeletePrune(t *testing.T) {
 	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
 	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
 	key4, _ := hex.DecodeString("0407000000000000000000000000000000000000000000000000000000000000")
-	tree := New()
+	tree := New[StatefulChildren]()
 	tree.Insert(key1, fourtyKeyTest, nil)
 	tree.Insert(key2, fourtyKeyTest, nil)
 
@@ -390,7 +390,7 @@ func TestDeleteHash(t *testing.T) {
 	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
 	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
 	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
-	tree := New()
+	tree := New[StatefulChildren]()
 	tree.Insert(key1, fourtyKeyTest, nil)
 	tree.InsertOrdered(key2, fourtyKeyTest, nil)
 	tree.InsertOrdered(key3, fourtyKeyTest, nil)
@@ -404,7 +404,7 @@ func TestDeleteUnequalPath(t *testing.T) {
 	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
 	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
 	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
-	tree := New()
+	tree := New[StatefulChildren]()
 	tree.Insert(key1, fourtyKeyTest, nil)
 	tree.Insert(key3, fourtyKeyTest, nil)
 	tree.Commit()
@@ -417,7 +417,7 @@ func TestDeleteResolve(t *testing.T) {
 	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
 	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
 	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
-	tree := New()
+	tree := New[StatefulChildren]()
 	var savedNodes []VerkleNode
 	saveNode := func(node VerkleNode) {
 		savedNodes = append(savedNodes, node)
@@ -448,7 +448,7 @@ func TestDeleteResolve(t *testing.T) {
 }
 
 func TestConcurrentTrees(t *testing.T) {
-	tree := New()
+	tree := New[StatefulChildren]()
 	err := tree.Insert(zeroKeyTest, fourtyKeyTest, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -458,7 +458,7 @@ func TestConcurrentTrees(t *testing.T) {
 	threads := 2
 	ch := make(chan *Point)
 	builder := func() {
-		tree := New()
+		tree := New[StatefulChildren]()
 		tree.Insert(zeroKeyTest, fourtyKeyTest, nil)
 		ch <- tree.Commit()
 	}
@@ -493,7 +493,7 @@ func BenchmarkCommitFullNode(b *testing.B) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		root := New()
+		root := New[StatefulChildren]()
 		for _, k := range keys {
 			if err := root.Insert(k, fourtyKeyTest, nil); err != nil {
 				b.Fatal(err)
@@ -531,7 +531,7 @@ func benchmarkCommitNLeaves(b *testing.B, n int) {
 		b.ReportAllocs()
 
 		for i := 0; i < b.N; i++ {
-			root := New()
+			root := New[StatefulChildren]()
 			for _, el := range kvs {
 				if err := root.Insert(el.k, el.v, nil); err != nil {
 					b.Error(err)
@@ -546,7 +546,7 @@ func benchmarkCommitNLeaves(b *testing.B, n int) {
 		b.ReportAllocs()
 
 		for i := 0; i < b.N; i++ {
-			root := New()
+			root := New[StatefulChildren]()
 			for _, el := range sortedKVs {
 				if err := root.InsertOrdered(el.k, el.v, nil); err != nil {
 					b.Fatal(err)
@@ -564,7 +564,7 @@ func BenchmarkModifyLeaves(b *testing.B) {
 	toEdit := 10000
 	val := []byte{0}
 	keys := make([][]byte, n)
-	root := New()
+	root := New[StatefulChildren]()
 	for i := 0; i < n; i++ {
 		key := make([]byte, 32)
 		rand.Read(key) // skipcq: GSC-G404
@@ -607,11 +607,11 @@ func randomKeysSorted(n int) [][]byte {
 }
 
 func TestNodeSerde(t *testing.T) {
-	tree := New()
+	tree := New[StatefulChildren]()
 	tree.Insert(zeroKeyTest, testValue, nil)
 	tree.Insert(fourtyKeyTest, testValue, nil)
 	origComm := tree.Commit().Bytes()
-	root := tree.(*InternalNode)
+	root := tree.(*InternalNode[StatefulChildren])
 
 	// Serialize all the nodes
 	leaf0 := (root.children[0]).(*LeafNode)
@@ -665,7 +665,7 @@ func TestNodeSerde(t *testing.T) {
 	}
 }
 
-func isInternalEqual(a, b *InternalNode) bool {
+func isInternalEqual(a, b *InternalNode[StatefulChildren]) bool {
 	for i := 0; i < NodeWidth; i++ {
 		c := a.children[i]
 		switch c.(type) {
@@ -689,12 +689,12 @@ func isInternalEqual(a, b *InternalNode) bool {
 			if !isLeafEqual(c.(*LeafNode), ln) {
 				return false
 			}
-		case *InternalNode:
-			in, ok := b.children[i].(*InternalNode)
+		case *InternalNode[StatefulChildren]:
+			in, ok := b.children[i].(*InternalNode[StatefulChildren])
 			if !ok {
 				return false
 			}
-			if !isInternalEqual(c.(*InternalNode), in) {
+			if !isInternalEqual(c.(*InternalNode[StatefulChildren]), in) {
 				return false
 			}
 		}
@@ -736,7 +736,7 @@ func TestGetResolveFromHash(t *testing.T) {
 		}
 		serialized = append(serialized, s...)
 	}
-	root := New()
+	root := New[StatefulChildren]()
 	root.InsertOrdered(zeroKeyTest, zeroKeyTest, flush)
 	root.InsertOrdered(fourtyKeyTest, zeroKeyTest, flush)
 	err := root.InsertOrdered(oneKeyTest, zeroKeyTest, flush)
@@ -780,7 +780,7 @@ func TestGetKey(t *testing.T) {
 }
 
 func TestInsertIntoHashedNode(t *testing.T) {
-	root := New()
+	root := New[StatefulChildren]()
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
 	root.InsertOrdered(fourtyKeyTest, zeroKeyTest, nil)
 
@@ -822,7 +822,7 @@ func TestInsertIntoHashedNode(t *testing.T) {
 }
 
 func TestToDot(*testing.T) {
-	root := New()
+	root := New[StatefulChildren]()
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
 	root.InsertOrdered(fourtyKeyTest, zeroKeyTest, nil)
 	fourtytwoKeyTest, _ := hex.DecodeString("4020000000000000000000000000000000000000000000000000000000000000")
@@ -832,7 +832,7 @@ func TestToDot(*testing.T) {
 }
 
 func TestEmptyCommitment(t *testing.T) {
-	root := New()
+	root := New[StatefulChildren]()
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
 	root.Commit()
 	pe, _, _ := root.GetProofItems(keylist{ffx32KeyTest})
@@ -840,8 +840,8 @@ func TestEmptyCommitment(t *testing.T) {
 		t.Fatalf("invalid parameter list length")
 	}
 
-	if !pe.Cis[0].Equal(root.(*InternalNode).commitment) {
-		t.Fatalf("invalid commitment %x %x", pe.Cis[0], root.(*InternalNode).commitment)
+	if !pe.Cis[0].Equal(root.(*InternalNode[StatefulChildren]).commitment) {
+		t.Fatalf("invalid commitment %x %x", pe.Cis[0], root.(*InternalNode[StatefulChildren]).commitment)
 	}
 
 	zero := new(Fr)
@@ -878,7 +878,7 @@ func TestLeafToCommsLessThan16(*testing.T) {
 
 func TestGetProofItemsNoPoaIfStemPresent(t *testing.T) {
 
-	root := New()
+	root := New[StatefulChildren]()
 	root.Insert(ffx32KeyTest, zeroKeyTest, nil)
 
 	// insert two keys that differ from the inserted stem
@@ -915,7 +915,7 @@ var (
 )
 
 func TestWithRustCompatibility(t *testing.T) {
-	root := New()
+	root := New[StatefulChildren]()
 	for i, key := range testAccountKeys {
 		err := root.Insert(key, testAccountValues[i], nil)
 		if err != nil {
@@ -930,14 +930,14 @@ func TestWithRustCompatibility(t *testing.T) {
 }
 
 func TestInsertStem(t *testing.T) {
-	root1 := New()
-	root2 := New()
+	root1 := New[StatefulChildren]()
+	root2 := New[StatefulChildren]()
 
 	values := make([][]byte, 256)
 	values[5] = zeroKeyTest
 	values[192] = fourtyKeyTest
 
-	root1.(*InternalNode).InsertStem(fourtyKeyTest[:31], values, nil)
+	root1.(*InternalNode[StatefulChildren]).InsertStem(fourtyKeyTest[:31], values, nil)
 	r1c := root1.Commit()
 
 	var key5, key192 [32]byte
@@ -958,9 +958,9 @@ func TestInsertResolveSplitLeaf(t *testing.T) {
 	var leaf *LeafNode
 
 	// Insert a unique leaf and flush it
-	root := New()
+	root := New[StatefulChildren]()
 	root.Insert(zeroKeyTest, ffx32KeyTest, nil)
-	root.(*InternalNode).Flush(func(node VerkleNode) {
+	root.(*InternalNode[StatefulChildren]).Flush(func(node VerkleNode) {
 		l, ok := node.(*LeafNode)
 		if !ok {
 			return
@@ -973,7 +973,7 @@ func TestInsertResolveSplitLeaf(t *testing.T) {
 	})
 
 	// check that the leafnode is now a hashed node
-	if _, ok := root.(*InternalNode).children[0].(*HashedNode); !ok {
+	if _, ok := root.(*InternalNode[StatefulChildren]).children[0].(*HashedNode); !ok {
 		t.Fatal("flush didn't produce a hashed node")
 	}
 
@@ -994,10 +994,10 @@ func TestInsertResolveSplitLeaf(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, ok := root.(*InternalNode).children[0].(*InternalNode); !ok {
+	if _, ok := root.(*InternalNode[StatefulChildren]).children[0].(*InternalNode[StatefulChildren]); !ok {
 		t.Fatal("resolution didn't produce and intermediate, intermediate node")
 	}
-	l, ok := root.(*InternalNode).children[0].(*InternalNode).children[0].(*InternalNode).children[0].(*LeafNode)
+	l, ok := root.(*InternalNode[StatefulChildren]).children[0].(*InternalNode[StatefulChildren]).children[0].(*InternalNode[StatefulChildren]).children[0].(*LeafNode)
 	if !ok {
 		t.Fatal("resolve with resolver didn't produce a leaf node where expected")
 	}
@@ -1007,8 +1007,8 @@ func TestInsertResolveSplitLeaf(t *testing.T) {
 }
 
 func TestInsertStemOrdered(t *testing.T) {
-	root1 := New()
-	root2 := New()
+	root1 := New[StatefulChildren]()
+	root2 := New[StatefulChildren]()
 
 	values1 := make([][]byte, 256)
 	values1[5] = zeroKeyTest
@@ -1026,10 +1026,10 @@ func TestInsertStemOrdered(t *testing.T) {
 	var keysplit [32]byte // a key to check stem splitting in insert
 	copy(keysplit[:], fourtyKeyTest)
 	keysplit[24] = 72
-	root1.(*InternalNode).Insert(zeroKeyTest, ffx32KeyTest, nil)
-	root1.(*InternalNode).InsertStemOrdered(fourtyKeyTest[:31], values1, flush)
-	root1.(*InternalNode).InsertStemOrdered(keysplit[:31], values2, flush)
-	root1.(*InternalNode).InsertStemOrdered(ffx32KeyTest[:31], values3, flush)
+	root1.(*InternalNode[StatefulChildren]).Insert(zeroKeyTest, ffx32KeyTest, nil)
+	root1.(*InternalNode[StatefulChildren]).InsertStemOrdered(fourtyKeyTest[:31], values1, flush)
+	root1.(*InternalNode[StatefulChildren]).InsertStemOrdered(keysplit[:31], values2, flush)
+	root1.(*InternalNode[StatefulChildren]).InsertStemOrdered(ffx32KeyTest[:31], values3, flush)
 	r1c := root1.Commit()
 
 	// 26 for fourtyKeyTest + 2 children, 1 for zeroKeyTest,
@@ -1059,7 +1059,7 @@ func TestInsertStemOrdered(t *testing.T) {
 
 	// Check that a previous key was flushed and hashed, and that one can no
 	// longer insert in it.
-	err := root1.(*InternalNode).InsertStemOrdered(fourtyKeyTest[:31], values1, nil)
+	err := root1.(*InternalNode[StatefulChildren]).InsertStemOrdered(fourtyKeyTest[:31], values1, nil)
 	if err != errInsertIntoHash {
 		t.Fatalf("received wrong error %v != %v", err, errInsertIntoHash)
 	}
@@ -1095,7 +1095,7 @@ func TestRustBanderwagonBlock48(t *testing.T) {
 		k, _ := hex.DecodeString(s)
 		keys = append(keys, k)
 	}
-	tree := New()
+	tree := New[StatefulChildren]()
 
 	valStrings := []string{
 		"0000000000000000000000000000000000000000000000000000000000000000",

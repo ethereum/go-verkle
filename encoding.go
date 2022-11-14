@@ -98,7 +98,7 @@ func deserializeIntoStateless(bitlist []byte, raw []byte, depth byte, comm []byt
 	return n, nil
 }
 
-func CreateInternalNode(bitlist []byte, raw []byte, depth byte, comm []byte) (*InternalNode, error) {
+func CreateInternalNode(bitlist []byte, raw []byte, depth byte, comm []byte) (*InternalNode[StatefulChildren], error) {
 	tc, err := GetConfig()
 	if err != nil {
 		return nil, err
@@ -106,7 +106,7 @@ func CreateInternalNode(bitlist []byte, raw []byte, depth byte, comm []byte) (*I
 
 	// GetTreeConfig caches computation result, hence
 	// this op has low overhead
-	n := (newInternalNode(depth, tc)).(*InternalNode)
+	n := (newInternalNode[StatefulChildren](depth, tc)).(*InternalNode[StatefulChildren])
 	indices := indicesFromBitlist(bitlist)
 	if len(raw)/32 != len(indices) {
 		return nil, ErrInvalidNodeEncoding

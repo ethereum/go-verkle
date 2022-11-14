@@ -70,7 +70,7 @@ func extensionAndSuffixOneKey(key, value []byte, ret *Point) {
 func TestInsertKey0Value0(t *testing.T) {
 	var (
 		expected  Fr
-		root      = New()
+		root      = New[StatefulChildren]()
 		expectedP Point
 		cfg, _    = GetConfig()
 		srs       = cfg.conf.SRSPrecompPoints.SRS
@@ -96,7 +96,7 @@ func TestInsertKey0Value0(t *testing.T) {
 func TestInsertKey1Value1(t *testing.T) {
 	var (
 		v, expected Fr
-		root        = New()
+		root        = New[StatefulChildren]()
 		expectedP   Point
 		cfg, _      = GetConfig()
 		srs         = cfg.conf.SRSPrecompPoints.SRS
@@ -125,7 +125,7 @@ func TestInsertSameStemTwoLeaves(t *testing.T) {
 	var (
 		v, expected                     Fr
 		vs                              [2]Fr
-		root                            = New()
+		root                            = New[StatefulChildren]()
 		expectedP, c1, c2, t1, t2       Point
 		stemComm1, stemComm3, stemComm2 Point
 		cfg, _                          = GetConfig()
@@ -175,7 +175,7 @@ func TestInsertSameStemTwoLeaves(t *testing.T) {
 func TestInsertKey1Val1Key2Val2(t *testing.T) {
 	var (
 		v, v1, v2, expected Fr
-		root                = New()
+		root                = New[StatefulChildren]()
 		expectedP, t1, t2   Point
 		cfg, _              = GetConfig()
 		srs                 = cfg.conf.SRSPrecompPoints.SRS
@@ -205,7 +205,7 @@ func TestInsertKey1Val1Key2Val2(t *testing.T) {
 }
 
 func TestEmptyTrie(t *testing.T) {
-	root := New()
+	root := New[StatefulChildren]()
 	comm := root.Commit()
 
 	if !comm.Equal(identity) {

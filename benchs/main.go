@@ -45,7 +45,7 @@ func benchmarkInsertInExisting() {
 
 		// Create tree from same keys multiple times
 		for i := 0; i < 5; i++ {
-			root := verkle.New()
+			root := verkle.New[verkle.StatefulChildren]()
 			for _, k := range keys {
 				if err := root.Insert(k, value, nil); err != nil {
 					panic(err)

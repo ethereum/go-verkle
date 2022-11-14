@@ -283,7 +283,7 @@ func (n *StatelessNode) InsertAtStem(stem []byte, values [][]byte, resolver Node
 
 	var err error
 	switch child := n.children[nChild].(type) {
-	case *InternalNode:
+	case *InternalNode[StatefulChildren]:
 		err = child.InsertStem(stem, values, resolver)
 		child.Commit()
 	case *StatelessNode:
@@ -657,8 +657,8 @@ func (n *StatelessNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][
 	return pe, esses, poass
 }
 
-func (n *StatelessNode) toInternalNode() *InternalNode {
-	internal := &InternalNode{
+func (n *StatelessNode) toInternalNode() *InternalNode[StatefulChildren] {
+	internal := &InternalNode[StatefulChildren]{
 		children:   make([]VerkleNode, NodeWidth),
 		depth:      n.depth,
 		commitment: n.commitment,
@@ -809,7 +809,7 @@ func (n *StatelessNode) Flush(flush NodeFlushFn) {
 	if n.values == nil {
 		for _, child := range n.children {
 			switch child := child.(type) {
-			case *InternalNode:
+			case *InternalNode[StatefulChildren]:
 				child.Flush(flush)
 			case *StatelessNode:
 				if child.values != nil {

@@ -34,7 +34,7 @@ import (
 )
 
 func TestProofVerifyTwoLeaves(t *testing.T) {
-	root := New()
+	root := New[StatefulChildren]()
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
 	root.Insert(oneKeyTest, zeroKeyTest, nil)
 	root.Insert(ffx32KeyTest, zeroKeyTest, nil)
@@ -52,7 +52,7 @@ func TestProofVerifyMultipleLeaves(t *testing.T) {
 	const leafCount = 1000
 
 	keys := make([][]byte, leafCount)
-	root := New()
+	root := New[StatefulChildren]()
 	for i := 0; i < leafCount; i++ {
 		key := make([]byte, 32)
 		rand.Read(key)
@@ -73,7 +73,7 @@ func TestMultiProofVerifyMultipleLeaves(t *testing.T) {
 
 	keys := make([][]byte, leafCount)
 	kv := make(map[string][]byte)
-	root := New()
+	root := New[StatefulChildren]()
 	for i := 0; i < leafCount; i++ {
 		key := make([]byte, 32)
 		rand.Read(key)
@@ -97,7 +97,7 @@ func TestMultiProofVerifyMultipleLeavesWithAbsentStem(t *testing.T) {
 	var keys [][]byte
 	var absentstem [31]byte
 	kv := make(map[string][]byte)
-	root := New()
+	root := New[StatefulChildren]()
 	for i := 0; i < leafCount; i++ {
 		key := make([]byte, 32)
 		key[2] = byte(i)
@@ -134,7 +134,7 @@ func TestMultiProofVerifyMultipleLeavesWithAbsentStem(t *testing.T) {
 func TestMultiProofVerifyMultipleLeavesCommitmentRedundancy(t *testing.T) {
 	kv := make(map[string][]byte)
 	keys := make([][]byte, 2)
-	root := New()
+	root := New[StatefulChildren]()
 	keys[0] = zeroKeyTest
 	kv[string(zeroKeyTest)] = fourtyKeyTest
 	root.Insert(keys[0], fourtyKeyTest, nil)
@@ -152,7 +152,7 @@ func TestMultiProofVerifyMultipleLeavesCommitmentRedundancy(t *testing.T) {
 }
 
 func TestProofOfAbsenceInternalVerify(t *testing.T) {
-	root := New()
+	root := New[StatefulChildren]()
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
 	root.Insert(oneKeyTest, zeroKeyTest, nil)
 
@@ -165,7 +165,7 @@ func TestProofOfAbsenceInternalVerify(t *testing.T) {
 }
 
 func TestProofOfAbsenceLeafVerify(t *testing.T) {
-	root := New()
+	root := New[StatefulChildren]()
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
 	root.Insert(ffx32KeyTest, zeroKeyTest, nil)
 
@@ -177,7 +177,7 @@ func TestProofOfAbsenceLeafVerify(t *testing.T) {
 	}
 }
 func TestProofOfAbsenceLeafVerifyOtherSuffix(t *testing.T) {
-	root := New()
+	root := New[StatefulChildren]()
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
 	root.Insert(ffx32KeyTest, zeroKeyTest, nil)
 
@@ -195,7 +195,7 @@ func TestProofOfAbsenceLeafVerifyOtherSuffix(t *testing.T) {
 }
 
 func TestProofOfAbsenceStemVerify(t *testing.T) {
-	root := New()
+	root := New[StatefulChildren]()
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
 
 	key := func() []byte {
@@ -213,7 +213,7 @@ func TestProofOfAbsenceStemVerify(t *testing.T) {
 
 func BenchmarkProofCalculation(b *testing.B) {
 	keys := make([][]byte, 100000)
-	root := New()
+	root := New[StatefulChildren]()
 	for i := 0; i < 100000; i++ {
 		key := make([]byte, 32)
 		rand.Read(key)
@@ -231,7 +231,7 @@ func BenchmarkProofCalculation(b *testing.B) {
 
 func BenchmarkProofVerification(b *testing.B) {
 	keys := make([][]byte, 100000)
-	root := New()
+	root := New[StatefulChildren]()
 	for i := 0; i < 100000; i++ {
 		key := make([]byte, 32)
 		rand.Read(key)
@@ -255,7 +255,7 @@ func TestProofSerializationNoAbsentStem(t *testing.T) {
 	const leafCount = 1000
 
 	keys := make([][]byte, leafCount)
-	root := New()
+	root := New[StatefulChildren]()
 	for i := 0; i < leafCount; i++ {
 		key := make([]byte, 32)
 		rand.Read(key)
@@ -287,7 +287,7 @@ func TestProofSerializationWithAbsentStem(t *testing.T) {
 	const leafCount = 1000
 
 	keys := make([][]byte, leafCount)
-	root := New()
+	root := New[StatefulChildren]()
 	for i := 0; i < leafCount; i++ {
 		key := make([]byte, 32)
 		key[2] = byte(i)
@@ -326,7 +326,7 @@ func TestProofDeserialize(t *testing.T) {
 	const leafCount = 1000
 
 	keys := make([][]byte, leafCount)
-	root := New()
+	root := New[StatefulChildren]()
 	var keyvals []KeyValuePair
 	for i := 0; i < leafCount; i++ {
 		key := make([]byte, 32)
@@ -405,7 +405,7 @@ func TestProofDeserializeErrors(t *testing.T) {
 }
 
 func TestProofOfAbsenceEdgeCase(t *testing.T) {
-	root := New()
+	root := New[StatefulChildren]()
 	root.Commit()
 
 	ret, _ := hex.DecodeString("0303030303030303030303030303030303030303030303030303030303030303")
@@ -419,7 +419,7 @@ func TestProofOfAbsenceEdgeCase(t *testing.T) {
 func TestProofOfAbsenceOtherMultipleLeaves(t *testing.T) {
 	// Create a stem that isn't the one that will be proven,
 	// but does look the same for most of its length.
-	root := New()
+	root := New[StatefulChildren]()
 	key, _ := hex.DecodeString("0303030303030303030303030303030303030303030303030303030303030000")
 	root.Insert(key, testValue, nil)
 	root.Commit()
@@ -438,7 +438,7 @@ func TestProofOfAbsenceOtherMultipleLeaves(t *testing.T) {
 }
 
 func TestProofOfAbsenceNoneMultipleStems(t *testing.T) {
-	root := New()
+	root := New[StatefulChildren]()
 	key, _ := hex.DecodeString("0403030303030303030303030303030303030303030303030303030303030000")
 	root.Insert(key, testValue, nil)
 	root.Commit()
