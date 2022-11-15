@@ -889,6 +889,13 @@ func (n *StatelessNode) Copy() VerkleNode {
 		}
 	}
 
+	if n.unresolved != nil {
+		ret.unresolved = make(map[byte][]byte)
+		for k, v := range n.unresolved {
+			ret.unresolved[k] = make([]byte, len(v))
+			copy(ret.unresolved[k], v)
+		}
+	}
 	if n.hash != nil {
 		ret.hash = new(Fr)
 		CopyFr(ret.hash, n.hash)
