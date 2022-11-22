@@ -33,8 +33,10 @@ import (
 	"github.com/crate-crypto/go-ipa/banderwagon"
 )
 
-type NodeFlushFn func(VerkleNode)
-type NodeResolverFn func([]byte) ([]byte, error)
+type (
+	NodeFlushFn    func(VerkleNode)
+	NodeResolverFn func([]byte) ([]byte, error)
+)
 
 // Committer represents an object that is able to create the
 // commitment to a polynomial.

@@ -57,6 +57,12 @@ func FromLEBytes(fr *Fr, data []byte) {
 	fr.SetBytesLE(aligned[:])
 }
 
+func FromBytes(fr *Fr, data []byte) {
+	var aligned [32]byte
+	copy(aligned[32-len(data):], data)
+	fr.SetBytes(aligned[:])
+}
+
 func StemFromBytes(fr *Fr, data []byte) {
 	bytes := make([]byte, len(data))
 	copy(bytes, data)
