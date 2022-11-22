@@ -69,7 +69,7 @@ func ParseNode(serialized []byte, depth byte, comm []byte) (VerkleNode, error) {
 		ln.Commit()
 		return ln, nil
 	case internalRLPType:
-		return deserializeIntoStateless(serialized[1:33], serialized[33:], depth, comm)
+		return CreateInternalNode(serialized[1:33], serialized[33:], depth, comm)
 	default:
 		return nil, ErrInvalidNodeEncoding
 	}
