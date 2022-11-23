@@ -700,7 +700,7 @@ func isInternalEqual(a, b *InternalNode) bool {
 			if !ok {
 				return false
 			}
-			if !Equal(c.(*HashedNode).commitment, hn.commitment) {
+			if !Equal(c.(*HashedNode).Commitment(), hn.Commitment()) {
 				return false
 			}
 		case *LeafNode:

@@ -69,7 +69,7 @@ func ParseNode(serialized []byte, depth byte, comm []byte) (VerkleNode, error) {
 		ln.Commit()
 		return ln, nil
 	case internalRLPType:
-		return deserializeIntoStateless(serialized[1:33], serialized[33:], depth, comm)
+		return CreateInternalNode(serialized[1:33], serialized[33:], depth, comm)
 	default:
 		return nil, ErrInvalidNodeEncoding
 	}
@@ -106,10 +106,7 @@ func CreateInternalNode(bitlist []byte, raw []byte, depth byte, comm []byte) (*I
 		return nil, ErrInvalidNodeEncoding
 	}
 	for i, index := range indices {
-		hashed := &HashedNode{hash: new(Fr), commitment: new(Point)}
-		hashed.commitment.SetBytes(raw[i*32 : (i+1)*32])
-		toFr(hashed.hash, hashed.commitment)
-		n.children[index] = hashed
+		n.children[index] = &HashedNode{raw[i*32 : (i+1)*32]}
 	}
 	n.commitment = new(Point)
 	n.commitment.SetBytes(comm)

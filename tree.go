@@ -290,7 +290,7 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 		if resolver == nil {
 			return errInsertIntoHash
 		}
-		hash := child.Commitment().Bytes()
+		hash := child.commitment
 		serialized, err := resolver(hash[:])
 		if err != nil {
 			return fmt.Errorf("verkle tree: error resolving node %x at depth %d: %w", key, n.depth, err)
@@ -394,7 +394,7 @@ func (n *InternalNode) InsertStem(stem []byte, node VerkleNode, resolver NodeRes
 		if resolver == nil {
 			return errInsertIntoHash
 		}
-		hash := child.commitment.Bytes()
+		hash := child.commitment
 		serialized, err := resolver(hash[:])
 		if err != nil {
 			return fmt.Errorf("verkle tree: error resolving node %x at depth %d: %w", stem, n.depth, err)
@@ -457,12 +457,11 @@ func (n *InternalNode) InsertStem(stem []byte, node VerkleNode, resolver NodeRes
 }
 
 func (n *InternalNode) toHashedNode() *HashedNode {
-	var hash Fr
 	if n.commitment == nil {
 		panic("nil commitment")
 	}
-	toFr(&hash, n.commitment)
-	return &HashedNode{&hash, n.commitment}
+	comm := n.commitment.Bytes()
+	return &HashedNode{comm[:]}
 }
 
 func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn) (err error) {
@@ -687,7 +686,7 @@ func (n *InternalNode) Delete(key []byte, resolver NodeResolverFn) error {
 		if resolver == nil {
 			return errDeleteHash
 		}
-		comm := child.commitment.Bytes()
+		comm := child.commitment
 		payload, err := resolver(comm[:])
 		if err != nil {
 			return err
@@ -775,14 +774,13 @@ func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 			return nil, errReadFromInvalid
 		}
 
-		commitment := child.commitment.Bytes()
-		payload, err := getter(commitment[:])
+		payload, err := getter(child.commitment[:])
 		if err != nil {
 			return nil, err
 		}
 
 		// deserialize the payload and set it as the child
-		c, err := ParseNode(payload, n.depth+1, commitment[:])
+		c, err := ParseNode(payload, n.depth+1, child.commitment[:])
 		if err != nil {
 			return nil, err
 		}
@@ -1001,12 +999,11 @@ func MergeTrees(subroots []*InternalNode) VerkleNode {
 }
 
 func (n *LeafNode) ToHashedNode() *HashedNode {
-	var hash Fr
 	if n.commitment == nil {
 		panic("nil commitment")
 	}
-	toFr(&hash, n.commitment)
-	return &HashedNode{&hash, n.commitment}
+	comm := n.commitment.Bytes()
+	return &HashedNode{comm[:]}
 }
 
 func (n *LeafNode) Insert(k []byte, value []byte, _ NodeResolverFn) error {

@@ -252,17 +252,14 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 				return nil
 			}
 
-			newhash := &HashedNode{new(Fr), new(Point)}
-			newhash.commitment.SetBytesTrusted(unresolved)
-			toFr(newhash.hash, newhash.commitment)
-			n.children[nChild] = newhash
+			n.children[nChild] = &HashedNode{unresolved}
 			// fallthrough to hash resolution
 		}
 
 		// If the child is a hash, the node needs to be resolved
 		// before there is an insert into it.
 		if h, ok := n.children[nChild].(*HashedNode); ok {
-			comm := h.Commitment().Bytes()
+			comm := h.commitment
 			serialized, err := resolver(comm[:])
 			if err != nil {
 				return err
@@ -380,18 +377,14 @@ func (n *StatelessNode) InsertAtStem(stem []byte, values [][]byte, resolver Node
 			return nil
 		}
 
-		newhash := &HashedNode{new(Fr), new(Point)}
-		newhash.commitment.SetBytesTrusted(unresolved)
-		newhash.setDepth(n.depth + 1)
-		toFr(newhash.hash, newhash.commitment)
-		n.children[nChild] = newhash
+		n.children[nChild] = &HashedNode{unresolved}
 		// fallthrough to hash resolution
 	}
 
 	// If the child is a hash, the node needs to be resolved
 	// before there is an insert into it.
 	if h, ok := n.children[nChild].(*HashedNode); ok {
-		comm := h.Commitment().Bytes()
+		comm := h.commitment
 		serialized, err := resolver(comm[:])
 		if err != nil {
 			return fmt.Errorf("stem insertion failed (node resolution error) %x %w", stem, err)
@@ -813,10 +806,7 @@ func (n *StatelessNode) toInternalNode() *InternalNode {
 		if child, ok := n.children[byte(i)]; ok {
 			internal.children[i] = child
 		} else if serialized, ok := n.unresolved[byte(i)]; ok {
-			hashed := &HashedNode{hash: new(Fr), commitment: new(Point)}
-			hashed.commitment.SetBytesTrusted(serialized)
-			toFr(hashed.hash, hashed.commitment)
-			internal.children[byte(i)] = hashed
+			internal.children[byte(i)] = &HashedNode{serialized}
 		} else {
 			internal.children[i] = Empty{}
 		}
@@ -946,7 +936,8 @@ func (n *StatelessNode) setDepth(d byte) {
 }
 
 func (n *StatelessNode) ToHashedNode() *HashedNode {
-	return &HashedNode{n.Hash(), n.commitment}
+	b := n.commitment.Bytes()
+	return &HashedNode{b[:]}
 }
 
 func (n *StatelessNode) Flush(flush NodeFlushFn) {
