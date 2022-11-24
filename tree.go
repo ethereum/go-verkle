@@ -231,7 +231,7 @@ func NewLeafNode(stem []byte, values [][]byte) *LeafNode {
 		// depth will be 0, but the commitment calculation
 		// does not need it, and so it won't be free.
 		values: values,
-		stem:   stem,
+		stem:   stem[:31], // enforce a 31-byte length
 		c1:     Generator(),
 		c2:     Generator(),
 	}
@@ -1373,7 +1373,7 @@ func (n *LeafNode) Serialize() ([]byte, error) {
 			}
 		}
 	}
-	return append(append(append([]byte{leafRLPType}, n.stem...), bitlist[:]...), children...), nil
+	return append(append(append([]byte{leafRLPType}, n.stem[:31]...), bitlist[:]...), children...), nil
 }
 
 func (n *LeafNode) Copy() VerkleNode {
