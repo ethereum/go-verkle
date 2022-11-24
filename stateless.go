@@ -794,27 +794,6 @@ func (n *StatelessNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][
 	return pe, esses, poass
 }
 
-func (n *StatelessNode) toInternalNode() *InternalNode {
-	internal := &InternalNode{
-		children:   make([]VerkleNode, NodeWidth),
-		depth:      n.depth,
-		commitment: n.commitment,
-		committer:  n.committer,
-	}
-
-	for i := range internal.children {
-		if child, ok := n.children[byte(i)]; ok {
-			internal.children[i] = child
-		} else if serialized, ok := n.unresolved[byte(i)]; ok {
-			internal.children[byte(i)] = &HashedNode{serialized}
-		} else {
-			internal.children[i] = Empty{}
-		}
-	}
-
-	return internal
-}
-
 func (n *StatelessNode) Serialize() ([]byte, error) {
 	var (
 		bitlist  [32]byte
