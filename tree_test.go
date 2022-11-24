@@ -673,7 +673,7 @@ func TestNodeSerde(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	resRoot := res.(*StatelessNode).toInternalNode()
+	resRoot := res.(*InternalNode)
 
 	resRoot.children[0] = resLeaf0
 	resRoot.children[64] = resLeaf64

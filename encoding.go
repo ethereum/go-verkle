@@ -75,6 +75,16 @@ func ParseNode(serialized []byte, depth byte, comm []byte) (VerkleNode, error) {
 	}
 }
 
+func ParseStatelessNode(serialized []byte, depth byte, comm []byte) (VerkleNode, error) {
+	if len(serialized) < 64 {
+		return nil, serializedPayloadTooShort
+	}
+	if serialized[0] == internalRLPType {
+		return deserializeIntoStateless(serialized[1:33], serialized[33:], depth, comm)
+	}
+	return nil, ErrInvalidNodeEncoding
+}
+
 func deserializeIntoStateless(bitlist []byte, raw []byte, depth byte, comm []byte) (*StatelessNode, error) {
 	tc := GetConfig()
 
