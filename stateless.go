@@ -260,11 +260,11 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 		// before there is an insert into it.
 		if h, ok := n.children[nChild].(*HashedNode); ok {
 			comm := h.commitment
-			serialized, err := resolver(comm[:])
+			serialized, err := resolver(comm)
 			if err != nil {
 				return err
 			}
-			node, err := ParseNode(serialized, n.depth+1, comm[:])
+			node, err := ParseNode(serialized, n.depth+1, comm)
 			if err != nil {
 				return err
 			}
@@ -385,11 +385,11 @@ func (n *StatelessNode) InsertAtStem(stem []byte, values [][]byte, resolver Node
 	// before there is an insert into it.
 	if h, ok := n.children[nChild].(*HashedNode); ok {
 		comm := h.commitment
-		serialized, err := resolver(comm[:])
+		serialized, err := resolver(comm)
 		if err != nil {
 			return fmt.Errorf("stem insertion failed (node resolution error) %x %w", stem, err)
 		}
-		node, err := ParseNode(serialized, n.depth+1, comm[:])
+		node, err := ParseNode(serialized, n.depth+1, comm)
 		if err != nil {
 			return err
 		}

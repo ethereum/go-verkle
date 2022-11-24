@@ -291,11 +291,11 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 			return errInsertIntoHash
 		}
 		hash := child.commitment
-		serialized, err := resolver(hash[:])
+		serialized, err := resolver(hash)
 		if err != nil {
 			return fmt.Errorf("verkle tree: error resolving node %x at depth %d: %w", key, n.depth, err)
 		}
-		resolved, err := ParseNode(serialized, n.depth+1, hash[:])
+		resolved, err := ParseNode(serialized, n.depth+1, hash)
 		if err != nil {
 			return fmt.Errorf("verkle tree: error parsing resolved node %x: %w", key, err)
 		}
@@ -395,11 +395,11 @@ func (n *InternalNode) InsertStem(stem []byte, node VerkleNode, resolver NodeRes
 			return errInsertIntoHash
 		}
 		hash := child.commitment
-		serialized, err := resolver(hash[:])
+		serialized, err := resolver(hash)
 		if err != nil {
 			return fmt.Errorf("verkle tree: error resolving node %x at depth %d: %w", stem, n.depth, err)
 		}
-		resolved, err := ParseNode(serialized, n.depth+1, hash[:])
+		resolved, err := ParseNode(serialized, n.depth+1, hash)
 		if err != nil {
 			return fmt.Errorf("verkle tree: error parsing resolved node %x: %w", stem, err)
 		}
@@ -687,12 +687,12 @@ func (n *InternalNode) Delete(key []byte, resolver NodeResolverFn) error {
 			return errDeleteHash
 		}
 		comm := child.commitment
-		payload, err := resolver(comm[:])
+		payload, err := resolver(comm)
 		if err != nil {
 			return err
 		}
 		// deserialize the payload and set it as the child
-		c, err := ParseNode(payload, n.depth+1, comm[:])
+		c, err := ParseNode(payload, n.depth+1, comm)
 		if err != nil {
 			return err
 		}
@@ -774,13 +774,13 @@ func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 			return nil, errReadFromInvalid
 		}
 
-		payload, err := getter(child.commitment[:])
+		payload, err := getter(child.commitment)
 		if err != nil {
 			return nil, err
 		}
 
 		// deserialize the payload and set it as the child
-		c, err := ParseNode(payload, n.depth+1, child.commitment[:])
+		c, err := ParseNode(payload, n.depth+1, child.commitment)
 		if err != nil {
 			return nil, err
 		}
