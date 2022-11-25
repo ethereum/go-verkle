@@ -55,7 +55,7 @@ func (n *HashedNode) Commit() *Point {
 		panic("nil commitment")
 	}
 	c := new(Point)
-	c.SetBytes(n.commitment)
+	c.SetBytesTrusted(n.commitment)
 	return c
 }
 
