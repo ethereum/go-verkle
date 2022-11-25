@@ -544,7 +544,7 @@ func TestStatelessInsertIntoLeaf(t *testing.T) {
 		flushed[string(comm[:])] = ser
 	})
 
-	root, err := ParseNode(flushed[string(rootc[:])], 0, rootc[:])
+	root, err := ParseStatelessNode(flushed[string(rootc[:])], 0, rootc[:])
 	if err != nil {
 		t.Fatal(err)
 	}

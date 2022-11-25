@@ -263,7 +263,7 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 			if err != nil {
 				return err
 			}
-			node, err := ParseNode(serialized, n.depth+1, h.commitment)
+			node, err := ParseStatelessNode(serialized, n.depth+1, h.commitment)
 			if err != nil {
 				return err
 			}
@@ -388,7 +388,7 @@ func (n *StatelessNode) InsertAtStem(stem []byte, values [][]byte, resolver Node
 		if err != nil {
 			return fmt.Errorf("stem insertion failed (node resolution error) %x %w", stem, err)
 		}
-		node, err := ParseNode(serialized, n.depth+1, comm)
+		node, err := ParseStatelessNode(serialized, n.depth+1, comm)
 		if err != nil {
 			return err
 		}
@@ -590,7 +590,7 @@ func (n *StatelessNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("could not resolve unresolved item: %w", err)
 		}
-		child, err = ParseNode(serialized, n.depth+1, n.unresolved[nChild])
+		child, err = ParseStatelessNode(serialized, n.depth+1, n.unresolved[nChild])
 		if err != nil {
 			return nil, fmt.Errorf("could not deserialize node: %w", err)
 		}

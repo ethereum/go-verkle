@@ -47,27 +47,9 @@ func ParseNode(serialized []byte, depth byte, comm []byte) (VerkleNode, error) {
 	if len(serialized) < 64 {
 		return nil, serializedPayloadTooShort
 	}
-
 	switch serialized[0] {
 	case leafRLPType:
-		var values [NodeWidth][]byte
-		offset := 64
-		for i := 0; i < NodeWidth; i++ {
-			if bit(serialized[32:64], i) {
-				if offset+32 > len(serialized) {
-					return nil, fmt.Errorf("verkle payload is too short, need at least %d and only have %d, payload = %x (%w)", offset+32, len(serialized), serialized, serializedPayloadTooShort)
-				}
-				values[i] = serialized[offset : offset+32]
-				offset += 32
-			}
-		}
-		if NodeWidth != len(values) {
-			return nil, fmt.Errorf("invalid number of nodes in decoded child expected %d, got %d", NodeWidth, len(values))
-		}
-		ln := NewLeafNode(serialized[1:32], values[:])
-		ln.setDepth(depth)
-		ln.Commit()
-		return ln, nil
+		return parseLeafNode(serialized, depth)
 	case internalRLPType:
 		return CreateInternalNode(serialized[1:33], serialized[33:], depth, comm)
 	default:
@@ -79,10 +61,35 @@ func ParseStatelessNode(serialized []byte, depth byte, comm []byte) (VerkleNode,
 	if len(serialized) < 64 {
 		return nil, serializedPayloadTooShort
 	}
-	if serialized[0] == internalRLPType {
+	switch serialized[0] {
+	case leafRLPType:
+		return parseLeafNode(serialized, depth)
+	case internalRLPType:
 		return deserializeIntoStateless(serialized[1:33], serialized[33:], depth, comm)
+	default:
+		return nil, ErrInvalidNodeEncoding
 	}
-	return nil, ErrInvalidNodeEncoding
+}
+
+func parseLeafNode(serialized []byte, depth byte) (VerkleNode, error) {
+	var values [NodeWidth][]byte
+	offset := 64
+	for i := 0; i < NodeWidth; i++ {
+		if bit(serialized[32:64], i) {
+			if offset+32 > len(serialized) {
+				return nil, fmt.Errorf("verkle payload is too short, need at least %d and only have %d, payload = %x (%w)", offset+32, len(serialized), serialized, serializedPayloadTooShort)
+			}
+			values[i] = serialized[offset : offset+32]
+			offset += 32
+		}
+	}
+	if NodeWidth != len(values) {
+		return nil, fmt.Errorf("invalid number of nodes in decoded child expected %d, got %d", NodeWidth, len(values))
+	}
+	ln := NewLeafNode(serialized[1:32], values[:])
+	ln.setDepth(depth)
+	ln.Commit()
+	return ln, nil
 }
 
 func deserializeIntoStateless(bitlist []byte, raw []byte, depth byte, comm []byte) (*StatelessNode, error) {
