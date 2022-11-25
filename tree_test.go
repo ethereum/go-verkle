@@ -673,7 +673,7 @@ func TestNodeSerde(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	resRoot := res.(*StatelessNode).toInternalNode()
+	resRoot := res.(*InternalNode)
 
 	resRoot.children[0] = resLeaf0
 	resRoot.children[64] = resLeaf64
@@ -700,7 +700,7 @@ func isInternalEqual(a, b *InternalNode) bool {
 			if !ok {
 				return false
 			}
-			if !Equal(c.(*HashedNode).commitment, hn.commitment) {
+			if !Equal(c.(*HashedNode).Commitment(), hn.Commitment()) {
 				return false
 			}
 		case *LeafNode:

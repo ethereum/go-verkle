@@ -252,22 +252,18 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 				return nil
 			}
 
-			newhash := &HashedNode{new(Fr), new(Point)}
-			newhash.commitment.SetBytesTrusted(unresolved)
-			toFr(newhash.hash, newhash.commitment)
-			n.children[nChild] = newhash
+			n.children[nChild] = &HashedNode{unresolved}
 			// fallthrough to hash resolution
 		}
 
 		// If the child is a hash, the node needs to be resolved
 		// before there is an insert into it.
 		if h, ok := n.children[nChild].(*HashedNode); ok {
-			comm := h.Commitment().Bytes()
-			serialized, err := resolver(comm[:])
+			serialized, err := resolver(h.commitment)
 			if err != nil {
 				return err
 			}
-			node, err := ParseNode(serialized, n.depth+1, comm[:])
+			node, err := ParseStatelessNode(serialized, n.depth+1, h.commitment)
 			if err != nil {
 				return err
 			}
@@ -380,23 +376,19 @@ func (n *StatelessNode) InsertAtStem(stem []byte, values [][]byte, resolver Node
 			return nil
 		}
 
-		newhash := &HashedNode{new(Fr), new(Point)}
-		newhash.commitment.SetBytesTrusted(unresolved)
-		newhash.setDepth(n.depth + 1)
-		toFr(newhash.hash, newhash.commitment)
-		n.children[nChild] = newhash
+		n.children[nChild] = &HashedNode{unresolved}
 		// fallthrough to hash resolution
 	}
 
 	// If the child is a hash, the node needs to be resolved
 	// before there is an insert into it.
 	if h, ok := n.children[nChild].(*HashedNode); ok {
-		comm := h.Commitment().Bytes()
-		serialized, err := resolver(comm[:])
+		comm := h.commitment
+		serialized, err := resolver(comm)
 		if err != nil {
 			return fmt.Errorf("stem insertion failed (node resolution error) %x %w", stem, err)
 		}
-		node, err := ParseNode(serialized, n.depth+1, comm[:])
+		node, err := ParseStatelessNode(serialized, n.depth+1, comm)
 		if err != nil {
 			return err
 		}
@@ -598,7 +590,7 @@ func (n *StatelessNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("could not resolve unresolved item: %w", err)
 		}
-		child, err = ParseNode(serialized, n.depth+1, n.unresolved[nChild])
+		child, err = ParseStatelessNode(serialized, n.depth+1, n.unresolved[nChild])
 		if err != nil {
 			return nil, fmt.Errorf("could not deserialize node: %w", err)
 		}
@@ -801,30 +793,6 @@ func (n *StatelessNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][
 	return pe, esses, poass
 }
 
-func (n *StatelessNode) toInternalNode() *InternalNode {
-	internal := &InternalNode{
-		children:   make([]VerkleNode, NodeWidth),
-		depth:      n.depth,
-		commitment: n.commitment,
-		committer:  n.committer,
-	}
-
-	for i := range internal.children {
-		if child, ok := n.children[byte(i)]; ok {
-			internal.children[i] = child
-		} else if serialized, ok := n.unresolved[byte(i)]; ok {
-			hashed := &HashedNode{hash: new(Fr), commitment: new(Point)}
-			hashed.commitment.SetBytesTrusted(serialized)
-			toFr(hashed.hash, hashed.commitment)
-			internal.children[byte(i)] = hashed
-		} else {
-			internal.children[i] = Empty{}
-		}
-	}
-
-	return internal
-}
-
 func (n *StatelessNode) Serialize() ([]byte, error) {
 	var (
 		bitlist  [32]byte
@@ -946,7 +914,8 @@ func (n *StatelessNode) setDepth(d byte) {
 }
 
 func (n *StatelessNode) ToHashedNode() *HashedNode {
-	return &HashedNode{n.Hash(), n.commitment}
+	b := n.commitment.Bytes()
+	return &HashedNode{b[:]}
 }
 
 func (n *StatelessNode) Flush(flush NodeFlushFn) {

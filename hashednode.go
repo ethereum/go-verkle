@@ -31,8 +31,7 @@ import (
 )
 
 type HashedNode struct {
-	hash       *Fr
-	commitment *Point
+	commitment []byte
 }
 
 func (*HashedNode) Insert([]byte, []byte, NodeResolverFn) error {
@@ -55,14 +54,16 @@ func (n *HashedNode) Commit() *Point {
 	if n.commitment == nil {
 		panic("nil commitment")
 	}
-	return n.commitment
+	c := new(Point)
+	c.SetBytesTrusted(n.commitment)
+	return c
 }
 
 func (n *HashedNode) Commitment() *Point {
 	if n.commitment == nil {
 		panic("nil commitment")
 	}
-	return n.commitment
+	return n.Commit()
 }
 
 func (*HashedNode) GetProofItems(keylist) (*ProofElements, []byte, [][]byte) {
@@ -74,22 +75,16 @@ func (*HashedNode) Serialize() ([]byte, error) {
 }
 
 func (n *HashedNode) Copy() VerkleNode {
-	h := &HashedNode{
-		commitment: new(Point),
-		hash:       new(Fr),
+	if n.commitment == nil {
+		panic("nil commitment")
 	}
-	if n.hash != nil {
-		CopyFr(h.hash, n.hash)
-	}
-	if n.commitment != nil {
-		CopyPoint(h.commitment, n.commitment)
-	}
-
-	return h
+	c := &HashedNode{commitment: make([]byte, len(n.commitment))}
+	copy(c.commitment, n.commitment)
+	return c
 }
 
 func (n *HashedNode) toDot(parent, path string) string {
-	return fmt.Sprintf("hash%s [label=\"H: %x\"]\n%s -> hash%s\n", path, n.hash.Bytes(), parent, path)
+	return fmt.Sprintf("hash%s [label=\"H: %x\"]\n%s -> hash%s\n", path, n.commitment, parent, path)
 }
 
 func (*HashedNode) setDepth(_ byte) {
@@ -97,5 +92,8 @@ func (*HashedNode) setDepth(_ byte) {
 }
 
 func (n *HashedNode) Hash() *Fr {
-	return n.hash
+	h := new(Fr)
+	c := n.Commitment()
+	toFr(h, c)
+	return h
 }

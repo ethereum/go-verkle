@@ -28,7 +28,7 @@ package verkle
 import "testing"
 
 func TestHashedNodeFuncs(t *testing.T) {
-	e := HashedNode{hash: new(Fr), commitment: new(Point)}
+	e := HashedNode{}
 	err := e.Insert(zeroKeyTest, zeroKeyTest, nil)
 	if err == nil {
 		t.Fatal("got nil error when inserting into a hashed node")
