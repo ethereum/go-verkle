@@ -259,12 +259,11 @@ func (n *StatelessNode) Insert(key []byte, value []byte, resolver NodeResolverFn
 		// If the child is a hash, the node needs to be resolved
 		// before there is an insert into it.
 		if h, ok := n.children[nChild].(*HashedNode); ok {
-			comm := h.commitment
-			serialized, err := resolver(comm)
+			serialized, err := resolver(h.commitment)
 			if err != nil {
 				return err
 			}
-			node, err := ParseNode(serialized, n.depth+1, comm)
+			node, err := ParseNode(serialized, n.depth+1, h.commitment)
 			if err != nil {
 				return err
 			}
