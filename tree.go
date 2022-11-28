@@ -472,6 +472,7 @@ func (n *InternalNode) Delete(key []byte, resolver NodeResolverFn) error {
 // Flush hashes the children of an internal node and replaces them
 // with HashedNode. It also sends the current node on the flush channel.
 func (n *InternalNode) Flush(flush NodeFlushFn) {
+	n.Commit()
 	for i, child := range n.children {
 		if c, ok := child.(*InternalNode); ok {
 			c.Commit()
