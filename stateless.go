@@ -919,6 +919,7 @@ func (n *StatelessNode) ToHashedNode() *HashedNode {
 }
 
 func (n *StatelessNode) Flush(flush NodeFlushFn) {
+	n.Commit()
 	if n.values == nil {
 		for _, child := range n.children {
 			switch child := child.(type) {
