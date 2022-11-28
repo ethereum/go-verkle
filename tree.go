@@ -673,18 +673,41 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 }
 
 func (n *InternalNode) Serialize() ([]byte, error) {
-	var bitlist [32]byte
+	var (
+		bitlist, hashlist [32]byte
+		nhashed           int // number of children who are hashed nodes
+	)
 	commitments := make([]*Point, 0, NodeWidth)
 	for i, c := range n.children {
 		if _, ok := c.(Empty); !ok {
 			setBit(bitlist[:], i)
-			commitments = append(commitments, c.Commitment())
+			if _, ok := c.(*HashedNode); ok {
+				// don't trigger the commitment on hashed nodes,
+				// as they already hold a serialized version of
+				// their commitment. Instead, just mark them as
+				// hashes so they can be added directly.
+				setBit(hashlist[:], i)
+				nhashed++
+			} else {
+				commitments = append(commitments, c.Commitment())
+			}
 		}
 	}
-	children := make([]byte, 0, len(commitments)*32)
-	for _, c := range banderwagon.ElementsToBytes(commitments) {
-		children = append(children, c[:]...)
+	children := make([]byte, 0, (len(commitments)+nhashed)*32)
+
+	bytecomms := banderwagon.ElementsToBytes(commitments)
+	for i := 0; i < NodeWidth; i++ {
+		if bit(bitlist[:], i) {
+			// if a child is present and is a hash, add its
+			// internal, serialized representation directly.
+			if bit(hashlist[:], i) {
+				children = append(children, n.children[i].(*HashedNode).commitment...)
+			} else {
+				children = append(children, bytecomms[i][:]...)
+			}
+		}
 	}
+
 	return append(append([]byte{internalRLPType}, bitlist[:]...), children...), nil
 }
 
