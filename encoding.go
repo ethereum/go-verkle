@@ -126,7 +126,7 @@ func CreateInternalNode(bitlist []byte, raw []byte, depth byte, comm []byte) (*I
 		n.children[index] = &HashedNode{raw[i*32 : (i+1)*32]}
 	}
 	n.commitment = new(Point)
-	n.commitment.SetBytes(comm)
+	n.commitment.SetBytesTrusted(comm)
 	return n, nil
 }
 
