@@ -696,6 +696,7 @@ func (n *InternalNode) Serialize() ([]byte, error) {
 	children := make([]byte, 0, (len(commitments)+nhashed)*32)
 
 	bytecomms := banderwagon.ElementsToBytes(commitments)
+	consumed := 0
 	for i := 0; i < NodeWidth; i++ {
 		if bit(bitlist[:], i) {
 			// if a child is present and is a hash, add its
@@ -703,7 +704,8 @@ func (n *InternalNode) Serialize() ([]byte, error) {
 			if bit(hashlist[:], i) {
 				children = append(children, n.children[i].(*HashedNode).commitment...)
 			} else {
-				children = append(children, bytecomms[i][:]...)
+				children = append(children, bytecomms[consumed][:]...)
+				consumed++
 			}
 		}
 	}
