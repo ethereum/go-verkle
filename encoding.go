@@ -93,8 +93,6 @@ func parseLeafNode(serialized []byte, depth byte) (VerkleNode, error) {
 }
 
 func deserializeIntoStateless(bitlist []byte, raw []byte, depth byte, comm []byte) (*StatelessNode, error) {
-	tc := GetConfig()
-
 	// GetTreeConfig caches computation result, hence
 	// this op has low overhead
 	n := NewStateless()
@@ -108,16 +106,13 @@ func deserializeIntoStateless(bitlist []byte, raw []byte, depth byte, comm []byt
 	}
 	n.commitment = new(Point)
 	n.commitment.SetBytesTrusted(comm)
-	n.committer = tc
 	return n, nil
 }
 
 func CreateInternalNode(bitlist []byte, raw []byte, depth byte, comm []byte) (*InternalNode, error) {
-	tc := GetConfig()
-
 	// GetTreeConfig caches computation result, hence
 	// this op has low overhead
-	n := (newInternalNode(depth, tc)).(*InternalNode)
+	n := (newInternalNode(depth)).(*InternalNode)
 	indices := indicesFromBitlist(bitlist)
 	if len(raw)/32 != len(indices) {
 		return nil, ErrInvalidNodeEncoding
