@@ -178,8 +178,6 @@ type (
 		// Cache the commitment value
 		commitment *Point
 
-		committer Committer
-
 		cow map[byte]*Point
 	}
 
@@ -189,35 +187,30 @@ type (
 
 		commitment *Point
 		c1, c2     *Point
-		committer  Committer
 
 		depth byte
 	}
 )
 
-func newInternalNode(depth byte, cmtr Committer) VerkleNode {
+func newInternalNode(depth byte) VerkleNode {
 	node := new(InternalNode)
 	node.children = make([]VerkleNode, NodeWidth)
 	for idx := range node.children {
 		node.children[idx] = Empty(struct{}{})
 	}
 	node.depth = depth
-	node.committer = cmtr
 	node.commitment = new(Point).Identity()
 	return node
 }
 
 // New creates a new tree root
 func New() VerkleNode {
-	cfg := GetConfig()
-	return newInternalNode(0, cfg)
+	return newInternalNode(0)
 }
 
 // New creates a new leaf node
 func NewLeafNode(stem []byte, values [][]byte) *LeafNode {
-	cfg := GetConfig()
 	leaf := &LeafNode{
-		committer: cfg,
 		// depth will be 0, but the commitment calculation
 		// does not need it, and so it won't be free.
 		values: values,
@@ -228,19 +221,20 @@ func NewLeafNode(stem []byte, values [][]byte) *LeafNode {
 
 	// Initialize the commitment with the extension tree
 	// marker and the stem.
+	cfg := GetConfig()
 	count := 0
 	var poly, c1poly, c2poly [256]Fr
 	poly[0].SetUint64(1)
 	StemFromBytes(&poly[1], leaf.stem)
 
 	count = fillSuffixTreePoly(c1poly[:], values[:128])
-	leaf.c1 = leaf.committer.CommitToPoly(c1poly[:], 256-count)
+	leaf.c1 = cfg.CommitToPoly(c1poly[:], 256-count)
 	toFr(&poly[2], leaf.c1)
 	count = fillSuffixTreePoly(c2poly[:], values[128:])
-	leaf.c2 = leaf.committer.CommitToPoly(c2poly[:], 256-count)
+	leaf.c2 = cfg.CommitToPoly(c2poly[:], 256-count)
 	toFr(&poly[3], leaf.c2)
 
-	leaf.commitment = leaf.committer.CommitToPoly(poly[:], 252)
+	leaf.commitment = cfg.CommitToPoly(poly[:], 252)
 
 	return leaf
 }
@@ -308,7 +302,7 @@ func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeRes
 		// on the next word in both keys, a recursion into
 		// the moved leaf node can occur.
 		nextWordInExistingKey := offset2key(child.stem, n.depth+1)
-		newBranch := newInternalNode(n.depth+1, n.committer).(*InternalNode)
+		newBranch := newInternalNode(n.depth + 1).(*InternalNode)
 		newBranch.cowChild(nextWordInExistingKey)
 		n.children[nChild] = newBranch
 		newBranch.children[nextWordInExistingKey] = child
@@ -405,7 +399,7 @@ func (n *InternalNode) InsertStemOrdered(key []byte, values [][]byte, flush Node
 			// on the next word in both keys, a recursion into
 			// the moved leaf node can occur.
 			nextWordInExistingKey := offset2key(child.stem, n.depth+1)
-			newBranch := newInternalNode(n.depth+1, n.committer).(*InternalNode)
+			newBranch := newInternalNode(n.depth + 1).(*InternalNode)
 			newBranch.cowChild(nextWordInExistingKey)
 			n.children[nChild] = newBranch
 
@@ -575,7 +569,7 @@ func (n *InternalNode) Commit() *Point {
 		}
 		n.cow = nil
 
-		n.commitment.Add(n.commitment, n.committer.CommitToPoly(poly, emptyChildren))
+		n.commitment.Add(n.commitment, GetConfig().CommitToPoly(poly, emptyChildren))
 		return n.commitment
 	}
 
@@ -718,7 +712,6 @@ func (n *InternalNode) Copy() VerkleNode {
 		children:   make([]VerkleNode, len(n.children)),
 		commitment: new(Point),
 		depth:      n.depth,
-		committer:  n.committer,
 	}
 
 	for i, child := range n.children {
@@ -1149,7 +1142,6 @@ func (n *LeafNode) Copy() VerkleNode {
 	l := &LeafNode{}
 	l.stem = make([]byte, len(n.stem))
 	l.values = make([][]byte, len(n.values))
-	l.committer = n.committer
 	l.depth = n.depth
 	copy(l.stem, n.stem)
 	for i, v := range n.values {

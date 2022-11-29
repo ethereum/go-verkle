@@ -66,16 +66,12 @@ type StatelessNode struct {
 
 	// Cache the commitment value
 	commitment, c1, c2 *Point
-
-	committer Committer
 }
 
 func NewStateless() *StatelessNode {
-	cfg := GetConfig()
 	return &StatelessNode{
 		children:   make(map[byte]VerkleNode),
 		hash:       new(Fr).SetZero(),
-		committer:  cfg,
 		commitment: Generator(),
 		unresolved: make(map[byte][]byte),
 	}
@@ -86,11 +82,9 @@ func NewStatelessWithCommitment(point *Point) *StatelessNode {
 		xfr Fr
 	)
 	toFr(&xfr, point)
-	cfg := GetConfig()
 	return &StatelessNode{
 		children:   make(map[byte]VerkleNode),
 		hash:       &xfr,
-		committer:  cfg,
 		commitment: point,
 	}
 }
@@ -294,7 +288,6 @@ func (n *StatelessNode) InsertAtStem(stem []byte, values [][]byte, resolver Node
 				children:   map[byte]VerkleNode{nextexisting: child},
 				commitment: Generator(),
 				depth:      child.depth,
-				committer:  n.committer,
 				// manually set the commitment to 0 so that it doesn't
 				// capture that of `child` in case it has already been
 				// calculated. This would cause the resulting child
@@ -700,7 +693,6 @@ func (n *StatelessNode) Copy() VerkleNode {
 	ret := &StatelessNode{
 		commitment: new(Point),
 		depth:      n.depth,
-		committer:  n.committer,
 		count:      n.count,
 	}
 
