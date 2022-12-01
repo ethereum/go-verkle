@@ -250,7 +250,7 @@ func (n *StatelessNode) InsertAtStem(stem []byte, values [][]byte, resolver Node
 			return nil
 		}
 
-		n.children[nChild] = &HashedNode{unresolved}
+		n.children[nChild] = &HashedNode{commitment: unresolved}
 		// fallthrough to hash resolution
 	}
 
@@ -774,7 +774,7 @@ func (n *StatelessNode) setDepth(d byte) {
 
 func (n *StatelessNode) ToHashedNode() *HashedNode {
 	b := n.commitment.Bytes()
-	return &HashedNode{b[:]}
+	return &HashedNode{commitment: b[:]}
 }
 
 func (n *StatelessNode) Flush(flush NodeFlushFn) {
