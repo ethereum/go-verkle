@@ -31,8 +31,8 @@ import (
 )
 
 type HashedNode struct {
-	commitment []byte
-	resolution *Point
+	commitment  []byte
+	cachedPoint *Point
 }
 
 func (*HashedNode) Insert([]byte, []byte, NodeResolverFn) error {
@@ -55,11 +55,11 @@ func (n *HashedNode) Commit() *Point {
 	if n.commitment == nil {
 		panic("nil commitment")
 	}
-	if n.resolution == nil {
-		n.resolution = new(Point)
-		n.resolution.SetBytesTrusted(n.commitment)
+	if n.cachedPoint == nil {
+		n.cachedPoint = new(Point)
+		n.cachedPoint.SetBytesTrusted(n.commitment)
 	}
-	return n.resolution
+	return n.cachedPoint
 }
 
 func (n *HashedNode) Commitment() *Point {
