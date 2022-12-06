@@ -118,7 +118,7 @@ func CreateInternalNode(bitlist []byte, raw []byte, depth byte, comm []byte) (*I
 		return nil, ErrInvalidNodeEncoding
 	}
 	for i, index := range indices {
-		n.children[index] = &HashedNode{raw[i*32 : (i+1)*32]}
+		n.children[index] = &HashedNode{commitment: raw[i*32 : (i+1)*32]}
 	}
 	n.commitment = new(Point)
 	n.commitment.SetBytesTrusted(comm)

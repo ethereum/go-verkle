@@ -333,7 +333,7 @@ func (n *InternalNode) toHashedNode() *HashedNode {
 		panic("nil commitment")
 	}
 	comm := n.commitment.Bytes()
-	return &HashedNode{comm[:]}
+	return &HashedNode{commitment: comm[:]}
 }
 func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn) error {
 	values := make([][]byte, NodeWidth)
@@ -774,7 +774,7 @@ func (n *LeafNode) ToHashedNode() *HashedNode {
 		panic("nil commitment")
 	}
 	comm := n.commitment.Bytes()
-	return &HashedNode{comm[:]}
+	return &HashedNode{commitment: comm[:]}
 }
 
 func (n *LeafNode) Insert(k []byte, value []byte, _ NodeResolverFn) error {
