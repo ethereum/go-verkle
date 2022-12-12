@@ -46,4 +46,4 @@ jobs:
 
     - name: Cleanup
       if: always()
-      run: rm -rf geth && rm -rf .ethereum
+      run: rm -rf geth .ethereum profile001.png cpu.out precomp
