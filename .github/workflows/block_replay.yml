@@ -42,7 +42,7 @@ jobs:
       uses: actions/upload-artifact@v3
       with:
         name: profile.png
-        path: profile001.png
+        path: ./geth/profile001.png
 
     - name: Cleanup
       if: always()
