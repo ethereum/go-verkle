@@ -16,13 +16,16 @@ jobs:
         go-version: 1.18
 
     - name: Extract converted db
-      run: tar xf /home/devops/verkle-test-dependencies/preimages_small.tar -C $PWD/.ethereum
+      run: tar xf /home/devops/verkle-test-dependencies/preimages_small.tar --strip-components=4 -C $PWD/.ethereum
 
-    - name: Build replay executable with new go-verkle
-      run: TODO
+    - name: Download geth from the proper repo
+      run: git clone https://github.com/gballet/go-ethereum -b verkle/replay-change-with-tree-group-tryupdate geth
+
+    - name: Edit geth to use this repo
+      run: cd geth && go mod edit -replace=github.com/gballet/go-verkle=$PWD/..
  
     - name: Run replay
-      run: ./geth
+      run: cd geth && ./geth import --datadir=$PWD/.ethereum /home/devops/verkle-test-dependencies/next_blocks4 2>&1
  
     - name: Generate profile
       run: go tool pprof -png cpu.out
