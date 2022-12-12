@@ -22,10 +22,18 @@ jobs:
       run: git clone https://github.com/gballet/go-ethereum -b verkle/replay-change-with-tree-group-tryupdate geth
 
     - name: Edit geth to use this repo
-      run: cd geth && go mod edit -replace=github.com/gballet/go-verkle=$PWD/..
+      run: |
+        cd geth
+        go mod edit -replace=github.com/gballet/go-verkle=$PWD/..
+        go mod edit -replace=github.com/crate-crypto/go-ipa=github.com/crate-crypto/go-ipa@`grep go-ipa ../go.mod | cut -d'-' -f 5'`
+        go mod download github.com/crate-crypto/go-ipa
+        go mod tidy
+        go build ./cmd/geth/...
  
     - name: Run replay
-      run: cd geth && ./geth import --datadir=$PWD/.ethereum /home/devops/verkle-test-dependencies/next_blocks4 2>&1
+      run: |
+        cd geth
+        ./geth import --datadir=$PWD/.ethereum /home/devops/verkle-test-dependencies/next_blocks4
  
     - name: Generate profile
       run: go tool pprof -png cpu.out
@@ -35,3 +43,7 @@ jobs:
       with:
         name: profile.png
         path: profile001.png
+
+    - name: Cleanup
+      if: always()
+      run: rm -rf geth && run -rf .ethereum
