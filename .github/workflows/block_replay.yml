@@ -1,0 +1,54 @@
+name: Block replay test
+
+on:
+  push:
+    branches: [ master ]
+  workflow_dispatch:   
+
+jobs:
+  replay:
+    runs-on: self-hosted
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: 1.18
+
+    - name: Extract converted db
+      run: |
+        mkdir .ethereum
+        tar xf /home/devops/verkle-test-dependencies/preimages_small.tar --strip-components=4 -C .ethereum
+
+    - name: Download geth from the proper repo
+      run: git clone https://github.com/gballet/go-ethereum -b verkle/replay-change-with-tree-group-tryupdate geth
+
+    - name: Edit geth to use this repo
+      run: |
+        cd geth
+        cp /home/devops/verkle-test-dependencies/precomp .
+        go mod edit -replace=github.com/gballet/go-verkle=$PWD/..
+        go mod edit -replace=github.com/crate-crypto/go-ipa=github.com/crate-crypto/go-ipa@`grep go-ipa ../go.mod | cut -d'-' -f 5`
+        go mod download github.com/crate-crypto/go-ipa
+        go mod tidy
+        go build ./cmd/geth/...
+ 
+    - name: Run replay
+      run: |
+        cd geth
+        ./geth import --datadir=../.ethereum /home/devops/verkle-test-dependencies/next_blocks4
+ 
+    - name: Generate profile
+      run: |
+        cd geth
+        go tool pprof -png cpu.out
+
+    - name: Upload profiler picture
+      uses: actions/upload-artifact@v3
+      with:
+        name: profile.png
+        path: ./geth/profile001.png
+
+    - name: Cleanup
+      if: always()
+      run: rm -rf geth .ethereum precomp
