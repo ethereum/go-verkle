@@ -1,0 +1,34 @@
+name: Block replay test
+
+on:
+  push:
+    branches: [ master ]
+  workflow_dispatch:   
+
+jobs:
+  replay:
+    runs-on: self-hosted
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: 1.18
+
+    - name: Extract converted db
+      run: tar xf /home/devops/verkle-test-dependencies/preimages_small.tar -C $PWD/.ethereum
+
+    - name: Build replay executable with new go-verkle
+      run: TODO
+ 
+    - name: Run replay
+      run: ./geth
+ 
+    - name: Generate profile
+      run: go tool pprof -png cpu.out
+
+    - name: Upload profiler picture
+      uses: actions/upload-artifact@v3
+      with:
+        name: profile.png
+        path: profile001.png
