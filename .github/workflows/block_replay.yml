@@ -3,11 +3,14 @@ name: Block replay test
 on:
   push:
     branches: [ master ]
-  workflow_dispatch:   
+  workflow_run:   
+    workflows: [Go lint and test]
+    types: [completed]
 
 jobs:
   replay:
     runs-on: self-hosted
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
     - uses: actions/checkout@v2
     - name: Set up Go
@@ -37,13 +40,19 @@ jobs:
       run: |
         cd geth
         ./geth import --datadir=../.ethereum /home/devops/verkle-test-dependencies/next_blocks4
+
+    - name: Upload profiler file
+      uses: actions/upload-artifact@v3
+      with:
+        name: cpu.out
+        path: ./geth/cpu.out
  
-    - name: Generate profile
+    - name: Generate profile diagram
       run: |
         cd geth
         go tool pprof -png cpu.out
 
-    - name: Upload profiler picture
+    - name: Upload profiler diagram
       uses: actions/upload-artifact@v3
       with:
         name: profile.png
