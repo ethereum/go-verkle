@@ -12,7 +12,7 @@ func TestParseNodeEmptyPayload(t *testing.T) {
 func TestLeafStemLength(t *testing.T) {
 	// Serialize a leaf with no values, but whose stem is 32 bytes. The
 	// serialization should trim the extra byte.
-	toolong := [32]byte{}
+	toolong := make([]byte, 32)
 	leaf := NewLeafNode(toolong[:], make([][]byte, NodeWidth))
 	ser, err := leaf.Serialize()
 	if err != nil {
