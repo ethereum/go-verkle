@@ -107,8 +107,8 @@ func VerifyVerkleProof(proof *Proof, Cs []*Point, indices []uint8, ys []*Fr, tc 
 
 // A structure representing a tuple
 type KeyValuePair struct {
-	Key   []byte
-	Value []byte
+	Key   []byte `json:"key"`
+	Value []byte `json:"value"`
 }
 
 // SerializeProof serializes the proof in the rust-verkle format:
