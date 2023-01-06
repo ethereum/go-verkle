@@ -251,6 +251,14 @@ func (n *InternalNode) SetChild(i int, c VerkleNode) error {
 	return nil
 }
 
+// TouchCoW is a helper function that will mark a child as
+// "inserted into". It is used by the conversion code to
+// mark reconstructed subtrees as 'written to', so that its
+// root commitment can be computed.
+func (n *InternalNode) TouchCoW(index byte) {
+	n.cowChild(index)
+}
+
 func (n *InternalNode) cowChild(index byte) {
 	if n.cow == nil {
 		n.cow = make(map[byte]*Point)
