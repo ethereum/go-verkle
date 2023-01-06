@@ -770,6 +770,7 @@ func MergeTrees(subroots []*InternalNode) VerkleNode {
 			if _, ok := subroot.children[i].(Empty); ok {
 				continue
 			}
+			root.TouchCoW(byte(i))
 			root.children[i] = subroot.children[i]
 		}
 	}
