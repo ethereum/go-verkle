@@ -1191,6 +1191,10 @@ func (n *LeafNode) setDepth(d byte) {
 	n.depth = d
 }
 
+func (n *LeafNode) Values() [][]byte {
+	return n.values
+}
+
 func setBit(bitlist []byte, index int) {
 	bitlist[index/8] |= mask[index%8]
 }
