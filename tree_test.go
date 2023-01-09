@@ -789,8 +789,9 @@ func TestInsertIntoHashedNode(t *testing.T) {
 	}
 
 	resolver := func(h []byte) ([]byte, error) {
-		node := &LeafNode{stem: zeroKeyTest, values: make([][]byte, NodeWidth)}
-		node.values[0] = zeroKeyTest
+		values := make([][]byte, NodeWidth)
+		values[0] = zeroKeyTest
+		node := NewLeafNode(zeroKeyTest[:31], values)
 
 		return node.Serialize()
 	}
@@ -801,8 +802,9 @@ func TestInsertIntoHashedNode(t *testing.T) {
 	// Check that the proper error is raised if the RLP data is invalid and the
 	// node can not be parsed.
 	invalidRLPResolver := func(h []byte) ([]byte, error) {
-		node := &LeafNode{stem: zeroKeyTest, values: make([][]byte, NodeWidth)}
-		node.values[0] = zeroKeyTest
+		values := make([][]byte, NodeWidth)
+		values[0] = zeroKeyTest
+		node := NewLeafNode(zeroKeyTest[:31], values)
 
 		rlp, _ := node.Serialize()
 		return rlp[:len(rlp)-10], nil
