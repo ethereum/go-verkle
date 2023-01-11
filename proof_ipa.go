@@ -114,7 +114,7 @@ type KeyValuePair struct {
 	Value []byte `json:"-"`
 }
 
-func (kvp *KeyValuePair) Val() string {
+func (kvp KeyValuePair) Val() string {
 	if len(kvp.Value) > 0 {
 		return base64.StdEncoding.EncodeToString(kvp.Value)
 	}
