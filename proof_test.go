@@ -459,3 +459,32 @@ func TestProofOfAbsenceNoneMultipleStems(t *testing.T) {
 		t.Fatalf("invalid number of none extension statuses: %d ≠ 1", len(proof.ExtStatus))
 	}
 }
+
+func TestKeyValuePairJSONMarshalEmptyValue(t *testing.T) {
+	kvp := &KeyValuePair{
+		Key: zeroKeyTest,
+		// nil Value
+	}
+
+	enc, err := kvp.MarshalJSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected := "{\"key\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\",\"value\":\"\"}"
+	if string(enc) != expected {
+		t.Fatalf("invalid JSON encoding: %s != %s", string(enc), expected)
+	}
+
+	kvp.Value = oneKeyTest
+
+	enc, err = kvp.MarshalJSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected = "{\"key\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\",\"value\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAE=\"}"
+	if string(enc) != expected {
+		t.Fatalf("invalid JSON encoding: %s != %s", string(enc), expected)
+	}
+}

@@ -27,6 +27,7 @@ package verkle
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/binary"
 	"errors"
 	"sort"
@@ -105,10 +106,25 @@ func VerifyVerkleProof(proof *Proof, Cs []*Point, indices []uint8, ys []*Fr, tc 
 	return ipa.CheckMultiProof(tr, tc.conf, proof.Multipoint, Cs, ys, indices)
 }
 
-// A structure representing a tuple
+//go:generate go run github.com/fjl/gencodec -out gen_key_value_pair.go -type KeyValuePair -field-override keyValuePairMarshaling
+
+// KeyValuePair is a structure representing a tuple
 type KeyValuePair struct {
 	Key   []byte `json:"key"`
-	Value []byte `json:"value"`
+	Value []byte `json:"-"`
+}
+
+func (kvp *KeyValuePair) Val() string {
+	if len(kvp.Value) > 0 {
+		return base64.StdEncoding.EncodeToString(kvp.Value)
+	}
+
+	return ""
+}
+
+// field type override for gencodec
+type keyValuePairMarshaling struct {
+	Val string `json:"value"`
 }
 
 // SerializeProof serializes the proof in the rust-verkle format:
