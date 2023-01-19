@@ -38,12 +38,6 @@ type (
 	NodeResolverFn func([]byte) ([]byte, error)
 )
 
-// Committer represents an object that is able to create the
-// commitment to a polynomial.
-type Committer interface {
-	CommitToPoly([]Fr, int) *Point
-}
-
 type keylist [][]byte
 
 func (kl keylist) Len() int {
