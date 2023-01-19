@@ -29,6 +29,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"runtime"
+	"sync"
 
 	"github.com/crate-crypto/go-ipa/banderwagon"
 )
@@ -488,6 +490,41 @@ func (n *InternalNode) Delete(key []byte, resolver NodeResolverFn) error {
 // with HashedNode. It also sends the current node on the flush channel.
 func (n *InternalNode) Flush(flush NodeFlushFn) {
 	n.Commit()
+
+	// If we're at the root internal node, we fire goroutines exploiting
+	// available cores. Those goroutines will recursively take care of downstream
+	// layers, so we avoid creating too many goroutines.
+	if n.depth == 0 {
+		batches := runtime.NumCPU()
+		batchSize := len(n.children) / batches
+		var wg sync.WaitGroup
+		wg.Add(batches)
+		for k := 0; k < batches; k++ {
+			start := k * batchSize
+			end := (k + 1) * batchSize
+			if k == batches-1 {
+				end = len(n.children)
+			}
+			go func() {
+				defer wg.Done()
+				for i, child := range n.children[start:end] {
+					i := start + i
+					if c, ok := child.(*InternalNode); ok {
+						c.Commit()
+						c.Flush(flush)
+						n.children[i] = c.toHashedNode()
+					} else if c, ok := child.(*LeafNode); ok {
+						c.Commit()
+						flush(n.children[i])
+						n.children[i] = c.ToHashedNode()
+					}
+				}
+			}()
+		}
+		wg.Wait()
+		flush(n)
+		return
+	}
 	for i, child := range n.children {
 		if c, ok := child.(*InternalNode); ok {
 			c.Commit()
