@@ -48,7 +48,7 @@ func TestStatelessChildren(t *testing.T) {
 		t.Fatal("invalid list length")
 	}
 
-	var emptycount = 0
+	emptycount := 0
 	for _, v := range list {
 		if _, ok := v.(Empty); ok {
 			emptycount++
@@ -377,6 +377,7 @@ func TestStatelessDeserializeDepth2(t *testing.T) {
 }
 
 func TestStatelessGetProofItems(t *testing.T) {
+	_ = GetConfig()
 	insertedKeys := [][]byte{zeroKeyTest, oneKeyTest, ffx32KeyTest}
 	provenKeys := [][]byte{zeroKeyTest, fourtyKeyTest}
 

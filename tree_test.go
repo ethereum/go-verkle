@@ -33,10 +33,16 @@ import (
 	"errors"
 	"fmt"
 	mRand "math/rand"
+	"os"
 	"sort"
 	"testing"
 	"time"
 )
+
+func TestMain(m *testing.M) {
+	_ = GetConfig()
+	os.Exit(m.Run())
+}
 
 // a 32 byte value, as expected in the tree structure
 var testValue = []byte("0123456789abcdef0123456789abcdef")
@@ -106,7 +112,6 @@ func TestInsertTwoLeavesLastLevel(t *testing.T) {
 	if !bytes.Equal(leaf.values[0], testValue) {
 		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaf.values[0])
 	}
-
 }
 
 func TestGetTwoLeaves(t *testing.T) {
@@ -413,6 +418,7 @@ func TestDeleteUnequalPath(t *testing.T) {
 		t.Fatalf("didn't catch the deletion of non-existing key, err =%v", err)
 	}
 }
+
 func TestDeleteResolve(t *testing.T) {
 	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
 	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
@@ -719,7 +725,7 @@ func isLeafEqual(a, b *LeafNode) bool {
 
 func TestGetResolveFromHash(t *testing.T) {
 	var count uint
-	var dummyError = errors.New("dummy")
+	dummyError := errors.New("dummy")
 	var serialized []byte
 	getter := func([]byte) ([]byte, error) {
 		count++
@@ -813,7 +819,7 @@ func TestInsertIntoHashedNode(t *testing.T) {
 		t.Fatalf("error detecting a decoding error after resolution: %v", err)
 	}
 
-	var randomResolverError = errors.New("'clef' was mispronounced")
+	randomResolverError := errors.New("'clef' was mispronounced")
 	// Check that the proper error is raised if the resolver returns an error
 	erroringResolver := func(h []byte) ([]byte, error) {
 		return nil, randomResolverError
@@ -879,9 +885,9 @@ func TestLeafToCommsLessThan16(*testing.T) {
 }
 
 func TestGetProofItemsNoPoaIfStemPresent(t *testing.T) {
-
 	root := New()
 	root.Insert(ffx32KeyTest, zeroKeyTest, nil)
+	root.Commit()
 
 	// insert two keys that differ from the inserted stem
 	// by one byte.
