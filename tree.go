@@ -29,6 +29,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"runtime"
+	"sync"
 
 	"github.com/crate-crypto/go-ipa/banderwagon"
 )
@@ -567,24 +569,140 @@ func (n *InternalNode) Commitment() *Point {
 }
 
 func (n *InternalNode) Commit() *Point {
-	poly := make([]Fr, NodeWidth)
-	emptyChildren := 256
-
+	// If we're at the first or second layer, we do the Commit() in parallel
+	// leveraging available cores.
+	// If we're in further layers, we do single-goroutine Commit() since the top
+	// two layers already created enough goroutines doing downstream work.
+	if n.depth <= 1 {
+		return n.commitParallel()
+	}
 	if len(n.cow) != 0 {
+		polyp := frPool.Get().(*[]Fr)
+		poly := *polyp
+		defer func() {
+			for i := 0; i < NodeWidth; i++ {
+				poly[i] = Fr{}
+			}
+			frPool.Put(polyp)
+		}()
+		emptyChildren := 256
+
+		var i int
+		b := make([]byte, len(n.cow))
+		points := make([]*Point, 2*len(n.cow))
 		for idx, comm := range n.cow {
 			emptyChildren--
-			var pre Fr
-			// TODO use kev's multimaptofield
-			toFr(&pre, comm)
-			// child in cow, so its child has also been
-			// modified, so call `Commit()` instead of
-			// `Commitment()`
-			toFr(&poly[idx], n.children[idx].Commit())
-			poly[idx].Sub(&poly[idx], &pre)
+			points[2*i] = comm
+			points[2*i+1] = n.children[idx].Commit()
+			b[i] = idx
+			i++
 		}
+		frs := make([]*Fr, len(points))
+		for i := range frs {
+			frs[i] = &Fr{}
+		}
+		toFrMultiple(frs, points)
+		for i := 0; i < len(points)/2; i++ {
+			poly[b[i]].Sub(frs[2*i+1], frs[2*i])
+		}
+
 		n.cow = nil
 
-		n.commitment.Add(n.commitment, GetConfig().CommitToPoly(poly, emptyChildren))
+		n.commitment.Add(n.commitment, cfg.CommitToPoly(poly, emptyChildren))
+		return n.commitment
+	}
+
+	return n.commitment
+}
+
+var frPool = sync.Pool{
+	New: func() any {
+		ret := make([]Fr, NodeWidth)
+		return &ret
+	},
+}
+
+func (n *InternalNode) commitParallel() *Point {
+	if len(n.cow) != 0 {
+		polyp := frPool.Get().(*[]Fr)
+		poly := *polyp
+		defer func() {
+			for i := 0; i < NodeWidth; i++ {
+				poly[i] = Fr{}
+			}
+			frPool.Put(polyp)
+		}()
+		emptyChildren := 256
+
+		// The idea below is to distribute calling Commit() in all COW-ed children in multiple goroutines.
+		// For example, if we have 2-cores, we calculate the first half of COW-ed new Commit() in a goroutine, and
+		// the other half in another goroutine.
+
+		// In `points` we'll have:
+		// - point[2*i]: the previous *Point value saved by COW.
+		// - point[2*i+1]: we'll calculate the new Commit() of that leaf value.
+		//
+		// First, we create the arrays to store this.
+		var i int
+		pointsIndexes := make([]byte, len(n.cow))
+		points := make([]*Point, 2*len(n.cow))
+		for idx := range n.cow {
+			emptyChildren--
+			pointsIndexes[i] = idx
+			i++
+		}
+
+		var wg sync.WaitGroup
+		// `calculateChildsCommsInRange` does the mentioned calculation in `points`.
+		// It receives the range in the array where it should do the work. As mentioned earlier, each goroutine
+		// is assigned a range to do work. The complete range work is distributed in multiple goroutines.
+		calculateChildsCommsInRange := func(start, end int) {
+			defer wg.Done()
+			for i := start; i < end; i++ {
+				points[2*i] = n.cow[pointsIndexes[i]]
+				points[2*i+1] = n.children[pointsIndexes[i]].Commit()
+			}
+		}
+		// Here we do the work distribution. We split the total range of work to do in `numBatches` batches and call
+		// the above function which does the work.
+		numBatches := runtime.NumCPU()
+		wg.Add(numBatches)
+		for i := 0; i < numBatches; i++ {
+			batchStart := i * (len(pointsIndexes) / numBatches)
+			if i < numBatches-1 {
+				go calculateChildsCommsInRange(batchStart, (i+1)*(len(pointsIndexes)/numBatches))
+			} else {
+				go calculateChildsCommsInRange(batchStart, len(pointsIndexes))
+			}
+		}
+
+		// After calculating the new *Point (Commit() of touched children), we'll have to do the Point->Fr transformation.
+		frs := make([]*Fr, len(points))
+		for i := range frs {
+			if i%2 == 0 {
+				// For even slots (old COW commitment), we create a new empty Fr to store the result.
+				frs[i] = &Fr{}
+			} else {
+				// For odd slots (new commitment), we can use `poly` as a temporal storage to avoid allocations.
+				frs[i] = &poly[pointsIndexes[i/2]]
+			}
+		}
+		wg.Wait()
+
+		// Now that in `frs` we have where we want to store *all* the Point->Fr transformations, we do that in a single batch.
+		toFrMultiple(frs, points)
+
+		// For each
+		for i := 0; i < len(points)/2; i++ {
+			// Now we do [newCommitment] - [oldCommitment], so we know the Fr difference between old and new commitments.
+			poly[pointsIndexes[i]].Sub(frs[2*i+1], frs[2*i])
+		}
+
+		n.cow = nil
+
+		// Now that in `poly` we have the Fr differences, we `CommitToPoly` and add to the current internal node
+		// commitment, finishing the diff-updating.
+		n.commitment.Add(n.commitment, cfg.CommitToPoly(poly, emptyChildren))
 		return n.commitment
 	}
 
@@ -827,15 +945,13 @@ func (n *LeafNode) getOldCn(index byte) (*Point, *Fr) {
 func (n *LeafNode) updateC(index byte, c *Point, oldc *Fr) {
 	var (
 		newc Fr
-		diff Point
 		poly [256]Fr
 	)
 
 	toFr(&newc, c)
 	newc.Sub(&newc, oldc)
 	poly[2+(index/128)] = newc
-	diff = cfg.conf.Commit(poly[:])
-	n.commitment.Add(n.commitment, &diff)
+	n.commitment.Add(n.commitment, cfg.CommitToPoly(poly[:], 0))
 }
 
 func (n *LeafNode) updateCn(index byte, value []byte, c *Point) {
