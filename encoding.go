@@ -44,7 +44,7 @@ func bit(bitlist []byte, nr int) bool {
 var serializedPayloadTooShort = errors.New("verkle payload is too short")
 
 func ParseNode(serialized []byte, depth byte, comm []byte) (VerkleNode, error) {
-	if len(serialized) < 1+31+SerializedAffinePointSize {
+	if len(serialized) < 1+StemSize+SerializedAffinePointSize {
 		return nil, serializedPayloadTooShort
 	}
 	switch serialized[0] {
@@ -58,7 +58,7 @@ func ParseNode(serialized []byte, depth byte, comm []byte) (VerkleNode, error) {
 }
 
 func ParseStatelessNode(serialized []byte, depth byte, comm []byte) (VerkleNode, error) {
-	if len(serialized) < 1+31+SerializedAffinePointSize {
+	if len(serialized) < 1+StemSize+SerializedAffinePointSize {
 		return nil, serializedPayloadTooShort
 	}
 	switch serialized[0] {
@@ -73,9 +73,9 @@ func ParseStatelessNode(serialized []byte, depth byte, comm []byte) (VerkleNode,
 
 func parseLeafNode(serialized []byte, depth byte, comm []byte) (VerkleNode, error) {
 	var values [NodeWidth][]byte
-	offset := 1 + 31 + 32 + 2*SerializedAffinePointSize
+	offset := 1 + StemSize + 32 + 2*SerializedAffinePointSize
 	for i := 0; i < NodeWidth; i++ {
-		if bit(serialized[1+31:1+31+32], i) {
+		if bit(serialized[1+StemSize:1+StemSize+32], i) {
 			if offset+32 > len(serialized) {
 				return nil, fmt.Errorf("verkle payload is too short, need at least %d and only have %d, payload = %x (%w)", offset+32, len(serialized), serialized, serializedPayloadTooShort)
 			}
@@ -86,12 +86,12 @@ func parseLeafNode(serialized []byte, depth byte, comm []byte) (VerkleNode, erro
 	if NodeWidth != len(values) {
 		return nil, fmt.Errorf("invalid number of nodes in decoded child expected %d, got %d", NodeWidth, len(values))
 	}
-	ln := NewLeafNodeWithNoComms(serialized[1:1+31], values[:])
+	ln := NewLeafNodeWithNoComms(serialized[1:1+StemSize], values[:])
 	ln.setDepth(depth)
 	ln.c1 = new(Point)
-	ln.c1.SetBytesTrusted(serialized[1+31+32 : 1+31+32+SerializedAffinePointSize])
+	ln.c1.SetBytesTrusted(serialized[1+StemSize+32 : 1+StemSize+32+SerializedAffinePointSize])
 	ln.c2 = new(Point)
-	ln.c2.SetBytesTrusted(serialized[1+31+32+SerializedAffinePointSize : 1+31+32+2*SerializedAffinePointSize])
+	ln.c2.SetBytesTrusted(serialized[1+StemSize+32+SerializedAffinePointSize : 1+StemSize+32+2*SerializedAffinePointSize])
 	ln.commitment = new(Point)
 	ln.commitment.SetBytesTrusted(comm)
 	return ln, nil

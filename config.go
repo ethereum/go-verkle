@@ -32,10 +32,11 @@ import (
 const (
 	NodeWidth         = 256
 	NodeBitWidth byte = 8
+	StemSize          = 31
 )
 
 func equalPaths(key1, key2 []byte) bool {
-	return bytes.Equal(key1[:31], key2[:31])
+	return bytes.Equal(key1[:StemSize], key2[:StemSize])
 }
 
 // offset2key extracts the n bits of a key that correspond to the
