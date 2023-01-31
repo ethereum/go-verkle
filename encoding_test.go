@@ -18,7 +18,8 @@ func TestLeafStemLength(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(ser) != 128 {
+	// RLP_type + Stem + bitset + 2-commitments
+	if len(ser) != 1+31+NodeWidth/8+2*SerializedAffinePointSize {
 		t.Fatalf("invalid serialization when the stem is longer than 31 bytes: %x (%d bytes)", ser, len(ser))
 	}
 }

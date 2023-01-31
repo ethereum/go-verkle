@@ -801,7 +801,7 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 
 func (n *InternalNode) Serialize() ([]byte, error) {
 	var (
-		bitlist, hashlist [32]byte
+		bitlist, hashlist [NodeWidth / 8]byte
 		nhashed           int // number of children who are hashed nodes
 	)
 	commitments := make([]*Point, 0, NodeWidth)
@@ -820,7 +820,7 @@ func (n *InternalNode) Serialize() ([]byte, error) {
 			}
 		}
 	}
-	children := make([]byte, 0, (len(commitments)+nhashed)*32)
+	children := make([]byte, 0, (len(commitments)+nhashed)*SerializedAffinePointSize)
 
 	bytecomms := banderwagon.ElementsToBytes(commitments)
 	consumed := 0
@@ -1255,7 +1255,7 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 }
 
 func (n *LeafNode) Serialize() ([]byte, error) {
-	var bitlist [32]byte
+	var bitlist [NodeWidth / 8]byte
 	children := make([]byte, 0, NodeWidth*32)
 	for i, v := range n.values {
 		if v != nil {

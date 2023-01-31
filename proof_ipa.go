@@ -65,8 +65,8 @@ func MakeVerkleMultiProof(root VerkleNode, keys [][]byte, keyvals map[string][]b
 	var vals [][]byte
 	for _, k := range keys {
 		// TODO at the moment, do not include the post-data
-		//val, _ := root.Get(k, nil)
-		//vals = append(vals, val)
+		// val, _ := root.Get(k, nil)
+		// vals = append(vals, val)
 		vals = append(vals, keyvals[string(k)])
 	}
 
@@ -138,7 +138,7 @@ func SerializeProof(proof *Proof) ([]byte, []KeyValuePair, error) {
 
 	binary.Write(&bufProof, binary.LittleEndian, uint32(len(proof.Cs)))
 	for _, C := range proof.Cs {
-		serialized := C.Bytes()
+		serialized := C.BytesCompressed()
 		_, err := bufProof.Write(serialized[:])
 		if err != nil {
 			return nil, nil, err
@@ -215,7 +215,7 @@ func DeserializeProof(proofSerialized []byte, keyvals []KeyValuePair) (*Proof, e
 			return nil, err
 		}
 
-		if err := commitment.SetBytes(commitmentBytes); err != nil {
+		if err := commitment.SetBytesCompressed(commitmentBytes); err != nil {
 			return nil, err
 		}
 
