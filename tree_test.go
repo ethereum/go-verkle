@@ -1148,22 +1148,18 @@ func TestRustBanderwagonBlock48(t *testing.T) {
 	r := tree.Commit()
 
 	proof, cis, zis, yis, _ := MakeVerkleMultiProof(tree, keys, initialVals)
-	serialized, _, err := SerializeProof(proof)
+	vp, statediff, err := SerializeProof(proof)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("serialized proof=%x", serialized)
+	t.Logf("serialized proof=%v", vp)
 
 	cfg := GetConfig()
 	if !VerifyVerkleProof(proof, cis, zis, yis, cfg) {
 		t.Fatal("proof didn't verify")
 	}
 
-	var kvp []KeyValuePair
-	for i := range keys {
-		kvp = append(kvp, KeyValuePair{Key: keys[i], Value: vals[i]})
-	}
-	dproof, err := DeserializeProof(serialized, kvp)
+	dproof, err := DeserializeProof(vp, statediff)
 	if err != nil {
 		t.Fatal(err)
 	}

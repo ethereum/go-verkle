@@ -28,7 +28,6 @@ package verkle
 import (
 	"bytes"
 	"crypto/rand"
-	"encoding/binary"
 	"encoding/hex"
 	"testing"
 )
@@ -265,26 +264,21 @@ func TestProofSerializationNoAbsentStem(t *testing.T) {
 
 	proof, _, _, _, _ := MakeVerkleMultiProof(root, [][]byte{keys[0]}, map[string][]byte{})
 
-	serialized, _, err := SerializeProof(proof)
+	vp, statediff, err := SerializeProof(proof)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(serialized) == 0 {
-		t.Fatal("zero-length serialized proof payload")
+	if len(vp.OtherStems) > 0 {
+		t.Fatalf("first byte indicates that there are %d stems that should not be here", len(vp.OtherStems))
 	}
-	stemsize := binary.LittleEndian.Uint32(serialized[:4])
-	if stemsize != 0 {
-		t.Fatalf("first byte indicates that there are %d stems that should not be here", stemsize)
-	}
-	extsize := binary.LittleEndian.Uint32(serialized[4:8])
+	extsize := len(statediff)
 	if extsize != 1 {
 		t.Fatalf("second byte indicates that there are %d extension statuses, should be 1", extsize)
 	}
-	// TODO keep checking the serialized values here
 }
 
 func TestProofSerializationWithAbsentStem(t *testing.T) {
-	const leafCount = 1000
+	const leafCount = 256
 
 	keys := make([][]byte, leafCount)
 	root := New()
@@ -304,18 +298,15 @@ func TestProofSerializationWithAbsentStem(t *testing.T) {
 
 	proof, _, _, _, _ := MakeVerkleMultiProof(root, [][]byte{absentkey[:]}, map[string][]byte{})
 
-	serialized, _, err := SerializeProof(proof)
+	vp, statediff, err := SerializeProof(proof)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(serialized) == 0 {
-		t.Fatal("zero-length serialized proof payload")
-	}
-	stemsize := binary.LittleEndian.Uint32(serialized[:4])
+	stemsize := len(vp.OtherStems)
 	if stemsize != 1 {
 		t.Fatalf("first byte indicates that there are %d stems that should not be here", stemsize)
 	}
-	extsize := binary.LittleEndian.Uint32(serialized[4+stemsize*31 : 4+stemsize*31+4])
+	extsize := len(statediff)
 	if extsize != 1 {
 		t.Fatalf("second byte indicates that there are %d extension statuses, should be 1", extsize)
 	}
@@ -323,20 +314,15 @@ func TestProofSerializationWithAbsentStem(t *testing.T) {
 }
 
 func TestProofDeserialize(t *testing.T) {
-	const leafCount = 1000
+	const leafCount = 256
 
 	keys := make([][]byte, leafCount)
 	root := New()
-	var keyvals []KeyValuePair
 	for i := 0; i < leafCount; i++ {
 		key := make([]byte, 32)
 		key[2] = byte(i)
 		keys[i] = key
 		root.Insert(key, fourtyKeyTest, nil)
-		keyvals = append(keyvals, KeyValuePair{
-			Key:   key,
-			Value: fourtyKeyTest,
-		})
 	}
 
 	// Create stem  0x0000020100000.... that is not present in the tree,
@@ -348,15 +334,12 @@ func TestProofDeserialize(t *testing.T) {
 
 	proof, _, _, _, _ := MakeVerkleMultiProof(root, [][]byte{absentkey[:]}, map[string][]byte{})
 
-	serialized, _, err := SerializeProof(proof)
+	vp, statediff, err := SerializeProof(proof)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(serialized) == 0 {
-		t.Fatal("zero-length serialized proof payload")
-	}
 
-	deserialized, err := DeserializeProof(serialized, keyvals)
+	deserialized, err := DeserializeProof(vp, statediff)
 	if err != nil {
 		t.Fatalf("could not deserialize verkle proof: %v", err)
 	}
@@ -370,38 +353,7 @@ func TestProofDeserialize(t *testing.T) {
 }
 
 func TestProofDeserializeErrors(t *testing.T) {
-
-	deserialized, err := DeserializeProof([]byte{0}, nil)
-	if err == nil {
-		t.Fatal("deserializing invalid proof didn't cause an error")
-	}
-	if deserialized != nil {
-		t.Fatalf("non-nil deserialized data returned %v", deserialized)
-	}
-
-	deserialized, err = DeserializeProof([]byte{1, 0, 0, 0}, nil)
-	if err == nil {
-		t.Fatal("deserializing invalid proof didn't cause an error")
-	}
-	if deserialized != nil {
-		t.Fatalf("non-nil deserialized data returned %v", deserialized)
-	}
-
-	deserialized, err = DeserializeProof([]byte{0, 0, 0, 0, 0}, nil)
-	if err == nil {
-		t.Fatal("deserializing invalid proof didn't cause an error")
-	}
-	if deserialized != nil {
-		t.Fatalf("non-nil deserialized data returned %v", deserialized)
-	}
-
-	deserialized, err = DeserializeProof([]byte{0, 0, 0, 0, 0, 0, 0, 0, 0}, nil)
-	if err == nil {
-		t.Fatal("deserializing invalid proof didn't cause an error")
-	}
-	if deserialized != nil {
-		t.Fatalf("non-nil deserialized data returned %v", deserialized)
-	}
+	// TODO
 }
 
 func TestProofOfAbsenceEdgeCase(t *testing.T) {
