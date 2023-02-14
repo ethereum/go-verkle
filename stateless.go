@@ -29,6 +29,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"sort"
 )
 
 // StatelessNode represents a node for execution in a stateless context,
@@ -475,7 +476,12 @@ func (n *StatelessNode) Hash() *Fr {
 	return n.hash
 }
 
-func (n *StatelessNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte) {
+// GetProofItems, in a stateless tree, can only be used to get enough elements to verify
+// the proof (i.e. it won't be able to provide all the elements required to generate the
+// proof). As a result, the last two returned values will be `nil`.
+// It gets the proof elements by looking at the structure of the tree, so the keylist is
+// is hacked to hold a single value, which is the path travelled so far.
+func (n *StatelessNode) GetProofItems(path keylist) (*ProofElements, []byte, [][]byte) {
 	var (
 		pe = &ProofElements{
 			Cis:    []*Point{},
@@ -483,64 +489,71 @@ func (n *StatelessNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][
 			Yis:    []*Fr{},
 			ByPath: map[string]*Point{},
 		}
-
-		esses []byte   = nil // list of extension statuses
-		poass [][]byte       // list of proof-of-absence stems
 	)
 
+	// First case: this node is an internal node. The code proceeds to get the
+	// proof elements for this level. It does so by ranging over the available
+	// keys in increasing order, adds the proof elements of each proven location
+	// and recurses into the child so its proof elements are appended after its
+	// parent's.
 	if len(n.values) == 0 {
-		var (
-			groups = groupKeys(keys, n.depth)
-		)
+		indices := make([]byte, 0, len(n.children))
+		for i := range n.children {
+			indices = append(indices, i)
+		}
 
-		for _, group := range groups {
-			childIdx := offset2key(group[0], n.depth)
+		sort.Slice(indices, func(i, j int) bool { return indices[i] < indices[j] })
 
+		for _, idx := range indices {
+			// XXX s'assurer que si un truc n'est pas present, on met nil
+			// sinon ça ne marchera pas.
+			child := n.children[idx]
+
+			// Add the proof elements for this opening of the polynomial
 			var yi Fr
 			// when proving that a key is not in the tree
-			if n.children[childIdx] == nil {
+			if child == nil {
 				yi.SetZero()
 			} else {
-				toFr(&yi, n.children[childIdx].Commitment())
+				toFr(&yi, child.Commitment())
 			}
+
+			childpath := append(path[0], idx)
 
 			pe.Cis = append(pe.Cis, n.commitment)
-			pe.Zis = append(pe.Zis, childIdx)
+			pe.Zis = append(pe.Zis, idx)
 			pe.Yis = append(pe.Yis, &yi)
-			pe.ByPath[string(group[0][:n.depth])] = n.commitment
+			pe.ByPath[string(childpath)] = n.commitment
 
-		}
-
-		// Loop over again, collecting the children's proof elements
-		// This is because the order is breadth-first.
-		for _, group := range groups {
-			childIdx := offset2key(group[0], n.depth)
-
-			// Special case of a proof of absence: no children
-			// commitment, as the value is 0.
-			if n.children[childIdx] == nil {
-				// A question arises here: what if this proof of absence
-				// corresponds to several stems? Should the ext status be
-				// repeated as many times? It would be wasteful, so the
-				// decoding code has to be aware of this corner case.
-				esses = append(esses, extStatusAbsentEmpty|((n.depth+1)<<3))
-				continue
+			// Recurse into the child and append its proof elements,
+			// only if the child isn't a hashed node. If so, then we
+			// have a proof of absence and the C value at this level
+			// matters.
+			switch child.(type) {
+			case *StatelessNode:
+				childpe, _, _ := child.GetProofItems([][]byte{childpath})
+				pe.Merge(childpe)
+			case nil, *HashedNode:
+			// We already have what we need, do nothing
+			default:
+				// invalid node type, panic
+				panic("invalid node type in stateless GetProofItems")
 			}
-
-			pec, es, other := n.children[childIdx].GetProofItems(group)
-			pe.Merge(pec)
-			poass = append(poass, other...)
-			esses = append(esses, es...)
 		}
 	} else {
+		// Second case: this node is a leaf and so the insertion order
+		// for values differs.
+
+		// Append the extension level stuff.
 		pe.Cis = append(pe.Cis, n.commitment, n.commitment)
 		pe.Zis = append(pe.Zis, 0, 1)
 		pe.Yis = append(pe.Yis, new(Fr).SetOne(), new(Fr).SetZero())
 		StemFromBytes(pe.Yis[len(pe.Yis)-1], n.stem)
 
-		// First pass: add top-level elements first
+		// NOTE: C2 will be added before the values pertaining to C1.
 		var hasC1, hasC2 bool
-		for _, key := range keys {
+		// XXX nil values also need to be inserted
+		for _, key := range n.values {
 			hasC1 = hasC1 || (key[31] < 128)
 			hasC2 = hasC2 || (key[31] >= 128)
 			if hasC2 {
@@ -562,43 +575,19 @@ func (n *StatelessNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][
 			pe.Yis = append(pe.Yis, &yi)
 		}
 
-		for _, key := range keys {
-			pe.ByPath[string(key[:n.depth])] = n.commitment
+		pe.ByPath[string(path[0])] = n.commitment
 
-			// Proof of absence: case of a differing stem.
-			// Add an unopened stem-level node.
-			if !equalPaths(n.stem, key) {
-				// Corner case: don't add the poa stem if it's
-				// already present as a proof-of-absence for a
-				// different key, or for the same key (case of
-				// multiple missing keys being absent).
-				// The list of extension statuses has to be of
-				// length 1 at this level, so skip otherwise.
-				if len(esses) == 0 {
-					esses = append(esses, extStatusAbsentOther|(n.depth<<3))
-					poass = append(poass, n.stem)
-				}
-				continue
-			}
+		// Go over the values and add their commitments
+		indices := make([]byte, 0, len(n.values))
+		for i := range n.children {
+			indices = append(indices, i)
+		}
 
-			// corner case (see previous corner case): if a proof-of-absence
-			// stem was found, and it now turns out the same stem is used as
-			// a proof of presence, clear the proof-of-absence list to avoid
-			// redundancy.
-			if len(poass) > 0 {
-				poass = nil
-				esses = nil
-			}
+		sort.Slice(indices, func(i, j int) bool { return indices[i] < indices[j] })
 
-			var (
-				suffix   = key[31]
-				suffSlot = 2 + suffix/128 // slot in suffix tree
-				scomm    *Point
-			)
-
-			if suffix < 128 {
-				scomm = n.c1
-			} else {
+		for _, suffix := range indices {
+			var scomm *Point = n.c1
+			if suffix >= 128 {
 				scomm = n.c2
 			}
 
@@ -607,13 +596,15 @@ func (n *StatelessNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][
 			// The suffix tree for this value is missing, i.e. all
 			// values in the extension-and-suffix tree are grouped
 			// in the other suffix tree (e.g. C2 if we are looking
-			// at C1).
+			// at C1). The corresponding Cn will be zero and found
+			// in the opening of the extension level.
 			if scomm == nil {
-				esses = append(esses, extStatusAbsentEmpty|(n.depth<<3))
 				continue
 			}
 
-			slotPath := string(key[:n.depth]) + string([]byte{suffSlot})
+			slot := n.values[suffix]
+			suffSlot := 2 + suffix/128 // slot in suffix tree
+			slotPath := string(path[0]) + string([]byte{suffSlot})
 
 			// Proof of absence: case of a missing value.
 			//
@@ -622,31 +613,24 @@ func (n *StatelessNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][
 			// only happen when the leaf has never been written to
 			// since after deletion the value would be set to zero
 			// but still contain the leaf marker 2^128.
-			if n.values[suffix] == nil {
+			if slot == nil {
 				pe.Cis = append(pe.Cis, scomm, scomm)
 				pe.Zis = append(pe.Zis, 2*suffix, 2*suffix+1)
 				pe.Yis = append(pe.Yis, &FrZero, &FrZero)
-				if len(esses) == 0 || esses[len(esses)-1] != extStatusPresent|(n.depth<<3) {
-					esses = append(esses, extStatusPresent|(n.depth<<3))
-				}
 				pe.ByPath[slotPath] = scomm
 				continue
 			}
 
 			// suffix tree is present and contains the key
 			var leaves [2]Fr
-			leafToComms(leaves[:], n.values[suffix])
+			leafToComms(leaves[:], slot)
 			pe.Cis = append(pe.Cis, scomm, scomm)
 			pe.Zis = append(pe.Zis, 2*suffix, 2*suffix+1)
 			pe.Yis = append(pe.Yis, &leaves[0], &leaves[1])
-			if len(esses) == 0 || esses[len(esses)-1] != extStatusPresent|(n.depth<<3) {
-				esses = append(esses, extStatusPresent|(n.depth<<3))
-			}
 			pe.ByPath[slotPath] = scomm
 		}
-
 	}
-	return pe, esses, poass
+	return pe, nil, nil
 }
 
 func (n *StatelessNode) Serialize() ([]byte, error) {
