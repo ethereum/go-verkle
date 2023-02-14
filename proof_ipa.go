@@ -323,12 +323,6 @@ func TreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) {
 	}
 
 	for i, k := range proof.Keys {
-		if len(proof.Values[i]) == 0 {
-			// Skip the nil keys, they are here to prove
-			// an absence.
-			continue
-		}
-
 		err = root.insertValue(k, proof.Values[i])
 		if err != nil {
 			return nil, err

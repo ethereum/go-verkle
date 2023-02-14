@@ -338,7 +338,8 @@ func (n *StatelessNode) insertStem(path []byte, stemInfo stemInfo, comms []*Poin
 	if len(path) == 1 {
 		switch stemInfo.stemType & 3 {
 		case extStatusAbsentEmpty:
-			// nothing to do
+			// mark the child as absent
+			n.children[path[0]] = nil
 		case extStatusAbsentOther:
 			// insert poa stem
 			serialized := comms[0].Bytes()
@@ -491,12 +492,11 @@ func (n *StatelessNode) GetProofItems(path keylist) (*ProofElements, []byte, [][
 		}
 	)
 
-	// First case: this node is an internal node. The code proceeds to get the
-	// proof elements for this level. It does so by ranging over the available
-	// keys in increasing order, adds the proof elements of each proven location
-	// and recurses into the child so its proof elements are appended after its
-	// parent's.
 	if len(n.values) == 0 {
+		// First case: this node is an internal node. The code proceeds to get the
+		// proof elements for this level. It does so by ranging over the available
+		// keys in increasing order, adds the proof elements at this level, and it
+		// then recurses into each children in the same order.
 		indices := make([]byte, 0, len(n.children))
 		for i := range n.children {
 			indices = append(indices, i)
@@ -505,8 +505,6 @@ func (n *StatelessNode) GetProofItems(path keylist) (*ProofElements, []byte, [][
 		sort.Slice(indices, func(i, j int) bool { return indices[i] < indices[j] })
 
 		for _, idx := range indices {
-			// XXX s'assurer que si un truc n'est pas present, on met nil
-			// sinon ça ne marchera pas.
 			child := n.children[idx]
 
 			// Add the proof elements for this opening of the polynomial
@@ -524,11 +522,16 @@ func (n *StatelessNode) GetProofItems(path keylist) (*ProofElements, []byte, [][
 			pe.Zis = append(pe.Zis, idx)
 			pe.Yis = append(pe.Yis, &yi)
 			pe.ByPath[string(childpath)] = n.commitment
+		}
 
-			// Recurse into the child and append its proof elements,
-			// only if the child isn't a hashed node. If so, then we
-			// have a proof of absence and the C value at this level
-			// matters.
+		// Recurse into the child and append its proof elements,
+		// only if the child isn't a hashed node. If so, then we
+		// have a proof of absence and the C value at this level
+		// matters.
+		for _, idx := range indices {
+			child := n.children[idx]
+			childpath := append(path[0], idx)
+
 			switch child.(type) {
 			case *StatelessNode:
 				childpe, _, _ := child.GetProofItems([][]byte{childpath})
@@ -552,10 +555,9 @@ func (n *StatelessNode) GetProofItems(path keylist) (*ProofElements, []byte, [][
 
 		// NOTE: C2 will be added before the values pertaining to C1.
 		var hasC1, hasC2 bool
-		// XXX nil values also need to be inserted
-		for _, key := range n.values {
-			hasC1 = hasC1 || (key[31] < 128)
-			hasC2 = hasC2 || (key[31] >= 128)
+		for suffix := range n.values {
+			hasC1 = hasC1 || (suffix < 128)
+			hasC2 = hasC2 || (suffix >= 128)
 			if hasC2 {
 				break
 			}
@@ -579,7 +581,7 @@ func (n *StatelessNode) GetProofItems(path keylist) (*ProofElements, []byte, [][
 
 		// Go over the values and add their commitments
 		indices := make([]byte, 0, len(n.values))
-		for i := range n.children {
+		for i := range n.values {
 			indices = append(indices, i)
 		}
 
@@ -748,7 +750,9 @@ func (n *StatelessNode) toDot(parent, path string) string {
 		}
 
 		for i, child := range n.children {
-			ret += child.toDot(me, fmt.Sprintf("%s%02x", path, i)) + "\n"
+			if child != nil {
+				ret += child.toDot(me, fmt.Sprintf("%s%02x", path, i)) + "\n"
+			}
 		}
 	}
 
