@@ -390,6 +390,17 @@ func (n *StatelessNode) insertValue(key, value []byte) error {
 		n.values[key[31]] = value
 	} else { // no, recurse
 		nChild := offset2key(key, n.depth)
+		// corner case: inserting a nil value inside
+		// a nil node, this corresponds to a proof
+		// of absence case (one of the many) and it
+		// should be skipped. Panics if the value
+		// isn't nil.
+		if n.children[nChild] == nil {
+			if len(value) != 0 {
+				panic("inserting non-nil value into nil node")
+			}
+			return nil
+		}
 		n.children[nChild].(*StatelessNode).insertValue(key, value)
 	}
 
