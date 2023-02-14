@@ -569,7 +569,10 @@ func (n *StatelessNode) GetProofItems(path keylist) (*ProofElements, []byte, [][
 		for suffix := range n.values {
 			hasC1 = hasC1 || (suffix < 128)
 			hasC2 = hasC2 || (suffix >= 128)
-			if hasC2 {
+
+			// Shortcut: already exit if we know that both
+			// are present.
+			if hasC2 && hasC1 {
 				break
 			}
 		}
