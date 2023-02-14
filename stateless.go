@@ -340,6 +340,9 @@ func (n *StatelessNode) insertStem(path []byte, stemInfo stemInfo, comms []*Poin
 			// nothing to do
 		case extStatusAbsentOther:
 			// insert poa stem
+			serialized := comms[0].Bytes()
+			n.children[path[0]] = &HashedNode{commitment: serialized[:], cachedPoint: comms[0]}
+			comms = comms[1:]
 		case extStatusPresent:
 			// insert stem
 			newchild := NewStatelessWithCommitment(comms[0])

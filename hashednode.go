@@ -30,6 +30,8 @@ import (
 	"fmt"
 )
 
+var ErrReadFromHashedNode = errors.New("can not read from a hash node")
+
 type HashedNode struct {
 	commitment  []byte
 	cachedPoint *Point
@@ -48,7 +50,7 @@ func (*HashedNode) Delete([]byte, NodeResolverFn) error {
 }
 
 func (*HashedNode) Get([]byte, NodeResolverFn) ([]byte, error) {
-	return nil, errors.New("can not read from a hash node")
+	return nil, ErrReadFromHashedNode
 }
 
 func (n *HashedNode) Commit() *Point {
