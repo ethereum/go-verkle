@@ -41,25 +41,25 @@ func bit(bitlist []byte, nr int) bool {
 	return bitlist[nr/8]&mask[nr%8] != 0
 }
 
-var serializedPayloadTooShort = errors.New("verkle payload is too short")
+var errSerializedPayloadTooShort = errors.New("verkle payload is too short")
 
-func ParseNode(serialized []byte, depth byte, comm []byte) (VerkleNode, error) {
-	if len(serialized) < 64 {
-		return nil, serializedPayloadTooShort
+func ParseNode(serialized []byte, depth byte, comm SerializedPointCompressed) (VerkleNode, error) {
+	if len(serialized) < 1+StemSize+SerializedPointSize {
+		return nil, errSerializedPayloadTooShort
 	}
 	switch serialized[0] {
 	case leafRLPType:
 		return parseLeafNode(serialized, depth, comm)
 	case internalRLPType:
-		return CreateInternalNode(serialized[1:33], serialized[33:], depth, comm)
+		return CreateInternalNode(serialized[1:1+NodeWidth/8], serialized[1+NodeWidth/8:], depth, comm)
 	default:
 		return nil, ErrInvalidNodeEncoding
 	}
 }
 
-func ParseStatelessNode(serialized []byte, depth byte, comm []byte) (VerkleNode, error) {
-	if len(serialized) < 64 {
-		return nil, serializedPayloadTooShort
+func ParseStatelessNode(serialized []byte, depth byte, comm SerializedPointCompressed) (VerkleNode, error) {
+	if len(serialized) < 1+StemSize+SerializedPointSize {
+		return nil, errSerializedPayloadTooShort
 	}
 	switch serialized[0] {
 	case leafRLPType:
@@ -71,13 +71,13 @@ func ParseStatelessNode(serialized []byte, depth byte, comm []byte) (VerkleNode,
 	}
 }
 
-func parseLeafNode(serialized []byte, depth byte, comm []byte) (VerkleNode, error) {
+func parseLeafNode(serialized []byte, depth byte, comm SerializedPointCompressed) (VerkleNode, error) {
 	var values [NodeWidth][]byte
-	offset := 128
+	offset := 1 + StemSize + 32 + 2*SerializedPointSize
 	for i := 0; i < NodeWidth; i++ {
-		if bit(serialized[32:64], i) {
+		if bit(serialized[1+StemSize:1+StemSize+32], i) {
 			if offset+32 > len(serialized) {
-				return nil, fmt.Errorf("verkle payload is too short, need at least %d and only have %d, payload = %x (%w)", offset+32, len(serialized), serialized, serializedPayloadTooShort)
+				return nil, fmt.Errorf("verkle payload is too short, need at least %d and only have %d, payload = %x (%w)", offset+32, len(serialized), serialized, errSerializedPayloadTooShort)
 			}
 			values[i] = serialized[offset : offset+32]
 			offset += 32
@@ -86,59 +86,63 @@ func parseLeafNode(serialized []byte, depth byte, comm []byte) (VerkleNode, erro
 	if NodeWidth != len(values) {
 		return nil, fmt.Errorf("invalid number of nodes in decoded child expected %d, got %d", NodeWidth, len(values))
 	}
-	ln := NewLeafNodeWithNoComms(serialized[1:32], values[:])
+	ln := NewLeafNodeWithNoComms(serialized[1:1+StemSize], values[:])
 	ln.setDepth(depth)
 	ln.c1 = new(Point)
-	ln.c1.SetBytesTrusted(serialized[64:96])
+	ln.c1.SetBytesUncompressed(serialized[1+StemSize+32:1+StemSize+32+SerializedPointSize], true)
 	ln.c2 = new(Point)
-	ln.c2.SetBytesTrusted(serialized[96:128])
+	ln.c2.SetBytesUncompressed(serialized[1+StemSize+32+SerializedPointSize:1+StemSize+32+2*SerializedPointSize], true)
 	ln.commitment = new(Point)
-	ln.commitment.SetBytesTrusted(comm)
+	ln.commitment.SetBytes(comm, true)
 	return ln, nil
 }
 
-func deserializeIntoStateless(bitlist []byte, raw []byte, depth byte, comm []byte) (*StatelessNode, error) {
+func deserializeIntoStateless(bitlist []byte, raw []byte, depth byte, comm SerializedPointCompressed) (*StatelessNode, error) {
 	// GetTreeConfig caches computation result, hence
 	// this op has low overhead
 	n := NewStateless()
 	n.setDepth(depth)
 	indices := indicesFromBitlist(bitlist)
-	if len(raw)/32 != len(indices) {
+	if len(raw)/SerializedPointSize != len(indices) {
 		return nil, ErrInvalidNodeEncoding
 	}
 	for i, index := range indices {
-		n.unresolved[byte(index)] = raw[i*32 : (i+1)*32]
+		n.unresolved[byte(index)] = raw[i*SerializedPointSize : (i+1)*SerializedPointSize]
 	}
 	n.commitment = new(Point)
-	n.commitment.SetBytesTrusted(comm)
+	n.commitment.SetBytes(comm, true)
 	return n, nil
 }
 
-func CreateInternalNode(bitlist []byte, raw []byte, depth byte, comm []byte) (*InternalNode, error) {
+func CreateInternalNode(bitlist []byte, raw []byte, depth byte, comm SerializedPointCompressed) (*InternalNode, error) {
 	// GetTreeConfig caches computation result, hence
 	// this op has low overhead
 	n := (newInternalNode(depth)).(*InternalNode)
 	indices := indicesFromBitlist(bitlist)
-	if len(raw)/32 != len(indices) {
+
+	if len(raw)/SerializedPointSize != len(indices) {
 		return nil, ErrInvalidNodeEncoding
 	}
+
+	freelist := make([]HashedNode, len(indices))
 	for i, index := range indices {
-		n.children[index] = &HashedNode{commitment: raw[i*32 : (i+1)*32]}
+		freelist[i].serialized = raw[i*SerializedPointSize : (i+1)*SerializedPointSize]
+		n.children[index] = &freelist[i]
 	}
 	n.commitment = new(Point)
-	n.commitment.SetBytesTrusted(comm)
+	n.commitment.SetBytes(comm, true)
 	return n, nil
 }
 
 func indicesFromBitlist(bitlist []byte) []int {
-	indices := make([]int, 0)
+	indices := make([]int, 0, 32)
 	for i, b := range bitlist {
 		if b == 0 {
 			continue
 		}
 		// the bitmap is little-endian, inside a big-endian byte list
 		for j := 0; j < 8; j++ {
-			if b&mask[j%8] != 0 {
+			if b&mask[j] != 0 {
 				indices = append(indices, i*8+j)
 			}
 		}

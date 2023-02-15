@@ -31,12 +31,35 @@ import (
 )
 
 type HashedNode struct {
-	commitment  []byte
+	commitment  SerializedPointCompressed
+	serialized  SerializedPoint
 	cachedPoint *Point
+}
+
+func NewHashedNode(buf SerializedPoint) *HashedNode {
+	var h HashedNode
+	h.serialized = buf
+
+	return &h
 }
 
 func (*HashedNode) Insert([]byte, []byte, NodeResolverFn) error {
 	return errInsertIntoHash
+}
+
+func (h *HashedNode) BytesUncompressed() []byte {
+	return h.serialized
+}
+
+func (h *HashedNode) BytesCompressed() []byte {
+	if h.commitment == nil {
+		if h.cachedPoint != nil {
+			h.commitment = h.cachedPoint.Bytes()
+			return h.commitment
+		}
+		h.commitment = h.serialized.ToCompressed()
+	}
+	return h.commitment
 }
 
 func (*HashedNode) InsertOrdered([]byte, []byte, NodeFlushFn) error {
@@ -52,19 +75,19 @@ func (*HashedNode) Get([]byte, NodeResolverFn) ([]byte, error) {
 }
 
 func (n *HashedNode) Commit() *Point {
-	if n.commitment == nil {
-		panic("nil commitment")
+	if n.serialized == nil {
+		panic("invalid hashed node")
 	}
 	if n.cachedPoint == nil {
 		n.cachedPoint = new(Point)
-		n.cachedPoint.SetBytesTrusted(n.commitment)
+		n.cachedPoint.SetBytesUncompressed(n.serialized, true)
 	}
 	return n.cachedPoint
 }
 
 func (n *HashedNode) Commitment() *Point {
-	if n.commitment == nil {
-		panic("nil commitment")
+	if n.serialized == nil {
+		panic("invalid hashed node")
 	}
 	return n.Commit()
 }
@@ -78,11 +101,15 @@ func (*HashedNode) Serialize() ([]byte, error) {
 }
 
 func (n *HashedNode) Copy() VerkleNode {
-	if n.commitment == nil {
-		panic("nil commitment")
+	if n.serialized == nil {
+		panic("invalid hashed node")
 	}
-	c := &HashedNode{commitment: make([]byte, len(n.commitment))}
-	copy(c.commitment, n.commitment)
+
+	c := &HashedNode{
+		serialized: make([]byte, len(n.serialized)),
+	}
+	copy(c.serialized, n.serialized)
+
 	return c
 }
 

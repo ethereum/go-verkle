@@ -65,8 +65,8 @@ func MakeVerkleMultiProof(root VerkleNode, keys [][]byte, keyvals map[string][]b
 	var vals [][]byte
 	for _, k := range keys {
 		// TODO at the moment, do not include the post-data
-		//val, _ := root.Get(k, nil)
-		//vals = append(vals, val)
+		// val, _ := root.Get(k, nil)
+		// vals = append(vals, val)
 		vals = append(vals, keyvals[string(k)])
 	}
 
@@ -215,7 +215,7 @@ func DeserializeProof(proofSerialized []byte, keyvals []KeyValuePair) (*Proof, e
 			return nil, err
 		}
 
-		if err := commitment.SetBytes(commitmentBytes); err != nil {
+		if err := commitment.SetBytes(commitmentBytes, false); err != nil {
 			return nil, err
 		}
 
