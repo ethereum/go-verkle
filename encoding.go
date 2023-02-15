@@ -30,9 +30,30 @@ import (
 	"fmt"
 )
 
-var ErrInvalidNodeEncoding = errors.New("invalid node encoding")
+var (
+	ErrInvalidNodeEncoding = errors.New("invalid node encoding")
 
-var mask = [8]byte{0x80, 0x40, 0x20, 0x10, 0x8, 0x4, 0x2, 0x1}
+	mask = [8]byte{0x80, 0x40, 0x20, 0x10, 0x8, 0x4, 0x2, 0x1}
+)
+
+const (
+	nodeTypeSize = 1
+	bitlistSize  = NodeWidth / 8
+
+	// Shared between internal and leaf nodes.
+	nodeTypeOffset = 0
+
+	// Internal nodes offsets.
+	internalBitlistOffset      = nodeTypeOffset + nodeTypeSize
+	internalNodeChildrenOffset = internalBitlistOffset + bitlistSize
+
+	// Leaf node offsets.
+	leafSteamOffset        = nodeTypeOffset + nodeTypeSize
+	leafBitlistOffset      = leafSteamOffset + StemSize
+	leafC1CommitmentOffset = leafBitlistOffset + bitlistSize
+	leafC2CommitmentOffset = leafC1CommitmentOffset + SerializedPointSize
+	leafChildrenOffset     = leafC2CommitmentOffset + SerializedPointSize
+)
 
 func bit(bitlist []byte, nr int) bool {
 	if len(bitlist)*8 <= nr {
@@ -43,15 +64,23 @@ func bit(bitlist []byte, nr int) bool {
 
 var errSerializedPayloadTooShort = errors.New("verkle payload is too short")
 
-func ParseNode(serialized []byte, depth byte, comm SerializedPointCompressed) (VerkleNode, error) {
-	if len(serialized) < 1+StemSize+SerializedPointSize {
+// ParseNode deserializes a node into its proper VerkleNode instance.
+// The serialized bytes have the format:
+// - Internal nodes: <nodeType><bitlist><children...>
+// - Leaf nodes:     <nodeType><stem><bitlist><c1comm><c2comm><children...>
+func ParseNode(serializedNode []byte, depth byte, comm SerializedPointCompressed) (VerkleNode, error) {
+	// Check that the length of the serialized node is at least the smallest possible serialized node.
+	if len(serializedNode) < nodeTypeSize+bitlistSize {
 		return nil, errSerializedPayloadTooShort
 	}
-	switch serialized[0] {
+
+	switch serializedNode[0] {
 	case leafRLPType:
-		return parseLeafNode(serialized, depth, comm)
+		return parseLeafNode(serializedNode, depth, comm)
 	case internalRLPType:
-		return CreateInternalNode(serialized[1:1+NodeWidth/8], serialized[1+NodeWidth/8:], depth, comm)
+		bitlist := serializedNode[internalBitlistOffset : internalBitlistOffset+bitlistSize]
+		children := serializedNode[internalNodeChildrenOffset:]
+		return CreateInternalNode(bitlist, children, depth, comm)
 	default:
 		return nil, ErrInvalidNodeEncoding
 	}
@@ -72,26 +101,25 @@ func ParseStatelessNode(serialized []byte, depth byte, comm SerializedPointCompr
 }
 
 func parseLeafNode(serialized []byte, depth byte, comm SerializedPointCompressed) (VerkleNode, error) {
-	var values [NodeWidth][]byte
-	offset := 1 + StemSize + 32 + 2*SerializedPointSize
+	// Create a slice of children values making sure they're 32 bytes long (zero-padded).
+	var paddedChildrenValues [NodeWidth][]byte
+	bitlist := serialized[leafBitlistOffset : leafBitlistOffset+bitlistSize]
+	offset := leafChildrenOffset
 	for i := 0; i < NodeWidth; i++ {
-		if bit(serialized[1+StemSize:1+StemSize+32], i) {
-			if offset+32 > len(serialized) {
+		if bit(bitlist, i) {
+			if offset+LeafValueSize > len(serialized) {
 				return nil, fmt.Errorf("verkle payload is too short, need at least %d and only have %d, payload = %x (%w)", offset+32, len(serialized), serialized, errSerializedPayloadTooShort)
 			}
-			values[i] = serialized[offset : offset+32]
-			offset += 32
+			paddedChildrenValues[i] = serialized[offset : offset+LeafValueSize]
+			offset += LeafValueSize
 		}
 	}
-	if NodeWidth != len(values) {
-		return nil, fmt.Errorf("invalid number of nodes in decoded child expected %d, got %d", NodeWidth, len(values))
-	}
-	ln := NewLeafNodeWithNoComms(serialized[1:1+StemSize], values[:])
+	ln := NewLeafNodeWithNoComms(serialized[leafSteamOffset:leafSteamOffset+StemSize], paddedChildrenValues[:])
 	ln.setDepth(depth)
 	ln.c1 = new(Point)
-	ln.c1.SetBytesUncompressed(serialized[1+StemSize+32:1+StemSize+32+SerializedPointSize], true)
+	ln.c1.SetBytesUncompressed(serialized[leafC1CommitmentOffset:leafC1CommitmentOffset+SerializedPointSize], true)
 	ln.c2 = new(Point)
-	ln.c2.SetBytesUncompressed(serialized[1+StemSize+32+SerializedPointSize:1+StemSize+32+2*SerializedPointSize], true)
+	ln.c2.SetBytesUncompressed(serialized[leafC2CommitmentOffset:leafC2CommitmentOffset+SerializedPointSize], true)
 	ln.commitment = new(Point)
 	ln.commitment.SetBytes(comm, true)
 	return ln, nil

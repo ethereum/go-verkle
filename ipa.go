@@ -38,8 +38,8 @@ type (
 )
 
 const (
-	SerializedPointSize                 = banderwagon.SerializedPointSize
-	SerializedAffinePointCompressedSize = banderwagon.SerializedPointCompressedSize
+	SerializedPointSize           = banderwagon.SerializedPointSize
+	SerializedPointCompressedSize = banderwagon.SerializedPointCompressedSize
 )
 
 func CopyFr(dst, src *Fr) {

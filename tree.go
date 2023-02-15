@@ -726,9 +726,10 @@ func (n *InternalNode) Serialize() ([]byte, error) {
 		}
 	}
 
-	ret := make([]byte, 1+len(bitlist)+(len(commitments)+nhashed)*SerializedPointSize)
-	children := ret[1+len(bitlist) : 1+len(bitlist)]
+	ret := make([]byte, nodeTypeSize+bitlistSize+(len(commitments)+nhashed)*SerializedPointSize)
 
+	// We create a children slice from ret ready to start appending children without allocations.
+	children := ret[internalNodeChildrenOffset:internalNodeChildrenOffset]
 	bytecomms := banderwagon.ElementsToBytesUncompressed(commitments)
 	consumed := 0
 	for i := 0; i < NodeWidth; i++ {
@@ -745,8 +746,10 @@ func (n *InternalNode) Serialize() ([]byte, error) {
 		}
 	}
 
-	ret[0] = internalRLPType
-	copy(ret[1:], bitlist[:])
+	// Store in ret the serialized result
+	ret[nodeTypeOffset] = internalRLPType
+	copy(ret[internalBitlistOffset:], bitlist[:])
+	// Note that children were already appended in ret through the children slice.
 
 	return ret, nil
 }
@@ -1165,34 +1168,33 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 	return pe, esses, poass
 }
 
+// Serialize serializes a LeafNode.
+// The format is: <nodeType><stem><bitlist><c1comm><c2comm><children...>
 func (n *LeafNode) Serialize() ([]byte, error) {
-	var bitlist [NodeWidth / 8]byte
-	children := make([]byte, 0, NodeWidth*32)
+	// Empty value in LeafNode used for padding.
+	var emptyValue [LeafValueSize]byte
+
+	// Create bitlist and store in children LeafValueSize (padded) values.
+	children := make([]byte, 0, NodeWidth*LeafValueSize)
+	var bitlist [bitlistSize]byte
 	for i, v := range n.values {
 		if v != nil {
 			setBit(bitlist[:], i)
 			children = append(children, v...)
-			if len(v) < 32 {
-				padding := make([]byte, 32-len(v))
+			if padding := emptyValue[:32-len(v)]; len(padding) != 0 {
 				children = append(children, padding...)
 			}
 		}
 	}
-	c1bytes := n.c1.BytesUncompressed()
-	c2bytes := n.c2.BytesUncompressed()
 
-	// The length of the result is at a minimum the sum of:
-	// 1 = leafRLPType
-	// 31 = length of n.stem
-	// 32 = length of bitlist
-	// 2*32 = c1bytes and c2bytes
-	// And we add 4*32 bytes of extra capacity for an ~expected 4 children.
-	result := make([]byte, 1+31+32+2*64, 1+31+32+2*64+4*32)
+	// Create the serialization.
+	baseSize := nodeTypeSize + StemSize + bitlistSize + 2*SerializedPointSize
+	result := make([]byte, baseSize, baseSize+4*32) // Extra pre-allocated capacity for 4 values.
 	result[0] = leafRLPType
-	copy(result[1:], n.stem[:31])
-	copy(result[1+31:], bitlist[:])
-	copy(result[1+31+32:], c1bytes[:])
-	copy(result[1+31+32+64:], c2bytes[:])
+	copy(result[leafSteamOffset:], n.stem[:StemSize])
+	copy(result[leafBitlistOffset:], bitlist[:])
+	copy(result[leafC1CommitmentOffset:], n.c1.BytesUncompressed())
+	copy(result[leafC2CommitmentOffset:], n.c2.BytesUncompressed())
 	result = append(result, children...)
 
 	return result, nil
