@@ -6,4 +6,4 @@ require github.com/crate-crypto/go-ipa v0.0.0-20221111143132-9aa5d42120bc
 
 require golang.org/x/sys v0.0.0-20220919091848-fb04ddd9f9c8 // indirect
 
-replace github.com/crate-crypto/go-ipa => ../go-ipa
+replace github.com/crate-crypto/go-ipa => github.com/jsign/go-ipa v0.0.0-20230215161345-ef2305bb7112

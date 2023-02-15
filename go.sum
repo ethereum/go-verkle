@@ -1,3 +1,5 @@
+github.com/jsign/go-ipa v0.0.0-20230215161345-ef2305bb7112 h1:wnl9WM3v/qhQOoOg4kgbAMTkoyEq7M+7ETbeyXnQ2Vs=
+github.com/jsign/go-ipa v0.0.0-20230215161345-ef2305bb7112/go.mod h1:gFnFS95y8HstDP6P9pPwzrxOOC5TRDkwbM+ao15ChAI=
 github.com/leanovate/gopter v0.2.9 h1:fQjYxZaynp97ozCzfOyOuAGOU4aU/z37zf/tOujFk7c=
 github.com/leanovate/gopter v0.2.9/go.mod h1:U2L/78B+KVFIx2VmW6onHJQzXtFb+p5y3y2Sh+Jxxv8=
 golang.org/x/sys v0.0.0-20211020174200-9d6173849985/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
