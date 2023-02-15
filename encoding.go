@@ -101,20 +101,19 @@ func ParseStatelessNode(serialized []byte, depth byte, comm SerializedPointCompr
 }
 
 func parseLeafNode(serialized []byte, depth byte, comm SerializedPointCompressed) (VerkleNode, error) {
-	// Create a slice of children values making sure they're 32 bytes long (zero-padded).
-	var paddedChildrenValues [NodeWidth][]byte
 	bitlist := serialized[leafBitlistOffset : leafBitlistOffset+bitlistSize]
+	var values [NodeWidth][]byte
 	offset := leafChildrenOffset
 	for i := 0; i < NodeWidth; i++ {
 		if bit(bitlist, i) {
 			if offset+LeafValueSize > len(serialized) {
 				return nil, fmt.Errorf("verkle payload is too short, need at least %d and only have %d, payload = %x (%w)", offset+32, len(serialized), serialized, errSerializedPayloadTooShort)
 			}
-			paddedChildrenValues[i] = serialized[offset : offset+LeafValueSize]
+			values[i] = serialized[offset : offset+LeafValueSize]
 			offset += LeafValueSize
 		}
 	}
-	ln := NewLeafNodeWithNoComms(serialized[leafSteamOffset:leafSteamOffset+StemSize], paddedChildrenValues[:])
+	ln := NewLeafNodeWithNoComms(serialized[leafSteamOffset:leafSteamOffset+StemSize], values[:])
 	ln.setDepth(depth)
 	ln.c1 = new(Point)
 	ln.c1.SetBytesUncompressed(serialized[leafC1CommitmentOffset:leafC1CommitmentOffset+SerializedPointSize], true)

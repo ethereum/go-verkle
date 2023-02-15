@@ -33,8 +33,8 @@ import (
 type (
 	Fr                        = fr.Element
 	Point                     = banderwagon.Element
-	SerializedPoint           = banderwagon.SerializedAffinePoint
-	SerializedPointCompressed = banderwagon.SerializedAffinePointCompressed
+	SerializedPoint           = banderwagon.SerializedPoint
+	SerializedPointCompressed = banderwagon.SerializedPointCompressed
 )
 
 const (
