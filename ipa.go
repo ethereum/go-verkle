@@ -31,8 +31,15 @@ import (
 )
 
 type (
-	Fr    = fr.Element
-	Point = banderwagon.Element
+	Fr                        = fr.Element
+	Point                     = banderwagon.Element
+	SerializedPoint           = banderwagon.SerializedAffinePoint
+	SerializedPointCompressed = banderwagon.SerializedAffinePointCompressed
+)
+
+const (
+	SerializedPointSize                 = banderwagon.SerializedPointSize
+	SerializedAffinePointCompressedSize = banderwagon.SerializedPointCompressedSize
 )
 
 func CopyFr(dst, src *Fr) {
