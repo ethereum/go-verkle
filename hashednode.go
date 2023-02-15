@@ -23,6 +23,7 @@
 //
 // For more information, please refer to <https://unlicense.org>
 
+// deepsource-disable SCC-U1000
 package verkle
 
 import (
