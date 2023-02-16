@@ -1172,18 +1172,31 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 // The format is: <nodeType><stem><bitlist><c1comm><c2comm><children...>
 func (n *LeafNode) Serialize() ([]byte, error) {
 	// Empty value in LeafNode used for padding.
-	var emptyValue [LeafValueSize]byte
+	// var emptyValue [LeafValueSize]byte
 
 	// Create bitlist and store in children LeafValueSize (padded) values.
-	children := make([]byte, 0, NodeWidth*LeafValueSize)
+	children := make([]byte, 0, NodeWidth+NodeWidth*LeafValueSize)
 	var bitlist [bitlistSize]byte
+	// paddingCount := 0
 	for i, v := range n.values {
 		if v != nil {
 			setBit(bitlist[:], i)
-			children = append(children, v...)
-			if padding := emptyValue[:32-len(v)]; len(padding) != 0 {
-				children = append(children, padding...)
+
+			paddingBytes := byte(LeafValueSize)
+			for i := byte(0); i < LeafValueSize && i < byte(len(v)); i++ {
+				if v[i] != 0 {
+					paddingBytes = i
+					break
+				}
 			}
+			children = append(children, paddingBytes)
+			children = append(children, v[paddingBytes:]...)
+			/*
+				if padding := emptyValue[:32-len(v)]; len(padding) != 0 {
+					paddingCount += len(padding)
+					children = append(children, padding...)
+				}
+			*/
 		}
 	}
 
@@ -1196,6 +1209,17 @@ func (n *LeafNode) Serialize() ([]byte, error) {
 	copy(result[leafC1CommitmentOffset:], n.c1.BytesUncompressed())
 	copy(result[leafC2CommitmentOffset:], n.c2.BytesUncompressed())
 	result = append(result, children...)
+
+	/*
+		ret := result
+		zeros := 0
+		for i := range children {
+			if ret[i] == 0 {
+				zeros++
+			}
+		}
+		fmt.Printf("Leaf: %d of %d (%.02f%%)\n", zeros, len(children), float64(zeros)/float64(len(children))*100)
+	*/
 
 	return result, nil
 }

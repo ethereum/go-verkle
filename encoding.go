@@ -27,7 +27,7 @@ package verkle
 
 import (
 	"errors"
-	"fmt"
+	"math/bits"
 )
 
 var (
@@ -102,15 +102,36 @@ func ParseStatelessNode(serialized []byte, depth byte, comm SerializedPointCompr
 
 func parseLeafNode(serialized []byte, depth byte, comm SerializedPointCompressed) (VerkleNode, error) {
 	bitlist := serialized[leafBitlistOffset : leafBitlistOffset+bitlistSize]
+
+	leafNodes := 0
+	for i := range bitlist {
+		leafNodes += bits.OnesCount(uint(bitlist[i]))
+	}
+	vslots := make([]byte, leafNodes*LeafValueSize)
+
 	var values [NodeWidth][]byte
+
+	count := 0
 	offset := leafChildrenOffset
+	// fmt.Println()
 	for i := 0; i < NodeWidth; i++ {
 		if bit(bitlist, i) {
-			if offset+LeafValueSize > len(serialized) {
-				return nil, fmt.Errorf("verkle payload is too short, need at least %d and only have %d, payload = %x (%w)", offset+32, len(serialized), serialized, errSerializedPayloadTooShort)
+			//			fmt.Printf("offset: %d, len: %d\n", offset, len(serialized))
+			paddingBytes := serialized[offset]
+			//		fmt.Printf("paddingBytes = %d\n", paddingBytes)
+			v := vslots[count*LeafValueSize : count*LeafValueSize+LeafValueSize]
+			if paddingBytes < 32 {
+				unpaddedValue := serialized[offset+1 : offset+1+(32-int(paddingBytes))]
+				/*
+					if offset+LeafValueSize > len(serialized) {
+						return nil, fmt.Errorf("verkle payload is too short, need at least %d and only have %d, payload = %x (%w)", offset+32, len(serialized), serialized, errSerializedPayloadTooShort)
+					}
+				*/
+				copy(v[paddingBytes:], unpaddedValue)
 			}
-			values[i] = serialized[offset : offset+LeafValueSize]
-			offset += LeafValueSize
+			values[i] = v
+			offset += 1 + (32 - int(paddingBytes))
+			count++
 		}
 	}
 	ln := NewLeafNodeWithNoComms(serialized[leafSteamOffset:leafSteamOffset+StemSize], values[:])
