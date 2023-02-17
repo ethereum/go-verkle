@@ -569,6 +569,8 @@ func (n *InternalNode) Commitment() *Point {
 
 func (n *InternalNode) Commit() *Point {
 	if len(n.cow) != 0 {
+		// fmt.Printf("Depth %d Cow %d\n", n.depth, len(n.cow))
+
 		polyp := frPool.Get().(*[]Fr)
 		poly := *polyp
 		defer func() {
@@ -704,7 +706,19 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 	return pe, esses, poass
 }
 
+var (
+	lock          sync.Mutex
+	countInternal = 0
+	bytesInternal = 0
+
+	countLeaf = 0
+	bytesLeaf = 0
+)
+
 func (n *InternalNode) Serialize() ([]byte, error) {
+	if n.depth >= 0 {
+		return n.serializeNonRoot()
+	}
 	var (
 		bitlist, hashlist [NodeWidth / 8]byte
 		nhashed           int // number of children who are hashed nodes
@@ -732,6 +746,7 @@ func (n *InternalNode) Serialize() ([]byte, error) {
 	children := ret[internalNodeChildrenOffset:internalNodeChildrenOffset]
 	bytecomms := banderwagon.ElementsToBytesUncompressed(commitments)
 	consumed := 0
+	chilCount := 0
 	for i := 0; i < NodeWidth; i++ {
 		if bit(bitlist[:], i) {
 			// if a child is present and is a hash, add its
@@ -743,6 +758,67 @@ func (n *InternalNode) Serialize() ([]byte, error) {
 				children = append(children, bytecomms[consumed][:]...)
 				consumed++
 			}
+			chilCount++
+		}
+	}
+
+	// Store in ret the serialized result
+	ret[nodeTypeOffset] = internalRLPType
+	copy(ret[internalBitlistOffset:], bitlist[:])
+	// Note that children were already appended in ret through the children slice.
+
+	/*
+		lock.Lock()
+		countInternal++
+		bytesInternal += len(ret)
+		fmt.Printf("Internal (depth = %d): %d, %d bytes (delta -> %d bytes, %d children %d bytes)\n", n.depth, countInternal, bytesInternal, len(ret), chilCount, len(children))
+		lock.Unlock()
+	*/
+
+	return ret, nil
+}
+
+func (n *InternalNode) serializeNonRoot() ([]byte, error) {
+	var (
+		bitlist, hashlist [NodeWidth / 8]byte
+		nhashed           int // number of children who are hashed nodes
+	)
+	commitments := make([]*Point, 0, NodeWidth)
+	for i, c := range n.children {
+		if _, ok := c.(Empty); !ok {
+			setBit(bitlist[:], i)
+			if _, ok := c.(*HashedNode); ok {
+				// don't trigger the commitment on hashed nodes,
+				// as they already hold a serialized version of
+				// their commitment. Instead, just mark them as
+				// hashes so they can be added directly.
+				setBit(hashlist[:], i)
+				nhashed++
+			} else {
+				commitments = append(commitments, c.Commitment())
+			}
+		}
+	}
+
+	ret := make([]byte, nodeTypeSize+bitlistSize+(len(commitments)+nhashed)*SerializedPointCompressedSize)
+
+	// We create a children slice from ret ready to start appending children without allocations.
+	children := ret[internalNodeChildrenOffset:internalNodeChildrenOffset]
+	bytecomms := banderwagon.ElementsToBytesCompressed(commitments)
+	consumed := 0
+	chilCount := 0
+	for i := 0; i < NodeWidth; i++ {
+		if bit(bitlist[:], i) {
+			// if a child is present and is a hash, add its
+			// internal, serialized representation directly.
+			if bit(hashlist[:], i) {
+				bytesCompressed := n.children[i].(*HashedNode).BytesCompressed()
+				children = append(children, bytesCompressed[:]...)
+			} else {
+				children = append(children, bytecomms[consumed][:]...)
+				consumed++
+			}
+			chilCount++
 		}
 	}
 
@@ -1196,6 +1272,14 @@ func (n *LeafNode) Serialize() ([]byte, error) {
 	copy(result[leafC1CommitmentOffset:], n.c1.BytesUncompressed())
 	copy(result[leafC2CommitmentOffset:], n.c2.BytesUncompressed())
 	result = append(result, children...)
+
+	/*
+		lock.Lock()
+		countLeaf++
+		bytesLeaf += len(result)
+		fmt.Printf("Leafs: %d, %d bytes (delta %d)\n", countLeaf, bytesLeaf, len(result))
+		lock.Unlock()
+	*/
 
 	return result, nil
 }

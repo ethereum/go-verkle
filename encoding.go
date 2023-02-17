@@ -142,6 +142,9 @@ func deserializeIntoStateless(bitlist []byte, raw []byte, depth byte, comm Seria
 }
 
 func CreateInternalNode(bitlist []byte, raw []byte, depth byte, comm SerializedPointCompressed) (*InternalNode, error) {
+	if depth >= 0 {
+		return CreateInternalNodeNonRoot(bitlist, raw, depth, comm)
+	}
 	// GetTreeConfig caches computation result, hence
 	// this op has low overhead
 	n := (newInternalNode(depth)).(*InternalNode)
@@ -154,6 +157,26 @@ func CreateInternalNode(bitlist []byte, raw []byte, depth byte, comm SerializedP
 	freelist := make([]HashedNode, len(indices))
 	for i, index := range indices {
 		freelist[i].serialized = raw[i*SerializedPointSize : (i+1)*SerializedPointSize]
+		n.children[index] = &freelist[i]
+	}
+	n.commitment = new(Point)
+	n.commitment.SetBytes(comm, true)
+	return n, nil
+}
+
+func CreateInternalNodeNonRoot(bitlist []byte, raw []byte, depth byte, comm SerializedPointCompressed) (*InternalNode, error) {
+	// GetTreeConfig caches computation result, hence
+	// this op has low overhead
+	n := (newInternalNode(depth)).(*InternalNode)
+	indices := indicesFromBitlist(bitlist)
+
+	if len(raw)/SerializedPointCompressedSize != len(indices) {
+		return nil, ErrInvalidNodeEncoding
+	}
+
+	freelist := make([]HashedNode, len(indices))
+	for i, index := range indices {
+		freelist[i].commitment = raw[i*SerializedPointCompressedSize : (i+1)*SerializedPointCompressedSize]
 		n.children[index] = &freelist[i]
 	}
 	n.commitment = new(Point)

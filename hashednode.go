@@ -48,6 +48,16 @@ func (*HashedNode) Insert([]byte, []byte, NodeResolverFn) error {
 }
 
 func (h *HashedNode) BytesUncompressed() []byte {
+	if h.serialized == nil {
+		if h.cachedPoint != nil {
+			h.serialized = h.cachedPoint.BytesUncompressed()
+			return h.serialized
+		}
+		h.cachedPoint = new(Point)
+		h.cachedPoint.SetBytes(h.commitment, true)
+		return h.BytesUncompressed()
+
+	}
 	return h.serialized
 }
 
@@ -75,20 +85,18 @@ func (*HashedNode) Get([]byte, NodeResolverFn) ([]byte, error) {
 }
 
 func (n *HashedNode) Commit() *Point {
-	if n.serialized == nil {
-		panic("invalid hashed node")
-	}
 	if n.cachedPoint == nil {
 		n.cachedPoint = new(Point)
-		n.cachedPoint.SetBytesUncompressed(n.serialized, true)
+		if n.serialized != nil {
+			n.cachedPoint.SetBytesUncompressed(n.serialized, true)
+		} else {
+			n.cachedPoint.SetBytes(n.commitment, true)
+		}
 	}
 	return n.cachedPoint
 }
 
 func (n *HashedNode) Commitment() *Point {
-	if n.serialized == nil {
-		panic("invalid hashed node")
-	}
 	return n.Commit()
 }
 
