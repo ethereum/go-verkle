@@ -3,8 +3,8 @@ package verkle
 import "testing"
 
 func TestParseNodeEmptyPayload(t *testing.T) {
-	_, err := ParseNode([]byte{}, 0, []byte{})
-	if err != serializedPayloadTooShort {
+	_, err := ParseNode([]byte{}, 0, SerializedPointCompressed{})
+	if err != errSerializedPayloadTooShort {
 		t.Fatalf("invalid error, got %v, expected %v", err, "unexpected EOF")
 	}
 }
@@ -18,7 +18,7 @@ func TestLeafStemLength(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(ser) != 128 {
+	if len(ser) != nodeTypeSize+StemSize+bitlistSize+2*SerializedPointCompressedSize {
 		t.Fatalf("invalid serialization when the stem is longer than 31 bytes: %x (%d bytes)", ser, len(ser))
 	}
 }

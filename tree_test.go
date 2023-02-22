@@ -106,7 +106,6 @@ func TestInsertTwoLeavesLastLevel(t *testing.T) {
 	if !bytes.Equal(leaf.values[0], testValue) {
 		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaf.values[0])
 	}
-
 }
 
 func TestGetTwoLeaves(t *testing.T) {
@@ -413,6 +412,7 @@ func TestDeleteUnequalPath(t *testing.T) {
 		t.Fatalf("didn't catch the deletion of non-existing key, err =%v", err)
 	}
 }
+
 func TestDeleteResolve(t *testing.T) {
 	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
 	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
@@ -719,7 +719,7 @@ func isLeafEqual(a, b *LeafNode) bool {
 
 func TestGetResolveFromHash(t *testing.T) {
 	var count uint
-	var dummyError = errors.New("dummy")
+	dummyError := errors.New("dummy")
 	var serialized []byte
 	getter := func([]byte) ([]byte, error) {
 		count++
@@ -809,11 +809,11 @@ func TestInsertIntoHashedNode(t *testing.T) {
 		rlp, _ := node.Serialize()
 		return rlp[:len(rlp)-10], nil
 	}
-	if err := root.Copy().Insert(zeroKeyTest, zeroKeyTest, invalidRLPResolver); !errors.Is(err, serializedPayloadTooShort) {
+	if err := root.Copy().Insert(zeroKeyTest, zeroKeyTest, invalidRLPResolver); !errors.Is(err, errSerializedPayloadTooShort) {
 		t.Fatalf("error detecting a decoding error after resolution: %v", err)
 	}
 
-	var randomResolverError = errors.New("'clef' was mispronounced")
+	randomResolverError := errors.New("'clef' was mispronounced")
 	// Check that the proper error is raised if the resolver returns an error
 	erroringResolver := func(h []byte) ([]byte, error) {
 		return nil, randomResolverError
@@ -879,7 +879,6 @@ func TestLeafToCommsLessThan16(*testing.T) {
 }
 
 func TestGetProofItemsNoPoaIfStemPresent(t *testing.T) {
-
 	root := New()
 	root.Insert(ffx32KeyTest, zeroKeyTest, nil)
 

@@ -29,7 +29,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"runtime"
 	"sync"
 
 	"github.com/crate-crypto/go-ipa/banderwagon"
@@ -569,13 +568,6 @@ func (n *InternalNode) Commitment() *Point {
 }
 
 func (n *InternalNode) Commit() *Point {
-	// If we're at the first or second layer, we do the Commit() in parallel
-	// leveraging available cores.
-	// If we're in further layers, we do single-goroutine Commit() since the top
-	// two layers already created enough goroutines doing downstream work.
-	if n.depth <= 1 {
-		return n.commitParallel()
-	}
 	if len(n.cow) != 0 {
 		polyp := frPool.Get().(*[]Fr)
 		poly := *polyp
@@ -620,93 +612,6 @@ var frPool = sync.Pool{
 		ret := make([]Fr, NodeWidth)
 		return &ret
 	},
-}
-
-func (n *InternalNode) commitParallel() *Point {
-	if len(n.cow) != 0 {
-		polyp := frPool.Get().(*[]Fr)
-		poly := *polyp
-		defer func() {
-			for i := 0; i < NodeWidth; i++ {
-				poly[i] = Fr{}
-			}
-			frPool.Put(polyp)
-		}()
-		emptyChildren := 256
-
-		// The idea below is to distribute calling Commit() in all COW-ed children in multiple goroutines.
-		// For example, if we have 2-cores, we calculate the first half of COW-ed new Commit() in a goroutine, and
-		// the other half in another goroutine.
-
-		// In `points` we'll have:
-		// - point[2*i]: the previous *Point value saved by COW.
-		// - point[2*i+1]: we'll calculate the new Commit() of that leaf value.
-		//
-		// First, we create the arrays to store this.
-		var i int
-		pointsIndexes := make([]byte, len(n.cow))
-		points := make([]*Point, 2*len(n.cow))
-		for idx := range n.cow {
-			emptyChildren--
-			pointsIndexes[i] = idx
-			i++
-		}
-
-		var wg sync.WaitGroup
-		// `calculateChildsCommsInRange` does the mentioned calculation in `points`.
-		// It receives the range in the array where it should do the work. As mentioned earlier, each goroutine
-		// is assigned a range to do work. The complete range work is distributed in multiple goroutines.
-		calculateChildsCommsInRange := func(start, end int) {
-			defer wg.Done()
-			for i := start; i < end; i++ {
-				points[2*i] = n.cow[pointsIndexes[i]]
-				points[2*i+1] = n.children[pointsIndexes[i]].Commit()
-			}
-		}
-		// Here we do the work distribution. We split the total range of work to do in `numBatches` batches and call
-		// the above function which does the work.
-		numBatches := runtime.NumCPU()
-		wg.Add(numBatches)
-		for i := 0; i < numBatches; i++ {
-			batchStart := i * (len(pointsIndexes) / numBatches)
-			if i < numBatches-1 {
-				go calculateChildsCommsInRange(batchStart, (i+1)*(len(pointsIndexes)/numBatches))
-			} else {
-				go calculateChildsCommsInRange(batchStart, len(pointsIndexes))
-			}
-		}
-
-		// After calculating the new *Point (Commit() of touched children), we'll have to do the Point->Fr transformation.
-		frs := make([]*Fr, len(points))
-		for i := range frs {
-			if i%2 == 0 {
-				// For even slots (old COW commitment), we create a new empty Fr to store the result.
-				frs[i] = &Fr{}
-			} else {
-				// For odd slots (new commitment), we can use `poly` as a temporal storage to avoid allocations.
-				frs[i] = &poly[pointsIndexes[i/2]]
-			}
-		}
-		wg.Wait()
-
-		// Now that in `frs` we have where we want to store *all* the Point->Fr transformations, we do that in a single batch.
-		toFrMultiple(frs, points)
-
-		// For each
-		for i := 0; i < len(points)/2; i++ {
-			// Now we do [newCommitment] - [oldCommitment], so we know the Fr difference between old and new commitments.
-			poly[pointsIndexes[i]].Sub(frs[2*i+1], frs[2*i])
-		}
-
-		n.cow = nil
-
-		// Now that in `poly` we have the Fr differences, we `CommitToPoly` and add to the current internal node
-		// commitment, finishing the diff-updating.
-		n.commitment.Add(n.commitment, cfg.CommitToPoly(poly, emptyChildren))
-		return n.commitment
-	}
-
-	return n.commitment
 }
 
 // groupKeys groups a set of keys based on their byte at a given depth.
@@ -801,7 +706,7 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 
 func (n *InternalNode) Serialize() ([]byte, error) {
 	var (
-		bitlist, hashlist [32]byte
+		bitlist, hashlist [NodeWidth / 8]byte
 		nhashed           int // number of children who are hashed nodes
 	)
 	commitments := make([]*Point, 0, NodeWidth)
@@ -820,8 +725,11 @@ func (n *InternalNode) Serialize() ([]byte, error) {
 			}
 		}
 	}
-	children := make([]byte, 0, (len(commitments)+nhashed)*32)
 
+	ret := make([]byte, nodeTypeSize+bitlistSize+(len(commitments)+nhashed)*SerializedPointCompressedSize)
+
+	// We create a children slice from ret ready to start appending children without allocations.
+	children := ret[internalNodeChildrenOffset:internalNodeChildrenOffset]
 	bytecomms := banderwagon.ElementsToBytes(commitments)
 	consumed := 0
 	for i := 0; i < NodeWidth; i++ {
@@ -837,7 +745,12 @@ func (n *InternalNode) Serialize() ([]byte, error) {
 		}
 	}
 
-	return append(append([]byte{internalRLPType}, bitlist[:]...), children...), nil
+	// Store in ret the serialized result
+	ret[nodeTypeOffset] = internalRLPType
+	copy(ret[internalBitlistOffset:], bitlist[:])
+	// Note that children were already appended in ret through the children slice.
+
+	return ret, nil
 }
 
 func (n *InternalNode) Copy() VerkleNode {
@@ -1254,22 +1167,38 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 	return pe, esses, poass
 }
 
+// Serialize serializes a LeafNode.
+// The format is: <nodeType><stem><bitlist><c1comm><c2comm><children...>
 func (n *LeafNode) Serialize() ([]byte, error) {
-	var bitlist [32]byte
-	children := make([]byte, 0, NodeWidth*32)
+	// Empty value in LeafNode used for padding.
+	var emptyValue [LeafValueSize]byte
+
+	// Create bitlist and store in children LeafValueSize (padded) values.
+	children := make([]byte, 0, NodeWidth*LeafValueSize)
+	var bitlist [bitlistSize]byte
 	for i, v := range n.values {
 		if v != nil {
 			setBit(bitlist[:], i)
 			children = append(children, v...)
-			if len(v) < 32 {
-				padding := make([]byte, 32-len(v))
+			if padding := emptyValue[:LeafValueSize-len(v)]; len(padding) != 0 {
 				children = append(children, padding...)
 			}
 		}
 	}
-	c1bytes := n.c1.Bytes()
-	c2bytes := n.c2.Bytes()
-	return append(append(append(append(append([]byte{leafRLPType}, n.stem[:31]...), bitlist[:]...), c1bytes[:]...), c2bytes[:]...), children...), nil
+
+	// Create the serialization.
+	baseSize := nodeTypeSize + StemSize + bitlistSize + 2*SerializedPointCompressedSize
+	result := make([]byte, baseSize, baseSize+4*32) // Extra pre-allocated capacity for 4 values.
+	result[0] = leafRLPType
+	copy(result[leafSteamOffset:], n.stem[:StemSize])
+	copy(result[leafBitlistOffset:], bitlist[:])
+	c1Bytes := n.c1.Bytes()
+	copy(result[leafC1CommitmentOffset:], c1Bytes[:])
+	c2Bytes := n.c2.Bytes()
+	copy(result[leafC2CommitmentOffset:], c2Bytes[:])
+	result = append(result, children...)
+
+	return result, nil
 }
 
 func (n *LeafNode) Copy() VerkleNode {
