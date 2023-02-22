@@ -157,8 +157,10 @@ func (pe *ProofElements) Merge(other *ProofElements) {
 const (
 	// These types will distinguish internal
 	// and leaf nodes when decoding from RLP.
-	internalRLPType byte = 1
-	leafRLPType     byte = 2
+	internalRLPTypeBitmap byte = 1
+	leafRLPType           byte = 2
+	internalRLPTypeFull   byte = 3
+	internalRLPTypeOffset byte = 4
 )
 
 type (
@@ -494,6 +496,7 @@ func (n *InternalNode) Flush(flush NodeFlushFn) {
 			n.children[i] = c.ToHashedNode()
 		}
 	}
+
 	flush(n)
 }
 
@@ -726,31 +729,64 @@ func (n *InternalNode) Serialize() ([]byte, error) {
 		}
 	}
 
-	ret := make([]byte, nodeTypeSize+bitlistSize+(len(commitments)+nhashed)*SerializedPointCompressedSize)
+	if len(commitments)+nhashed < 32 {
+		ret := make([]byte, nodeTypeSize+(len(commitments)+nhashed)*(1+SerializedPointCompressedSize))
 
-	// We create a children slice from ret ready to start appending children without allocations.
-	children := ret[internalNodeChildrenOffset:internalNodeChildrenOffset]
-	bytecomms := banderwagon.ElementsToBytes(commitments)
-	consumed := 0
-	for i := 0; i < NodeWidth; i++ {
-		if bit(bitlist[:], i) {
-			// if a child is present and is a hash, add its
-			// internal, serialized representation directly.
-			if bit(hashlist[:], i) {
-				children = append(children, n.children[i].(*HashedNode).commitment...)
-			} else {
-				children = append(children, bytecomms[consumed][:]...)
-				consumed++
+		// We create a children slice from ret ready to start appending children without allocations.
+		children := ret[internalBitlistOffset:internalBitlistOffset]
+		bytecomms := banderwagon.ElementsToBytes(commitments)
+		consumed := 0
+		for i := 0; i < NodeWidth; i++ {
+			if bit(bitlist[:], i) {
+				children = append(children, byte(i))
+				// if a child is present and is a hash, add its
+				// internal, serialized representation directly.
+				if bit(hashlist[:], i) {
+					children = append(children, n.children[i].(*HashedNode).commitment...)
+				} else {
+					children = append(children, bytecomms[consumed][:]...)
+					consumed++
+				}
 			}
 		}
+
+		ret[nodeTypeOffset] = internalRLPTypeOffset
+
+		return ret, nil
+
+	} else {
+		ret := make([]byte, nodeTypeSize+bitlistSize+(len(commitments)+nhashed)*SerializedPointCompressedSize)
+
+		// We create a children slice from ret ready to start appending children without allocations.
+		children := ret[internalNodeChildrenOffset:internalNodeChildrenOffset]
+		bytecomms := banderwagon.ElementsToBytes(commitments)
+		consumed := 0
+		for i := 0; i < NodeWidth; i++ {
+			if bit(bitlist[:], i) {
+				// if a child is present and is a hash, add its
+				// internal, serialized representation directly.
+				if bit(hashlist[:], i) {
+					children = append(children, n.children[i].(*HashedNode).commitment...)
+				} else {
+					children = append(children, bytecomms[consumed][:]...)
+					consumed++
+				}
+			}
+		}
+
+		if len(commitments)+nhashed < NodeWidth {
+			// Store in ret the serialized result
+			ret[nodeTypeOffset] = internalRLPTypeBitmap
+			copy(ret[internalBitlistOffset:], bitlist[:])
+			// Note that children were already appended in ret through the children slice.
+		} else {
+			ret = ret[bitlistSize:]
+			// Store in ret the serialized result
+			ret[nodeTypeOffset] = internalRLPTypeFull
+		}
+
+		return ret, nil
 	}
-
-	// Store in ret the serialized result
-	ret[nodeTypeOffset] = internalRLPType
-	copy(ret[internalBitlistOffset:], bitlist[:])
-	// Note that children were already appended in ret through the children slice.
-
-	return ret, nil
 }
 
 func (n *InternalNode) Copy() VerkleNode {

@@ -77,10 +77,17 @@ func ParseNode(serializedNode []byte, depth byte, comm SerializedPointCompressed
 	switch serializedNode[0] {
 	case leafRLPType:
 		return parseLeafNode(serializedNode, depth, comm)
-	case internalRLPType:
+	case internalRLPTypeBitmap:
 		bitlist := serializedNode[internalBitlistOffset : internalBitlistOffset+bitlistSize]
 		children := serializedNode[internalNodeChildrenOffset:]
-		return CreateInternalNode(bitlist, children, depth, comm)
+		return CreateInternalNodeBitlist(bitlist, children, depth, comm)
+	case internalRLPTypeFull:
+		children := serializedNode[internalBitlistOffset:]
+		return CreateInternalNodeFull(children, depth, comm)
+	case internalRLPTypeOffset:
+		children := serializedNode[internalBitlistOffset:]
+		return CreateInternalNodeOffset(children, depth, comm)
+
 	default:
 		return nil, ErrInvalidNodeEncoding
 	}
@@ -93,7 +100,7 @@ func ParseStatelessNode(serialized []byte, depth byte, comm SerializedPointCompr
 	switch serialized[0] {
 	case leafRLPType:
 		return parseLeafNode(serialized, depth, comm)
-	case internalRLPType:
+	case internalRLPTypeBitmap:
 		return deserializeIntoStateless(serialized[1:33], serialized[33:], depth, comm)
 	default:
 		return nil, ErrInvalidNodeEncoding
@@ -141,7 +148,7 @@ func deserializeIntoStateless(bitlist []byte, raw []byte, depth byte, comm Seria
 	return n, nil
 }
 
-func CreateInternalNode(bitlist []byte, raw []byte, depth byte, comm SerializedPointCompressed) (*InternalNode, error) {
+func CreateInternalNodeBitlist(bitlist []byte, raw []byte, depth byte, comm SerializedPointCompressed) (*InternalNode, error) {
 	// GetTreeConfig caches computation result, hence
 	// this op has low overhead
 	n := (newInternalNode(depth)).(*InternalNode)
@@ -155,6 +162,49 @@ func CreateInternalNode(bitlist []byte, raw []byte, depth byte, comm SerializedP
 	for i, index := range indices {
 		freelist[i].commitment = raw[i*SerializedPointCompressedSize : (i+1)*SerializedPointCompressedSize]
 		n.children[index] = &freelist[i]
+	}
+	n.commitment = new(Point)
+	n.commitment.SetBytesTrusted(comm)
+	return n, nil
+}
+
+func CreateInternalNodeFull(raw []byte, depth byte, comm SerializedPointCompressed) (*InternalNode, error) {
+	// GetTreeConfig caches computation result, hence
+	// this op has low overhead
+	n := (newInternalNode(depth)).(*InternalNode)
+
+	if len(raw)/SerializedPointCompressedSize != NodeWidth {
+		return nil, ErrInvalidNodeEncoding
+	}
+
+	children := make([]HashedNode, NodeWidth)
+	for i := range children {
+		children[i].commitment = raw[i*SerializedPointCompressedSize : (i+1)*SerializedPointCompressedSize]
+		n.children[i] = &children[i]
+	}
+	n.commitment = new(Point)
+	n.commitment.SetBytesTrusted(comm)
+	return n, nil
+}
+
+func CreateInternalNodeOffset(raw []byte, depth byte, comm SerializedPointCompressed) (*InternalNode, error) {
+	// GetTreeConfig caches computation result, hence
+	// this op has low overhead
+	n := (newInternalNode(depth)).(*InternalNode)
+
+	if len(raw)%(1+SerializedPointCompressedSize) != 0 {
+		return nil, ErrInvalidNodeEncoding
+	}
+	childrenCount := len(raw) / (1 + SerializedPointCompressedSize)
+
+	children := make([]HashedNode, childrenCount)
+	for i := 0; i < childrenCount; i++ {
+		serializedNode := raw[i*(1+SerializedPointCompressedSize) : (i+1)*(1+SerializedPointCompressedSize)]
+		index := serializedNode[0]
+		nodeComm := serializedNode[1:]
+
+		children[i].commitment = nodeComm
+		n.children[index] = &children[i]
 	}
 	n.commitment = new(Point)
 	n.commitment.SetBytesTrusted(comm)

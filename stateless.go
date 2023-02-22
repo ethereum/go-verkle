@@ -78,9 +78,7 @@ func NewStateless() *StatelessNode {
 }
 
 func NewStatelessWithCommitment(point *Point) *StatelessNode {
-	var (
-		xfr Fr
-	)
+	var xfr Fr
 	toFr(&xfr, point)
 	return &StatelessNode{
 		children:   make(map[byte]VerkleNode),
@@ -417,7 +415,6 @@ func (n *StatelessNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 	child := n.children[nChild]
 	if child == nil {
 		if n.unresolved[nChild] == nil {
-
 			return nil, nil
 		}
 
@@ -486,9 +483,7 @@ func (n *StatelessNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][
 	)
 
 	if len(n.values) == 0 {
-		var (
-			groups = groupKeys(keys, n.depth)
-		)
+		groups := groupKeys(keys, n.depth)
 
 		for _, group := range groups {
 			childIdx := offset2key(group[0], n.depth)
@@ -686,7 +681,7 @@ func (n *StatelessNode) Serialize() ([]byte, error) {
 		}
 	}
 
-	return append(append([]byte{internalRLPType}, bitlist[:]...), children...), nil
+	return append(append([]byte{internalRLPTypeBitmap}, bitlist[:]...), children...), nil
 }
 
 func (n *StatelessNode) Copy() VerkleNode {
