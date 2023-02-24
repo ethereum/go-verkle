@@ -29,6 +29,8 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
+	"reflect"
 	"testing"
 )
 
@@ -409,5 +411,87 @@ func TestProofOfAbsenceNoneMultipleStems(t *testing.T) {
 
 	if len(proof.ExtStatus) != 1 {
 		t.Fatalf("invalid number of none extension statuses: %d ≠ 1", len(proof.ExtStatus))
+	}
+}
+
+func TestSuffixStateDiffJSONMarshalUn(t *testing.T) {
+	ssd := SuffixStateDiff{
+		Suffix: 0x41,
+		CurrentValue: &[32]byte{
+			0x10, 0x20, 0x30, 0x40,
+			0x50, 0x60, 0x70, 0x80,
+			0x90, 0xA0, 0xB0, 0xC0,
+			0xD0, 0xE0, 0xF0, 0x00,
+			0x11, 0x22, 0x33, 0x44,
+			0x55, 0x66, 0x77, 0x88,
+			0x99, 0xAA, 0xBB, 0xCC,
+			0xDD, 0xEE, 0xFF, 0x00,
+		},
+	}
+
+	expectedJSON := `{"suffix":65,"currentValue":"102030405060708090a0b0c0d0e0f000112233445566778899aabbccddeeff00"}`
+	actualJSON, err := json.Marshal(ssd)
+	if err != nil {
+		t.Errorf("error marshalling SuffixStateDiff to JSON: %v", err)
+	}
+
+	if string(actualJSON) != expectedJSON {
+		t.Errorf("JSON output doesn't match expected value.\nExpected: %s\nActual: %s", expectedJSON, string(actualJSON))
+	}
+
+	var actualSSD SuffixStateDiff
+	err = json.Unmarshal([]byte(actualJSON), &actualSSD)
+	if err != nil {
+		t.Errorf("error unmarshalling JSON to SuffixStateDiff: %v", err)
+	}
+
+	if !reflect.DeepEqual(actualSSD, ssd) {
+		t.Errorf("SuffixStateDiff doesn't match expected value.\nExpected: %+v\nActual: %+v", ssd, actualSSD)
+	}
+}
+
+func TestIPAProofMarshalUnmarshalJSON(t *testing.T) {
+	ip1 := &IPAProof{
+		CL:              [IPA_PROOF_DEPTH][32]byte{{1}, {2}, {3}},
+		CR:              [IPA_PROOF_DEPTH][32]byte{{4}, {5}, {6}},
+		FinalEvaluation: [32]byte{7},
+	}
+	ipJSON, err := json.Marshal(ip1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ip2 := &IPAProof{}
+	err = json.Unmarshal(ipJSON, ip2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(ip1, ip2) {
+		t.Errorf("expected %v, got %v", ip1, ip2)
+	}
+}
+
+func TestVerkleProofMarshalUnmarshalJSON(t *testing.T) {
+	vp1 := &VerkleProof{
+		OtherStems:            [][31]byte{{1}, {2}, {3}},
+		DepthExtensionPresent: []byte{4, 5, 6},
+		CommitmentsByPath:     [][32]byte{{7}, {8}, {9}},
+		D:                     [32]byte{10},
+		IPAProof: &IPAProof{
+			CL:              [IPA_PROOF_DEPTH][32]byte{{11}, {12}, {13}},
+			CR:              [IPA_PROOF_DEPTH][32]byte{{14}, {15}, {16}},
+			FinalEvaluation: [32]byte{17},
+		},
+	}
+	vpJSON, err := json.Marshal(vp1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	vp2 := &VerkleProof{}
+	err = json.Unmarshal(vpJSON, vp2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(vp1, vp2) {
+		t.Errorf("expected %v, got %v", vp1, vp2)
 	}
 }
