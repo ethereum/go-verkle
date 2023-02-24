@@ -88,7 +88,7 @@ func (ipp *IPAProof) UnmarshalJSON(data []byte) error {
 		if err != nil {
 			return fmt.Errorf("error decoding hex string for CL[%d]: %s", i, aux.CL[i])
 		}
-		copy(ipp.CL[i][:], val[:])
+		copy(ipp.CL[i][:], val)
 		if len(aux.CR[i]) != 64 {
 			return fmt.Errorf("invalid hex string for CR[%d]: %s", i, aux.CR[i])
 		}
@@ -96,7 +96,7 @@ func (ipp *IPAProof) UnmarshalJSON(data []byte) error {
 		if err != nil {
 			return fmt.Errorf("error decoding hex string for CR[%d]: %s", i, aux.CR[i])
 		}
-		copy(ipp.CR[i][:], val[:])
+		copy(ipp.CR[i][:], val)
 	}
 	copy(ipp.FinalEvaluation[:], currentValueBytes)
 
@@ -114,7 +114,7 @@ type verkleProofMarshaller struct {
 func (vp *VerkleProof) MarshalJSON() ([]byte, error) {
 	aux := &verkleProofMarshaller{
 		OtherStems:            make([]string, len(vp.OtherStems)),
-		DepthExtensionPresent: hex.EncodeToString(vp.DepthExtensionPresent[:]),
+		DepthExtensionPresent: hex.EncodeToString(vp.DepthExtensionPresent),
 		CommitmentsByPath:     make([]string, len(vp.CommitmentsByPath)),
 		D:                     hex.EncodeToString(vp.D[:]),
 		IPAProof:              vp.IPAProof,

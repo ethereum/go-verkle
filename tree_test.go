@@ -1122,19 +1122,14 @@ func TestRustBanderwagonBlock48(t *testing.T) {
 		"c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
 		"0000000000000000000000000000000000000000000000000000000000000000",
 	}
-	var (
-		vals        [][]byte
-		initialVals = map[string][]byte{}
-	)
+	var initialVals = map[string][]byte{}
 
 	for i, s := range valStrings {
 		if s == "" {
-			vals = append(vals, nil)
 			continue
 		}
 
 		v, _ := hex.DecodeString(s)
-		vals = append(vals, v)
 		tree.Insert(keys[i], v, nil)
 
 		initialVals[string(keys[i])] = v
