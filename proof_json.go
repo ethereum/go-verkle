@@ -175,9 +175,13 @@ type suffixStateDiffMarshaller struct {
 }
 
 func (ssd SuffixStateDiff) MarshalJSON() ([]byte, error) {
+	var cvstr string
+	if ssd.CurrentValue != nil {
+		cvstr = hex.EncodeToString(ssd.CurrentValue[:])
+	}
 	return json.Marshal(&suffixStateDiffMarshaller{
 		Suffix:       ssd.Suffix,
-		CurrentValue: hex.EncodeToString(ssd.CurrentValue[:]),
+		CurrentValue: cvstr,
 	})
 }
 
@@ -190,21 +194,23 @@ func (ssd *SuffixStateDiff) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	if len(aux.CurrentValue) != 64 {
+	if len(aux.CurrentValue) != 64 && len(aux.CurrentValue) != 0 {
 		return fmt.Errorf("invalid hex string for current value: %s", aux.CurrentValue)
 	}
 
-	currentValueBytes, err := hex.DecodeString(aux.CurrentValue)
-	if err != nil {
-		return fmt.Errorf("error decoding hex string for current value: %v", err)
-	}
-
 	*ssd = SuffixStateDiff{
-		Suffix:       aux.Suffix,
-		CurrentValue: &[32]byte{},
+		Suffix: aux.Suffix,
 	}
 
-	copy(ssd.CurrentValue[:], currentValueBytes)
+	if len(aux.CurrentValue) != 0 {
+		currentValueBytes, err := hex.DecodeString(aux.CurrentValue)
+		if err != nil {
+			return fmt.Errorf("error decoding hex string for current value: %v", err)
+		}
+
+		ssd.CurrentValue = &[32]byte{}
+		copy(ssd.CurrentValue[:], currentValueBytes)
+	}
 
 	return nil
 }

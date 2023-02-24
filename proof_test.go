@@ -446,6 +446,33 @@ func TestSuffixStateDiffJSONMarshalUn(t *testing.T) {
 	}
 }
 
+func TestSuffixStateDiffJSONMarshalUnCurrentValueNil(t *testing.T) {
+	ssd := SuffixStateDiff{
+		Suffix:       0x41,
+		CurrentValue: nil,
+	}
+
+	expectedJSON := `{"suffix":65,"currentValue":""}`
+	actualJSON, err := json.Marshal(ssd)
+	if err != nil {
+		t.Errorf("error marshalling SuffixStateDiff to JSON: %v", err)
+	}
+
+	if string(actualJSON) != expectedJSON {
+		t.Errorf("JSON output doesn't match expected value.\nExpected: %s\nActual: %s", expectedJSON, string(actualJSON))
+	}
+
+	var actualSSD SuffixStateDiff
+	err = json.Unmarshal([]byte(actualJSON), &actualSSD)
+	if err != nil {
+		t.Errorf("error unmarshalling JSON to SuffixStateDiff: %v", err)
+	}
+
+	if !reflect.DeepEqual(actualSSD, ssd) {
+		t.Errorf("SuffixStateDiff doesn't match expected value.\nExpected: %+v\nActual: %+v", ssd, actualSSD)
+	}
+}
+
 func TestIPAProofMarshalUnmarshalJSON(t *testing.T) {
 	ip1 := &IPAProof{
 		CL:              [IPA_PROOF_DEPTH][32]byte{{1}, {2}, {3}},
