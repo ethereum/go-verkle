@@ -138,7 +138,7 @@ func (vp *VerkleProof) UnmarshalJSON(data []byte) error {
 
 	vp.DepthExtensionPresent, err = hex.DecodeString(aux.DepthExtensionPresent)
 	if err != nil {
-		return fmt.Errorf("error decoding hex string for depth and extention present: %v", err)
+		return fmt.Errorf("error decoding hex string for depth and extension present: %v", err)
 	}
 
 	vp.CommitmentsByPath = make([][32]byte, len(aux.CommitmentsByPath))

@@ -436,7 +436,7 @@ func TestSuffixStateDiffJSONMarshalUn(t *testing.T) {
 	}
 
 	var actualSSD SuffixStateDiff
-	err = json.Unmarshal([]byte(actualJSON), &actualSSD)
+	err = json.Unmarshal(actualJSON, &actualSSD)
 	if err != nil {
 		t.Errorf("error unmarshalling JSON to SuffixStateDiff: %v", err)
 	}
@@ -463,7 +463,7 @@ func TestSuffixStateDiffJSONMarshalUnCurrentValueNil(t *testing.T) {
 	}
 
 	var actualSSD SuffixStateDiff
-	err = json.Unmarshal([]byte(actualJSON), &actualSSD)
+	err = json.Unmarshal(actualJSON, &actualSSD)
 	if err != nil {
 		t.Errorf("error unmarshalling JSON to SuffixStateDiff: %v", err)
 	}
