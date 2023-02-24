@@ -143,7 +143,7 @@ func VerifyVerkleProof(proof *Proof, Cs []*Point, indices []uint8, ys []*Fr, tc 
 func SerializeProof(proof *Proof) (*VerkleProof, StateDiff, error) {
 	otherstems := make([][31]byte, len(proof.PoaStems))
 	for i, stem := range proof.PoaStems {
-		copy(otherstems[i][:], stem[:])
+		copy(otherstems[i][:], stem)
 	}
 
 	cbp := make([][32]byte, len(proof.Cs))

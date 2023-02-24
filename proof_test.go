@@ -354,10 +354,6 @@ func TestProofDeserialize(t *testing.T) {
 	}
 }
 
-func TestProofDeserializeErrors(t *testing.T) {
-	// TODO
-}
-
 func TestProofOfAbsenceEdgeCase(t *testing.T) {
 	root := New()
 	root.Commit()
