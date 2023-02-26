@@ -169,6 +169,18 @@ func (vp *VerkleProof) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+type stemStateDiffMarshaller struct {
+	Stem        string           `json:"stem"`
+	SuffixDiffs SuffixStateDiffs `json:"suffixDiffs"`
+}
+
+func (ssd StemStateDiff) MarshalJSON() ([]byte, error) {
+	return json.Marshal(&stemStateDiffMarshaller{
+		Stem:        "0x" + hex.EncodeToString(ssd.Stem[:]),
+		SuffixDiffs: ssd.SuffixDiffs,
+	})
+}
+
 type suffixStateDiffMarshaller struct {
 	Suffix       byte   `json:"suffix"`
 	CurrentValue string `json:"currentValue"`
@@ -183,6 +195,27 @@ func (ssd SuffixStateDiff) MarshalJSON() ([]byte, error) {
 		Suffix:       ssd.Suffix,
 		CurrentValue: cvstr,
 	})
+}
+
+func (ssd *StemStateDiff) UnmarshalJSON(data []byte) error {
+	var aux stemStateDiffMarshaller
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	stemstr := aux.Stem
+	if stemstr[0:2] == "0x" {
+		stemstr = stemstr[2:]
+	}
+	stem, err := hex.DecodeString(stemstr)
+	if err != nil {
+		return fmt.Errorf("invalid hex string for stem: %w", err)
+	}
+	*ssd = StemStateDiff{
+		SuffixDiffs: aux.SuffixDiffs,
+	}
+	copy(ssd.Stem[:], stem)
+	return nil
 }
 
 func (ssd *SuffixStateDiff) UnmarshalJSON(data []byte) error {

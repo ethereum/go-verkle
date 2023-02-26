@@ -446,6 +446,45 @@ func TestSuffixStateDiffJSONMarshalUn(t *testing.T) {
 	}
 }
 
+func TestStemStateDiffJSONMarshalUn(t *testing.T) {
+	ssd := StemStateDiff{
+		Stem: [31]byte{10},
+		SuffixDiffs: []SuffixStateDiff{{
+			Suffix: 0x41,
+			CurrentValue: &[32]byte{
+				0x10, 0x20, 0x30, 0x40,
+				0x50, 0x60, 0x70, 0x80,
+				0x90, 0xA0, 0xB0, 0xC0,
+				0xD0, 0xE0, 0xF0, 0x00,
+				0x11, 0x22, 0x33, 0x44,
+				0x55, 0x66, 0x77, 0x88,
+				0x99, 0xAA, 0xBB, 0xCC,
+				0xDD, 0xEE, 0xFF, 0x00,
+			},
+		}},
+	}
+
+	expectedJSON := `{"stem":"0x0a000000000000000000000000000000000000000000000000000000000000","suffixDiffs":[{"suffix":65,"currentValue":"102030405060708090a0b0c0d0e0f000112233445566778899aabbccddeeff00"}]}`
+	actualJSON, err := json.Marshal(ssd)
+	if err != nil {
+		t.Errorf("error marshalling SuffixStateDiff to JSON: %v", err)
+	}
+
+	if string(actualJSON) != expectedJSON {
+		t.Errorf("JSON output doesn't match expected value.\nExpected: %s\nActual: %s", expectedJSON, string(actualJSON))
+	}
+
+	var actualSSD StemStateDiff
+	err = json.Unmarshal(actualJSON, &actualSSD)
+	if err != nil {
+		t.Errorf("error unmarshalling JSON to StemStateDiff: %v", err)
+	}
+
+	if !reflect.DeepEqual(actualSSD, ssd) {
+		t.Errorf("SuffixStateDiff doesn't match expected value.\nExpected: %+v\nActual: %+v", ssd, actualSSD)
+	}
+}
+
 func TestSuffixStateDiffJSONMarshalUnCurrentValueNil(t *testing.T) {
 	ssd := SuffixStateDiff{
 		Suffix:       0x41,
