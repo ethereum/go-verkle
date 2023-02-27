@@ -122,7 +122,7 @@ type verkleProofMarshaller struct {
 	DepthExtensionPresent string    `json:"depthExtensionPresent"`
 	CommitmentsByPath     []string  `json:"commitmentsByPath"`
 	D                     string    `json:"d"`
-	IPAProof              *IPAProof `json:"ipa_proof"`
+	IPAProof              *IPAProof `json:"ipaProof"`
 }
 
 func (vp *VerkleProof) MarshalJSON() ([]byte, error) {
