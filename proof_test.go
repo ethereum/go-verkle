@@ -491,7 +491,7 @@ func TestSuffixStateDiffJSONMarshalUnCurrentValueNil(t *testing.T) {
 		CurrentValue: nil,
 	}
 
-	expectedJSON := `{"suffix":65,"currentValue":""}`
+	expectedJSON := `{"suffix":65,"currentValue":null}`
 	actualJSON, err := json.Marshal(ssd)
 	if err != nil {
 		t.Errorf("error marshalling SuffixStateDiff to JSON: %v", err)

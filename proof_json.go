@@ -195,22 +195,6 @@ func (ssd StemStateDiff) MarshalJSON() ([]byte, error) {
 	})
 }
 
-type suffixStateDiffMarshaller struct {
-	Suffix       byte   `json:"suffix"`
-	CurrentValue string `json:"currentValue"`
-}
-
-func (ssd SuffixStateDiff) MarshalJSON() ([]byte, error) {
-	var cvstr string
-	if ssd.CurrentValue != nil {
-		cvstr = HexToPrefixedString(ssd.CurrentValue[:])
-	}
-	return json.Marshal(&suffixStateDiffMarshaller{
-		Suffix:       ssd.Suffix,
-		CurrentValue: cvstr,
-	})
-}
-
 func (ssd *StemStateDiff) UnmarshalJSON(data []byte) error {
 	var aux stemStateDiffMarshaller
 	if err := json.Unmarshal(data, &aux); err != nil {
@@ -228,25 +212,40 @@ func (ssd *StemStateDiff) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (ssd *SuffixStateDiff) UnmarshalJSON(data []byte) error {
-	aux := &suffixStateDiffMarshaller{
-		CurrentValue: "",
+type suffixStateDiffMarshaller struct {
+	Suffix       byte    `json:"suffix"`
+	CurrentValue *string `json:"currentValue"`
+}
+
+func (ssd SuffixStateDiff) MarshalJSON() ([]byte, error) {
+	var cvstr *string
+	if ssd.CurrentValue != nil {
+		tempstr := HexToPrefixedString(ssd.CurrentValue[:])
+		cvstr = &tempstr
 	}
+	return json.Marshal(&suffixStateDiffMarshaller{
+		Suffix:       ssd.Suffix,
+		CurrentValue: cvstr,
+	})
+}
+
+func (ssd *SuffixStateDiff) UnmarshalJSON(data []byte) error {
+	aux := &suffixStateDiffMarshaller{}
 
 	if err := json.Unmarshal(data, &aux); err != nil {
 		return err
 	}
 
-	if len(aux.CurrentValue) != 64 && len(aux.CurrentValue) != 0 && len(aux.CurrentValue) != 66 {
-		return fmt.Errorf("invalid hex string for current value: %s", aux.CurrentValue)
+	if aux.CurrentValue != nil && len(*aux.CurrentValue) != 64 && len(*aux.CurrentValue) != 0 && len(*aux.CurrentValue) != 66 {
+		return fmt.Errorf("invalid hex string for current value: %s", *aux.CurrentValue)
 	}
 
 	*ssd = SuffixStateDiff{
 		Suffix: aux.Suffix,
 	}
 
-	if len(aux.CurrentValue) != 0 {
-		currentValueBytes, err := PrefixedHexStringToBytes(aux.CurrentValue)
+	if aux.CurrentValue != nil && len(*aux.CurrentValue) != 0 {
+		currentValueBytes, err := PrefixedHexStringToBytes(*aux.CurrentValue)
 		if err != nil {
 			return fmt.Errorf("error decoding hex string for current value: %v", err)
 		}
