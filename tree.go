@@ -1042,8 +1042,7 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 	// Initialize the top-level polynomial with 1 + stem + C1 + C2
 	poly[0].SetUint64(1)
 	StemFromBytes(&poly[1], n.stem)
-	toFr(&poly[2], n.c1)
-	toFr(&poly[3], n.c2)
+	toFrMultiple([]*Fr{&poly[2], &poly[3]}, []*Point{n.c1, n.c2})
 
 	// First pass: add top-level elements first
 	var hasC1, hasC2 bool
