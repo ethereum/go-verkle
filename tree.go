@@ -486,11 +486,11 @@ func (n *InternalNode) Flush(flush NodeFlushFn) {
 		if c, ok := child.(*InternalNode); ok {
 			c.Commit()
 			c.Flush(flush)
-			n.children[i] = c.toHashedNode()
+			// n.children[i] = c.toHashedNode() // TODO(jsign): fix this.
 		} else if c, ok := child.(*LeafNode); ok {
 			c.Commit()
 			flush(n.children[i])
-			n.children[i] = c.ToHashedNode()
+			// n.children[i] = c.ToHashedNode()
 		}
 	}
 	flush(n)
@@ -733,52 +733,11 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 }
 
 func (n *InternalNode) Serialize() ([]byte, error) {
-	var (
-		bitlist, hashlist [NodeWidth / 8]byte
-		nhashed           int // number of children who are hashed nodes
-	)
-	commitments := make([]*Point, 0, NodeWidth)
-	for i, c := range n.children {
-		if _, ok := c.(Empty); !ok {
-			setBit(bitlist[:], i)
-			if _, ok := c.(*HashedNode); ok {
-				// don't trigger the commitment on hashed nodes,
-				// as they already hold a serialized version of
-				// their commitment. Instead, just mark them as
-				// hashes so they can be added directly.
-				setBit(hashlist[:], i)
-				nhashed++
-			} else {
-				commitments = append(commitments, c.Commitment())
-			}
-		}
+	bytes, err := BatchSerialize([]VerkleNode{n})
+	if err != nil {
+		return nil, fmt.Errorf("serializing internal node: %s", err)
 	}
-
-	ret := make([]byte, nodeTypeSize+bitlistSize+(len(commitments)+nhashed)*SerializedPointCompressedSize)
-
-	// We create a children slice from ret ready to start appending children without allocations.
-	children := ret[internalNodeChildrenOffset:internalNodeChildrenOffset]
-	bytecomms := banderwagon.ElementsToBytes(commitments)
-	consumed := 0
-	for i := 0; i < NodeWidth; i++ {
-		if bit(bitlist[:], i) {
-			// if a child is present and is a hash, add its
-			// internal, serialized representation directly.
-			if bit(hashlist[:], i) {
-				children = append(children, n.children[i].(*HashedNode).commitment...)
-			} else {
-				children = append(children, bytecomms[consumed][:]...)
-				consumed++
-			}
-		}
-	}
-
-	// Store in ret the serialized result
-	ret[nodeTypeOffset] = internalRLPType
-	copy(ret[internalBitlistOffset:], bitlist[:])
-	// Note that children were already appended in ret through the children slice.
-
-	return ret, nil
+	return bytes[0], nil
 }
 
 func (n *InternalNode) Copy() VerkleNode {
@@ -1197,35 +1156,11 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 // Serialize serializes a LeafNode.
 // The format is: <nodeType><stem><bitlist><c1comm><c2comm><children...>
 func (n *LeafNode) Serialize() ([]byte, error) {
-	// Empty value in LeafNode used for padding.
-	var emptyValue [LeafValueSize]byte
-
-	// Create bitlist and store in children LeafValueSize (padded) values.
-	children := make([]byte, 0, NodeWidth*LeafValueSize)
-	var bitlist [bitlistSize]byte
-	for i, v := range n.values {
-		if v != nil {
-			setBit(bitlist[:], i)
-			children = append(children, v...)
-			if padding := emptyValue[:LeafValueSize-len(v)]; len(padding) != 0 {
-				children = append(children, padding...)
-			}
-		}
+	bytes, err := BatchSerialize([]VerkleNode{n})
+	if err != nil {
+		return nil, fmt.Errorf("serializing leaf node: %s", err)
 	}
-
-	// Create the serialization.
-	baseSize := nodeTypeSize + StemSize + bitlistSize + 2*SerializedPointCompressedSize
-	result := make([]byte, baseSize, baseSize+4*32) // Extra pre-allocated capacity for 4 values.
-	result[0] = leafRLPType
-	copy(result[leafSteamOffset:], n.stem[:StemSize])
-	copy(result[leafBitlistOffset:], bitlist[:])
-	c1Bytes := n.c1.Bytes()
-	copy(result[leafC1CommitmentOffset:], c1Bytes[:])
-	c2Bytes := n.c2.Bytes()
-	copy(result[leafC2CommitmentOffset:], c2Bytes[:])
-	result = append(result, children...)
-
-	return result, nil
+	return bytes[0], nil
 }
 
 func (n *LeafNode) Copy() VerkleNode {
@@ -1292,4 +1227,121 @@ func setBit(bitlist []byte, index int) {
 func ToDot(root VerkleNode) string {
 	root.Commit()
 	return fmt.Sprintf("digraph D {\n%s}", root.toDot("", ""))
+}
+
+// BatchSerialize is an optimized serialization API when multiple VerkleNodes serializations are required, and all are
+// available in memory.
+func BatchSerialize(nodes []VerkleNode) ([][]byte, error) {
+	// We collect all the *Points so we can batch invert the work the projective->affine transformation.
+	pointsToCompress := make([]*Point, 0, len(nodes)*NodeWidth)
+	pointToCompressPerNodeCount := make([]int, len(nodes))
+	for i := range nodes {
+		switch n := nodes[i].(type) {
+		case *InternalNode:
+			count := 0
+			for _, c := range n.children {
+				_, isInternalNode := c.(*InternalNode)
+				_, isLeafNode := c.(*LeafNode)
+				if isInternalNode || isLeafNode {
+					pointsToCompress = append(pointsToCompress, c.Commitment())
+					count++
+				}
+			}
+			pointToCompressPerNodeCount[i] = count
+		case *LeafNode:
+			pointsToCompress = append(pointsToCompress, n.c1, n.c2)
+			pointToCompressPerNodeCount[i] = 2
+		}
+	}
+
+	// Now we do the all transformations in a single-shot.
+	compressedPoints := banderwagon.ElementsToBytes(pointsToCompress)
+
+	// Now we that we did the heavy CPU work, we have to do the rest of `nodes` serialization
+	// taking the compressed points from this single list.
+	ret := make([][]byte, 0, len(nodes))
+	for i := range nodes {
+		switch n := nodes[i].(type) {
+		case *InternalNode:
+			compressedChildren := compressedPoints[:pointToCompressPerNodeCount[i]]
+			bytes := n.serializeWithCompressedChildren(compressedChildren)
+			ret = append(ret, bytes)
+		case *LeafNode:
+			c1Bytes := compressedPoints[0]
+			c2Bytes := compressedPoints[1]
+			bytes := n.serializeWithCompressedCommitments(c1Bytes, c2Bytes)
+			ret = append(ret, bytes)
+		}
+		compressedPoints = compressedPoints[pointToCompressPerNodeCount[i]:]
+	}
+
+	return ret, nil
+}
+
+func (n *InternalNode) serializeWithCompressedChildren(compressedChildren [][32]byte) []byte {
+	var (
+		bitlist, hashlist [NodeWidth / 8]byte
+		nhashed           int // number of children who are hashed nodes
+	)
+	for i, c := range n.children {
+		if _, ok := c.(Empty); !ok {
+			setBit(bitlist[:], i)
+			if _, ok := c.(*HashedNode); ok {
+				setBit(hashlist[:], i)
+				nhashed++
+			}
+		}
+	}
+
+	ret := make([]byte, nodeTypeSize+bitlistSize+(len(compressedChildren)+nhashed)*SerializedPointCompressedSize)
+
+	children := ret[internalNodeChildrenOffset:internalNodeChildrenOffset]
+	consumed := 0
+	for i := 0; i < NodeWidth; i++ {
+		if bit(bitlist[:], i) {
+			if bit(hashlist[:], i) {
+				children = append(children, n.children[i].(*HashedNode).commitment...)
+			} else {
+				children = append(children, compressedChildren[consumed][:]...)
+				consumed++
+			}
+		}
+	}
+
+	// Store in ret the serialized result
+	ret[nodeTypeOffset] = internalRLPType
+	copy(ret[internalBitlistOffset:], bitlist[:])
+	// Note that children were already appended in ret through the children slice.
+
+	return ret
+}
+
+func (n *LeafNode) serializeWithCompressedCommitments(c1Bytes [32]byte, c2Bytes [32]byte) []byte {
+	// Empty value in LeafNode used for padding.
+	var emptyValue [LeafValueSize]byte
+
+	// Create bitlist and store in children LeafValueSize (padded) values.
+	children := make([]byte, 0, NodeWidth*LeafValueSize)
+	var bitlist [bitlistSize]byte
+	for i, v := range n.values {
+		if v != nil {
+			setBit(bitlist[:], i)
+			children = append(children, v...)
+			if padding := emptyValue[:LeafValueSize-len(v)]; len(padding) != 0 {
+				children = append(children, padding...)
+			}
+		}
+	}
+
+	// Create the serialization.
+	baseSize := nodeTypeSize + StemSize + bitlistSize + 2*SerializedPointCompressedSize
+	result := make([]byte, baseSize, baseSize+4*32) // Extra pre-allocated capacity for 4 values.
+	result[0] = leafRLPType
+	copy(result[leafSteamOffset:], n.stem[:StemSize])
+	copy(result[leafBitlistOffset:], bitlist[:])
+	copy(result[leafC1CommitmentOffset:], c1Bytes[:])
+	copy(result[leafC2CommitmentOffset:], c2Bytes[:])
+	result = append(result, children...)
+
+	return result
 }
