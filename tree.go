@@ -568,7 +568,8 @@ func (n *InternalNode) Commitment() *Point {
 
 func (n *InternalNode) fillLevels(levels [][]*InternalNode) {
 	levels[int(n.depth)] = append(levels[int(n.depth)], n)
-	for _, child := range n.children {
+	for idx := range n.cow {
+		child := n.children[idx]
 		if childInternalNode, ok := child.(*InternalNode); ok && len(childInternalNode.cow) > 0 {
 			childInternalNode.fillLevels(levels)
 		}
