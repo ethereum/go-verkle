@@ -520,11 +520,11 @@ func (n *InternalNode) Flush(flush NodeFlushFn) {
 		if c, ok := child.(*InternalNode); ok {
 			c.Commit()
 			c.Flush(flush)
-			// n.children[i] = c.toHashedNode() // TODO(jsign): fix this.
+			n.children[i] = c.toHashedNode()
 		} else if c, ok := child.(*LeafNode); ok {
 			c.Commit()
 			flush(n.children[i])
-			// n.children[i] = c.ToHashedNode()
+			n.children[i] = c.ToHashedNode()
 		}
 	}
 	flush(n)
@@ -767,11 +767,52 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 }
 
 func (n *InternalNode) Serialize() ([]byte, error) {
-	bytes, err := BatchSerialize([]VerkleNode{n})
-	if err != nil {
-		return nil, fmt.Errorf("serializing internal node: %s", err)
+	var (
+		bitlist, hashlist [NodeWidth / 8]byte
+		nhashed           int // number of children who are hashed nodes
+	)
+	commitments := make([]*Point, 0, NodeWidth)
+	for i, c := range n.children {
+		if _, ok := c.(Empty); !ok {
+			setBit(bitlist[:], i)
+			if _, ok := c.(*HashedNode); ok {
+				// don't trigger the commitment on hashed nodes,
+				// as they already hold a serialized version of
+				// their commitment. Instead, just mark them as
+				// hashes so they can be added directly.
+				setBit(hashlist[:], i)
+				nhashed++
+			} else {
+				commitments = append(commitments, c.Commitment())
+			}
+		}
 	}
-	return bytes[0], nil
+
+	ret := make([]byte, nodeTypeSize+bitlistSize+(len(commitments)+nhashed)*SerializedPointCompressedSize)
+
+	// We create a children slice from ret ready to start appending children without allocations.
+	children := ret[internalNodeChildrenOffset:internalNodeChildrenOffset]
+	bytecomms := banderwagon.ElementsToBytes(commitments)
+	consumed := 0
+	for i := 0; i < NodeWidth; i++ {
+		if bit(bitlist[:], i) {
+			// if a child is present and is a hash, add its
+			// internal, serialized representation directly.
+			if bit(hashlist[:], i) {
+				children = append(children, n.children[i].(*HashedNode).commitment...)
+			} else {
+				children = append(children, bytecomms[consumed][:]...)
+				consumed++
+			}
+		}
+	}
+
+	// Store in ret the serialized result
+	ret[nodeTypeOffset] = internalRLPType
+	copy(ret[internalBitlistOffset:], bitlist[:])
+	// Note that children were already appended in ret through the children slice.
+
+	return ret, nil
 }
 
 func (n *InternalNode) Copy() VerkleNode {
@@ -1190,11 +1231,8 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 // Serialize serializes a LeafNode.
 // The format is: <nodeType><stem><bitlist><c1comm><c2comm><children...>
 func (n *LeafNode) Serialize() ([]byte, error) {
-	bytes, err := BatchSerialize([]VerkleNode{n})
-	if err != nil {
-		return nil, fmt.Errorf("serializing leaf node: %s", err)
-	}
-	return bytes[0], nil
+	cBytes := banderwagon.ElementsToBytes([]*banderwagon.Element{n.c1, n.c2})
+	return n.serializeWithCompressedCommitments(cBytes[0], cBytes[1]), nil
 }
 
 func (n *LeafNode) Copy() VerkleNode {
@@ -1263,15 +1301,29 @@ func ToDot(root VerkleNode) string {
 	return fmt.Sprintf("digraph D {\n%s}", root.toDot("", ""))
 }
 
+type SerializedNode struct {
+	Node            VerkleNode
+	CommitmentBytes [32]byte
+	SerializedBytes []byte
+}
+
 // BatchSerialize is an optimized serialization API when multiple VerkleNodes serializations are required, and all are
 // available in memory.
-func BatchSerialize(nodes []VerkleNode) ([][]byte, error) {
-	// We collect all the *Points so we can batch invert the work the projective->affine transformation.
-	pointsToCompress := make([]*Point, 0, len(nodes)*NodeWidth)
+func (n *InternalNode) BatchSerialize() ([]SerializedNode, error) {
+	// Commit to the node to update all the nodes commitments.
+	n.Commit()
+
+	// Collect all nodes that we need to serialize.
+	nodes := make([]VerkleNode, 0, 1024)
+	nodes = n.collectNonHashedNodes(nodes)
+
+	// We collect all the *Point so we can batch invert the work the projective->affine transformation.
+	pointsToCompress := make([]*Point, 0, len(nodes)*NodeWidth+len(nodes))
 	pointToCompressPerNodeCount := make([]int, len(nodes))
 	for i := range nodes {
 		switch n := nodes[i].(type) {
 		case *InternalNode:
+			pointsToCompress = append(pointsToCompress, n.commitment)
 			count := 0
 			for _, c := range n.children {
 				_, isInternalNode := c.(*InternalNode)
@@ -1281,10 +1333,10 @@ func BatchSerialize(nodes []VerkleNode) ([][]byte, error) {
 					count++
 				}
 			}
-			pointToCompressPerNodeCount[i] = count
+			pointToCompressPerNodeCount[i] = 1 + count // Internal node commitment + all non-hashed children.
 		case *LeafNode:
-			pointsToCompress = append(pointsToCompress, n.c1, n.c2)
-			pointToCompressPerNodeCount[i] = 2
+			pointsToCompress = append(pointsToCompress, n.commitment, n.c1, n.c2)
+			pointToCompressPerNodeCount[i] = 3 // Leaf node commitment + c1 + c2.
 		}
 	}
 
@@ -1293,23 +1345,44 @@ func BatchSerialize(nodes []VerkleNode) ([][]byte, error) {
 
 	// Now we that we did the heavy CPU work, we have to do the rest of `nodes` serialization
 	// taking the compressed points from this single list.
-	ret := make([][]byte, 0, len(nodes))
+	ret := make([]SerializedNode, 0, len(nodes))
 	for i := range nodes {
 		switch n := nodes[i].(type) {
 		case *InternalNode:
-			compressedChildren := compressedPoints[:pointToCompressPerNodeCount[i]]
-			bytes := n.serializeWithCompressedChildren(compressedChildren)
-			ret = append(ret, bytes)
+			compressedChildren := compressedPoints[1:pointToCompressPerNodeCount[i]]
+			sn := SerializedNode{
+				Node:            n,
+				CommitmentBytes: compressedPoints[0],
+				SerializedBytes: n.serializeWithCompressedChildren(compressedChildren),
+			}
+			ret = append(ret, sn)
 		case *LeafNode:
 			c1Bytes := compressedPoints[0]
 			c2Bytes := compressedPoints[1]
-			bytes := n.serializeWithCompressedCommitments(c1Bytes, c2Bytes)
-			ret = append(ret, bytes)
+			sn := SerializedNode{
+				Node:            n,
+				CommitmentBytes: compressedPoints[0],
+				SerializedBytes: n.serializeWithCompressedCommitments(c1Bytes, c2Bytes),
+			}
+			ret = append(ret, sn)
 		}
 		compressedPoints = compressedPoints[pointToCompressPerNodeCount[i]:]
 	}
 
 	return ret, nil
+}
+
+func (n *InternalNode) collectNonHashedNodes(list []VerkleNode) []VerkleNode {
+	list = append(list, n)
+	for _, child := range n.children {
+		switch childNode := child.(type) {
+		case *LeafNode:
+			list = append(list, childNode)
+		case *InternalNode:
+			list = childNode.collectNonHashedNodes(list)
+		}
+	}
+	return list
 }
 
 func (n *InternalNode) serializeWithCompressedChildren(compressedChildren [][32]byte) []byte {
