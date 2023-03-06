@@ -1301,6 +1301,10 @@ func ToDot(root VerkleNode) string {
 	return fmt.Sprintf("digraph D {\n%s}", root.toDot("", ""))
 }
 
+// SerializedNode contains a serialization of a tree node.
+// It provides everything that the client needs to save the node to the database.
+// For example, CommitmentBytes is usually use as key and SerializedBytes as value.
+// Providing both allows this library to do more optimizations.
 type SerializedNode struct {
 	Node            VerkleNode
 	CommitmentBytes [32]byte
@@ -1317,7 +1321,7 @@ func (n *InternalNode) BatchSerialize() ([]SerializedNode, error) {
 	nodes := make([]VerkleNode, 0, 1024)
 	nodes = n.collectNonHashedNodes(nodes)
 
-	// We collect all the *Point so we can batch invert the work the projective->affine transformation.
+	// We collect all the *Point, so we can batch all projective->affine transformations.
 	pointsToCompress := make([]*Point, 0, len(nodes)*NodeWidth+len(nodes))
 	pointToCompressPerNodeCount := make([]int, len(nodes))
 	for i := range nodes {
@@ -1387,12 +1391,15 @@ func (n *InternalNode) collectNonHashedNodes(list []VerkleNode) []VerkleNode {
 
 func (n *InternalNode) serializeWithCompressedChildren(compressedChildren [][32]byte) []byte {
 	var (
-		bitlist, hashlist [NodeWidth / 8]byte
-		nhashed           int // number of children who are hashed nodes
+		hashlist [NodeWidth / 8]byte
+		nhashed  int // number of children who are hashed nodes
 	)
+
+	ret := make([]byte, nodeTypeSize+bitlistSize+NodeWidth*SerializedPointCompressedSize)
+	bitlist := ret[internalBitlistOffset:]
 	for i, c := range n.children {
 		if _, ok := c.(Empty); !ok {
-			setBit(bitlist[:], i)
+			setBit(bitlist, i)
 			if _, ok := c.(*HashedNode); ok {
 				setBit(hashlist[:], i)
 				nhashed++
@@ -1400,12 +1407,11 @@ func (n *InternalNode) serializeWithCompressedChildren(compressedChildren [][32]
 		}
 	}
 
-	ret := make([]byte, nodeTypeSize+bitlistSize+(len(compressedChildren)+nhashed)*SerializedPointCompressedSize)
-
+	ret = ret[:nodeTypeSize+bitlistSize+(len(compressedChildren)+nhashed)*SerializedPointCompressedSize]
 	children := ret[internalNodeChildrenOffset:internalNodeChildrenOffset]
 	consumed := 0
 	for i := 0; i < NodeWidth; i++ {
-		if bit(bitlist[:], i) {
+		if bit(bitlist, i) {
 			if bit(hashlist[:], i) {
 				children = append(children, n.children[i].(*HashedNode).commitment...)
 			} else {
@@ -1417,8 +1423,9 @@ func (n *InternalNode) serializeWithCompressedChildren(compressedChildren [][32]
 
 	// Store in ret the serialized result
 	ret[nodeTypeOffset] = internalRLPType
-	copy(ret[internalBitlistOffset:], bitlist[:])
-	// Note that children were already appended in ret through the children slice.
+	// Note that:
+	// - Children were already appended in ret through the children slice.
+	// - Bitlist was embedded in ret.
 
 	return ret
 }
