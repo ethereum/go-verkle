@@ -1288,25 +1288,17 @@ func (n *InternalNode) BatchSerialize() ([]SerializedNode, error) {
 	nodes = n.collectNonHashedNodes(nodes)
 
 	// We collect all the *Point, so we can batch all projective->affine transformations.
-	pointsToCompress := make([]*Point, 0, len(nodes)*NodeWidth+len(nodes))
-	pointToCompressPerNodeCount := make([]int, len(nodes))
+	pointsToCompress := make([]*Point, 0, 3*len(nodes))
+	// Contains a map between VerkleNode and the index in the `compressedPoints` containing the commitment below.
+	compressedPointsIdxs := make(map[VerkleNode]int, 3*len(nodes))
 	for i := range nodes {
 		switch n := nodes[i].(type) {
 		case *InternalNode:
 			pointsToCompress = append(pointsToCompress, n.commitment)
-			count := 0
-			for _, c := range n.children {
-				_, isInternalNode := c.(*InternalNode)
-				_, isLeafNode := c.(*LeafNode)
-				if isInternalNode || isLeafNode {
-					pointsToCompress = append(pointsToCompress, c.Commitment())
-					count++
-				}
-			}
-			pointToCompressPerNodeCount[i] = 1 + count // Internal node commitment + all non-hashed children.
+			compressedPointsIdxs[n] = len(pointsToCompress) - 1
 		case *LeafNode:
 			pointsToCompress = append(pointsToCompress, n.commitment, n.c1, n.c2)
-			pointToCompressPerNodeCount[i] = 3 // Leaf node commitment + c1 + c2.
+			compressedPointsIdxs[n] = len(pointsToCompress) - 3
 		}
 	}
 
@@ -1316,27 +1308,28 @@ func (n *InternalNode) BatchSerialize() ([]SerializedNode, error) {
 	// Now we that we did the heavy CPU work, we have to do the rest of `nodes` serialization
 	// taking the compressed points from this single list.
 	ret := make([]SerializedNode, 0, len(nodes))
+	idx := 0
 	for i := range nodes {
 		switch n := nodes[i].(type) {
 		case *InternalNode:
-			compressedChildren := compressedPoints[1:pointToCompressPerNodeCount[i]]
 			sn := SerializedNode{
 				Node:            n,
-				CommitmentBytes: compressedPoints[0],
-				SerializedBytes: n.serializeWithCompressedChildren(compressedChildren),
+				CommitmentBytes: compressedPoints[idx],
+				SerializedBytes: n.serializeWithCompressedChildren(compressedPointsIdxs, compressedPoints),
 			}
 			ret = append(ret, sn)
+			idx++
 		case *LeafNode:
-			c1Bytes := compressedPoints[0]
-			c2Bytes := compressedPoints[1]
+			c1Bytes := compressedPoints[idx+1]
+			c2Bytes := compressedPoints[idx+2]
 			sn := SerializedNode{
 				Node:            n,
-				CommitmentBytes: compressedPoints[0],
+				CommitmentBytes: compressedPoints[idx],
 				SerializedBytes: n.serializeWithCompressedCommitments(c1Bytes, c2Bytes),
 			}
 			ret = append(ret, sn)
+			idx += 3
 		}
-		compressedPoints = compressedPoints[pointToCompressPerNodeCount[i]:]
 	}
 
 	return ret, nil
@@ -1355,10 +1348,10 @@ func (n *InternalNode) collectNonHashedNodes(list []VerkleNode) []VerkleNode {
 	return list
 }
 
-func (n *InternalNode) serializeWithCompressedChildren(compressedChildren [][32]byte) []byte {
+func (n *InternalNode) serializeWithCompressedChildren(compressedPointsIdxs map[VerkleNode]int, compressedPoints [][32]byte) []byte {
 	var (
-		hashlist [NodeWidth / 8]byte
-		nhashed  int // number of children who are hashed nodes
+		hashlist                    [NodeWidth / 8]byte
+		nonHashedCount, hashedCount int
 	)
 
 	ret := make([]byte, nodeTypeSize+bitlistSize+NodeWidth*SerializedPointCompressedSize)
@@ -1368,12 +1361,14 @@ func (n *InternalNode) serializeWithCompressedChildren(compressedChildren [][32]
 			setBit(bitlist, i)
 			if _, ok := c.(*HashedNode); ok {
 				setBit(hashlist[:], i)
-				nhashed++
+				hashedCount++
+			} else {
+				nonHashedCount++
 			}
 		}
 	}
 
-	ret = ret[:nodeTypeSize+bitlistSize+(len(compressedChildren)+nhashed)*SerializedPointCompressedSize]
+	ret = ret[:nodeTypeSize+bitlistSize+(nonHashedCount+hashedCount)*SerializedPointCompressedSize]
 	children := ret[internalNodeChildrenOffset:internalNodeChildrenOffset]
 	consumed := 0
 	for i := 0; i < NodeWidth; i++ {
@@ -1381,7 +1376,11 @@ func (n *InternalNode) serializeWithCompressedChildren(compressedChildren [][32]
 			if bit(hashlist[:], i) {
 				children = append(children, n.children[i].(*HashedNode).commitment...)
 			} else {
-				children = append(children, compressedChildren[consumed][:]...)
+				childIdx, ok := compressedPointsIdxs[n.children[i]]
+				if !ok {
+					panic("children commitment not found in cache")
+				}
+				children = append(children, compressedPoints[childIdx][:]...)
 				consumed++
 			}
 		}
