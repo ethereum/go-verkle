@@ -31,6 +31,20 @@ import (
 	"fmt"
 )
 
+// HexToPrefixedString turns a byte slice into its hex representation
+// and prefixes it with `0x`.
+func HexToPrefixedString(data []byte) string {
+	return "0x" + hex.EncodeToString(data)
+}
+
+// PrefixedHexStringToBytes does the opposite of HexToPrefixedString.
+func PrefixedHexStringToBytes(input string) ([]byte, error) {
+	if input[0:2] == "0x" {
+		input = input[2:]
+	}
+	return hex.DecodeString(input)
+}
+
 type ipaproofMarshaller struct {
 	CL              [IPA_PROOF_DEPTH]string `json:"cl"`
 	CR              [IPA_PROOF_DEPTH]string `json:"cr"`
@@ -40,26 +54,26 @@ type ipaproofMarshaller struct {
 func (ipp *IPAProof) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&ipaproofMarshaller{
 		CL: [IPA_PROOF_DEPTH]string{
-			hex.EncodeToString(ipp.CL[0][:]),
-			hex.EncodeToString(ipp.CL[1][:]),
-			hex.EncodeToString(ipp.CL[2][:]),
-			hex.EncodeToString(ipp.CL[3][:]),
-			hex.EncodeToString(ipp.CL[4][:]),
-			hex.EncodeToString(ipp.CL[5][:]),
-			hex.EncodeToString(ipp.CL[6][:]),
-			hex.EncodeToString(ipp.CL[7][:]),
+			HexToPrefixedString(ipp.CL[0][:]),
+			HexToPrefixedString(ipp.CL[1][:]),
+			HexToPrefixedString(ipp.CL[2][:]),
+			HexToPrefixedString(ipp.CL[3][:]),
+			HexToPrefixedString(ipp.CL[4][:]),
+			HexToPrefixedString(ipp.CL[5][:]),
+			HexToPrefixedString(ipp.CL[6][:]),
+			HexToPrefixedString(ipp.CL[7][:]),
 		},
 		CR: [IPA_PROOF_DEPTH]string{
-			hex.EncodeToString(ipp.CR[0][:]),
-			hex.EncodeToString(ipp.CR[1][:]),
-			hex.EncodeToString(ipp.CR[2][:]),
-			hex.EncodeToString(ipp.CR[3][:]),
-			hex.EncodeToString(ipp.CR[4][:]),
-			hex.EncodeToString(ipp.CR[5][:]),
-			hex.EncodeToString(ipp.CR[6][:]),
-			hex.EncodeToString(ipp.CR[7][:]),
+			HexToPrefixedString(ipp.CR[0][:]),
+			HexToPrefixedString(ipp.CR[1][:]),
+			HexToPrefixedString(ipp.CR[2][:]),
+			HexToPrefixedString(ipp.CR[3][:]),
+			HexToPrefixedString(ipp.CR[4][:]),
+			HexToPrefixedString(ipp.CR[5][:]),
+			HexToPrefixedString(ipp.CR[6][:]),
+			HexToPrefixedString(ipp.CR[7][:]),
 		},
-		FinalEvaluation: hex.EncodeToString(ipp.FinalEvaluation[:]),
+		FinalEvaluation: HexToPrefixedString(ipp.FinalEvaluation[:]),
 	})
 }
 
@@ -70,29 +84,29 @@ func (ipp *IPAProof) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	if len(aux.FinalEvaluation) != 64 {
+	if len(aux.FinalEvaluation) != 64 && len(aux.FinalEvaluation) != 66 {
 		return fmt.Errorf("invalid hex string for final evaluation: %s", aux.FinalEvaluation)
 	}
 
-	currentValueBytes, err := hex.DecodeString(aux.FinalEvaluation)
+	currentValueBytes, err := PrefixedHexStringToBytes(aux.FinalEvaluation)
 	if err != nil {
 		return fmt.Errorf("error decoding hex string for current value: %v", err)
 	}
 	copy(ipp.FinalEvaluation[:], currentValueBytes)
 
 	for i := range ipp.CL {
-		if len(aux.CL[i]) != 64 {
+		if len(aux.CL[i]) != 64 && len(aux.CL[i]) != 66 {
 			return fmt.Errorf("invalid hex string for CL[%d]: %s", i, aux.CL[i])
 		}
-		val, err := hex.DecodeString(aux.CL[i])
+		val, err := PrefixedHexStringToBytes(aux.CL[i])
 		if err != nil {
 			return fmt.Errorf("error decoding hex string for CL[%d]: %s", i, aux.CL[i])
 		}
 		copy(ipp.CL[i][:], val)
-		if len(aux.CR[i]) != 64 {
+		if len(aux.CR[i]) != 64 && len(aux.CR[i]) != 66 {
 			return fmt.Errorf("invalid hex string for CR[%d]: %s", i, aux.CR[i])
 		}
-		val, err = hex.DecodeString(aux.CR[i])
+		val, err = PrefixedHexStringToBytes(aux.CR[i])
 		if err != nil {
 			return fmt.Errorf("error decoding hex string for CR[%d]: %s", i, aux.CR[i])
 		}
@@ -108,23 +122,23 @@ type verkleProofMarshaller struct {
 	DepthExtensionPresent string    `json:"depthExtensionPresent"`
 	CommitmentsByPath     []string  `json:"commitmentsByPath"`
 	D                     string    `json:"d"`
-	IPAProof              *IPAProof `json:"ipa_proof"`
+	IPAProof              *IPAProof `json:"ipaProof"`
 }
 
 func (vp *VerkleProof) MarshalJSON() ([]byte, error) {
 	aux := &verkleProofMarshaller{
 		OtherStems:            make([]string, len(vp.OtherStems)),
-		DepthExtensionPresent: hex.EncodeToString(vp.DepthExtensionPresent),
+		DepthExtensionPresent: HexToPrefixedString(vp.DepthExtensionPresent),
 		CommitmentsByPath:     make([]string, len(vp.CommitmentsByPath)),
-		D:                     hex.EncodeToString(vp.D[:]),
+		D:                     HexToPrefixedString(vp.D[:]),
 		IPAProof:              vp.IPAProof,
 	}
 
 	for i, s := range vp.OtherStems {
-		aux.OtherStems[i] = hex.EncodeToString(s[:])
+		aux.OtherStems[i] = HexToPrefixedString(s[:])
 	}
 	for i, c := range vp.CommitmentsByPath {
-		aux.CommitmentsByPath[i] = hex.EncodeToString(c[:])
+		aux.CommitmentsByPath[i] = HexToPrefixedString(c[:])
 	}
 	return json.Marshal(aux)
 }
@@ -136,21 +150,21 @@ func (vp *VerkleProof) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	vp.DepthExtensionPresent, err = hex.DecodeString(aux.DepthExtensionPresent)
+	vp.DepthExtensionPresent, err = PrefixedHexStringToBytes(aux.DepthExtensionPresent)
 	if err != nil {
 		return fmt.Errorf("error decoding hex string for depth and extension present: %v", err)
 	}
 
 	vp.CommitmentsByPath = make([][32]byte, len(aux.CommitmentsByPath))
 	for i, c := range aux.CommitmentsByPath {
-		val, err := hex.DecodeString(c)
+		val, err := PrefixedHexStringToBytes(c)
 		if err != nil {
 			return fmt.Errorf("error decoding hex string for commitment #%d: %w", i, err)
 		}
 		copy(vp.CommitmentsByPath[i][:], val)
 	}
 
-	currentValueBytes, err := hex.DecodeString(aux.D)
+	currentValueBytes, err := PrefixedHexStringToBytes(aux.D)
 	if err != nil {
 		return fmt.Errorf("error decoding hex string for D: %w", err)
 	}
@@ -158,7 +172,7 @@ func (vp *VerkleProof) UnmarshalJSON(data []byte) error {
 
 	vp.OtherStems = make([][31]byte, len(aux.OtherStems))
 	for i, c := range aux.OtherStems {
-		val, err := hex.DecodeString(c)
+		val, err := PrefixedHexStringToBytes(c)
 		if err != nil {
 			return fmt.Errorf("error decoding hex string for other stem #%d: %w", i, err)
 		}
@@ -169,15 +183,45 @@ func (vp *VerkleProof) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+type stemStateDiffMarshaller struct {
+	Stem        string           `json:"stem"`
+	SuffixDiffs SuffixStateDiffs `json:"suffixDiffs"`
+}
+
+func (ssd StemStateDiff) MarshalJSON() ([]byte, error) {
+	return json.Marshal(&stemStateDiffMarshaller{
+		Stem:        HexToPrefixedString(ssd.Stem[:]),
+		SuffixDiffs: ssd.SuffixDiffs,
+	})
+}
+
+func (ssd *StemStateDiff) UnmarshalJSON(data []byte) error {
+	var aux stemStateDiffMarshaller
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	stem, err := PrefixedHexStringToBytes(aux.Stem)
+	if err != nil {
+		return fmt.Errorf("invalid hex string for stem: %w", err)
+	}
+	*ssd = StemStateDiff{
+		SuffixDiffs: aux.SuffixDiffs,
+	}
+	copy(ssd.Stem[:], stem)
+	return nil
+}
+
 type suffixStateDiffMarshaller struct {
-	Suffix       byte   `json:"suffix"`
-	CurrentValue string `json:"currentValue"`
+	Suffix       byte    `json:"suffix"`
+	CurrentValue *string `json:"currentValue"`
 }
 
 func (ssd SuffixStateDiff) MarshalJSON() ([]byte, error) {
-	var cvstr string
+	var cvstr *string
 	if ssd.CurrentValue != nil {
-		cvstr = hex.EncodeToString(ssd.CurrentValue[:])
+		tempstr := HexToPrefixedString(ssd.CurrentValue[:])
+		cvstr = &tempstr
 	}
 	return json.Marshal(&suffixStateDiffMarshaller{
 		Suffix:       ssd.Suffix,
@@ -186,24 +230,22 @@ func (ssd SuffixStateDiff) MarshalJSON() ([]byte, error) {
 }
 
 func (ssd *SuffixStateDiff) UnmarshalJSON(data []byte) error {
-	aux := &suffixStateDiffMarshaller{
-		CurrentValue: "",
-	}
+	aux := &suffixStateDiffMarshaller{}
 
 	if err := json.Unmarshal(data, &aux); err != nil {
 		return err
 	}
 
-	if len(aux.CurrentValue) != 64 && len(aux.CurrentValue) != 0 {
-		return fmt.Errorf("invalid hex string for current value: %s", aux.CurrentValue)
+	if aux.CurrentValue != nil && len(*aux.CurrentValue) != 64 && len(*aux.CurrentValue) != 0 && len(*aux.CurrentValue) != 66 {
+		return fmt.Errorf("invalid hex string for current value: %s", *aux.CurrentValue)
 	}
 
 	*ssd = SuffixStateDiff{
 		Suffix: aux.Suffix,
 	}
 
-	if len(aux.CurrentValue) != 0 {
-		currentValueBytes, err := hex.DecodeString(aux.CurrentValue)
+	if aux.CurrentValue != nil && len(*aux.CurrentValue) != 0 {
+		currentValueBytes, err := PrefixedHexStringToBytes(*aux.CurrentValue)
 		if err != nil {
 			return fmt.Errorf("error decoding hex string for current value: %v", err)
 		}
