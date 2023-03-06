@@ -29,7 +29,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"sync"
 
 	"github.com/crate-crypto/go-ipa/banderwagon"
 )
@@ -567,51 +566,80 @@ func (n *InternalNode) Commitment() *Point {
 	return n.commitment
 }
 
-func (n *InternalNode) Commit() *Point {
-	if len(n.cow) != 0 {
-		polyp := frPool.Get().(*[]Fr)
-		poly := *polyp
-		defer func() {
-			for i := 0; i < NodeWidth; i++ {
-				poly[i] = Fr{}
-			}
-			frPool.Put(polyp)
-		}()
-		emptyChildren := 256
-
-		var i int
-		b := make([]byte, len(n.cow))
-		points := make([]*Point, 2*len(n.cow))
-		for idx, comm := range n.cow {
-			emptyChildren--
-			points[2*i] = comm
-			points[2*i+1] = n.children[idx].Commit()
-			b[i] = idx
-			i++
+func (n *InternalNode) fillLevels(levels [][]*InternalNode) {
+	levels[int(n.depth)] = append(levels[int(n.depth)], n)
+	for idx := range n.cow {
+		child := n.children[idx]
+		if childInternalNode, ok := child.(*InternalNode); ok && len(childInternalNode.cow) > 0 {
+			childInternalNode.fillLevels(levels)
 		}
+	}
+}
+
+func (n *InternalNode) Commit() *Point {
+	if len(n.cow) == 0 {
+		return n.commitment
+	}
+
+	internalNodeLevels := make([][]*InternalNode, StemSize)
+	n.fillLevels(internalNodeLevels)
+
+	points := make([]*Point, 0, 1024)
+	cowIndexes := make([]int, 0, 1024)
+	poly := make([]Fr, NodeWidth)
+	for level := len(internalNodeLevels) - 1; level >= 0; level-- {
+		nodes := internalNodeLevels[level]
+		if len(nodes) == 0 {
+			continue
+		}
+		points = points[:0]
+		cowIndexes = cowIndexes[:0]
+
+		// For each internal node, we collect in `points` all the ones we need to map to a field element.
+		// That is, for each touched children in a node, we collect the old and new commitment to do the diff updating
+		// later.
+		for _, node := range nodes {
+			for idx, nodeChildComm := range node.cow {
+				points = append(points, nodeChildComm)
+				points = append(points, node.children[idx].Commitment())
+				cowIndexes = append(cowIndexes, int(idx))
+			}
+		}
+
+		// We generate `frs` which will contain the result for each element in `points`.
 		frs := make([]*Fr, len(points))
 		for i := range frs {
 			frs[i] = &Fr{}
 		}
+
+		// Do a single batch calculation for all the points in this level.
 		toFrMultiple(frs, points)
-		for i := 0; i < len(points)/2; i++ {
-			poly[b[i]].Sub(frs[2*i+1], frs[2*i])
+
+		// We calculate the difference between each (new commitment - old commitment) pair, and store it
+		// in the same slice to avoid allocations.
+		for i := 0; i < len(frs); i += 2 {
+			frs[i/2].Sub(frs[i+1], frs[i])
 		}
+		// Now `frs` have half of the elements, and these are the Frs differences to update commitments.
+		frs = frs[:len(frs)/2]
 
-		n.cow = nil
-
-		n.commitment.Add(n.commitment, cfg.CommitToPoly(poly, emptyChildren))
-		return n.commitment
+		// Now we iterate on the nodes, and use this calculated differences to update their commitment.
+		var frsIdx int
+		var cowIndex int
+		for _, node := range nodes {
+			for i := range poly {
+				poly[i].SetZero()
+			}
+			for i := 0; i < len(node.cow); i++ {
+				poly[cowIndexes[cowIndex]] = *frs[frsIdx]
+				frsIdx++
+				cowIndex++
+			}
+			node.cow = nil
+			node.commitment.Add(node.commitment, cfg.CommitToPoly(poly, 0))
+		}
 	}
-
 	return n.commitment
-}
-
-var frPool = sync.Pool{
-	New: func() any {
-		ret := make([]Fr, NodeWidth)
-		return &ret
-	},
 }
 
 // groupKeys groups a set of keys based on their byte at a given depth.
