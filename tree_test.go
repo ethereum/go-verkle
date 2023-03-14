@@ -33,10 +33,16 @@ import (
 	"errors"
 	"fmt"
 	mRand "math/rand"
+	"os"
 	"sort"
 	"testing"
 	"time"
 )
+
+func TestMain(m *testing.M) {
+	_ = GetConfig()
+	os.Exit(m.Run())
+}
 
 // a 32 byte value, as expected in the tree structure
 var testValue = []byte("0123456789abcdef0123456789abcdef")
@@ -881,6 +887,7 @@ func TestLeafToCommsLessThan16(*testing.T) {
 func TestGetProofItemsNoPoaIfStemPresent(t *testing.T) {
 	root := New()
 	root.Insert(ffx32KeyTest, zeroKeyTest, nil)
+	root.Commit()
 
 	// insert two keys that differ from the inserted stem
 	// by one byte.

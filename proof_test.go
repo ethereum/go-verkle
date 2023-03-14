@@ -34,6 +34,8 @@ import (
 )
 
 func TestProofVerifyTwoLeaves(t *testing.T) {
+	cfg := GetConfig()
+
 	root := New()
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
 	root.Insert(oneKeyTest, zeroKeyTest, nil)
@@ -42,7 +44,6 @@ func TestProofVerifyTwoLeaves(t *testing.T) {
 
 	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, [][]byte{ffx32KeyTest}, map[string][]byte{string(ffx32KeyTest): zeroKeyTest})
 
-	cfg := GetConfig()
 	if !VerifyVerkleProof(proof, cis, zis, yis, cfg) {
 		t.Fatalf("could not verify verkle proof: %s", ToDot(root))
 	}
@@ -176,6 +177,7 @@ func TestProofOfAbsenceLeafVerify(t *testing.T) {
 		t.Fatal("could not verify verkle proof")
 	}
 }
+
 func TestProofOfAbsenceLeafVerifyOtherSuffix(t *testing.T) {
 	root := New()
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
@@ -212,6 +214,7 @@ func TestProofOfAbsenceStemVerify(t *testing.T) {
 }
 
 func BenchmarkProofCalculation(b *testing.B) {
+	_ = GetConfig()
 	keys := make([][]byte, 100000)
 	root := New()
 	for i := 0; i < 100000; i++ {
@@ -220,6 +223,7 @@ func BenchmarkProofCalculation(b *testing.B) {
 		keys[i] = key
 		root.Insert(key, zeroKeyTest, nil)
 	}
+	root.Commit()
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -370,7 +374,6 @@ func TestProofDeserialize(t *testing.T) {
 }
 
 func TestProofDeserializeErrors(t *testing.T) {
-
 	deserialized, err := DeserializeProof([]byte{0}, nil)
 	if err == nil {
 		t.Fatal("deserializing invalid proof didn't cause an error")

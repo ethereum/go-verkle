@@ -29,6 +29,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/crate-crypto/go-ipa/banderwagon"
 )
@@ -181,6 +182,7 @@ type (
 
 		commitment *Point
 		c1, c2     *Point
+		cow        map[byte][]byte
 
 		depth byte
 	}
@@ -212,23 +214,6 @@ func NewLeafNode(stem []byte, values [][]byte) *LeafNode {
 		c1:     Generator(),
 		c2:     Generator(),
 	}
-
-	// Initialize the commitment with the extension tree
-	// marker and the stem.
-	cfg := GetConfig()
-	count := 0
-	var poly, c1poly, c2poly [256]Fr
-	poly[0].SetUint64(1)
-	StemFromBytes(&poly[1], leaf.stem)
-
-	count = fillSuffixTreePoly(c1poly[:], values[:128])
-	leaf.c1 = cfg.CommitToPoly(c1poly[:], 256-count)
-	toFr(&poly[2], leaf.c1)
-	count = fillSuffixTreePoly(c2poly[:], values[128:])
-	leaf.c2 = cfg.CommitToPoly(c2poly[:], 256-count)
-	toFr(&poly[3], leaf.c2)
-
-	leaf.commitment = cfg.CommitToPoly(poly[:], 252)
 
 	return leaf
 }
@@ -929,7 +914,7 @@ func (n *LeafNode) updateC(index byte, c *Point, oldc *Fr) {
 	n.commitment.Add(n.commitment, cfg.CommitToPoly(poly[:], 0))
 }
 
-func (n *LeafNode) updateCn(index byte, value []byte, c *Point) {
+func (n *LeafNode) updateCn(index byte, oldValue []byte, c *Point) {
 	var (
 		old, newH [2]Fr
 		diff      Point
@@ -942,8 +927,8 @@ func (n *LeafNode) updateCn(index byte, value []byte, c *Point) {
 	// do not include it. The result should be the same,
 	// but the computation time should be faster as one doesn't need to
 	// compute 1 - 1 mod N.
-	leafToComms(old[:], n.values[index])
-	leafToComms(newH[:], value)
+	leafToComms(old[:], oldValue)
+	leafToComms(newH[:], n.values[index])
 
 	newH[0].Sub(&newH[0], &old[0])
 	poly[2*(index%128)] = newH[0]
@@ -958,41 +943,35 @@ func (n *LeafNode) updateCn(index byte, value []byte, c *Point) {
 }
 
 func (n *LeafNode) updateLeaf(index byte, value []byte) {
-	c, oldc := n.getOldCn(index)
+	// If we haven't calculated a commitment for this node, we don't need to create the cow map since all the
+	// previous values are empty. If we already have a calculated commitment, then we track new values in
+	// cow so we can do diff-updating in the next Commit().
+	if n.commitment != nil {
+		// If cow was never setup, then initialize the map.
+		if n.cow == nil {
+			n.cow = make(map[byte][]byte)
+		}
 
-	n.updateCn(index, value, c)
-
-	n.updateC(index, c, oldc)
+		// If we are touching an value in an index for the first time,
+		// we save the original value for future use to update commitments.
+		if _, ok := n.cow[index]; !ok {
+			if n.values[index] == nil {
+				n.cow[index] = nil
+			} else {
+				n.cow[index] = make([]byte, 32)
+				copy(n.cow[index], n.values[index])
+			}
+		}
+	}
 
 	n.values[index] = value
 }
 
 func (n *LeafNode) updateMultipleLeaves(values [][]byte) {
-	var c1, c2 *Point
-	var old1, old2 *Fr
-	for i, v := range values {
-		if len(v) != 0 && !bytes.Equal(v, n.values[i]) {
-			if i < 128 {
-				if c1 == nil {
-					c1, old1 = n.getOldCn(byte(i))
-				}
-				n.updateCn(byte(i), v, c1)
-			} else {
-				if c2 == nil {
-					c2, old2 = n.getOldCn(byte(i))
-				}
-				n.updateCn(byte(i), v, c2)
-			}
-
-			n.values[i] = v
+	for i := range values {
+		if values[i] != nil {
+			n.updateLeaf(byte(i), values[i])
 		}
-	}
-
-	if c1 != nil {
-		n.updateC(0, c1, old1)
-	}
-	if c2 != nil {
-		n.updateC(128, c2, old2)
 	}
 }
 
@@ -1042,8 +1021,77 @@ func (n *LeafNode) Commitment() *Point {
 	return n.commitment
 }
 
-func (n *LeafNode) Commit() *Point {
-	return n.commitment
+var frPool = sync.Pool{
+	New: func() any {
+		ret := make([]Fr, NodeWidth)
+		return &ret
+	},
+}
+
+func (leaf *LeafNode) Commit() *Point {
+	// If we've never calculated a commitment for this leaf node, we calculate the commitment
+	// in a single shot considering all the values.
+	if leaf.commitment == nil {
+		// Initialize the commitment with the extension tree
+		// marker and the stem.
+		count := 0
+		c1polyp := frPool.Get().(*[]Fr)
+		c1poly := *c1polyp
+		defer func() {
+			for i := 0; i < 256; i++ {
+				c1poly[i] = Fr{}
+			}
+			frPool.Put(c1polyp)
+		}()
+
+		count = fillSuffixTreePoly(c1poly, leaf.values[:128])
+		leaf.c1 = cfg.CommitToPoly(c1poly, 256-count)
+
+		for i := 0; i < 256; i++ {
+			c1poly[i] = Fr{}
+		}
+		count = fillSuffixTreePoly(c1poly, leaf.values[128:])
+		leaf.c2 = cfg.CommitToPoly(c1poly, 256-count)
+
+		for i := 0; i < 256; i++ {
+			c1poly[i] = Fr{}
+		}
+		c1poly[0].SetUint64(1)
+		StemFromBytes(&c1poly[1], leaf.stem)
+
+		toFrMultiple([]*Fr{&c1poly[2], &c1poly[3]}, []*Point{leaf.c1, leaf.c2})
+		leaf.commitment = cfg.CommitToPoly(c1poly, 252)
+
+	} else if len(leaf.cow) != 0 {
+		// If we've already have a calculated commitment, and there're touched leaf values, we do a diff update.
+		var c1, c2 *Point
+		var old1, old2 *Fr
+		for i, oldValue := range leaf.cow {
+			if !bytes.Equal(oldValue, leaf.values[i]) {
+				if i < 128 {
+					if c1 == nil {
+						c1, old1 = leaf.getOldCn(i)
+					}
+					leaf.updateCn(i, oldValue, c1)
+				} else {
+					if c2 == nil {
+						c2, old2 = leaf.getOldCn(i)
+					}
+					leaf.updateCn(i, oldValue, c2)
+				}
+			}
+		}
+
+		if c1 != nil {
+			leaf.updateC(0, c1, old1)
+		}
+		if c2 != nil {
+			leaf.updateC(128, c2, old2)
+		}
+		leaf.cow = nil
+	}
+
+	return leaf.commitment
 }
 
 // fillSuffixTreePoly takes one of the two suffix tree and
