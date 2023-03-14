@@ -342,6 +342,40 @@ func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeRes
 	return nil
 }
 
+func (n *InternalNode) GetStem(stem []byte, resolver NodeResolverFn) ([][]byte, error) {
+	nchild := offset2key(stem, n.depth) // index of the child pointed by the next byte in the key
+	switch child := n.children[nchild].(type) {
+	case Empty:
+		return nil, nil
+	case *HashedNode:
+		if resolver == nil {
+			return nil, fmt.Errorf("hashed node %x at depth %d along stem %x could not be resolved", child.Commitment().Bytes(), n.depth, stem)
+		}
+		hash := child.commitment
+		serialized, err := resolver(hash)
+		if err != nil {
+			return nil, fmt.Errorf("verkle tree: error resolving node %x at depth %d: %w", stem, n.depth, err)
+		}
+		resolved, err := ParseNode(serialized, n.depth+1, hash)
+		if err != nil {
+			return nil, fmt.Errorf("verkle tree: error parsing resolved node %x: %w", stem, err)
+		}
+		n.children[nchild] = resolved
+		// recurse to handle the case of a LeafNode child that
+		// splits.
+		return n.GetStem(stem, resolver)
+	case *LeafNode:
+		if equalPaths(child.stem, stem) {
+			return child.values, nil
+		}
+		return nil, nil
+	case *InternalNode:
+		return child.GetStem(stem, resolver)
+	default: // StatelessNode
+		return nil, errStatelessAndStatefulMix
+	}
+}
+
 func (n *InternalNode) toHashedNode() *HashedNode {
 	if n.commitment == nil {
 		panic("nil commitment")
