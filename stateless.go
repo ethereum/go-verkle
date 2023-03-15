@@ -78,9 +78,7 @@ func NewStateless() *StatelessNode {
 }
 
 func NewStatelessWithCommitment(point *Point) *StatelessNode {
-	var (
-		xfr Fr
-	)
+	var xfr Fr
 	toFr(&xfr, point)
 	return &StatelessNode{
 		children:   make(map[byte]VerkleNode),
@@ -262,7 +260,7 @@ func (n *StatelessNode) InsertAtStem(stem []byte, values [][]byte, resolver Node
 		if err != nil {
 			return fmt.Errorf("stem insertion failed (node resolution error) %x %w", stem, err)
 		}
-		node, err := ParseStatelessNode(serialized, n.depth+1, comm)
+		node, err := ParseStatelessNode(serialized, n.depth+1, comm, nil)
 		if err != nil {
 			return err
 		}
@@ -417,7 +415,6 @@ func (n *StatelessNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 	child := n.children[nChild]
 	if child == nil {
 		if n.unresolved[nChild] == nil {
-
 			return nil, nil
 		}
 
@@ -426,7 +423,7 @@ func (n *StatelessNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("could not resolve unresolved item: %w", err)
 		}
-		child, err = ParseStatelessNode(serialized, n.depth+1, n.unresolved[nChild])
+		child, err = ParseStatelessNode(serialized, n.depth+1, n.unresolved[nChild], nil)
 		if err != nil {
 			return nil, fmt.Errorf("could not deserialize node: %w", err)
 		}
@@ -486,9 +483,7 @@ func (n *StatelessNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][
 	)
 
 	if len(n.values) == 0 {
-		var (
-			groups = groupKeys(keys, n.depth)
-		)
+		groups := groupKeys(keys, n.depth)
 
 		for _, group := range groups {
 			childIdx := offset2key(group[0], n.depth)

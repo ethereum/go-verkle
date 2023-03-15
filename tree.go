@@ -27,8 +27,10 @@ package verkle
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"math/bits"
 
 	"github.com/crate-crypto/go-ipa/banderwagon"
 )
@@ -167,7 +169,8 @@ type (
 		children []VerkleNode
 
 		// node depth in the tree, in bits
-		depth byte
+		depth      byte
+		stemPrefix uint64
 
 		// Cache the commitment value
 		commitment *Point
@@ -186,20 +189,21 @@ type (
 	}
 )
 
-func newInternalNode(depth byte) VerkleNode {
+func newInternalNode(depth byte, stemPrefix uint64) VerkleNode {
 	node := new(InternalNode)
 	node.children = make([]VerkleNode, NodeWidth)
 	for idx := range node.children {
 		node.children[idx] = Empty(struct{}{})
 	}
 	node.depth = depth
+	node.stemPrefix = stemPrefix
 	node.commitment = new(Point).Identity()
 	return node
 }
 
 // New creates a new tree root
 func New() VerkleNode {
-	return newInternalNode(0)
+	return newInternalNode(0, 0xFF)
 }
 
 // New creates a new leaf node
@@ -265,6 +269,32 @@ func (n *InternalNode) TouchCoW(index byte) {
 	n.cowChild(index)
 }
 
+func (n *InternalNode) DbKeyBytes() []byte {
+	sp := stemPrefixToBytes(n.stemPrefix)
+	return sp[:]
+}
+
+func (n *LeafNode) DbKeyBytes() []byte {
+	return append(stemPrefixPrefix, append([]byte{0xFF}, n.stem[:n.depth]...)...)
+}
+
+func (n *HashedNode) DbKeyBytes() []byte {
+	sp := stemPrefixToBytes(n.stemPrefix)
+	return sp[:]
+}
+
+func (n *InternalNode) StemPrefix() uint64 {
+	return n.stemPrefix
+}
+
+func (n *LeafNode) StemPrefix() uint64 {
+	return bytesToStemPrefix(append([]byte{0xFF}, n.stem[:n.depth]...))
+}
+
+func (n *HashedNode) StemPrefix() uint64 {
+	return n.stemPrefix
+}
+
 func (n *InternalNode) cowChild(index byte) {
 	if n.cow == nil {
 		n.cow = make(map[byte]*Point)
@@ -294,12 +324,12 @@ func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeRes
 		if resolver == nil {
 			return errInsertIntoHash
 		}
-		hash := child.commitment
-		serialized, err := resolver(hash)
+		dbKey := stemPrefixToBytes(child.stemPrefix)
+		serialized, err := resolver(dbKey[:])
 		if err != nil {
-			return fmt.Errorf("verkle tree: error resolving node %x at depth %d: %w", stem, n.depth, err)
+			return fmt.Errorf("verkle tree: error resolving node %x at depth %d (dbkey: %X): %w", stem, n.depth, dbKey[4:], err)
 		}
-		resolved, err := ParseNode(serialized, n.depth+1, hash)
+		resolved, err := ParseNode(serialized, n.depth+1, child.commitment, child.stemPrefix)
 		if err != nil {
 			return fmt.Errorf("verkle tree: error parsing resolved node %x: %w", stem, err)
 		}
@@ -316,7 +346,7 @@ func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeRes
 		// on the next word in both keys, a recursion into
 		// the moved leaf node can occur.
 		nextWordInExistingKey := offset2key(child.stem, n.depth+1)
-		newBranch := newInternalNode(n.depth + 1).(*InternalNode)
+		newBranch := newInternalNode(n.depth+1, bytesToStemPrefix(append([]byte{0xFF}, child.stem[:n.depth+1]...))).(*InternalNode)
 		newBranch.cowChild(nextWordInExistingKey)
 		n.children[nChild] = newBranch
 		newBranch.children[nextWordInExistingKey] = child
@@ -414,7 +444,7 @@ func (n *InternalNode) InsertStemOrdered(key []byte, values [][]byte, flush Node
 			// on the next word in both keys, a recursion into
 			// the moved leaf node can occur.
 			nextWordInExistingKey := offset2key(child.stem, n.depth+1)
-			newBranch := newInternalNode(n.depth + 1).(*InternalNode)
+			newBranch := newInternalNode(n.depth+1, bytesToStemPrefix(child.stem[:n.depth+1])).(*InternalNode)
 			newBranch.cowChild(nextWordInExistingKey)
 			n.children[nChild] = newBranch
 
@@ -461,12 +491,13 @@ func (n *InternalNode) Delete(key []byte, resolver NodeResolverFn) error {
 			return errDeleteHash
 		}
 		comm := child.commitment
-		payload, err := resolver(comm)
+		dbKey := stemPrefixToBytes(child.stemPrefix)
+		payload, err := resolver(dbKey[:])
 		if err != nil {
 			return err
 		}
 		// deserialize the payload and set it as the child
-		c, err := ParseNode(payload, n.depth+1, comm)
+		c, err := ParseNode(payload, n.depth+1, comm, child.stemPrefix)
 		if err != nil {
 			return err
 		}
@@ -519,7 +550,7 @@ func (n *InternalNode) FlushAtDepth(depth uint8, flush NodeFlushFn) {
 	}
 }
 
-func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
+func (n *InternalNode) Get(k []byte, resolver NodeResolverFn) ([]byte, error) {
 	nChild := offset2key(k, n.depth)
 
 	switch child := n.children[nChild].(type) {
@@ -531,25 +562,26 @@ func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
 	case *HashedNode:
 		// if a resolution function is set, resolve the
 		// current hash node.
-		if getter == nil {
+		if resolver == nil {
 			return nil, errReadFromInvalid
 		}
 
-		payload, err := getter(child.commitment)
+		dbKey := stemPrefixToBytes(child.stemPrefix)
+		payload, err := resolver(dbKey[:])
 		if err != nil {
 			return nil, err
 		}
 
 		// deserialize the payload and set it as the child
-		c, err := ParseNode(payload, n.depth+1, child.commitment)
+		c, err := ParseNode(payload, n.depth+1, child.commitment, child.stemPrefix)
 		if err != nil {
 			return nil, err
 		}
 		n.children[nChild] = c
 
-		return c.Get(k, getter)
+		return c.Get(k, resolver)
 	default: // InternalNode
-		return child.Get(k, getter)
+		return child.Get(k, resolver)
 	}
 }
 
@@ -1273,6 +1305,7 @@ func ToDot(root VerkleNode) string {
 // Providing both allows this library to do more optimizations.
 type SerializedNode struct {
 	Node            VerkleNode
+	StemPrefix      []byte
 	CommitmentBytes [32]byte
 	SerializedBytes []byte
 }
@@ -1314,6 +1347,7 @@ func (n *InternalNode) BatchSerialize() ([]SerializedNode, error) {
 		case *InternalNode:
 			sn := SerializedNode{
 				Node:            n,
+				StemPrefix:      n.DbKeyBytes(),
 				CommitmentBytes: compressedPoints[idx],
 				SerializedBytes: n.serializeWithCompressedChildren(compressedPointsIdxs, compressedPoints),
 			}
@@ -1324,6 +1358,7 @@ func (n *InternalNode) BatchSerialize() ([]SerializedNode, error) {
 			c2Bytes := compressedPoints[idx+2]
 			sn := SerializedNode{
 				Node:            n,
+				StemPrefix:      n.DbKeyBytes(),
 				CommitmentBytes: compressedPoints[idx],
 				SerializedBytes: n.serializeWithCompressedCommitments(c1Bytes, c2Bytes),
 			}
@@ -1423,4 +1458,24 @@ func (n *LeafNode) serializeWithCompressedCommitments(c1Bytes [32]byte, c2Bytes 
 	result = append(result, children...)
 
 	return result
+}
+
+var stemPrefixPrefix = []byte("vkt-")
+
+func stemPrefixToBytes(stemPrefix uint64) []byte {
+	var ret [8]byte
+	binary.BigEndian.PutUint64(ret[:], stemPrefix)
+
+	lz := bits.LeadingZeros64(stemPrefix)
+	if ret[lz/8] != 0xFF {
+		panic(fmt.Sprintf("WRONG %X: %X\n", stemPrefix, ret))
+	}
+	return append(stemPrefixPrefix, ret[lz/8:]...)
+}
+
+func bytesToStemPrefix(stemPrefix []byte) uint64 {
+	var bpad [8]byte
+	copy(bpad[8-len(stemPrefix):], stemPrefix)
+	bb := binary.BigEndian.Uint64(bpad[:])
+	return bb
 }

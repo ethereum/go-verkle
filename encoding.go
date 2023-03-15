@@ -68,7 +68,7 @@ var errSerializedPayloadTooShort = errors.New("verkle payload is too short")
 // The serialized bytes have the format:
 // - Internal nodes: <nodeType><bitlist><children...>
 // - Leaf nodes:     <nodeType><stem><bitlist><c1comm><c2comm><children...>
-func ParseNode(serializedNode []byte, depth byte, comm SerializedPointCompressed) (VerkleNode, error) {
+func ParseNode(serializedNode []byte, depth byte, comm SerializedPointCompressed, stemPrefix uint64) (VerkleNode, error) {
 	// Check that the length of the serialized node is at least the smallest possible serialized node.
 	if len(serializedNode) < nodeTypeSize+bitlistSize {
 		return nil, errSerializedPayloadTooShort
@@ -80,13 +80,13 @@ func ParseNode(serializedNode []byte, depth byte, comm SerializedPointCompressed
 	case internalRLPType:
 		bitlist := serializedNode[internalBitlistOffset : internalBitlistOffset+bitlistSize]
 		children := serializedNode[internalNodeChildrenOffset:]
-		return CreateInternalNode(bitlist, children, depth, comm)
+		return CreateInternalNode(bitlist, children, depth, comm, stemPrefix)
 	default:
 		return nil, ErrInvalidNodeEncoding
 	}
 }
 
-func ParseStatelessNode(serialized []byte, depth byte, comm SerializedPointCompressed) (VerkleNode, error) {
+func ParseStatelessNode(serialized []byte, depth byte, comm SerializedPointCompressed, stemPrefix []byte) (VerkleNode, error) {
 	if len(serialized) < 1+StemSize+SerializedPointCompressedSize {
 		return nil, errSerializedPayloadTooShort
 	}
@@ -94,7 +94,7 @@ func ParseStatelessNode(serialized []byte, depth byte, comm SerializedPointCompr
 	case leafRLPType:
 		return parseLeafNode(serialized, depth, comm)
 	case internalRLPType:
-		return deserializeIntoStateless(serialized[1:33], serialized[33:], depth, comm)
+		return deserializeIntoStateless(serialized[1:33], serialized[33:], depth, stemPrefix)
 	default:
 		return nil, ErrInvalidNodeEncoding
 	}
@@ -141,10 +141,10 @@ func deserializeIntoStateless(bitlist []byte, raw []byte, depth byte, comm Seria
 	return n, nil
 }
 
-func CreateInternalNode(bitlist []byte, raw []byte, depth byte, comm SerializedPointCompressed) (*InternalNode, error) {
+func CreateInternalNode(bitlist []byte, raw []byte, depth byte, comm SerializedPointCompressed, stemPrefix uint64) (*InternalNode, error) {
 	// GetTreeConfig caches computation result, hence
 	// this op has low overhead
-	n := (newInternalNode(depth)).(*InternalNode)
+	n := (newInternalNode(depth, stemPrefix)).(*InternalNode)
 	indices := indicesFromBitlist(bitlist)
 
 	if len(raw)/SerializedPointCompressedSize != len(indices) {
@@ -154,6 +154,7 @@ func CreateInternalNode(bitlist []byte, raw []byte, depth byte, comm SerializedP
 	freelist := make([]HashedNode, len(indices))
 	for i, index := range indices {
 		freelist[i].commitment = raw[i*SerializedPointCompressedSize : (i+1)*SerializedPointCompressedSize]
+		freelist[i].stemPrefix = stemPrefix<<8 + uint64(index)
 		n.children[index] = &freelist[i]
 	}
 	n.commitment = new(Point)

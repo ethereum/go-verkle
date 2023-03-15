@@ -32,6 +32,7 @@ import (
 
 type HashedNode struct {
 	commitment  []byte
+	stemPrefix  uint64
 	cachedPoint *Point
 }
 
