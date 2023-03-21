@@ -722,10 +722,14 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 	)
 
 	// fill in the polynomial for this node
-	fi := make([]Fr, NodeWidth)
+	var fi [NodeWidth]Fr
+	var fiPtrs [NodeWidth]*Fr
+	var points [NodeWidth]*Point
 	for i, child := range n.children {
-		toFr(&fi[i], child.Commitment())
+		fiPtrs[i] = &fi[i]
+		points[i] = child.Commitment()
 	}
+	toFrMultiple(fiPtrs[:], points[:])
 
 	for _, group := range groups {
 		childIdx := offset2key(group[0], n.depth)
@@ -736,7 +740,7 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 		pe.Cis = append(pe.Cis, n.commitment)
 		pe.Zis = append(pe.Zis, childIdx)
 		pe.Yis = append(pe.Yis, &yi)
-		pe.Fis = append(pe.Fis, fi)
+		pe.Fis = append(pe.Fis, fi[:])
 		pe.ByPath[string(group[0][:n.depth])] = n.commitment
 	}
 
