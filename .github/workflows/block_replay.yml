@@ -20,12 +20,13 @@ jobs:
         tar xf /home/devops/verkle-test-dependencies/replay_converted.tgz --strip-components=3 -C .ethereum
 
     - name: Download geth from the proper repo
-      run: git clone https://github.com/gballet/go-ethereum -b verkle/replay-change-with-tree-group-tryupdate geth
+      run: git clone https://github.com/gballet/go-ethereum -b beverly-hills+sepolia-replay geth
 
     - name: Edit geth to use this repo
       run: |
         cd geth
         cp /home/devops/verkle-test-dependencies/precomp .
+        cp /home/devops/verkle-test-dependencies/fork.txt .
         go mod edit -replace=github.com/gballet/go-verkle=$PWD/..
         go mod edit -replace=github.com/crate-crypto/go-ipa=github.com/crate-crypto/go-ipa@`grep go-ipa ../go.mod | cut -d'-' -f 5`
         go mod download github.com/crate-crypto/go-ipa
