@@ -17,7 +17,7 @@ jobs:
     - name: Extract converted db
       run: |
         mkdir .ethereum
-        tar xf /home/devops/verkle-test-dependencies/replay_converted.tgz --strip-components=3 -C .ethereum
+        tar xf /home/devops/verkle-test-dependencies/replay_converted.tgz --strip-components=1 -C .ethereum
 
     - name: Download geth from the proper repo
       run: git clone https://github.com/gballet/go-ethereum -b beverly-hills+sepolia-replay geth
