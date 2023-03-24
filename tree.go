@@ -223,10 +223,9 @@ func NewLeafNode(stem []byte, values [][]byte) *LeafNode {
 
 	count = fillSuffixTreePoly(c1poly[:], values[:128])
 	leaf.c1 = cfg.CommitToPoly(c1poly[:], 256-count)
-	toFr(&poly[2], leaf.c1)
 	count = fillSuffixTreePoly(c2poly[:], values[128:])
 	leaf.c2 = cfg.CommitToPoly(c2poly[:], 256-count)
-	toFr(&poly[3], leaf.c2)
+	toFrMultiple([]*Fr{&poly[2], &poly[3]}, []*Point{leaf.c1, leaf.c2})
 
 	leaf.commitment = cfg.CommitToPoly(poly[:], 252)
 
@@ -723,10 +722,14 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 	)
 
 	// fill in the polynomial for this node
-	fi := make([]Fr, NodeWidth)
+	var fi [NodeWidth]Fr
+	var fiPtrs [NodeWidth]*Fr
+	var points [NodeWidth]*Point
 	for i, child := range n.children {
-		toFr(&fi[i], child.Commitment())
+		fiPtrs[i] = &fi[i]
+		points[i] = child.Commitment()
 	}
+	toFrMultiple(fiPtrs[:], points[:])
 
 	for _, group := range groups {
 		childIdx := offset2key(group[0], n.depth)
@@ -737,7 +740,7 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 		pe.Cis = append(pe.Cis, n.commitment)
 		pe.Zis = append(pe.Zis, childIdx)
 		pe.Yis = append(pe.Yis, &yi)
-		pe.Fis = append(pe.Fis, fi)
+		pe.Fis = append(pe.Fis, fi[:])
 		pe.ByPath[string(group[0][:n.depth])] = n.commitment
 	}
 
@@ -903,29 +906,16 @@ func (n *LeafNode) insertMultiple(k []byte, values [][]byte) error {
 	return nil
 }
 
-func (n *LeafNode) getOldCn(index byte) (*Point, *Fr) {
-	var (
-		c    *Point
-		oldc Fr
-	)
-	if index < 128 {
-		c = n.c1
-	} else {
-		c = n.c2
-	}
-	toFr(&oldc, c)
-	return c, &oldc
-}
+func (n *LeafNode) updateC(cxIndex int, newC Fr, oldC Fr) {
+	// Calculate the Fr-delta.
+	var deltaC Fr
+	deltaC.Sub(&newC, &oldC)
 
-func (n *LeafNode) updateC(index byte, c *Point, oldc *Fr) {
-	var (
-		newc Fr
-		poly [256]Fr
-	)
+	// Calculate the Point-delta.
+	var poly [NodeWidth]Fr
+	poly[cxIndex] = deltaC
 
-	toFr(&newc, c)
-	newc.Sub(&newc, oldc)
-	poly[2+(index/128)] = newc
+	// Add delta to the current commitment.
 	n.commitment.Add(n.commitment, cfg.CommitToPoly(poly[:], 0))
 }
 
@@ -958,41 +948,77 @@ func (n *LeafNode) updateCn(index byte, value []byte, c *Point) {
 }
 
 func (n *LeafNode) updateLeaf(index byte, value []byte) {
-	c, oldc := n.getOldCn(index)
-
+	// Update the corresponding C1 or C2 commitment.
+	var c *Point
+	var oldC Point
+	if index < NodeWidth/2 {
+		c = n.c1
+		oldC = *n.c1
+	} else {
+		c = n.c2
+		oldC = *n.c2
+	}
 	n.updateCn(index, value, c)
 
-	n.updateC(index, c, oldc)
+	// Batch the Fr transformation of the new and old CX.
+	var frs [2]Fr
+	toFrMultiple([]*Fr{&frs[0], &frs[1]}, []*Point{c, &oldC})
+
+	// If index is in the first NodeWidth/2 elements, we need to update C1. Otherwise, C2.
+	cxIndex := 2 + int(index)/(NodeWidth/2) // [1, stem, -> C1, C2 <-]
+	n.updateC(cxIndex, frs[0], frs[1])
 
 	n.values[index] = value
 }
 
 func (n *LeafNode) updateMultipleLeaves(values [][]byte) {
-	var c1, c2 *Point
-	var old1, old2 *Fr
+	var oldC1, oldC2 *Point
+
+	// We iterate the values, and we update the C1 and/or C2 commitments depending on the index.
+	// If any of them is touched, we save the original point so we can update the LeafNode root
+	// commitment. We copy the original point in oldC1 and oldC2, so we can batch their Fr transformation
+	// after this loop.
 	for i, v := range values {
 		if len(v) != 0 && !bytes.Equal(v, n.values[i]) {
-			if i < 128 {
-				if c1 == nil {
-					c1, old1 = n.getOldCn(byte(i))
+			if i < NodeWidth/2 {
+				// First time we touch C1? Save the original point for later.
+				if oldC1 == nil {
+					oldC1 = &Point{}
+					oldC1.Set(n.c1)
 				}
-				n.updateCn(byte(i), v, c1)
+				// We update C1 directly in `n`. We have our original copy in oldC1.
+				n.updateCn(byte(i), v, n.c1)
 			} else {
-				if c2 == nil {
-					c2, old2 = n.getOldCn(byte(i))
+				// First time we touch C2? Save the original point for later.
+				if oldC2 == nil {
+					oldC2 = &Point{}
+					oldC2.Set(n.c2)
 				}
-				n.updateCn(byte(i), v, c2)
+				// We update C2 directly in `n`. We have our original copy in oldC2.
+				n.updateCn(byte(i), v, n.c2)
 			}
-
 			n.values[i] = v
 		}
 	}
 
-	if c1 != nil {
-		n.updateC(0, c1, old1)
-	}
-	if c2 != nil {
-		n.updateC(128, c2, old2)
+	// We have three potential cases here:
+	// 1. We have touched C1 and C2: we Fr-batch old1, old2 and newC1, newC2. (4x gain ratio)
+	// 2. We have touched only one CX: we Fr-batch oldX and newCX. (2x gain ratio)
+	// 3. No C1 or C2 was touched, this is a noop.
+	var frs [4]Fr
+	const c1Idx = 2 // [1, stem, ->C1<-, C2]
+	const c2Idx = 3 // [1, stem, C1, ->C2<-]
+
+	if oldC1 != nil && oldC2 != nil { // Case 1.
+		toFrMultiple([]*Fr{&frs[0], &frs[1], &frs[2], &frs[3]}, []*Point{n.c1, oldC1, n.c2, oldC2})
+		n.updateC(c1Idx, frs[0], frs[1])
+		n.updateC(c2Idx, frs[2], frs[3])
+	} else if oldC1 != nil { // Case 2. (C1 touched)
+		toFrMultiple([]*Fr{&frs[0], &frs[1]}, []*Point{n.c1, oldC1})
+		n.updateC(c1Idx, frs[0], frs[1])
+	} else if oldC2 != nil { // Case 2. (C2 touched)
+		toFrMultiple([]*Fr{&frs[0], &frs[1]}, []*Point{n.c2, oldC2})
+		n.updateC(c2Idx, frs[0], frs[1])
 	}
 }
 
