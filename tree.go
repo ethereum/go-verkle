@@ -29,6 +29,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"sort"
 
 	"github.com/crate-crypto/go-ipa/banderwagon"
 )
@@ -1428,52 +1429,81 @@ func BatchNewLeafNode(nodesValues []BatchNewLeafNodeData) []LeafNode {
 	poly[0].SetUint64(1)
 	for i, nv := range nodesValues {
 		StemFromBytes(&poly[1], nv.Stem)
-		poly[2] = *c1c2frs[i]
-		poly[3] = *c1c2frs[i+1]
+		poly[2] = *c1c2frs[2*i]
+		poly[3] = *c1c2frs[2*i+1]
 
 		ret[i].commitment = cfg.CommitToPoly(poly[:], 252)
 	}
 
+	sort.Slice(ret, func(i, j int) bool {
+		return bytes.Compare(ret[i].stem[:], ret[j].stem[:]) < 0
+	})
+
 	return ret
 }
 
-func BatchSerialize(nodes []*LeafNode) ([]SerializedNode, error) {
-	pointsToCompress := make([]*Point, 0, 3*len(nodes))
-	compressedPointsIdxs := make(map[*LeafNode]int, 3*len(nodes))
-	for i := range nodes {
-			pointsToCompress = append(pointsToCompress, n.commitment, n.c1, n.c2)
-			compressedPointsIdxs[n] = len(pointsToCompress) - 3
+func BatchInsertOrderedLeaves(leaves []LeafNode) *InternalNode {
+	var currentBranch [31]*InternalNode
+
+	// Initial state.
+	currentBranch[0] = New().(*InternalNode)
+	currentBranch[0].cowChild(leaves[0].stem[0])
+	currentBranch[0].children[leaves[0].stem[0]] = &leaves[0]
+
+	prevLeaf := &leaves[0]
+	leaves = leaves[1:]
+	for i := range leaves {
+		// currentBranch[0].Commit()
+		// fmt.Printf("Commitment: %v\n", currentBranch[0].Hash())
+
+		leaf := &leaves[i]
+		idx := firstDiffByteIdx(prevLeaf.stem, leaf.stem)
+
+		if currentBranch[idx] != nil {
+			currentBranch[idx].cowChild(leaf.stem[idx])
+			currentBranch[idx].children[leaf.stem[idx]] = leaf
+			leaf.setDepth(currentBranch[idx].depth + 1)
+			for i := idx + 1; i < len(currentBranch); i++ {
+				currentBranch[i] = nil
+			}
+		} else {
+			// Create the new internal node.
+			// Make the immediate previous internal node point to this new node.
+			prevNonNilIdx := 0
+			for i := idx - 1; i >= 0; i-- {
+				if currentBranch[i] != nil {
+					prevNonNilIdx = i
+					break
+				}
+			}
+			for k := prevNonNilIdx + 1; k <= idx; k++ {
+				currentBranch[k] = newInternalNode(currentBranch[k-1].depth + 1).(*InternalNode)
+				currentBranch[k-1].cowChild(leaf.stem[k-1])
+				currentBranch[k-1].children[leaf.stem[k-1]] = currentBranch[k]
+			}
+
+			currentBranch[idx].cowChild(prevLeaf.stem[idx])
+			currentBranch[idx].children[prevLeaf.stem[idx]] = prevLeaf
+			prevLeaf.setDepth(currentBranch[idx].depth + 1)
+			currentBranch[idx].cowChild(leaf.stem[idx])
+			currentBranch[idx].children[leaf.stem[idx]] = leaf
+
+			for i := idx + 1; i < len(currentBranch); i++ {
+				currentBranch[i] = nil
+			}
 		}
+
+		prevLeaf = leaf
 	}
 
-	compressedPoints := banderwagon.ElementsToBytes(pointsToCompress)
+	return currentBranch[0]
+}
 
-	// Now we that we did the heavy CPU work, we have to do the rest of `nodes` serialization
-	// taking the compressed points from this single list.
-	ret := make([]SerializedNode, 0, len(nodes))
-	idx := 0
-	for i := range nodes {
-		switch n := nodes[i].(type) {
-		case *InternalNode:
-			sn := SerializedNode{
-				Node:            n,
-				CommitmentBytes: compressedPoints[idx],
-				SerializedBytes: n.serializeWithCompressedChildren(compressedPointsIdxs, compressedPoints),
-			}
-			ret = append(ret, sn)
-			idx++
-		case *LeafNode:
-			c1Bytes := compressedPoints[idx+1]
-			c2Bytes := compressedPoints[idx+2]
-			sn := SerializedNode{
-				Node:            n,
-				CommitmentBytes: compressedPoints[idx],
-				SerializedBytes: n.serializeWithCompressedCommitments(c1Bytes, c2Bytes),
-			}
-			ret = append(ret, sn)
-			idx += 3
+func firstDiffByteIdx(stem1 []byte, stem2 []byte) int {
+	for i := range stem1 {
+		if stem1[i] != stem2[i] {
+			return i
 		}
 	}
-
-	return ret, nil
+	panic("stems are equal")
 }
