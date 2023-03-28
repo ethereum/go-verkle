@@ -1391,3 +1391,89 @@ func (n *LeafNode) serializeWithCompressedCommitments(c1Bytes [32]byte, c2Bytes 
 
 	return result
 }
+
+type BatchNewLeafNodeData struct {
+	Stem   []byte
+	Values [][]byte
+}
+
+func BatchNewLeafNode(nodesValues []BatchNewLeafNodeData) []LeafNode {
+	cfg := GetConfig()
+
+	ret := make([]LeafNode, len(nodesValues))
+	c1c2points := make([]*Point, 2*len(nodesValues))
+	c1c2frs := make([]*Fr, 2*len(nodesValues))
+	for i, nv := range nodesValues {
+		ret[i] = LeafNode{
+			values: nv.Values,
+			stem:   nv.Stem,
+			c1:     Generator(),
+			c2:     Generator(),
+		}
+
+		var c1poly, c2poly [256]Fr
+
+		fillSuffixTreePoly(c1poly[:], nv.Values[:128])
+		ret[i].c1 = cfg.CommitToPoly(c1poly[:], 0)
+		fillSuffixTreePoly(c2poly[:], nv.Values[128:])
+		ret[i].c2 = cfg.CommitToPoly(c2poly[:], 0)
+
+		c1c2points[2*i], c1c2points[2*i+1] = ret[i].c1, ret[i].c2
+		c1c2frs[2*i], c1c2frs[2*i+1] = new(Fr), new(Fr)
+	}
+
+	toFrMultiple(c1c2frs, c1c2points)
+
+	var poly [256]Fr
+	poly[0].SetUint64(1)
+	for i, nv := range nodesValues {
+		StemFromBytes(&poly[1], nv.Stem)
+		poly[2] = *c1c2frs[i]
+		poly[3] = *c1c2frs[i+1]
+
+		ret[i].commitment = cfg.CommitToPoly(poly[:], 252)
+	}
+
+	return ret
+}
+
+func BatchSerialize(nodes []*LeafNode) ([]SerializedNode, error) {
+	pointsToCompress := make([]*Point, 0, 3*len(nodes))
+	compressedPointsIdxs := make(map[*LeafNode]int, 3*len(nodes))
+	for i := range nodes {
+			pointsToCompress = append(pointsToCompress, n.commitment, n.c1, n.c2)
+			compressedPointsIdxs[n] = len(pointsToCompress) - 3
+		}
+	}
+
+	compressedPoints := banderwagon.ElementsToBytes(pointsToCompress)
+
+	// Now we that we did the heavy CPU work, we have to do the rest of `nodes` serialization
+	// taking the compressed points from this single list.
+	ret := make([]SerializedNode, 0, len(nodes))
+	idx := 0
+	for i := range nodes {
+		switch n := nodes[i].(type) {
+		case *InternalNode:
+			sn := SerializedNode{
+				Node:            n,
+				CommitmentBytes: compressedPoints[idx],
+				SerializedBytes: n.serializeWithCompressedChildren(compressedPointsIdxs, compressedPoints),
+			}
+			ret = append(ret, sn)
+			idx++
+		case *LeafNode:
+			c1Bytes := compressedPoints[idx+1]
+			c2Bytes := compressedPoints[idx+2]
+			sn := SerializedNode{
+				Node:            n,
+				CommitmentBytes: compressedPoints[idx],
+				SerializedBytes: n.serializeWithCompressedCommitments(c1Bytes, c2Bytes),
+			}
+			ret = append(ret, sn)
+			idx += 3
+		}
+	}
+
+	return ret, nil
+}
