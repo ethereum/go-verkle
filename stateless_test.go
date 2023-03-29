@@ -263,19 +263,15 @@ func TestStatelessDeserialize(t *testing.T) {
 	for _, k := range [][]byte{zeroKeyTest, oneKeyTest, fourtyKeyTest, ffx32KeyTest} {
 		root.Insert(k, fourtyKeyTest, nil)
 	}
-	keyvals := []KeyValuePair{
-		{zeroKeyTest, fourtyKeyTest},
-		{fourtyKeyTest, fourtyKeyTest},
-	}
 
 	proof, _, _, _, _ := MakeVerkleMultiProof(root, keylist{zeroKeyTest, fourtyKeyTest}, map[string][]byte{string(zeroKeyTest): fourtyKeyTest, string(fourtyKeyTest): fourtyKeyTest})
 
-	serialized, _, err := SerializeProof(proof)
+	serialized, statediff, err := SerializeProof(proof)
 	if err != nil {
 		t.Fatalf("could not serialize proof: %v", err)
 	}
 
-	dproof, err := DeserializeProof(serialized, keyvals)
+	dproof, err := DeserializeProof(serialized, statediff)
 	if err != nil {
 		t.Fatalf("error deserializing proof: %v", err)
 	}
@@ -304,19 +300,15 @@ func TestStatelessDeserializeMissginChildNode(t *testing.T) {
 	for _, k := range [][]byte{zeroKeyTest, oneKeyTest, ffx32KeyTest} {
 		root.Insert(k, fourtyKeyTest, nil)
 	}
-	keyvals := []KeyValuePair{
-		{zeroKeyTest, fourtyKeyTest},
-		{fourtyKeyTest, nil},
-	}
 
 	proof, _, _, _, _ := MakeVerkleMultiProof(root, keylist{zeroKeyTest, fourtyKeyTest}, map[string][]byte{string(zeroKeyTest): fourtyKeyTest, string(fourtyKeyTest): nil})
 
-	serialized, _, err := SerializeProof(proof)
+	serialized, statediff, err := SerializeProof(proof)
 	if err != nil {
 		t.Fatalf("could not serialize proof: %v", err)
 	}
 
-	dproof, err := DeserializeProof(serialized, keyvals)
+	dproof, err := DeserializeProof(serialized, statediff)
 	if err != nil {
 		t.Fatalf("error deserializing proof: %v", err)
 	}
@@ -345,19 +337,15 @@ func TestStatelessDeserializeDepth2(t *testing.T) {
 	for _, k := range [][]byte{zeroKeyTest, key1} {
 		root.Insert(k, fourtyKeyTest, nil)
 	}
-	keyvals := []KeyValuePair{
-		{zeroKeyTest, fourtyKeyTest},
-		{key1, nil},
-	}
 
 	proof, _, _, _, _ := MakeVerkleMultiProof(root, keylist{zeroKeyTest, key1}, map[string][]byte{string(zeroKeyTest): fourtyKeyTest, string(key1): nil})
 
-	serialized, _, err := SerializeProof(proof)
+	serialized, statediff, err := SerializeProof(proof)
 	if err != nil {
 		t.Fatalf("could not serialize proof: %v", err)
 	}
 
-	dproof, err := DeserializeProof(serialized, keyvals)
+	dproof, err := DeserializeProof(serialized, statediff)
 	if err != nil {
 		t.Fatalf("error deserializing proof: %v", err)
 	}
@@ -384,19 +372,15 @@ func TestStatelessGetProofItems(t *testing.T) {
 	for _, k := range insertedKeys {
 		root.Insert(k, fourtyKeyTest, nil)
 	}
-	keyvals := []KeyValuePair{
-		{zeroKeyTest, fourtyKeyTest},
-		{fourtyKeyTest, nil},
-	}
 
 	proof, _, _, _, _ := MakeVerkleMultiProof(root, keylist(provenKeys), map[string][]byte{string(zeroKeyTest): fourtyKeyTest, string(fourtyKeyTest): nil})
 
-	serialized, _, err := SerializeProof(proof)
+	serialized, statediff, err := SerializeProof(proof)
 	if err != nil {
 		t.Fatalf("could not serialize proof: %v", err)
 	}
 
-	dproof, err := DeserializeProof(serialized, keyvals)
+	dproof, err := DeserializeProof(serialized, statediff)
 	if err != nil {
 		t.Fatalf("error deserializing proof: %v", err)
 	}

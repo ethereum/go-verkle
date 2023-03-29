@@ -1121,19 +1121,14 @@ func TestRustBanderwagonBlock48(t *testing.T) {
 		"c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
 		"0000000000000000000000000000000000000000000000000000000000000000",
 	}
-	var (
-		vals        [][]byte
-		initialVals = map[string][]byte{}
-	)
+	var initialVals = map[string][]byte{}
 
 	for i, s := range valStrings {
 		if s == "" {
-			vals = append(vals, nil)
 			continue
 		}
 
 		v, _ := hex.DecodeString(s)
-		vals = append(vals, v)
 		tree.Insert(keys[i], v, nil)
 
 		initialVals[string(keys[i])] = v
@@ -1147,22 +1142,18 @@ func TestRustBanderwagonBlock48(t *testing.T) {
 	r := tree.Commit()
 
 	proof, cis, zis, yis, _ := MakeVerkleMultiProof(tree, keys, initialVals)
-	serialized, _, err := SerializeProof(proof)
+	vp, statediff, err := SerializeProof(proof)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("serialized proof=%x", serialized)
+	t.Logf("serialized proof=%v", vp)
 
 	cfg := GetConfig()
 	if !VerifyVerkleProof(proof, cis, zis, yis, cfg) {
 		t.Fatal("proof didn't verify")
 	}
 
-	var kvp []KeyValuePair
-	for i := range keys {
-		kvp = append(kvp, KeyValuePair{Key: keys[i], Value: vals[i]})
-	}
-	dproof, err := DeserializeProof(serialized, kvp)
+	dproof, err := DeserializeProof(vp, statediff)
 	if err != nil {
 		t.Fatal(err)
 	}

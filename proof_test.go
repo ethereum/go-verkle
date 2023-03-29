@@ -28,8 +28,9 @@ package verkle
 import (
 	"bytes"
 	"crypto/rand"
-	"encoding/binary"
 	"encoding/hex"
+	"encoding/json"
+	"reflect"
 	"testing"
 )
 
@@ -265,26 +266,21 @@ func TestProofSerializationNoAbsentStem(t *testing.T) {
 
 	proof, _, _, _, _ := MakeVerkleMultiProof(root, [][]byte{keys[0]}, map[string][]byte{})
 
-	serialized, _, err := SerializeProof(proof)
+	vp, statediff, err := SerializeProof(proof)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(serialized) == 0 {
-		t.Fatal("zero-length serialized proof payload")
+	if len(vp.OtherStems) > 0 {
+		t.Fatalf("first byte indicates that there are %d stems that should not be here", len(vp.OtherStems))
 	}
-	stemsize := binary.LittleEndian.Uint32(serialized[:4])
-	if stemsize != 0 {
-		t.Fatalf("first byte indicates that there are %d stems that should not be here", stemsize)
-	}
-	extsize := binary.LittleEndian.Uint32(serialized[4:8])
+	extsize := len(statediff)
 	if extsize != 1 {
 		t.Fatalf("second byte indicates that there are %d extension statuses, should be 1", extsize)
 	}
-	// TODO keep checking the serialized values here
 }
 
 func TestProofSerializationWithAbsentStem(t *testing.T) {
-	const leafCount = 1000
+	const leafCount = 256
 
 	keys := make([][]byte, leafCount)
 	root := New()
@@ -304,18 +300,15 @@ func TestProofSerializationWithAbsentStem(t *testing.T) {
 
 	proof, _, _, _, _ := MakeVerkleMultiProof(root, [][]byte{absentkey[:]}, map[string][]byte{})
 
-	serialized, _, err := SerializeProof(proof)
+	vp, statediff, err := SerializeProof(proof)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(serialized) == 0 {
-		t.Fatal("zero-length serialized proof payload")
-	}
-	stemsize := binary.LittleEndian.Uint32(serialized[:4])
+	stemsize := len(vp.OtherStems)
 	if stemsize != 1 {
 		t.Fatalf("first byte indicates that there are %d stems that should not be here", stemsize)
 	}
-	extsize := binary.LittleEndian.Uint32(serialized[4+stemsize*31 : 4+stemsize*31+4])
+	extsize := len(statediff)
 	if extsize != 1 {
 		t.Fatalf("second byte indicates that there are %d extension statuses, should be 1", extsize)
 	}
@@ -323,20 +316,15 @@ func TestProofSerializationWithAbsentStem(t *testing.T) {
 }
 
 func TestProofDeserialize(t *testing.T) {
-	const leafCount = 1000
+	const leafCount = 256
 
 	keys := make([][]byte, leafCount)
 	root := New()
-	var keyvals []KeyValuePair
 	for i := 0; i < leafCount; i++ {
 		key := make([]byte, 32)
 		key[2] = byte(i)
 		keys[i] = key
 		root.Insert(key, fourtyKeyTest, nil)
-		keyvals = append(keyvals, KeyValuePair{
-			Key:   key,
-			Value: fourtyKeyTest,
-		})
 	}
 
 	// Create stem  0x0000020100000.... that is not present in the tree,
@@ -348,15 +336,12 @@ func TestProofDeserialize(t *testing.T) {
 
 	proof, _, _, _, _ := MakeVerkleMultiProof(root, [][]byte{absentkey[:]}, map[string][]byte{})
 
-	serialized, _, err := SerializeProof(proof)
+	vp, statediff, err := SerializeProof(proof)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(serialized) == 0 {
-		t.Fatal("zero-length serialized proof payload")
-	}
 
-	deserialized, err := DeserializeProof(serialized, keyvals)
+	deserialized, err := DeserializeProof(vp, statediff)
 	if err != nil {
 		t.Fatalf("could not deserialize verkle proof: %v", err)
 	}
@@ -366,41 +351,6 @@ func TestProofDeserialize(t *testing.T) {
 	cfg := GetConfig()
 	if !VerifyVerkleProof(deserialized, pe.Cis, pe.Zis, pe.Yis, cfg) {
 		t.Fatal("could not verify verkle proof")
-	}
-}
-
-func TestProofDeserializeErrors(t *testing.T) {
-
-	deserialized, err := DeserializeProof([]byte{0}, nil)
-	if err == nil {
-		t.Fatal("deserializing invalid proof didn't cause an error")
-	}
-	if deserialized != nil {
-		t.Fatalf("non-nil deserialized data returned %v", deserialized)
-	}
-
-	deserialized, err = DeserializeProof([]byte{1, 0, 0, 0}, nil)
-	if err == nil {
-		t.Fatal("deserializing invalid proof didn't cause an error")
-	}
-	if deserialized != nil {
-		t.Fatalf("non-nil deserialized data returned %v", deserialized)
-	}
-
-	deserialized, err = DeserializeProof([]byte{0, 0, 0, 0, 0}, nil)
-	if err == nil {
-		t.Fatal("deserializing invalid proof didn't cause an error")
-	}
-	if deserialized != nil {
-		t.Fatalf("non-nil deserialized data returned %v", deserialized)
-	}
-
-	deserialized, err = DeserializeProof([]byte{0, 0, 0, 0, 0, 0, 0, 0, 0}, nil)
-	if err == nil {
-		t.Fatal("deserializing invalid proof didn't cause an error")
-	}
-	if deserialized != nil {
-		t.Fatalf("non-nil deserialized data returned %v", deserialized)
 	}
 }
 
@@ -457,5 +407,153 @@ func TestProofOfAbsenceNoneMultipleStems(t *testing.T) {
 
 	if len(proof.ExtStatus) != 1 {
 		t.Fatalf("invalid number of none extension statuses: %d ≠ 1", len(proof.ExtStatus))
+	}
+}
+
+func TestSuffixStateDiffJSONMarshalUn(t *testing.T) {
+	ssd := SuffixStateDiff{
+		Suffix: 0x41,
+		CurrentValue: &[32]byte{
+			0x10, 0x20, 0x30, 0x40,
+			0x50, 0x60, 0x70, 0x80,
+			0x90, 0xA0, 0xB0, 0xC0,
+			0xD0, 0xE0, 0xF0, 0x00,
+			0x11, 0x22, 0x33, 0x44,
+			0x55, 0x66, 0x77, 0x88,
+			0x99, 0xAA, 0xBB, 0xCC,
+			0xDD, 0xEE, 0xFF, 0x00,
+		},
+	}
+
+	expectedJSON := `{"suffix":65,"currentValue":"0x102030405060708090a0b0c0d0e0f000112233445566778899aabbccddeeff00"}`
+	actualJSON, err := json.Marshal(ssd)
+	if err != nil {
+		t.Errorf("error marshalling SuffixStateDiff to JSON: %v", err)
+	}
+
+	if string(actualJSON) != expectedJSON {
+		t.Errorf("JSON output doesn't match expected value.\nExpected: %s\nActual: %s", expectedJSON, string(actualJSON))
+	}
+
+	var actualSSD SuffixStateDiff
+	err = json.Unmarshal(actualJSON, &actualSSD)
+	if err != nil {
+		t.Errorf("error unmarshalling JSON to SuffixStateDiff: %v", err)
+	}
+
+	if !reflect.DeepEqual(actualSSD, ssd) {
+		t.Errorf("SuffixStateDiff doesn't match expected value.\nExpected: %+v\nActual: %+v", ssd, actualSSD)
+	}
+}
+
+func TestStemStateDiffJSONMarshalUn(t *testing.T) {
+	ssd := StemStateDiff{
+		Stem: [31]byte{10},
+		SuffixDiffs: []SuffixStateDiff{{
+			Suffix: 0x41,
+			CurrentValue: &[32]byte{
+				0x10, 0x20, 0x30, 0x40,
+				0x50, 0x60, 0x70, 0x80,
+				0x90, 0xA0, 0xB0, 0xC0,
+				0xD0, 0xE0, 0xF0, 0x00,
+				0x11, 0x22, 0x33, 0x44,
+				0x55, 0x66, 0x77, 0x88,
+				0x99, 0xAA, 0xBB, 0xCC,
+				0xDD, 0xEE, 0xFF, 0x00,
+			},
+		}},
+	}
+
+	expectedJSON := `{"stem":"0x0a000000000000000000000000000000000000000000000000000000000000","suffixDiffs":[{"suffix":65,"currentValue":"0x102030405060708090a0b0c0d0e0f000112233445566778899aabbccddeeff00"}]}`
+	actualJSON, err := json.Marshal(ssd)
+	if err != nil {
+		t.Errorf("error marshalling SuffixStateDiff to JSON: %v", err)
+	}
+
+	if string(actualJSON) != expectedJSON {
+		t.Errorf("JSON output doesn't match expected value.\nExpected: %s\nActual: %s", expectedJSON, string(actualJSON))
+	}
+
+	var actualSSD StemStateDiff
+	err = json.Unmarshal(actualJSON, &actualSSD)
+	if err != nil {
+		t.Errorf("error unmarshalling JSON to StemStateDiff: %v", err)
+	}
+
+	if !reflect.DeepEqual(actualSSD, ssd) {
+		t.Errorf("SuffixStateDiff doesn't match expected value.\nExpected: %+v\nActual: %+v", ssd, actualSSD)
+	}
+}
+
+func TestSuffixStateDiffJSONMarshalUnCurrentValueNil(t *testing.T) {
+	ssd := SuffixStateDiff{
+		Suffix:       0x41,
+		CurrentValue: nil,
+	}
+
+	expectedJSON := `{"suffix":65,"currentValue":null}`
+	actualJSON, err := json.Marshal(ssd)
+	if err != nil {
+		t.Errorf("error marshalling SuffixStateDiff to JSON: %v", err)
+	}
+
+	if string(actualJSON) != expectedJSON {
+		t.Errorf("JSON output doesn't match expected value.\nExpected: %s\nActual: %s", expectedJSON, string(actualJSON))
+	}
+
+	var actualSSD SuffixStateDiff
+	err = json.Unmarshal(actualJSON, &actualSSD)
+	if err != nil {
+		t.Errorf("error unmarshalling JSON to SuffixStateDiff: %v", err)
+	}
+
+	if !reflect.DeepEqual(actualSSD, ssd) {
+		t.Errorf("SuffixStateDiff doesn't match expected value.\nExpected: %+v\nActual: %+v", ssd, actualSSD)
+	}
+}
+
+func TestIPAProofMarshalUnmarshalJSON(t *testing.T) {
+	ip1 := &IPAProof{
+		CL:              [IPA_PROOF_DEPTH][32]byte{{1}, {2}, {3}},
+		CR:              [IPA_PROOF_DEPTH][32]byte{{4}, {5}, {6}},
+		FinalEvaluation: [32]byte{7},
+	}
+	ipJSON, err := json.Marshal(ip1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ip2 := &IPAProof{}
+	err = json.Unmarshal(ipJSON, ip2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(ip1, ip2) {
+		t.Errorf("expected %v, got %v", ip1, ip2)
+	}
+}
+
+func TestVerkleProofMarshalUnmarshalJSON(t *testing.T) {
+	vp1 := &VerkleProof{
+		OtherStems:            [][31]byte{{1}, {2}, {3}},
+		DepthExtensionPresent: []byte{4, 5, 6},
+		CommitmentsByPath:     [][32]byte{{7}, {8}, {9}},
+		D:                     [32]byte{10},
+		IPAProof: &IPAProof{
+			CL:              [IPA_PROOF_DEPTH][32]byte{{11}, {12}, {13}},
+			CR:              [IPA_PROOF_DEPTH][32]byte{{14}, {15}, {16}},
+			FinalEvaluation: [32]byte{17},
+		},
+	}
+	vpJSON, err := json.Marshal(vp1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	vp2 := &VerkleProof{}
+	err = json.Unmarshal(vpJSON, vp2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(vp1, vp2) {
+		t.Errorf("expected %v, got %v", vp1, vp2)
 	}
 }

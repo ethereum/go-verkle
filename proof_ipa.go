@@ -27,14 +27,29 @@ package verkle
 
 import (
 	"bytes"
-	"encoding/binary"
 	"errors"
 	"sort"
+	"unsafe"
 
 	ipa "github.com/crate-crypto/go-ipa"
-	"github.com/crate-crypto/go-ipa/bandersnatch/fp"
 	"github.com/crate-crypto/go-ipa/common"
 )
+
+const IPA_PROOF_DEPTH = 8
+
+type IPAProof struct {
+	CL              [IPA_PROOF_DEPTH][32]byte `json:"cl"`
+	CR              [IPA_PROOF_DEPTH][32]byte `json:"cr"`
+	FinalEvaluation [32]byte                  `json:"finalEvaluation"`
+}
+
+type VerkleProof struct {
+	OtherStems            [][31]byte `json:"otherStems"`
+	DepthExtensionPresent []byte     `json:"depthExtensionPresent"`
+	CommitmentsByPath     [][32]byte `json:"commitmentsByPath"`
+	D                     [32]byte   `json:"d"`
+	IPAProof              *IPAProof  `json:"ipa_proof"`
+}
 
 type Proof struct {
 	Multipoint *ipa.MultiProof // multipoint argument
@@ -44,6 +59,20 @@ type Proof struct {
 	Keys       [][]byte
 	Values     [][]byte
 }
+
+type SuffixStateDiff struct {
+	Suffix       byte      `json:"suffix"`
+	CurrentValue *[32]byte `json:"currentValue"`
+}
+
+type SuffixStateDiffs []SuffixStateDiff
+
+type StemStateDiff struct {
+	Stem        [31]byte         `json:"stem"`
+	SuffixDiffs SuffixStateDiffs `json:"suffixDiffs"`
+}
+
+type StateDiff []StemStateDiff
 
 func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte) (*ProofElements, []byte, [][]byte) {
 	sort.Sort(keylist(keys))
@@ -105,130 +134,124 @@ func VerifyVerkleProof(proof *Proof, Cs []*Point, indices []uint8, ys []*Fr, tc 
 	return ipa.CheckMultiProof(tr, tc.conf, proof.Multipoint, Cs, ys, indices)
 }
 
-// A structure representing a tuple
-type KeyValuePair struct {
-	Key   []byte `json:"key"`
-	Value []byte `json:"value"`
-}
-
 // SerializeProof serializes the proof in the rust-verkle format:
 // * len(Proof of absence stem) || Proof of absence stems
 // * len(depths) || serialize(depth || ext statusi)
 // * len(commitments) || serialize(commitment)
 // * Multipoint proof
 // it also returns the serialized keys and values
-func SerializeProof(proof *Proof) ([]byte, []KeyValuePair, error) {
-	var bufProof bytes.Buffer
-
-	binary.Write(&bufProof, binary.LittleEndian, uint32(len(proof.PoaStems)))
-	for _, stem := range proof.PoaStems {
-		_, err := bufProof.Write(stem)
-		if err != nil {
-			return nil, nil, err
-		}
+func SerializeProof(proof *Proof) (*VerkleProof, StateDiff, error) {
+	otherstems := make([][31]byte, len(proof.PoaStems))
+	for i, stem := range proof.PoaStems {
+		copy(otherstems[i][:], stem)
 	}
 
-	binary.Write(&bufProof, binary.LittleEndian, uint32(len(proof.ExtStatus)))
-	for _, daes := range proof.ExtStatus {
-		err := bufProof.WriteByte(daes)
-		if err != nil {
-			return nil, nil, err
-		}
-	}
-
-	binary.Write(&bufProof, binary.LittleEndian, uint32(len(proof.Cs)))
-	for _, C := range proof.Cs {
+	cbp := make([][32]byte, len(proof.Cs))
+	for i, C := range proof.Cs {
 		serialized := C.Bytes()
-		_, err := bufProof.Write(serialized[:])
-		if err != nil {
-			return nil, nil, err
-		}
+		copy(cbp[i][:], serialized[:])
 	}
 
-	proof.Multipoint.Write(&bufProof)
+	var cls, crs [IPA_PROOF_DEPTH][32]byte
+	for i := 0; i < IPA_PROOF_DEPTH; i++ {
 
-	keyvals := make([]KeyValuePair, 0, len(proof.Keys))
+		l := proof.Multipoint.IPA.L[i].Bytes()
+		copy(cls[i][:], l[:])
+		r := proof.Multipoint.IPA.R[i].Bytes()
+		copy(crs[i][:], r[:])
+	}
+
+	var stemdiff *StemStateDiff
+	var statediff StateDiff
 	for i, key := range proof.Keys {
-		var (
-			valueLen = len(proof.Values[i])
-			aligned  []byte
-		)
-		switch valueLen {
-		case 0, 32:
-			aligned = proof.Values[i]
-		default:
-			aligned = make([]byte, 32)
-			copy(aligned[:valueLen], proof.Values[i])
+		if stemdiff == nil || !bytes.Equal(stemdiff.Stem[:], key[:31]) {
+			statediff = append(statediff, StemStateDiff{})
+			stemdiff = &statediff[len(statediff)-1]
+			copy(stemdiff.Stem[:], key[:31])
 		}
-		keyvals = append(keyvals, KeyValuePair{key, aligned})
+		var valueLen = len(proof.Values[i])
+		switch valueLen {
+		case 0:
+			stemdiff.SuffixDiffs = append(stemdiff.SuffixDiffs, SuffixStateDiff{
+				Suffix: key[31],
+			})
+		case 32:
+			stemdiff.SuffixDiffs = append(stemdiff.SuffixDiffs, SuffixStateDiff{
+				Suffix:       key[31],
+				CurrentValue: (*[32]byte)(proof.Values[i]),
+			})
+		default:
+			var aligned [32]byte
+			copy(aligned[:valueLen], proof.Values[i])
+			stemdiff.SuffixDiffs = append(stemdiff.SuffixDiffs, SuffixStateDiff{
+				Suffix:       key[31],
+				CurrentValue: (*[32]byte)(unsafe.Pointer(&aligned[0])),
+			})
+		}
 	}
-
-	return bufProof.Bytes(), keyvals, nil
+	return &VerkleProof{
+		OtherStems:            otherstems,
+		DepthExtensionPresent: proof.ExtStatus,
+		CommitmentsByPath:     cbp,
+		D:                     proof.Multipoint.D.Bytes(),
+		IPAProof: &IPAProof{
+			CL:              cls,
+			CR:              crs,
+			FinalEvaluation: proof.Multipoint.IPA.A_scalar.Bytes(),
+		},
+	}, statediff, nil
 }
 
 // DeserializeProof deserializes the proof found in blocks, into a format that
 // can be used to rebuild a stateless version of the tree.
-func DeserializeProof(proofSerialized []byte, keyvals []KeyValuePair) (*Proof, error) {
+func DeserializeProof(vp *VerkleProof, statediff StateDiff) (*Proof, error) {
 	var (
-		numPoaStems, numExtStatus uint32
-		numCommitments            uint32
-		poaStems, keys, values    [][]byte
-		extStatus                 []byte
-		commitments               []*Point
-		multipoint                ipa.MultiProof
+		poaStems, keys, values [][]byte
+		extStatus              []byte
+		commitments            []*Point
+		multipoint             ipa.MultiProof
 	)
-	reader := bytes.NewReader(proofSerialized)
 
-	if err := binary.Read(reader, binary.LittleEndian, &numPoaStems); err != nil {
-		return nil, err
-	}
-	poaStems = make([][]byte, numPoaStems)
-	for i := 0; i < int(numPoaStems); i++ {
-		var poaStem [31]byte
-		if err := binary.Read(reader, binary.LittleEndian, &poaStem); err != nil {
-			return nil, err
-		}
-
+	poaStems = make([][]byte, len(vp.OtherStems))
+	for i, poaStem := range vp.OtherStems {
 		poaStems[i] = poaStem[:]
 	}
 
-	if err := binary.Read(reader, binary.LittleEndian, &numExtStatus); err != nil {
-		return nil, err
-	}
-	extStatus = make([]byte, numExtStatus)
-	for i := 0; i < int(numExtStatus); i++ {
-		var e byte
-		if err := binary.Read(reader, binary.LittleEndian, &e); err != nil {
-			return nil, err
-		}
-		extStatus[i] = e
-	}
+	extStatus = vp.DepthExtensionPresent
 
-	if err := binary.Read(reader, binary.LittleEndian, &numCommitments); err != nil {
-		return nil, err
-	}
-	commitments = make([]*Point, numCommitments)
-	commitmentBytes := make([]byte, fp.Bytes)
-	for i := 0; i < int(numCommitments); i++ {
+	commitments = make([]*Point, len(vp.CommitmentsByPath))
+	for i, commitmentBytes := range vp.CommitmentsByPath {
 		var commitment Point
-		if err := binary.Read(reader, binary.LittleEndian, commitmentBytes); err != nil {
+		if err := commitment.SetBytesTrusted(commitmentBytes[:]); err != nil {
 			return nil, err
 		}
-
-		if err := commitment.SetBytes(commitmentBytes); err != nil {
-			return nil, err
-		}
-
 		commitments[i] = &commitment
 	}
 
-	// TODO submit PR to go-ipa to make this return an error if it fails to Read
-	multipoint.Read(reader)
+	multipoint.D.SetBytes(vp.D[:])
+	multipoint.IPA.A_scalar.SetBytes(vp.IPAProof.FinalEvaluation[:])
+	multipoint.IPA.L = make([]Point, IPA_PROOF_DEPTH)
+	for i, b := range vp.IPAProof.CL {
+		multipoint.IPA.L[i].SetBytes(b[:])
+	}
+	multipoint.IPA.R = make([]Point, IPA_PROOF_DEPTH)
+	for i, b := range vp.IPAProof.CR {
+		multipoint.IPA.R[i].SetBytes(b[:])
+	}
 
-	// Turn keyvals into keys and values
-	for _, kv := range keyvals {
-		keys = append(keys, kv.Key)
-		values = append(values, kv.Value)
+	// turn statediff into keys and values
+	for _, stemdiff := range statediff {
+		for _, suffixdiff := range stemdiff.SuffixDiffs {
+			var k [32]byte
+			copy(k[:31], stemdiff.Stem[:])
+			k[31] = suffixdiff.Suffix
+			keys = append(keys, k[:])
+			if suffixdiff.CurrentValue != nil {
+				values = append(values, suffixdiff.CurrentValue[:])
+			} else {
+				values = append(values, nil)
+			}
+		}
 	}
 
 	proof := Proof{
@@ -239,7 +262,6 @@ func DeserializeProof(proofSerialized []byte, keyvals []KeyValuePair) (*Proof, e
 		keys,
 		values,
 	}
-
 	return &proof, nil
 }
 
