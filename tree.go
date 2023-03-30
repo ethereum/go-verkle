@@ -1478,9 +1478,6 @@ func BatchInsertOrderedLeaves(leaves []LeafNode) *InternalNode {
 	prevLeaf := &leaves[0]
 	leaves = leaves[1:]
 	for i := range leaves {
-		// currentBranch[0].Commit()
-		// fmt.Printf("Commitment: %v\n", currentBranch[0].Hash())
-
 		leaf := &leaves[i]
 		idx := firstDiffByteIdx(prevLeaf.stem, leaf.stem)
 
@@ -1531,4 +1528,34 @@ func firstDiffByteIdx(stem1 []byte, stem2 []byte) int {
 		}
 	}
 	panic("stems are equal")
+}
+
+func MergeLevelTwoPartitions(roots []*InternalNode) *InternalNode {
+	firstLevelIdx := 0
+	for i := 0; i < NodeWidth; i++ {
+		if _, ok := roots[0].children[i].(*InternalNode); !ok {
+			continue
+		}
+		firstLevelIdx = i
+		break
+	}
+	secondLevelRoot := newInternalNode(1).(*InternalNode)
+	for i := 0; i < NodeWidth; i++ {
+		for j := range roots {
+			proot := roots[j].children[firstLevelIdx].(*InternalNode)
+			in, ok := proot.children[i].(*InternalNode)
+			if !ok {
+				continue
+			}
+			secondLevelRoot.cowChild(byte(i))
+			secondLevelRoot.children[i] = in
+			break
+		}
+	}
+
+	root := newInternalNode(0).(*InternalNode)
+	root.cowChild(byte(firstLevelIdx))
+	root.children[firstLevelIdx] = secondLevelRoot
+
+	return root
 }
