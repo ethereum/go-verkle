@@ -6,11 +6,14 @@ import (
 	"sort"
 )
 
+// BatchNewLeafNodeData is a struct that contains the data needed to create a new leaf node.
 type BatchNewLeafNodeData struct {
 	Stem   []byte
 	Values map[int][]byte
 }
 
+// BatchNewLeafNode creates a new leaf node from the given data. It optimizes LeafNode creation
+// by batching expensive cryptography operations. It returns the LeafNodes sorted by stem.
 func BatchNewLeafNode(nodesValues []BatchNewLeafNodeData) []LeafNode {
 	cfg := GetConfig()
 
@@ -60,30 +63,43 @@ func BatchNewLeafNode(nodesValues []BatchNewLeafNodeData) []LeafNode {
 	return ret
 }
 
+// BatchInsertOrderedLeaves creates a tree under from an ordered and deduplicated list of leaves.
 func BatchInsertOrderedLeaves(leaves []LeafNode) *InternalNode {
-	var currentBranch [31]*InternalNode
+	// currentBranch is a representaion of the current branch we're in.
+	// The length of the branch is at most StemSize, and it might only
+	// have non-nil values in the first N levels.
+	var currentBranch [StemSize]*InternalNode
 
-	// Initial state.
+	// Initial state is a branch with only a root node at the top, pointing to
+	// the first leaf.
 	currentBranch[0] = New().(*InternalNode)
 	currentBranch[0].cowChild(leaves[0].stem[0])
 	currentBranch[0].children[leaves[0].stem[0]] = &leaves[0]
 
 	prevLeaf := &leaves[0]
 	leaves = leaves[1:]
+	// The idea is that we compare the newLeaf with the previousLeaf, and
+	// depending on how their stems differ, we adjust our currentBranch structure.
 	for i := range leaves {
-		leaf := &leaves[i]
-		idx := firstDiffByteIdx(prevLeaf.stem, leaf.stem)
+		newLeaf := &leaves[i]
 
+		// We get the first index in their stems that is different.
+		idx := firstDiffByteIdx(prevLeaf.stem, newLeaf.stem)
+
+		// If the currentBranch has a node at that index, we simply set the children
+		// to the newLeaf.
 		if currentBranch[idx] != nil {
-			currentBranch[idx].cowChild(leaf.stem[idx])
-			currentBranch[idx].children[leaf.stem[idx]] = leaf
-			leaf.setDepth(currentBranch[idx].depth + 1)
+			currentBranch[idx].cowChild(newLeaf.stem[idx])
+			currentBranch[idx].children[newLeaf.stem[idx]] = newLeaf
+			newLeaf.setDepth(currentBranch[idx].depth + 1)
 			for i := idx + 1; i < len(currentBranch); i++ {
 				currentBranch[i] = nil
 			}
 		} else {
-			// Create the new internal node.
-			// Make the immediate previous internal node point to this new node.
+			// In this case there's no InternalNode in the current branch at the index.
+			// We need to "fill the gap" between the previous non-nil internal node up to
+			// the idx with new internal nodes. Then we set the last created internal node
+			// to the previous and new leaf.
 			prevNonNilIdx := 0
 			for i := idx - 1; i >= 0; i-- {
 				if currentBranch[i] != nil {
@@ -93,27 +109,29 @@ func BatchInsertOrderedLeaves(leaves []LeafNode) *InternalNode {
 			}
 			for k := prevNonNilIdx + 1; k <= idx; k++ {
 				currentBranch[k] = newInternalNode(currentBranch[k-1].depth + 1).(*InternalNode)
-				currentBranch[k-1].cowChild(leaf.stem[k-1])
-				currentBranch[k-1].children[leaf.stem[k-1]] = currentBranch[k]
+				currentBranch[k-1].cowChild(newLeaf.stem[k-1])
+				currentBranch[k-1].children[newLeaf.stem[k-1]] = currentBranch[k]
 			}
 
 			currentBranch[idx].cowChild(prevLeaf.stem[idx])
 			currentBranch[idx].children[prevLeaf.stem[idx]] = prevLeaf
 			prevLeaf.setDepth(currentBranch[idx].depth + 1)
-			currentBranch[idx].cowChild(leaf.stem[idx])
-			currentBranch[idx].children[leaf.stem[idx]] = leaf
+			currentBranch[idx].cowChild(newLeaf.stem[idx])
+			currentBranch[idx].children[newLeaf.stem[idx]] = newLeaf
 
 			for i := idx + 1; i < len(currentBranch); i++ {
 				currentBranch[i] = nil
 			}
 		}
 
-		prevLeaf = leaf
+		prevLeaf = newLeaf
 	}
 
 	return currentBranch[0]
 }
 
+// firstDiffByteIdx will return the first index in which the two stems differ.
+// Both stems *must* be different.
 func firstDiffByteIdx(stem1 []byte, stem2 []byte) int {
 	for i := range stem1 {
 		if stem1[i] != stem2[i] {
@@ -123,36 +141,10 @@ func firstDiffByteIdx(stem1 []byte, stem2 []byte) int {
 	panic("stems are equal")
 }
 
-func MergeLevelTwoPartitions(roots []*InternalNode) *InternalNode {
-	firstLevelIdx := 0
-	for i := 0; i < NodeWidth; i++ {
-		if _, ok := roots[0].children[i].(*InternalNode); !ok {
-			continue
-		}
-		firstLevelIdx = i
-		break
-	}
-	secondLevelRoot := newInternalNode(1).(*InternalNode)
-	for i := 0; i < NodeWidth; i++ {
-		for j := range roots {
-			proot := roots[j].children[firstLevelIdx].(*InternalNode)
-			in, ok := proot.children[i].(*InternalNode)
-			if !ok {
-				continue
-			}
-			secondLevelRoot.cowChild(byte(i))
-			secondLevelRoot.children[i] = in
-			break
-		}
-	}
-
-	root := newInternalNode(0).(*InternalNode)
-	root.cowChild(byte(firstLevelIdx))
-	root.children[firstLevelIdx] = secondLevelRoot
-
-	return root
-}
-
+// GetInternalNodeCommitment returns the commitment of the internal node at
+// the partialStem. e.g: if partialStem is [a, b] it will walk to the a-th
+// children of the node, and then to the b-th children of that node, returning
+// its commitment..
 func GetInternalNodeCommitment(node *InternalNode, partialStem []byte) (*Point, error) {
 	for i := range partialStem {
 		var ok bool
@@ -165,6 +157,10 @@ func GetInternalNodeCommitment(node *InternalNode, partialStem []byte) (*Point, 
 	return node.commitment, nil
 }
 
+// BuildFirstTwoLayers builds the first two layers of the tree from all the precalculated
+// commitments of the children of the second level. This method is generally used if tree
+// construction was done in partitions, and you want to glue them together without having
+// the whole tree in memory.
 func BuildFirstTwoLayers(commitments [256][256][32]byte) *InternalNode {
 	var secondLevelInternalNodes [256]*InternalNode
 	for stemFirstByte := range commitments {
