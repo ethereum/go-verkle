@@ -1168,3 +1168,24 @@ func TestRustBanderwagonBlock48(t *testing.T) {
 		t.Fatal("deserialized proof didn't verify")
 	}
 }
+
+func BenchmarkEmptyHashCode(b *testing.B) {
+	_ = GetConfig()
+
+	const codeHashVectorPosition = 3 // Defined by the spec.
+	emptyHashCode, err := hex.DecodeString("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
+	if err != nil {
+		b.Fatalf("failed to decode empty hash code: %v", err)
+	}
+
+	values := make([][]byte, 256)
+	values[codeHashVectorPosition] = emptyHashCode[:]
+	var c1poly [256]Fr
+	fillSuffixTreePoly(c1poly[:], values[:128])
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		cfg.CommitToPoly(c1poly[:], 0)
+	}
+}
