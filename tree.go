@@ -1396,7 +1396,11 @@ func (n *LeafNode) serializeWithCompressedCommitments(c1Bytes [32]byte, c2Bytes 
 	// Create bitlist and store in children LeafValueSize (padded) values.
 	children := make([]byte, 0, NodeWidth*LeafValueSize)
 	var bitlist [bitlistSize]byte
-	for i, v := range n.values {
+	vals := make([][]byte, NodeWidth)
+	for i := range n.values {
+		vals[i] = n.values[i]
+	}
+	for i, v := range vals {
 		if v != nil {
 			setBit(bitlist[:], int(i))
 			children = append(children, v...)
