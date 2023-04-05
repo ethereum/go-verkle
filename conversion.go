@@ -9,7 +9,7 @@ import (
 // BatchNewLeafNodeData is a struct that contains the data needed to create a new leaf node.
 type BatchNewLeafNodeData struct {
 	Stem   []byte
-	Values map[int][]byte
+	Values map[byte][]byte
 }
 
 // BatchNewLeafNode creates a new leaf node from the given data. It optimizes LeafNode creation
