@@ -1402,7 +1402,7 @@ func (n *LeafNode) serializeWithCompressedCommitments(c1Bytes [32]byte, c2Bytes 
 	}
 	for i, v := range vals {
 		if v != nil {
-			setBit(bitlist[:], int(i))
+			setBit(bitlist[:], i)
 			children = append(children, v...)
 			if padding := emptyValue[:LeafValueSize-len(v)]; len(padding) != 0 {
 				children = append(children, padding...)

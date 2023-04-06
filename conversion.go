@@ -65,7 +65,7 @@ func BatchNewLeafNode(nodesValues []BatchNewLeafNodeData) []LeafNode {
 
 // BatchInsertOrderedLeaves creates a tree under from an ordered and deduplicated list of leaves.
 func BatchInsertOrderedLeaves(leaves []LeafNode) *InternalNode {
-	// currentBranch is a representaion of the current branch we're in.
+	// currentBranch is a representation of the current branch we're in.
 	// The length of the branch is at most StemSize, and it might only
 	// have non-nil values in the first N levels.
 	var currentBranch [StemSize]*InternalNode
