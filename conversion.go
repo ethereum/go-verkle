@@ -57,7 +57,7 @@ func BatchNewLeafNode(nodesValues []BatchNewLeafNodeData) []LeafNode {
 	}
 
 	sort.Slice(ret, func(i, j int) bool {
-		return bytes.Compare(ret[i].stem[:], ret[j].stem[:]) < 0
+		return bytes.Compare(ret[i].stem, ret[j].stem) < 0
 	})
 
 	return ret
