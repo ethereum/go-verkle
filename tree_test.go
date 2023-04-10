@@ -1210,10 +1210,10 @@ func TestEmptyHashCodeCachedPoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to decode empty hash code: %v", err)
 	}
-	values := make([][]byte, 256)
-	values[codeHashVectorPosition] = emptyHashCode[:]
-	var c1poly [256]Fr
-	fillSuffixTreePoly(c1poly[:], values[:128])
+	values := make([][]byte, NodeWidth)
+	values[codeHashVectorPosition] = emptyHashCode
+	var c1poly [NodeWidth]Fr
+	fillSuffixTreePoly(c1poly[:], values[:NodeWidth/2])
 	p := cfg.CommitToPoly(c1poly[:], 0)
 
 	// Compare the result (which used the cached point) with the expected result which was

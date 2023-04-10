@@ -98,10 +98,10 @@ func GetConfig() *Config {
 		cfg = &IPAConfig{conf: ipacfg}
 
 		emptyHashCode, _ := hex.DecodeString("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
-		values := make([][]byte, 256)
+		values := make([][]byte, NodeWidth)
 		values[codeHashVectorPosition] = emptyHashCode[:]
-		var c1poly [256]Fr
-		fillSuffixTreePoly(c1poly[:], values[:128])
+		var c1poly [NodeWidth]Fr
+		fillSuffixTreePoly(c1poly[:], values[:NodeWidth/2])
 		emptyCodeHashPoint = cfg.CommitToPoly(c1poly[:], 0)
 		emptyCodeHashFirstHalfValue = c1poly[emptyCodeHashFirstHalfIdx]
 		emptyCodeHashSecondHalfValue = c1poly[emptyCodeHashSecondHalfIdx]
