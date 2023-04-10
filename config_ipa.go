@@ -85,7 +85,7 @@ func GetConfig() *Config {
 			serialized, err := ipacfg.SRSPrecompPoints.SerializeSRSPrecomp()
 			if err != nil {
 				panic("error writing serialized precomputed Lagrange points:" + err.Error())
-			} else if err = os.WriteFile(precompFileName, serialized, 0o666); err != nil {
+			} else if err = os.WriteFile(precompFileName, serialized, 0666); err != nil {
 				panic("error saving the precomp: " + err.Error())
 			}
 		} else {
