@@ -1169,7 +1169,7 @@ func TestRustBanderwagonBlock48(t *testing.T) {
 	}
 }
 
-func BenchmarkEmptyHashCode(b *testing.B) {
+func BenchmarkEmptyHashCodeCachedPoint(b *testing.B) {
 	_ = GetConfig()
 	const codeHashVectorPosition = 3 // Defined by the spec.
 
@@ -1199,5 +1199,31 @@ func BenchmarkEmptyHashCode(b *testing.B) {
 				cfg.CommitToPoly(c1poly[:], 0)
 			}
 		})
+	}
+}
+
+func TestEmptyHashCodeCachedPoint(t *testing.T) {
+	_ = GetConfig()
+
+	// Calculate the polynomial commitment of a vector only with the empty code hash.
+	emptyHashCode, err := hex.DecodeString("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
+	if err != nil {
+		t.Fatalf("failed to decode empty hash code: %v", err)
+	}
+	values := make([][]byte, 256)
+	values[codeHashVectorPosition] = emptyHashCode[:]
+	var c1poly [256]Fr
+	fillSuffixTreePoly(c1poly[:], values[:128])
+	p := cfg.CommitToPoly(c1poly[:], 0)
+
+	// Compare the result (which used the cached point) with the expected result which was
+	// calculated by a previous version of the library that didn't use a cached point.
+	correctPointHex, _ := hex.DecodeString("02cc97eafa76087f079d21792f051561d5f14212d75df1e812b8214bc044bb0f")
+	var correctPoint Point
+	if err := correctPoint.SetBytes(correctPointHex); err != nil {
+		t.Fatal(err)
+	}
+	if !p.Equal(&correctPoint) {
+		t.Fatalf("expected %v, got %v", correctPoint, p)
 	}
 }
