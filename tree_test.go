@@ -1190,13 +1190,11 @@ func BenchmarkEmptyHashCodeCachedPoint(b *testing.B) {
 
 			values := make([][]byte, 256)
 			values[codeHashVectorPosition] = emptyHashCode[:]
-			var c1poly [256]Fr
-			fillSuffixTreePoly(c1poly[:], values[:128])
 
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				cfg.CommitToPoly(c1poly[:], 0)
+				_ = NewLeafNode(zeroKeyTest, values)
 			}
 		})
 	}
@@ -1211,10 +1209,8 @@ func TestEmptyHashCodeCachedPoint(t *testing.T) {
 		t.Fatalf("failed to decode empty hash code: %v", err)
 	}
 	values := make([][]byte, NodeWidth)
-	values[codeHashVectorPosition] = emptyHashCode
-	var c1poly [NodeWidth]Fr
-	fillSuffixTreePoly(c1poly[:], values[:NodeWidth/2])
-	p := cfg.CommitToPoly(c1poly[:], 0)
+	values[CodeHashVectorPosition] = emptyHashCode
+	ln := NewLeafNode(zeroKeyTest, values)
 
 	// Compare the result (which used the cached point) with the expected result which was
 	// calculated by a previous version of the library that didn't use a cached point.
@@ -1223,7 +1219,7 @@ func TestEmptyHashCodeCachedPoint(t *testing.T) {
 	if err := correctPoint.SetBytes(correctPointHex); err != nil {
 		t.Fatal(err)
 	}
-	if !p.Equal(&correctPoint) {
-		t.Fatalf("expected %v, got %v", correctPoint, p)
+	if !ln.c1.Equal(&correctPoint) {
+		t.Fatalf("expected %v, got %v", correctPoint, ln.c1)
 	}
 }

@@ -32,18 +32,18 @@ import (
 	"github.com/crate-crypto/go-ipa/ipa"
 )
 
-// emptyCodeHashPoint is a cached point that is used to represent an empty code hash.
+// EmptyCodeHashPoint is a cached point that is used to represent an empty code hash.
 // This value is initialized once in GetConfig().
 var (
-	emptyCodeHashPoint           *Point
-	emptyCodeHashFirstHalfValue  Fr
-	emptyCodeHashSecondHalfValue Fr
+	EmptyCodeHashPoint           *Point
+	EmptyCodeHashFirstHalfValue  Fr
+	EmptyCodeHashSecondHalfValue Fr
 )
 
 const (
-	codeHashVectorPosition     = 3 // Defined by the spec.
-	emptyCodeHashFirstHalfIdx  = codeHashVectorPosition * 2
-	emptyCodeHashSecondHalfIdx = emptyCodeHashFirstHalfIdx + 1
+	CodeHashVectorPosition     = 3 // Defined by the spec.
+	EmptyCodeHashFirstHalfIdx  = CodeHashVectorPosition * 2
+	EmptyCodeHashSecondHalfIdx = EmptyCodeHashFirstHalfIdx + 1
 )
 
 type IPAConfig struct {
@@ -53,23 +53,7 @@ type IPAConfig struct {
 type Config = IPAConfig
 
 func (ipac *IPAConfig) CommitToPoly(poly []Fr, _ int) *Point {
-	containsEmptyCodeHash := len(poly) >= emptyCodeHashSecondHalfIdx &&
-		poly[emptyCodeHashFirstHalfIdx].Equal(&emptyCodeHashFirstHalfValue) &&
-		poly[emptyCodeHashSecondHalfIdx].Equal(&emptyCodeHashSecondHalfValue)
-
-	if containsEmptyCodeHash {
-		poly[emptyCodeHashFirstHalfIdx] = FrZero
-		poly[emptyCodeHashSecondHalfIdx] = FrZero
-	}
-
 	ret := ipac.conf.Commit(poly)
-
-	if containsEmptyCodeHash {
-		ret.Add(&ret, emptyCodeHashPoint)
-		poly[emptyCodeHashFirstHalfIdx] = emptyCodeHashFirstHalfValue
-		poly[emptyCodeHashSecondHalfIdx] = emptyCodeHashSecondHalfValue
-	}
-
 	return &ret
 }
 
@@ -99,12 +83,12 @@ func GetConfig() *Config {
 
 		emptyHashCode, _ := hex.DecodeString("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
 		values := make([][]byte, NodeWidth)
-		values[codeHashVectorPosition] = emptyHashCode[:]
+		values[CodeHashVectorPosition] = emptyHashCode[:]
 		var c1poly [NodeWidth]Fr
 		fillSuffixTreePoly(c1poly[:], values[:NodeWidth/2])
-		emptyCodeHashPoint = cfg.CommitToPoly(c1poly[:], 0)
-		emptyCodeHashFirstHalfValue = c1poly[emptyCodeHashFirstHalfIdx]
-		emptyCodeHashSecondHalfValue = c1poly[emptyCodeHashSecondHalfIdx]
+		EmptyCodeHashPoint = cfg.CommitToPoly(c1poly[:], 0)
+		EmptyCodeHashFirstHalfValue = c1poly[EmptyCodeHashFirstHalfIdx]
+		EmptyCodeHashSecondHalfValue = c1poly[EmptyCodeHashSecondHalfIdx]
 
 	}
 	return cfg
