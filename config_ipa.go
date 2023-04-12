@@ -83,7 +83,7 @@ func GetConfig() *Config {
 
 		emptyHashCode, _ := hex.DecodeString("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
 		values := make([][]byte, NodeWidth)
-		values[CodeHashVectorPosition] = emptyHashCode[:]
+		values[CodeHashVectorPosition] = emptyHashCode
 		var c1poly [NodeWidth]Fr
 		fillSuffixTreePoly(c1poly[:], values[:NodeWidth/2])
 		EmptyCodeHashPoint = cfg.CommitToPoly(c1poly[:], 0)

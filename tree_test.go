@@ -1189,7 +1189,7 @@ func BenchmarkEmptyHashCodeCachedPoint(b *testing.B) {
 			}
 
 			values := make([][]byte, 256)
-			values[codeHashVectorPosition] = emptyHashCode[:]
+			values[codeHashVectorPosition] = emptyHashCode
 
 			b.ReportAllocs()
 			b.ResetTimer()
