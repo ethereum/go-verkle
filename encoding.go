@@ -124,7 +124,7 @@ func parseLeafNode(serialized []byte, depth byte, comm SerializedPointCompressed
 	return ln, nil
 }
 
-func deserializeIntoStateless(bitlist []byte, raw []byte, depth byte, comm SerializedPointCompressed) (*StatelessNode, error) {
+func deserializeIntoStateless(bitlist []byte, raw []byte, depth byte, comm SerializedPointCompressed) (VerkleNode, error) {
 	// GetTreeConfig caches computation result, hence
 	// this op has low overhead
 	n := NewStateless()
@@ -141,10 +141,10 @@ func deserializeIntoStateless(bitlist []byte, raw []byte, depth byte, comm Seria
 	return n, nil
 }
 
-func CreateInternalNode(bitlist []byte, raw []byte, depth byte, comm SerializedPointCompressed) (*InternalNode, error) {
+func CreateInternalNode(bitlist []byte, raw []byte, depth byte, comm SerializedPointCompressed) (*InternalNode[StateFulChildren], error) {
 	// GetTreeConfig caches computation result, hence
 	// this op has low overhead
-	n := (newInternalNode(depth)).(*InternalNode)
+	n := (newInternalNode(depth)).(*InternalNode[StateFulChildren])
 	indices := indicesFromBitlist(bitlist)
 
 	if len(raw)/SerializedPointCompressedSize != len(indices) {

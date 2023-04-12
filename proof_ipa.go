@@ -316,7 +316,7 @@ func TreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) {
 	root := NewStatelessWithCommitment(rootC)
 	comms := proof.Cs
 	for _, p := range paths {
-		comms, err = root.insertStem(p, info[string(p)], comms)
+		comms, err = root.InsertStem(p, info[string(p)], comms)
 		if err != nil {
 			return nil, err
 		}
