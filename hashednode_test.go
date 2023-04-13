@@ -33,10 +33,6 @@ func TestHashedNodeFuncs(t *testing.T) {
 	if err == nil {
 		t.Fatal("got nil error when inserting into a hashed node")
 	}
-	err = e.InsertOrdered(zeroKeyTest, zeroKeyTest, nil)
-	if err == nil {
-		t.Fatal("got nil error when inserting into a hashed node")
-	}
 	err = e.Delete(zeroKeyTest, nil)
 	if err == nil {
 		t.Fatal("got nil error when deleting from a hashed node")

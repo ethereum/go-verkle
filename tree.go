@@ -56,12 +56,6 @@ type VerkleNode interface {
 	// Insert or Update value into the tree
 	Insert([]byte, []byte, NodeResolverFn) error
 
-	// Insert "à la" Stacktrie. Same thing as insert, except that
-	// values are expected to be ordered, and the commitments and
-	// hashes for each subtrie are computed online, as soon as it
-	// is clear that no more values will be inserted in there.
-	InsertOrdered([]byte, []byte, NodeFlushFn) error
-
 	// Delete a leaf with the given key
 	Delete([]byte, NodeResolverFn) error
 
@@ -400,107 +394,6 @@ func (n *InternalNode) toHashedNode() *HashedNode {
 	return &HashedNode{commitment: comm[:]}
 }
 
-func (n *InternalNode) InsertOrdered(key []byte, value []byte, flush NodeFlushFn) error {
-	values := make([][]byte, NodeWidth)
-	values[key[31]] = value
-	return n.InsertStemOrdered(key[:31], values, flush)
-}
-
-// InsertStemOrdered does the same thing as InsertOrdered but is meant to insert a pre-build
-// LeafNode at a given stem, instead of individual leaves.
-func (n *InternalNode) InsertStemOrdered(key []byte, values [][]byte, flush NodeFlushFn) error {
-	nChild := offset2key(key, n.depth)
-	n.cowChild(nChild)
-
-	switch child := n.children[nChild].(type) {
-	case Empty:
-		// Insert into a new subtrie, which means that the
-		// subtree directly preceding this new one, can
-		// safely be flushed.
-	searchFirstNonEmptyChild:
-		for i := int(nChild) - 1; i >= 0; i-- {
-			switch child := n.children[i].(type) {
-			case Empty:
-				continue
-			case *LeafNode:
-				child.Commit()
-				if flush != nil {
-					flush(child)
-				}
-				n.children[i] = child.ToHashedNode()
-				break searchFirstNonEmptyChild
-			case *HashedNode:
-				break searchFirstNonEmptyChild
-			case *InternalNode:
-				n.children[i].Commit()
-				if flush != nil {
-					child.Flush(flush)
-				}
-				n.children[i] = child.toHashedNode()
-				break searchFirstNonEmptyChild
-			}
-		}
-
-		// NOTE: these allocations are inducing a noticeable slowdown
-		lastNode := NewLeafNode(key[:31], values)
-		lastNode.setDepth(n.depth + 1)
-		n.children[nChild] = lastNode
-
-		// If the node was already created, then there was at least one
-		// child. As a result, inserting this new leaf means there are
-		// now more than one child in this node.
-	case *HashedNode:
-		return errInsertIntoHash
-	case *LeafNode:
-		// Need to add a new branch node to differentiate
-		// between two keys, if the keys are different.
-		// Otherwise, just update the key.
-		if equalPaths(child.stem, key) {
-			// TODO when LeafNode no longer updates on insert,
-			// just set the values here.
-			child.updateMultipleLeaves(values)
-		} else {
-			// A new branch node has to be inserted. Depending
-			// on the next word in both keys, a recursion into
-			// the moved leaf node can occur.
-			nextWordInExistingKey := offset2key(child.stem, n.depth+1)
-			newBranch := newInternalNode(n.depth + 1).(*InternalNode)
-			newBranch.cowChild(nextWordInExistingKey)
-			n.children[nChild] = newBranch
-
-			nextWordInInsertedKey := offset2key(key, n.depth+1)
-			if nextWordInInsertedKey != nextWordInExistingKey {
-				// Directly hash the (left) node that was already
-				// inserted. In case the commitment update should
-				// not be updated, the left node's commitment has
-				// to be calculated anyways, in order to flush it
-				// to disk.
-				child.Commit()
-				if flush != nil {
-					flush(child)
-				}
-				newBranch.children[nextWordInExistingKey] = child.ToHashedNode()
-
-				// Next word differs, so this was the last level.
-				// Insert it directly into its final slot.
-				lastNode := NewLeafNode(key[:31], values)
-				lastNode.setDepth(n.depth + 1)
-				newBranch.cowChild(nextWordInInsertedKey)
-				newBranch.children[nextWordInInsertedKey] = lastNode
-			} else {
-				// Reinsert the leaf in order to recurse
-				newBranch.children[nextWordInExistingKey] = child
-				return newBranch.InsertStemOrdered(key, values, flush)
-			}
-		}
-	case *InternalNode: // InternalNode
-		return child.InsertStemOrdered(key, values, flush)
-	default: // StatelessNode
-		return errStatelessAndStatefulMix
-	}
-	return nil
-}
-
 func (n *InternalNode) Delete(key []byte, resolver NodeResolverFn) error {
 	nChild := offset2key(key, n.depth)
 	switch child := n.children[nChild].(type) {
@@ -554,6 +447,11 @@ func (n *InternalNode) FlushAtDepth(depth uint8, flush NodeFlushFn) {
 		// Skip non-internal nodes
 		c, ok := child.(*InternalNode)
 		if !ok {
+			if c, ok := child.(*LeafNode); ok {
+				c.Commit()
+				flush(c)
+				n.children[i] = c.ToHashedNode()
+			}
 			continue
 		}
 
@@ -1037,13 +935,6 @@ func (n *LeafNode) updateMultipleLeaves(values [][]byte) {
 		toFrMultiple([]*Fr{&frs[0], &frs[1]}, []*Point{n.c2, oldC2})
 		n.updateC(c2Idx, frs[0], frs[1])
 	}
-}
-
-func (n *LeafNode) InsertOrdered(key []byte, value []byte, _ NodeFlushFn) error {
-	// In the previous version, this value used to be flushed on insert.
-	// This is no longer the case, as all values at the last level get
-	// flushed at the same time.
-	return n.Insert(key, value, nil)
 }
 
 func (n *LeafNode) Delete(k []byte, _ NodeResolverFn) error {

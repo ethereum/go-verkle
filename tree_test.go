@@ -34,6 +34,7 @@ import (
 	"fmt"
 	mRand "math/rand"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 )
@@ -135,35 +136,6 @@ func TestGetTwoLeaves(t *testing.T) {
 	}
 }
 
-func TestComputeRootCommitmentOnlineThreeLeavesFlush(t *testing.T) {
-	flushCh := make(chan VerkleNode)
-	flush := func(node VerkleNode) {
-		flushCh <- node
-	}
-	go func() {
-		root := New()
-		root.InsertOrdered(zeroKeyTest, testValue, flush)
-		root.InsertOrdered(fourtyKeyTest, testValue, flush)
-		root.InsertOrdered(ffx32KeyTest, testValue, flush)
-		root.(*InternalNode).Flush(flush)
-		close(flushCh)
-	}()
-
-	count := 0
-	for n := range flushCh {
-		_, isLeaf := n.(*LeafNode)
-		_, isInternal := n.(*InternalNode)
-		if !isLeaf && !isInternal {
-			t.Fatal("invalid node type received, expected leaf")
-		}
-		count++
-	}
-
-	if count != 4 {
-		t.Fatalf("incorrect number of flushed leaves 4 != %d", count)
-	}
-}
-
 func TestOffset2key8BitsWide(t *testing.T) {
 	key, _ := hex.DecodeString("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
 	for i := byte(0); i < 32; i++ {
@@ -171,36 +143,6 @@ func TestOffset2key8BitsWide(t *testing.T) {
 		if childId != i {
 			t.Fatalf("error getting child number in key %d != %d", childId, i)
 		}
-	}
-}
-
-func TestInsertVsOrdered(t *testing.T) {
-	n := 10000
-	keys := randomKeys(n)
-	sortedKeys := make([][]byte, n)
-	copy(sortedKeys, keys)
-	sort.Slice(sortedKeys, func(i, j int) bool { return bytes.Compare(sortedKeys[i], sortedKeys[j]) < 0 })
-
-	root1 := New()
-	for _, k := range keys {
-		err := root1.Insert(k, fourtyKeyTest, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-	root2 := New()
-	for _, k := range sortedKeys {
-		err := root2.InsertOrdered(k, fourtyKeyTest, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	h2 := root2.Commit().Bytes()
-	h1 := root1.Commit().Bytes()
-
-	if !bytes.Equal(h1[:], h2[:]) {
-		t.Errorf("Insert and InsertOrdered produce different trees %x != %x %s %s", h1, h2, ToDot(root1), ToDot(root2))
 	}
 }
 
@@ -215,7 +157,7 @@ func TestFlush1kLeaves(t *testing.T) {
 	go func() {
 		root := New()
 		for _, k := range keys {
-			root.InsertOrdered(k, fourtyKeyTest, flush)
+			root.Insert(k, fourtyKeyTest, nil)
 		}
 		root.(*InternalNode).Flush(flush)
 		close(flushCh)
@@ -385,14 +327,18 @@ func TestDeletePrune(t *testing.T) {
 	}
 }
 
+// A test that inserts 3 keys in a tree, and then replaces two of them with
+// their hashed values. It then tries to delete the hashed values, which should
+// fail.
 func TestDeleteHash(t *testing.T) {
 	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
 	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
 	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
 	tree := New()
 	tree.Insert(key1, fourtyKeyTest, nil)
-	tree.InsertOrdered(key2, fourtyKeyTest, nil)
-	tree.InsertOrdered(key3, fourtyKeyTest, nil)
+	tree.Insert(key2, fourtyKeyTest, nil)
+	tree.Insert(key3, fourtyKeyTest, nil)
+	tree.(*InternalNode).FlushAtDepth(0, func(vn VerkleNode) {})
 	tree.Commit()
 	if err := tree.Delete(key2, nil); err != errDeleteHash {
 		t.Fatalf("did not report the correct error while deleting from a hash: %v", err)
@@ -422,9 +368,10 @@ func TestDeleteResolve(t *testing.T) {
 	saveNode := func(node VerkleNode) {
 		savedNodes = append(savedNodes, node)
 	}
-	tree.InsertOrdered(key1, fourtyKeyTest, saveNode)
-	tree.InsertOrdered(key2, fourtyKeyTest, saveNode)
-	tree.InsertOrdered(key3, fourtyKeyTest, saveNode)
+	tree.Insert(key1, fourtyKeyTest, nil)
+	tree.Insert(key2, fourtyKeyTest, nil)
+	tree.Insert(key3, fourtyKeyTest, nil)
+	tree.(*InternalNode).FlushAtDepth(0, saveNode)
 	tree.Commit()
 
 	var called bool
@@ -535,21 +482,6 @@ func benchmarkCommitNLeaves(b *testing.B, n int) {
 			for _, el := range kvs {
 				if err := root.Insert(el.k, el.v, nil); err != nil {
 					b.Error(err)
-				}
-			}
-			root.Commit()
-		}
-	})
-
-	b.Run(fmt.Sprintf("insertOrdered/leaves/%d", n), func(b *testing.B) {
-		b.ResetTimer()
-		b.ReportAllocs()
-
-		for i := 0; i < b.N; i++ {
-			root := New()
-			for _, el := range sortedKVs {
-				if err := root.InsertOrdered(el.k, el.v, nil); err != nil {
-					b.Fatal(err)
 				}
 			}
 			root.Commit()
@@ -737,9 +669,10 @@ func TestGetResolveFromHash(t *testing.T) {
 		serialized = append(serialized, s...)
 	}
 	root := New()
-	root.InsertOrdered(zeroKeyTest, zeroKeyTest, flush)
-	root.InsertOrdered(fourtyKeyTest, zeroKeyTest, flush)
-	err := root.InsertOrdered(oneKeyTest, zeroKeyTest, flush)
+	root.Insert(zeroKeyTest, zeroKeyTest, nil)
+	root.Insert(fourtyKeyTest, zeroKeyTest, nil)
+	root.(*InternalNode).FlushAtDepth(0, flush)
+	err := root.Insert(oneKeyTest, zeroKeyTest, nil)
 	if err != errInsertIntoHash {
 		t.Fatal(err)
 	}
@@ -782,7 +715,8 @@ func TestGetKey(t *testing.T) {
 func TestInsertIntoHashedNode(t *testing.T) {
 	root := New()
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
-	root.InsertOrdered(fourtyKeyTest, zeroKeyTest, nil)
+	root.(*InternalNode).FlushAtDepth(0, func(n VerkleNode) {})
+	root.Insert(fourtyKeyTest, zeroKeyTest, nil)
 
 	if err := root.Insert(zeroKeyTest, zeroKeyTest, nil); err != errInsertIntoHash {
 		t.Fatalf("incorrect error type: %v", err)
@@ -826,11 +760,33 @@ func TestInsertIntoHashedNode(t *testing.T) {
 func TestToDot(*testing.T) {
 	root := New()
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
-	root.InsertOrdered(fourtyKeyTest, zeroKeyTest, nil)
+	root.(*InternalNode).FlushAtDepth(0, func(n VerkleNode) {}) // Hash the leaf to ensure HashedNodes display correctly
+	root.Insert(fourtyKeyTest, zeroKeyTest, nil)
 	fourtytwoKeyTest, _ := hex.DecodeString("4020000000000000000000000000000000000000000000000000000000000000")
 	root.Insert(fourtytwoKeyTest, zeroKeyTest, nil)
 
 	fmt.Println(ToDot(root))
+
+	// ensure the ToDot output contains a single HashedNode
+	if !strings.Contains(ToDot(root), "hash00") {
+		panic("ToDot output does not contain a HashedNode")
+	}
+
+	// ensure the ToDot output contains two LeafNodes
+	if !strings.Contains(ToDot(root), "leaf4000") {
+		panic("ToDot output is missing a LeafNode")
+	}
+	if !strings.Contains(ToDot(root), "leaf4020") {
+		panic("ToDot output is missing a LeafNode")
+	}
+
+	// ensure the ToDot output contains two InternalNodes
+	if !strings.Contains(ToDot(root), "internal ") {
+		panic("ToDot output is missing an InternalNode")
+	}
+	if !strings.Contains(ToDot(root), "internal40") {
+		panic("ToDot output is missing an InternalNode")
+	}
 }
 
 func TestEmptyCommitment(t *testing.T) {
@@ -1004,65 +960,6 @@ func TestInsertResolveSplitLeaf(t *testing.T) {
 	}
 	if !bytes.Equal(l.stem, zeroKeyTest[:31]) && !bytes.Equal(l.values[0], ffx32KeyTest) {
 		t.Fatal("didn't find the resolved leaf where expected")
-	}
-}
-
-func TestInsertStemOrdered(t *testing.T) {
-	root1 := New()
-	root2 := New()
-
-	values1 := make([][]byte, 256)
-	values1[5] = zeroKeyTest
-	values1[192] = fourtyKeyTest
-	values2 := make([][]byte, 256)
-	values2[0] = ffx32KeyTest
-	values3 := make([][]byte, 256)
-	values3[64] = zeroKeyTest
-
-	flushCount := 0
-	flush := func(VerkleNode) {
-		flushCount++
-	}
-
-	var keysplit [32]byte // a key to check stem splitting in insert
-	copy(keysplit[:], fourtyKeyTest)
-	keysplit[24] = 72
-	root1.(*InternalNode).Insert(zeroKeyTest, ffx32KeyTest, nil)
-	root1.(*InternalNode).InsertStemOrdered(fourtyKeyTest[:31], values1, flush)
-	root1.(*InternalNode).InsertStemOrdered(keysplit[:31], values2, flush)
-	root1.(*InternalNode).InsertStemOrdered(ffx32KeyTest[:31], values3, flush)
-	r1c := root1.Commit()
-
-	// 26 for fourtyKeyTest + 2 children, 1 for zeroKeyTest,
-	if flushCount != 27 {
-		t.Fatalf("incorrect number of flushes %d != 27", flushCount)
-	}
-
-	var key5, key32, key64, key192 [32]byte
-	copy(key5[:], fourtyKeyTest[:31])
-	copy(key192[:], fourtyKeyTest[:31])
-	copy(key64[:], ffx32KeyTest[:31])
-	key5[31] = 5
-	key192[31] = 192
-	key64[31] = 64
-	key32[31] = 32
-	root2.Insert(zeroKeyTest, ffx32KeyTest, nil)
-	root2.Insert(key5[:], zeroKeyTest, nil)
-	root2.Insert(key192[:], fourtyKeyTest, nil)
-	root2.Insert(key192[:], fourtyKeyTest, nil)
-	root2.Insert(key64[:], zeroKeyTest, nil)
-	root2.Insert(keysplit[:], ffx32KeyTest, nil)
-	r2c := root2.Commit()
-
-	if !Equal(r1c, r2c) {
-		t.Fatalf("differing commitments %x != %x", r1c.Bytes(), r2c.Bytes())
-	}
-
-	// Check that a previous key was flushed and hashed, and that one can no
-	// longer insert in it.
-	err := root1.(*InternalNode).InsertStemOrdered(fourtyKeyTest[:31], values1, nil)
-	if err != errInsertIntoHash {
-		t.Fatalf("received wrong error %v != %v", err, errInsertIntoHash)
 	}
 }
 

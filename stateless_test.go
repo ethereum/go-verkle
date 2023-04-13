@@ -172,14 +172,6 @@ func TestStatelessInsertLeafIntoInternal(t *testing.T) {
 	}
 }
 
-func TestStatelessInsertOrdered(t *testing.T) {
-	root := NewStateless()
-	err := root.InsertOrdered(zeroKeyTest, fourtyKeyTest, nil)
-	if err != errNotSupportedInStateless {
-		t.Fatalf("got the wrong error: expected %v, got %v", errNotSupportedInStateless, err)
-	}
-}
-
 func TestStatelessCopy(t *testing.T) {
 	root := NewStateless()
 	root.Insert(zeroKeyTest, fourtyKeyTest, nil)
