@@ -391,10 +391,6 @@ func (n *StatelessNode) insertValue(key, value []byte) error {
 	return nil
 }
 
-func (*StatelessNode) InsertOrdered([]byte, []byte, NodeFlushFn) error {
-	return errNotSupportedInStateless
-}
-
 // Delete writes the value `0` at `key` since verkle trees need to distinguish
 // between a node that used to be present and was then deleted, and a node that
 // was never present.

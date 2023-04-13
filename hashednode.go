@@ -39,10 +39,6 @@ func (*HashedNode) Insert([]byte, []byte, NodeResolverFn) error {
 	return errInsertIntoHash
 }
 
-func (*HashedNode) InsertOrdered([]byte, []byte, NodeFlushFn) error {
-	return errInsertIntoHash
-}
-
 func (*HashedNode) Delete([]byte, NodeResolverFn) error {
 	return errors.New("cant delete a hashed node in-place")
 }
