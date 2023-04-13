@@ -27,16 +27,16 @@ func BatchNewLeafNode(nodesValues []BatchNewLeafNodeData) []LeafNode {
 			c2:     Generator(),
 		}
 
-		var c1poly, c2poly [256]Fr
+		var c1poly, c2poly [NodeWidth]Fr
 
-		valsslice := make([][]byte, 256)
+		valsslice := make([][]byte, NodeWidth)
 		for idx := range nv.Values {
 			valsslice[idx] = nv.Values[idx]
 		}
 
-		fillSuffixTreePoly(c1poly[:], valsslice[:128])
+		fillSuffixTreePoly(c1poly[:], valsslice[:NodeWidth/2])
 		ret[i].c1 = cfg.CommitToPoly(c1poly[:], 0)
-		fillSuffixTreePoly(c2poly[:], valsslice[128:])
+		fillSuffixTreePoly(c2poly[:], valsslice[NodeWidth/2:])
 		ret[i].c2 = cfg.CommitToPoly(c2poly[:], 0)
 
 		c1c2points[2*i], c1c2points[2*i+1] = ret[i].c1, ret[i].c2
@@ -45,7 +45,7 @@ func BatchNewLeafNode(nodesValues []BatchNewLeafNodeData) []LeafNode {
 
 	toFrMultiple(c1c2frs, c1c2points)
 
-	var poly [256]Fr
+	var poly [NodeWidth]Fr
 	poly[0].SetUint64(1)
 	for i, nv := range nodesValues {
 		StemFromBytes(&poly[1], nv.Stem)
@@ -166,8 +166,8 @@ func GetInternalNodeCommitment(node *InternalNode, partialStem []byte) *Point {
 // commitments of the children of the second level. This method is generally used if tree
 // construction was done in partitions, and you want to glue them together without having
 // the whole tree in memory.
-func BuildFirstTwoLayers(commitments [256][256][32]byte) *InternalNode {
-	var secondLevelInternalNodes [256]*InternalNode
+func BuildFirstTwoLayers(commitments [NodeWidth][NodeWidth][32]byte) *InternalNode {
+	var secondLevelInternalNodes [NodeWidth]*InternalNode
 
 	for stemFirstByte := range commitments {
 		for stemSecondByte := range commitments[stemFirstByte] {
