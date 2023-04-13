@@ -2,7 +2,6 @@ package verkle
 
 import (
 	"bytes"
-	"fmt"
 	"sort"
 )
 
@@ -64,6 +63,8 @@ func BatchNewLeafNode(nodesValues []BatchNewLeafNodeData) []LeafNode {
 }
 
 // BatchInsertOrderedLeaves creates a tree under from an ordered and deduplicated list of leaves.
+// There's weak assumption that each subtree of the first stem-byte has more than 1 leaf node.
+// If the whole tree has more than 2000 leaves the chance of that not being true is 0.033~=0.
 func BatchInsertOrderedLeaves(leaves []LeafNode) *InternalNode {
 	// currentBranch is a representation of the current branch we're in.
 	// The length of the branch is at most StemSize, and it might only
@@ -72,9 +73,13 @@ func BatchInsertOrderedLeaves(leaves []LeafNode) *InternalNode {
 
 	// Initial state is a branch with only a root node at the top, pointing to
 	// the first leaf.
+	currentBranch[1] = newInternalNode(1).(*InternalNode)
+	currentBranch[1].cowChild(leaves[0].stem[1])
+	currentBranch[1].children[leaves[0].stem[1]] = &leaves[0]
+
 	currentBranch[0] = New().(*InternalNode)
 	currentBranch[0].cowChild(leaves[0].stem[0])
-	currentBranch[0].children[leaves[0].stem[0]] = &leaves[0]
+	currentBranch[0].children[leaves[0].stem[0]] = currentBranch[1]
 
 	prevLeaf := &leaves[0]
 	leaves = leaves[1:]
@@ -145,16 +150,16 @@ func firstDiffByteIdx(stem1 []byte, stem2 []byte) int {
 // the partialStem. e.g: if partialStem is [a, b] it will walk to the a-th
 // children of the node, and then to the b-th children of that node, returning
 // its commitment..
-func GetInternalNodeCommitment(node *InternalNode, partialStem []byte) (*Point, error) {
+func GetInternalNodeCommitment(node *InternalNode, partialStem []byte) *Point {
 	for i := range partialStem {
-		var ok bool
-		node, ok = node.children[partialStem[i]].(*InternalNode)
+		nextNode, ok := node.children[partialStem[i]].(*InternalNode)
 		if !ok {
-			return nil, fmt.Errorf("partial stem is not a prefix of the tree")
+			return node.children[partialStem[i]].(*LeafNode).commitment
 		}
+		node = nextNode
 	}
 
-	return node.commitment, nil
+	return node.commitment
 }
 
 // BuildFirstTwoLayers builds the first two layers of the tree from all the precalculated
@@ -163,6 +168,7 @@ func GetInternalNodeCommitment(node *InternalNode, partialStem []byte) (*Point, 
 // the whole tree in memory.
 func BuildFirstTwoLayers(commitments [256][256][32]byte) *InternalNode {
 	var secondLevelInternalNodes [256]*InternalNode
+
 	for stemFirstByte := range commitments {
 		for stemSecondByte := range commitments[stemFirstByte] {
 			if commitments[stemFirstByte][stemSecondByte] == [32]byte{} {
@@ -176,6 +182,7 @@ func BuildFirstTwoLayers(commitments [256][256][32]byte) *InternalNode {
 			secondLevelInternalNodes[stemFirstByte].SetChild(stemSecondByte, &hashedNode)
 		}
 	}
+
 	root := newInternalNode(0).(*InternalNode)
 	for i, node := range secondLevelInternalNodes {
 		if node == nil {
