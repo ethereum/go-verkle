@@ -26,9 +26,24 @@
 package verkle
 
 import (
+	"encoding/hex"
 	"os"
 
 	"github.com/crate-crypto/go-ipa/ipa"
+)
+
+// EmptyCodeHashPoint is a cached point that is used to represent an empty code hash.
+// This value is initialized once in GetConfig().
+var (
+	EmptyCodeHashPoint           *Point
+	EmptyCodeHashFirstHalfValue  Fr
+	EmptyCodeHashSecondHalfValue Fr
+)
+
+const (
+	CodeHashVectorPosition     = 3 // Defined by the spec.
+	EmptyCodeHashFirstHalfIdx  = CodeHashVectorPosition * 2
+	EmptyCodeHashSecondHalfIdx = EmptyCodeHashFirstHalfIdx + 1
 )
 
 type IPAConfig struct {
@@ -65,12 +80,24 @@ func GetConfig() *Config {
 			ipacfg = ipa.NewIPASettingsWithSRSPrecomp(srs)
 		}
 		cfg = &IPAConfig{conf: ipacfg}
+
+		emptyHashCode, _ := hex.DecodeString("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
+		values := make([][]byte, NodeWidth)
+		values[CodeHashVectorPosition] = emptyHashCode
+		var c1poly [NodeWidth]Fr
+		fillSuffixTreePoly(c1poly[:], values[:NodeWidth/2])
+		EmptyCodeHashPoint = cfg.CommitToPoly(c1poly[:], 0)
+		EmptyCodeHashFirstHalfValue = c1poly[EmptyCodeHashFirstHalfIdx]
+		EmptyCodeHashSecondHalfValue = c1poly[EmptyCodeHashSecondHalfIdx]
+
 	}
 	return cfg
 }
 
-var FrZero Fr
-var FrOne Fr
+var (
+	FrZero Fr
+	FrOne  Fr
+)
 
 func init() {
 	FrZero.SetZero()

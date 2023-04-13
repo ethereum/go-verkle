@@ -204,32 +204,49 @@ func New() VerkleNode {
 
 // New creates a new leaf node
 func NewLeafNode(stem []byte, values [][]byte) *LeafNode {
-	leaf := &LeafNode{
-		// depth will be 0, but the commitment calculation
-		// does not need it, and so it won't be free.
-		values: values,
-		stem:   stem[:31], // enforce a 31-byte length
-		c1:     Generator(),
-		c2:     Generator(),
+	cfg := GetConfig()
+
+	// C1.
+	var c1poly [NodeWidth]Fr
+	var c1 *Point
+	count := fillSuffixTreePoly(c1poly[:], values[:NodeWidth/2])
+	containsEmptyCodeHash := len(c1poly) >= EmptyCodeHashSecondHalfIdx &&
+		c1poly[EmptyCodeHashFirstHalfIdx].Equal(&EmptyCodeHashFirstHalfValue) &&
+		c1poly[EmptyCodeHashSecondHalfIdx].Equal(&EmptyCodeHashSecondHalfValue)
+	if containsEmptyCodeHash {
+		// We start c1 with the empty code hash point.
+		c1 = EmptyCodeHashPoint
+		// Clear out values of the cached point.
+		c1poly[EmptyCodeHashFirstHalfIdx] = FrZero
+		c1poly[EmptyCodeHashSecondHalfIdx] = FrZero
+		// Calculate the remaining part of c1 and add to the base value.
+		partialc1 := cfg.CommitToPoly(c1poly[:], NodeWidth-count-2)
+		c1.Add(c1, partialc1)
+	} else {
+		c1 = cfg.CommitToPoly(c1poly[:], NodeWidth-count)
 	}
 
-	// Initialize the commitment with the extension tree
-	// marker and the stem.
-	cfg := GetConfig()
-	count := 0
-	var poly, c1poly, c2poly [256]Fr
+	// C2.
+	var c2poly [NodeWidth]Fr
+	count = fillSuffixTreePoly(c2poly[:], values[NodeWidth/2:])
+	c2 := cfg.CommitToPoly(c2poly[:], NodeWidth-count)
+
+	// Root commitment preparation for calculation.
+	stem = stem[:StemSize] // enforce a 31-byte length
+	var poly [NodeWidth]Fr
 	poly[0].SetUint64(1)
-	StemFromBytes(&poly[1], leaf.stem)
+	StemFromBytes(&poly[1], stem)
+	toFrMultiple([]*Fr{&poly[2], &poly[3]}, []*Point{c1, c2})
 
-	count = fillSuffixTreePoly(c1poly[:], values[:128])
-	leaf.c1 = cfg.CommitToPoly(c1poly[:], 256-count)
-	count = fillSuffixTreePoly(c2poly[:], values[128:])
-	leaf.c2 = cfg.CommitToPoly(c2poly[:], 256-count)
-	toFrMultiple([]*Fr{&poly[2], &poly[3]}, []*Point{leaf.c1, leaf.c2})
-
-	leaf.commitment = cfg.CommitToPoly(poly[:], 252)
-
-	return leaf
+	return &LeafNode{
+		// depth will be 0, but the commitment calculation
+		// does not need it, and so it won't be free.
+		values:     values,
+		stem:       stem,
+		commitment: cfg.CommitToPoly(poly[:], NodeWidth-4),
+		c1:         c1,
+		c2:         c2,
+	}
 }
 
 // NewLeafNodeWithNoComms create a leaf node but does compute its
