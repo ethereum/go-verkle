@@ -35,7 +35,7 @@ import (
 // EmptyCodeHashPoint is a cached point that is used to represent an empty code hash.
 // This value is initialized once in GetConfig().
 var (
-	EmptyCodeHashPoint           *Point
+	EmptyCodeHashPoint           Point
 	EmptyCodeHashFirstHalfValue  Fr
 	EmptyCodeHashSecondHalfValue Fr
 )
@@ -86,7 +86,7 @@ func GetConfig() *Config {
 		values[CodeHashVectorPosition] = emptyHashCode
 		var c1poly [NodeWidth]Fr
 		fillSuffixTreePoly(c1poly[:], values[:NodeWidth/2])
-		EmptyCodeHashPoint = cfg.CommitToPoly(c1poly[:], 0)
+		EmptyCodeHashPoint = *cfg.CommitToPoly(c1poly[:], 0)
 		EmptyCodeHashFirstHalfValue = c1poly[EmptyCodeHashFirstHalfIdx]
 		EmptyCodeHashSecondHalfValue = c1poly[EmptyCodeHashSecondHalfIdx]
 
