@@ -208,14 +208,13 @@ func NewLeafNode(stem []byte, values [][]byte) *LeafNode {
 		c1poly[EmptyCodeHashFirstHalfIdx].Equal(&EmptyCodeHashFirstHalfValue) &&
 		c1poly[EmptyCodeHashSecondHalfIdx].Equal(&EmptyCodeHashSecondHalfValue)
 	if containsEmptyCodeHash {
-		// We start c1 with the empty code hash point.
-		c1 = EmptyCodeHashPoint
 		// Clear out values of the cached point.
 		c1poly[EmptyCodeHashFirstHalfIdx] = FrZero
 		c1poly[EmptyCodeHashSecondHalfIdx] = FrZero
 		// Calculate the remaining part of c1 and add to the base value.
 		partialc1 := cfg.CommitToPoly(c1poly[:], NodeWidth-count-2)
-		c1.Add(c1, partialc1)
+		c1 = new(Point)
+		c1.Add(&EmptyCodeHashPoint, partialc1)
 	} else {
 		c1 = cfg.CommitToPoly(c1poly[:], NodeWidth-count)
 	}
