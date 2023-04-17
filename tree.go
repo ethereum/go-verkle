@@ -1422,3 +1422,108 @@ func (n *LeafNode) serializeWithCompressedCommitments(c1Bytes [32]byte, c2Bytes 
 
 	return result
 }
+
+func (n *InternalNode) BatchInsertOrdered(leaves []LeafNode) {
+	var currentBranch [StemSize]*InternalNode
+	currentBranch[0] = n
+
+	var prevLeaf *LeafNode
+
+	for i := range leaves {
+		newLeaf := &leaves[i]
+
+		idx := firstDiffByteIdx(prevLeaf.stem, newLeaf.stem)
+
+		if currentBranch[idx] != nil {
+			currentBranch[idx].cowChild(newLeaf.stem[idx])
+			currentBranch[idx].children[newLeaf.stem[idx]] = newLeaf
+			newLeaf.setDepth(currentBranch[idx].depth + 1)
+			for i := idx + 1; i < len(currentBranch); i++ {
+				currentBranch[i] = nil
+			}
+		} else {
+			prevNonNilIdx := 0
+			for i := idx - 1; i >= 0; i-- {
+				if currentBranch[i] != nil {
+					prevNonNilIdx = i
+					break
+				}
+			}
+			for k := prevNonNilIdx + 1; k <= idx; k++ {
+				currentBranch[k] = newInternalNode(currentBranch[k-1].depth + 1).(*InternalNode)
+				currentBranch[k-1].cowChild(newLeaf.stem[k-1])
+				currentBranch[k-1].children[newLeaf.stem[k-1]] = currentBranch[k]
+			}
+
+			currentBranch[idx].cowChild(prevLeaf.stem[idx])
+			currentBranch[idx].children[prevLeaf.stem[idx]] = prevLeaf
+			prevLeaf.setDepth(currentBranch[idx].depth + 1)
+			currentBranch[idx].cowChild(newLeaf.stem[idx])
+			currentBranch[idx].children[newLeaf.stem[idx]] = newLeaf
+
+			for i := idx + 1; i < len(currentBranch); i++ {
+				currentBranch[i] = nil
+			}
+		}
+
+		prevLeaf = newLeaf
+	}
+}
+
+func (n *InternalNode) InsertLeafNodes(leaves []LeafNode, resolver NodeResolverFn) error {
+	for i := range leaves {
+		ln := leaves[i]
+		parent := n
+
+		// Set `parent` to the parent of the leaf node.
+		for {
+			if hashedNode, ok := parent.children[ln.stem[parent.depth]].(*HashedNode); ok {
+				serialized, err := resolver(hashedNode.commitment)
+				if err != nil {
+					return fmt.Errorf("resolving node %x: %w", hashedNode.commitment, err)
+				}
+				resolved, err := ParseNode(serialized, n.depth+1, hashedNode.commitment)
+				if err != nil {
+					return fmt.Errorf("parsing node %x: %w", serialized, err)
+				}
+				n.children[ln.stem[parent.depth]] = resolved
+			}
+
+			nextParent, ok := parent.children[ln.stem[parent.depth]].(*InternalNode)
+			if !ok {
+				break
+			}
+			parent = nextParent
+		}
+
+		switch node := parent.children[ln.stem[parent.depth]].(type) {
+		case Empty:
+			parent.cowChild(ln.stem[parent.depth])
+			parent.children[ln.stem[parent.depth]] = &ln
+			ln.setDepth(parent.depth + 1)
+		case *LeafNode:
+			// If LeafNodes are for the same stem, then it means it was already migrated.
+			// Nothing to do.
+			if bytes.Equal(node.stem, ln.stem) {
+				continue
+			}
+
+			// Otherwise, we need to create the missing internal nodes depending in the fork point in their stems.
+			idx := firstDiffByteIdx(node.stem, ln.stem)
+			for i := parent.depth + 1; i <= byte(idx); i++ {
+				nextParent := newInternalNode(parent.depth + 1).(*InternalNode)
+				parent.cowChild(ln.stem[parent.depth])
+				parent.children[ln.stem[parent.depth]] = nextParent
+				parent = nextParent
+			}
+			// Add old and new leaf node to the latest created parent.
+			parent.cowChild(node.stem[parent.depth])
+			parent.children[node.stem[parent.depth]] = node
+			ln.setDepth(parent.depth + 1)
+			parent.cowChild(ln.stem[parent.depth])
+			parent.children[ln.stem[parent.depth]] = &ln
+			ln.setDepth(parent.depth + 1)
+		}
+	}
+	return nil
+}
