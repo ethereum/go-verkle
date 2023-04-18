@@ -1123,68 +1123,77 @@ func TestEmptyHashCodeCachedPoint(t *testing.T) {
 }
 
 func TestBatchInsertOrdered(t *testing.T) {
-	randomTreeKeyValCount := 256 * 256
+	_ = GetConfig()
 
-	for _, migrationKeyValueCount := range []int{10_000, 20_000, 30_000, 40_000, 50_000} {
-		iterations := 5
-		var batchedDuration, unbatchedDuration time.Duration
-		for i := 0; i < iterations; i++ {
-			runtime.GC()
-			// ***Insert the key pairs without ordered batch API***
-			rand := mRand.New(mRand.NewSource(42))
-			tree := genRandomTree(rand, randomTreeKeyValCount)
-			randomKeyValues := genRandomKeyValues(rand, migrationKeyValueCount)
+	for _, treeInitialKeyValCount := range []int{0, 1_000, 5_000, 25_000, 50_000, 100_000} {
+		fmt.Printf("Assuming %d key/values touched by block execution:\n", treeInitialKeyValCount)
+		for _, migrationKeyValueCount := range []int{2_000, 5_000, 8_000, 10_000, 15_000} {
+			iterations := 5
+			var batchedDuration, unbatchedDuration time.Duration
+			for i := 0; i < iterations; i++ {
+				runtime.GC()
+				// ***Insert the key pairs without ordered batch API***
+				rand := mRand.New(mRand.NewSource(42))
+				tree := genRandomTree(rand, treeInitialKeyValCount)
+				randomKeyValues := genRandomKeyValues(rand, migrationKeyValueCount)
 
-			now := time.Now()
-			for _, kv := range randomKeyValues {
-				if err := tree.Insert(kv.key, kv.value, nil); err != nil {
+				now := time.Now()
+				for _, kv := range randomKeyValues {
+					if err := tree.Insert(kv.key, kv.value, nil); err != nil {
+						t.Fatalf("failed to insert key: %v", err)
+					}
+				}
+				unbatchedRoot := tree.Commit().Bytes()
+				if _, err := tree.(*InternalNode).BatchSerialize(); err != nil {
+					t.Fatalf("failed to serialize unbatched tree: %v", err)
+				}
+				unbatchedDuration += time.Since(now)
+
+				// ***Insert the key pairs with batch API***
+				rand = mRand.New(mRand.NewSource(42))
+				tree = genRandomTree(rand, treeInitialKeyValCount)
+				randomKeyValues = genRandomKeyValues(rand, migrationKeyValueCount)
+
+				now = time.Now()
+				// Create LeafNodes in batch mode.
+				nodeValues := make([]BatchNewLeafNodeData, 0, len(randomKeyValues))
+				curr := BatchNewLeafNodeData{
+					Stem:   randomKeyValues[0].key[:StemSize],
+					Values: map[byte][]byte{randomKeyValues[0].key[StemSize]: randomKeyValues[0].value},
+				}
+				for _, kv := range randomKeyValues[1:] {
+					if bytes.Equal(curr.Stem, kv.key[:StemSize]) {
+						curr.Values[kv.key[StemSize]] = kv.value
+						continue
+					}
+					nodeValues = append(nodeValues, curr)
+					curr = BatchNewLeafNodeData{
+						Stem:   kv.key[:StemSize],
+						Values: map[byte][]byte{kv.key[StemSize]: kv.value},
+					}
+				}
+				// Append last remaining node.
+				nodeValues = append(nodeValues, curr)
+
+				// Create all leaves in batch mode so we can optimize cryptography operations.
+				newLeaves := BatchNewLeafNode(nodeValues)
+				if err := tree.(*InternalNode).InsertLeafNodes(newLeaves, nil); err != nil {
 					t.Fatalf("failed to insert key: %v", err)
 				}
-			}
-			unbatchedRoot := tree.Commit().Bytes()
-			unbatchedDuration += time.Since(now)
 
-			// ***Insert the key pairs with batch API***
-			rand = mRand.New(mRand.NewSource(42))
-			tree = genRandomTree(rand, randomTreeKeyValCount)
-			randomKeyValues = genRandomKeyValues(rand, migrationKeyValueCount)
-
-			now = time.Now()
-			// Create LeafNodes in batch mode.
-			nodeValues := make([]BatchNewLeafNodeData, 0, len(randomKeyValues))
-			curr := BatchNewLeafNodeData{
-				Stem:   randomKeyValues[0].key[:StemSize],
-				Values: map[byte][]byte{randomKeyValues[0].key[StemSize]: randomKeyValues[0].value},
-			}
-			for _, kv := range randomKeyValues[1:] {
-				if bytes.Equal(curr.Stem, kv.key[:StemSize]) {
-					curr.Values[kv.key[StemSize]] = kv.value
-					continue
+				batchedRoot := tree.Commit().Bytes()
+				if _, err := tree.(*InternalNode).BatchSerialize(); err != nil {
+					t.Fatalf("failed to serialize batched tree: %v", err)
 				}
-				nodeValues = append(nodeValues, curr)
-				curr = BatchNewLeafNodeData{
-					Stem:   kv.key[:StemSize],
-					Values: map[byte][]byte{kv.key[StemSize]: kv.value},
+				batchedDuration += time.Since(now)
+
+				if unbatchedRoot != batchedRoot {
+					t.Fatalf("expected %x, got %x", unbatchedRoot, batchedRoot)
 				}
 			}
-			// Append last remaining node.
-			nodeValues = append(nodeValues, curr)
 
-			// Create all leaves in batch mode so we can optimize cryptography operations.
-			newLeaves := BatchNewLeafNode(nodeValues)
-			if err := tree.(*InternalNode).InsertLeafNodes(newLeaves, nil); err != nil {
-				t.Fatalf("failed to insert key: %v", err)
-			}
-
-			batchedRoot := tree.Commit().Bytes()
-			batchedDuration += time.Since(now)
-
-			if unbatchedRoot != batchedRoot {
-				t.Fatalf("expected %x, got %x", unbatchedRoot, batchedRoot)
-			}
+			fmt.Printf("\tIf %d extra key-values are migrated: unbatched %v, batched %v, %.02fx\n", migrationKeyValueCount, unbatchedDuration/time.Duration(iterations), batchedDuration/time.Duration(iterations), float64(unbatchedDuration.Milliseconds())/float64(batchedDuration.Milliseconds()))
 		}
-
-		fmt.Printf("%d key-values: unbatched %v, batched %v, %.02fx\n", migrationKeyValueCount, unbatchedDuration/time.Duration(iterations), batchedDuration/time.Duration(iterations), float64(unbatchedDuration.Milliseconds())/float64(batchedDuration.Milliseconds()))
 	}
 }
 
