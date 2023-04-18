@@ -2,7 +2,9 @@ package verkle
 
 import (
 	"bytes"
+	"runtime"
 	"sort"
+	"sync"
 )
 
 // BatchNewLeafNodeData is a struct that contains the data needed to create a new leaf node.
@@ -15,45 +17,63 @@ type BatchNewLeafNodeData struct {
 // by batching expensive cryptography operations. It returns the LeafNodes sorted by stem.
 func BatchNewLeafNode(nodesValues []BatchNewLeafNodeData) []LeafNode {
 	cfg := GetConfig()
-
 	ret := make([]LeafNode, len(nodesValues))
-	c1c2points := make([]*Point, 2*len(nodesValues))
-	c1c2frs := make([]*Fr, 2*len(nodesValues))
-	for i, nv := range nodesValues {
-		ret[i] = LeafNode{
-			values: nv.Values,
-			stem:   nv.Stem,
-			c1:     Generator(),
-			c2:     Generator(),
+
+	numBatches := runtime.NumCPU()
+	batchSize := len(nodesValues) / numBatches
+
+	var wg sync.WaitGroup
+	wg.Add(numBatches)
+	for i := 0; i < numBatches; i++ {
+		start := i * batchSize
+		end := (i + 1) * batchSize
+		if i == numBatches-1 {
+			end = len(nodesValues)
 		}
+		go func(ret []LeafNode, nodesValues []BatchNewLeafNodeData) {
+			defer wg.Done()
 
-		var c1poly, c2poly [NodeWidth]Fr
+			c1c2points := make([]*Point, 2*len(nodesValues))
+			c1c2frs := make([]*Fr, 2*len(nodesValues))
+			for i, nv := range nodesValues {
+				ret[i] = LeafNode{
+					values: nv.Values,
+					stem:   nv.Stem,
+					c1:     Generator(),
+					c2:     Generator(),
+				}
 
-		valsslice := make([][]byte, NodeWidth)
-		for idx := range nv.Values {
-			valsslice[idx] = nv.Values[idx]
-		}
+				var c1poly, c2poly [NodeWidth]Fr
 
-		fillSuffixTreePoly(c1poly[:], valsslice[:NodeWidth/2])
-		ret[i].c1 = cfg.CommitToPoly(c1poly[:], 0)
-		fillSuffixTreePoly(c2poly[:], valsslice[NodeWidth/2:])
-		ret[i].c2 = cfg.CommitToPoly(c2poly[:], 0)
+				valsslice := make([][]byte, NodeWidth)
+				for idx := range nv.Values {
+					valsslice[idx] = nv.Values[idx]
+				}
 
-		c1c2points[2*i], c1c2points[2*i+1] = ret[i].c1, ret[i].c2
-		c1c2frs[2*i], c1c2frs[2*i+1] = new(Fr), new(Fr)
+				fillSuffixTreePoly(c1poly[:], valsslice[:NodeWidth/2])
+				ret[i].c1 = cfg.CommitToPoly(c1poly[:], 0)
+				fillSuffixTreePoly(c2poly[:], valsslice[NodeWidth/2:])
+				ret[i].c2 = cfg.CommitToPoly(c2poly[:], 0)
+
+				c1c2points[2*i], c1c2points[2*i+1] = ret[i].c1, ret[i].c2
+				c1c2frs[2*i], c1c2frs[2*i+1] = new(Fr), new(Fr)
+			}
+
+			toFrMultiple(c1c2frs, c1c2points)
+
+			var poly [NodeWidth]Fr
+			poly[0].SetUint64(1)
+			for i, nv := range nodesValues {
+				StemFromBytes(&poly[1], nv.Stem)
+				poly[2] = *c1c2frs[2*i]
+				poly[3] = *c1c2frs[2*i+1]
+
+				ret[i].commitment = cfg.CommitToPoly(poly[:], 252)
+			}
+
+		}(ret[start:end], nodesValues[start:end])
 	}
-
-	toFrMultiple(c1c2frs, c1c2points)
-
-	var poly [NodeWidth]Fr
-	poly[0].SetUint64(1)
-	for i, nv := range nodesValues {
-		StemFromBytes(&poly[1], nv.Stem)
-		poly[2] = *c1c2frs[2*i]
-		poly[3] = *c1c2frs[2*i+1]
-
-		ret[i].commitment = cfg.CommitToPoly(poly[:], 252)
-	}
+	wg.Wait()
 
 	sort.Slice(ret, func(i, j int) bool {
 		return bytes.Compare(ret[i].stem, ret[j].stem) < 0
