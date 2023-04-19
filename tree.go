@@ -27,6 +27,7 @@ package verkle
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -179,6 +180,40 @@ type (
 		depth byte
 	}
 )
+
+func (n *InternalNode) toExportable() *ExportableInternalNode {
+	comm := n.commitment.Bytes()
+	exportable := &ExportableInternalNode{
+		Children:   make([]interface{}, NodeWidth),
+		Commitment: comm[:],
+	}
+
+	for i := range exportable.Children {
+		switch child := n.children[i].(type) {
+		case Empty:
+			exportable.Children[i] = nil
+		case *HashedNode:
+			exportable.Children[i] = n.commitment.Bytes()
+		case *InternalNode:
+			exportable.Children[i] = child.toExportable()
+		case *LeafNode:
+			exportable.Children[i] = &ExportableLeafNode{
+				Stem:   child.stem,
+				Values: child.values,
+				C:      child.commitment.Bytes(),
+				C1:     child.c1.Bytes(),
+			}
+		default:
+			panic("unexportable type")
+		}
+	}
+	return exportable
+}
+
+// Turn an internal node into a JSON string
+func (n *InternalNode) ToJSON() ([]byte, error) {
+	return json.Marshal(n.toExportable())
+}
 
 func newInternalNode(depth byte) VerkleNode {
 	node := new(InternalNode)
