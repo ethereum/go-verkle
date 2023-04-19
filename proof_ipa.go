@@ -335,23 +335,23 @@ func TreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) {
 		}
 	}
 
-	root := NewStatelessWithCommitment(rootC)
+	root := NewStatelessInternal().(*InternalNode)
+	root.commitment = rootC
 	comms := proof.Cs
 	for _, p := range paths {
-		comms, err = root.insertStem(p, info[string(p)], comms)
-		if err != nil {
-			return nil, err
-		}
-	}
+		values := make([][]byte, NodeWidth)
+		for i, k := range proof.Keys {
+			if len(proof.Values[i]) == 0 {
+				// Skip the nil keys, they are here to prove
+				// an absence.
+				continue
+			}
 
-	for i, k := range proof.Keys {
-		if len(proof.Values[i]) == 0 {
-			// Skip the nil keys, they are here to prove
-			// an absence.
-			continue
+			if bytes.Equal(k, info[string(p)].stem) {
+				values[k[31]] = proof.Values[i]
+			}
 		}
-
-		err = root.insertValue(k, proof.Values[i])
+		comms, err = root.CreatePath(p, info[string(p)], comms, values)
 		if err != nil {
 			return nil, err
 		}
