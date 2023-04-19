@@ -114,8 +114,6 @@ func (n *InternalNode) InsertMigratedLeaves(leaves []LeafNode, resolver NodeReso
 			parent.children[ln.stem[parent.depth]] = &ln
 			ln.setDepth(parent.depth + 1)
 		case *LeafNode:
-			// If LeafNodes are for the same stem, then it means it was already migrated.
-			// Nothing to do.
 			if bytes.Equal(node.stem, ln.stem) {
 				// In `ln` we have migrated key/values which should be copied to the leaf
 				// only if there isn't a value there. If there's a value, we skip it since
