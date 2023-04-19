@@ -1122,7 +1122,7 @@ func TestEmptyHashCodeCachedPoint(t *testing.T) {
 	}
 }
 
-func TestBatchInsertOrdered(t *testing.T) {
+func TestBatchMigratedKeyValues(t *testing.T) {
 	_ = GetConfig()
 
 	for _, treeInitialKeyValCount := range []int{0, 500, 1_000, 2_000, 5_000} {
@@ -1133,7 +1133,7 @@ func TestBatchInsertOrdered(t *testing.T) {
 			for i := 0; i < iterations; i++ {
 				runtime.GC()
 
-				// ***Insert the key pairs without ordered batch API***
+				// ***Insert the key pairs 'naively' ***
 				rand := mRand.New(mRand.NewSource(42))
 				tree := genRandomTree(rand, treeInitialKeyValCount)
 				randomKeyValues := genRandomKeyValues(rand, migrationKeyValueCount)
@@ -1150,7 +1150,7 @@ func TestBatchInsertOrdered(t *testing.T) {
 				}
 				unbatchedDuration += time.Since(now)
 
-				// ***Insert the key pairs with batch API***
+				// ***Insert the key pairs with optimized strategy & methods***
 				rand = mRand.New(mRand.NewSource(42))
 				tree = genRandomTree(rand, treeInitialKeyValCount)
 				randomKeyValues = genRandomKeyValues(rand, migrationKeyValueCount)
