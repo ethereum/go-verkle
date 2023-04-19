@@ -2,6 +2,7 @@ package verkle
 
 import (
 	"bytes"
+	"fmt"
 	"runtime"
 	"sort"
 	"sync"
@@ -79,4 +80,73 @@ func firstDiffByteIdx(stem1 []byte, stem2 []byte) int {
 		}
 	}
 	panic("stems are equal")
+}
+
+func (n *InternalNode) InsertMigratedLeaves(leaves []LeafNode, resolver NodeResolverFn) error {
+	for i := range leaves {
+		ln := leaves[i]
+		parent := n
+
+		// Set `parent` to the parent of the leaf node.
+		for {
+			if hashedNode, ok := parent.children[ln.stem[parent.depth]].(*HashedNode); ok {
+				serialized, err := resolver(hashedNode.commitment)
+				if err != nil {
+					return fmt.Errorf("resolving node %x: %w", hashedNode.commitment, err)
+				}
+				resolved, err := ParseNode(serialized, n.depth+1, hashedNode.commitment)
+				if err != nil {
+					return fmt.Errorf("parsing node %x: %w", serialized, err)
+				}
+				n.children[ln.stem[parent.depth]] = resolved
+			}
+
+			nextParent, ok := parent.children[ln.stem[parent.depth]].(*InternalNode)
+			if !ok {
+				break
+			}
+			parent = nextParent
+		}
+
+		switch node := parent.children[ln.stem[parent.depth]].(type) {
+		case Empty:
+			parent.cowChild(ln.stem[parent.depth])
+			parent.children[ln.stem[parent.depth]] = &ln
+			ln.setDepth(parent.depth + 1)
+		case *LeafNode:
+			// If LeafNodes are for the same stem, then it means it was already migrated.
+			// Nothing to do.
+			if bytes.Equal(node.stem, ln.stem) {
+				// In `ln` we have migrated key/values which should be copied to the leaf
+				// only if there isn't a value there. If there's a value, we skip it since
+				// our migrated value is stale.
+				nonPresentValues := make([][]byte, NodeWidth)
+				for i := range ln.values {
+					if node.values[i] == nil {
+						nonPresentValues[i] = ln.values[i]
+					}
+				}
+
+				node.updateMultipleLeaves(nonPresentValues)
+				continue
+			}
+
+			// Otherwise, we need to create the missing internal nodes depending in the fork point in their stems.
+			idx := firstDiffByteIdx(node.stem, ln.stem)
+			for i := parent.depth + 1; i <= byte(idx); i++ {
+				nextParent := newInternalNode(parent.depth + 1).(*InternalNode)
+				parent.cowChild(ln.stem[parent.depth])
+				parent.children[ln.stem[parent.depth]] = nextParent
+				parent = nextParent
+			}
+			// Add old and new leaf node to the latest created parent.
+			parent.cowChild(node.stem[parent.depth])
+			parent.children[node.stem[parent.depth]] = node
+			ln.setDepth(parent.depth + 1)
+			parent.cowChild(ln.stem[parent.depth])
+			parent.children[ln.stem[parent.depth]] = &ln
+			ln.setDepth(parent.depth + 1)
+		}
+	}
+	return nil
 }

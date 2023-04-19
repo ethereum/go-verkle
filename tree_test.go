@@ -1132,6 +1132,7 @@ func TestBatchInsertOrdered(t *testing.T) {
 			var batchedDuration, unbatchedDuration time.Duration
 			for i := 0; i < iterations; i++ {
 				runtime.GC()
+
 				// ***Insert the key pairs without ordered batch API***
 				rand := mRand.New(mRand.NewSource(42))
 				tree := genRandomTree(rand, treeInitialKeyValCount)
@@ -1177,7 +1178,7 @@ func TestBatchInsertOrdered(t *testing.T) {
 
 				// Create all leaves in batch mode so we can optimize cryptography operations.
 				newLeaves := BatchNewLeafNode(nodeValues)
-				if err := tree.(*InternalNode).InsertLeafNodes(newLeaves, nil); err != nil {
+				if err := tree.(*InternalNode).InsertMigratedLeaves(newLeaves, nil); err != nil {
 					t.Fatalf("failed to insert key: %v", err)
 				}
 
@@ -1192,7 +1193,7 @@ func TestBatchInsertOrdered(t *testing.T) {
 				}
 			}
 
-			fmt.Printf("\tIf %d extra key-values are migrated: unbatched %v, batched %v, %.02fx\n", migrationKeyValueCount, unbatchedDuration/time.Duration(iterations), batchedDuration/time.Duration(iterations), float64(unbatchedDuration.Milliseconds())/float64(batchedDuration.Milliseconds()))
+			fmt.Printf("\tIf %d extra key-values are migrated: unbatched %dms, batched %dms, %.02fx\n", migrationKeyValueCount, (unbatchedDuration / time.Duration(iterations)).Milliseconds(), (batchedDuration / time.Duration(iterations)).Milliseconds(), float64(unbatchedDuration.Milliseconds())/float64(batchedDuration.Milliseconds()))
 		}
 	}
 }
@@ -1260,7 +1261,7 @@ func BenchmarkBatchLeavesInsert(b *testing.B) {
 
 		// Create all leaves in batch mode so we can optimize cryptography operations.
 		newLeaves := BatchNewLeafNode(nodeValues)
-		if err := tree.(*InternalNode).InsertLeafNodes(newLeaves, nil); err != nil {
+		if err := tree.(*InternalNode).InsertMigratedLeaves(newLeaves, nil); err != nil {
 			b.Fatalf("failed to insert key: %v", err)
 		}
 
