@@ -87,24 +87,26 @@ func (n *InternalNode) InsertMigratedLeaves(leaves []LeafNode, resolver NodeReso
 		ln := leaves[i]
 		parent := n
 
-		// Set `parent` to the parent of the leaf node.
+		// Look for the appropiate parent for the leaf node.
 		for {
 			if hashedNode, ok := parent.children[ln.stem[parent.depth]].(*HashedNode); ok {
 				serialized, err := resolver(hashedNode.commitment)
 				if err != nil {
 					return fmt.Errorf("resolving node %x: %w", hashedNode.commitment, err)
 				}
-				resolved, err := ParseNode(serialized, n.depth+1, hashedNode.commitment)
+				resolved, err := ParseNode(serialized, parent.depth+1, hashedNode.commitment)
 				if err != nil {
 					return fmt.Errorf("parsing node %x: %w", serialized, err)
 				}
-				n.children[ln.stem[parent.depth]] = resolved
+				parent.children[ln.stem[parent.depth]] = resolved
 			}
 
 			nextParent, ok := parent.children[ln.stem[parent.depth]].(*InternalNode)
 			if !ok {
 				break
 			}
+
+			parent.cowChild(ln.stem[parent.depth])
 			parent = nextParent
 		}
 
@@ -131,6 +133,11 @@ func (n *InternalNode) InsertMigratedLeaves(leaves []LeafNode, resolver NodeReso
 
 			// Otherwise, we need to create the missing internal nodes depending in the fork point in their stems.
 			idx := firstDiffByteIdx(node.stem, ln.stem)
+			// We do a sanity check to make sure that the fork point is not before the current depth.
+			if byte(idx) <= parent.depth {
+				return fmt.Errorf("unexpected fork point %d for nodes %x and %x", idx, node.stem, ln.stem)
+			}
+			// Create the missing internal nodes.
 			for i := parent.depth + 1; i <= byte(idx); i++ {
 				nextParent := newInternalNode(parent.depth + 1).(*InternalNode)
 				parent.cowChild(ln.stem[parent.depth])
@@ -144,6 +151,8 @@ func (n *InternalNode) InsertMigratedLeaves(leaves []LeafNode, resolver NodeReso
 			parent.cowChild(ln.stem[parent.depth])
 			parent.children[ln.stem[parent.depth]] = &ln
 			ln.setDepth(parent.depth + 1)
+		default:
+			return fmt.Errorf("unexpected node type %T", node)
 		}
 	}
 	return nil
