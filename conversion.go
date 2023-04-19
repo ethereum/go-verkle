@@ -140,7 +140,7 @@ func (n *InternalNode) InsertMigratedLeaves(leaves []LeafNode, resolver NodeReso
 			// Add old and new leaf node to the latest created parent.
 			parent.cowChild(node.stem[parent.depth])
 			parent.children[node.stem[parent.depth]] = node
-			ln.setDepth(parent.depth + 1)
+			node.setDepth(parent.depth + 1)
 			parent.cowChild(ln.stem[parent.depth])
 			parent.children[ln.stem[parent.depth]] = &ln
 			ln.setDepth(parent.depth + 1)
