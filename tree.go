@@ -172,7 +172,7 @@ type (
 
 	LeafNode struct {
 		stem   []byte
-		values [][]byte
+		values map[byte][]byte
 
 		commitment *Point
 		c1, c2     *Point
@@ -266,10 +266,16 @@ func NewLeafNode(stem []byte, values [][]byte) *LeafNode {
 	StemFromBytes(&poly[1], stem)
 	toFrMultiple([]*Fr{&poly[2], &poly[3]}, []*Point{c1, c2})
 
+	vals := make(map[byte][]byte, len(values))
+	for i, v := range values {
+		if v != nil {
+			vals[byte(i)] = v
+		}
+	}
 	return &LeafNode{
 		// depth will be 0, but the commitment calculation
 		// does not need it, and so it won't be free.
-		values:     values,
+		values:     vals,
 		stem:       stem,
 		commitment: cfg.CommitToPoly(poly[:], NodeWidth-4),
 		c1:         c1,
@@ -281,10 +287,16 @@ func NewLeafNode(stem []byte, values [][]byte) *LeafNode {
 // commitments. The created node's commitments are intended to be
 // initialized with `SetTrustedBytes` in a deserialization context.
 func NewLeafNodeWithNoComms(stem []byte, values [][]byte) *LeafNode {
+	vals := make(map[byte][]byte, len(values))
+	for i, v := range values {
+		if v != nil {
+			vals[byte(i)] = v
+		}
+	}
 	return &LeafNode{
 		// depth will be 0, but the commitment calculation
 		// does not need it, and so it won't be free.
-		values: values,
+		values: vals,
 		stem:   stem,
 	}
 }
@@ -294,7 +306,7 @@ func (n *InternalNode) Children() []VerkleNode {
 }
 
 func (n *InternalNode) SetChild(i int, c VerkleNode) error {
-	if i >= NodeWidth-1 {
+	if i >= NodeWidth {
 		return errors.New("child index higher than node width")
 	}
 	n.children[i] = c
@@ -410,7 +422,11 @@ func (n *InternalNode) GetStem(stem []byte, resolver NodeResolverFn) ([][]byte, 
 		return n.GetStem(stem, resolver)
 	case *LeafNode:
 		if equalPaths(child.stem, stem) {
-			return child.values, nil
+			values := make([][]byte, NodeWidth)
+			for i, v := range child.values {
+				values[i] = v
+			}
+			return values, nil
 		}
 		return nil, nil
 	case *InternalNode:
@@ -818,7 +834,7 @@ func (n *InternalNode) setDepth(d byte) {
 func MergeTrees(subroots []*InternalNode) VerkleNode {
 	root := New().(*InternalNode)
 	for _, subroot := range subroots {
-		for i := 0; i < 256; i++ {
+		for i := 0; i < NodeWidth; i++ {
 			if _, ok := subroot.children[i].(Empty); ok {
 				continue
 			}
@@ -872,7 +888,7 @@ func (n *LeafNode) updateCn(index byte, value []byte, c *Point) {
 	var (
 		old, newH [2]Fr
 		diff      Point
-		poly      [256]Fr
+		poly      [NodeWidth]Fr
 	)
 
 	// Optimization idea:
@@ -928,7 +944,7 @@ func (n *LeafNode) updateMultipleLeaves(values [][]byte) {
 	// commitment. We copy the original point in oldC1 and oldC2, so we can batch their Fr transformation
 	// after this loop.
 	for i, v := range values {
-		if len(v) != 0 && !bytes.Equal(v, n.values[i]) {
+		if len(v) != 0 && !bytes.Equal(v, n.values[byte(i)]) {
 			if i < NodeWidth/2 {
 				// First time we touch C1? Save the original point for later.
 				if oldC1 == nil {
@@ -946,7 +962,7 @@ func (n *LeafNode) updateMultipleLeaves(values [][]byte) {
 				// We update C2 directly in `n`. We have our original copy in oldC2.
 				n.updateCn(byte(i), v, n.c2)
 			}
-			n.values[i] = v
+			n.values[byte(i)] = v
 		}
 	}
 
@@ -1056,8 +1072,8 @@ func leafToComms(poly []Fr, val []byte) {
 
 func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte) {
 	var (
-		poly [256]Fr // top-level polynomial
-		pe           = &ProofElements{
+		poly [NodeWidth]Fr // top-level polynomial
+		pe                 = &ProofElements{
 			Cis:    []*Point{n.commitment, n.commitment},
 			Zis:    []byte{0, 1},
 			Yis:    []*Fr{&poly[0], &poly[1]}, // Should be 0
@@ -1127,14 +1143,17 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 
 		var (
 			suffix   = key[31]
-			suffPoly [256]Fr // suffix-level polynomial
+			suffPoly [NodeWidth]Fr // suffix-level polynomial
 			count    int
 		)
-
+		vals := make([][]byte, NodeWidth)
+		for idx := range n.values {
+			vals[idx] = n.values[idx]
+		}
 		if suffix >= 128 {
-			count = fillSuffixTreePoly(suffPoly[:], n.values[128:])
+			count = fillSuffixTreePoly(suffPoly[:], vals[128:])
 		} else {
-			count = fillSuffixTreePoly(suffPoly[:], n.values[:128])
+			count = fillSuffixTreePoly(suffPoly[:], vals[:128])
 		}
 
 		// Proof of absence: case of a missing suffix tree.
@@ -1206,7 +1225,8 @@ func (n *LeafNode) Serialize() ([]byte, error) {
 func (n *LeafNode) Copy() VerkleNode {
 	l := &LeafNode{}
 	l.stem = make([]byte, len(n.stem))
-	l.values = make([][]byte, len(n.values))
+	l.values = make(map[byte][]byte, len(n.values))
+
 	l.depth = n.depth
 	copy(l.stem, n.stem)
 	for i, v := range n.values {
@@ -1237,7 +1257,10 @@ func (n *LeafNode) Key(i int) []byte {
 }
 
 func (n *LeafNode) Value(i int) []byte {
-	return n.values[i]
+	if i >= NodeWidth {
+		panic("leaf node index out of range")
+	}
+	return n.values[byte(i)]
 }
 
 func (n *LeafNode) toDot(parent, path string) string {
@@ -1257,7 +1280,11 @@ func (n *LeafNode) setDepth(d byte) {
 }
 
 func (n *LeafNode) Values() [][]byte {
-	return n.values
+	vals := make([][]byte, NodeWidth)
+	for idx := range n.values {
+		vals[idx] = n.values[idx]
+	}
+	return vals
 }
 
 func setBit(bitlist []byte, index int) {
@@ -1404,7 +1431,11 @@ func (n *LeafNode) serializeWithCompressedCommitments(c1Bytes [32]byte, c2Bytes 
 	// Create bitlist and store in children LeafValueSize (padded) values.
 	children := make([]byte, 0, NodeWidth*LeafValueSize)
 	var bitlist [bitlistSize]byte
-	for i, v := range n.values {
+	vals := make([][]byte, NodeWidth)
+	for i := range n.values {
+		vals[i] = n.values[i]
+	}
+	for i, v := range vals {
 		if v != nil {
 			setBit(bitlist[:], i)
 			children = append(children, v...)
