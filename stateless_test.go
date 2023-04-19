@@ -250,6 +250,7 @@ func TestStatelessToDot(t *testing.T) {
 	}
 }
 
+// TODO move this to proof_test
 func TestStatelessDeserialize(t *testing.T) {
 	root := New()
 	for _, k := range [][]byte{zeroKeyTest, oneKeyTest, fourtyKeyTest, ffx32KeyTest} {
@@ -278,11 +279,11 @@ func TestStatelessDeserialize(t *testing.T) {
 		t.Fatalf("differing root commitments %x != %x", droot.Commitment().Bytes(), root.Commitment().Bytes())
 	}
 
-	if !Equal(droot.(*StatelessNode).children[0].(*StatelessNode).commitment, root.(*InternalNode).children[0].Commit()) {
+	if !Equal(droot.(*InternalNode).children[0].(*LeafNode).commitment, root.(*InternalNode).children[0].Commit()) {
 		t.Fatal("differing commitment for child #0")
 	}
 
-	if !Equal(droot.(*StatelessNode).children[64].Commit(), root.(*InternalNode).children[64].Commit()) {
+	if !Equal(droot.(*InternalNode).children[64].Commit(), root.(*InternalNode).children[64].Commit()) {
 		t.Fatal("differing commitment for child #64")
 	}
 }
@@ -313,13 +314,14 @@ func TestStatelessDeserializeMissginChildNode(t *testing.T) {
 	if !Equal(droot.Commit(), root.Commit()) {
 		t.Fatal("differing root commitments")
 	}
-
-	if !Equal(droot.(*StatelessNode).children[0].Commit(), root.(*InternalNode).children[0].Commit()) {
+	t.Log(ToDot(root))
+	t.Log(ToDot(droot))
+	if !Equal(droot.(*InternalNode).children[0].Commit(), root.(*InternalNode).children[0].Commit()) {
 		t.Fatal("differing commitment for child #0")
 	}
 
-	if droot.(*StatelessNode).children[64] != nil {
-		t.Fatal("non-nil child #64")
+	if droot.(*InternalNode).children[64] != nil {
+		t.Fatalf("non-nil child #64: %v", droot.(*InternalNode).children[64])
 	}
 }
 
@@ -351,7 +353,7 @@ func TestStatelessDeserializeDepth2(t *testing.T) {
 		t.Fatal("differing root commitments")
 	}
 
-	if !Equal(droot.(*StatelessNode).children[0].Commit(), root.(*InternalNode).children[0].Commit()) {
+	if !Equal(droot.(*InternalNode).children[0].Commit(), root.(*InternalNode).children[0].Commit()) {
 		t.Fatal("differing commitment for child #0")
 	}
 }
