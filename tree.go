@@ -196,9 +196,12 @@ func New() VerkleNode {
 	return newInternalNode(0)
 }
 
-func NewStatelessInternal() VerkleNode {
-	node := new(InternalNode)
-	node.children = make([]VerkleNode, NodeWidth)
+func NewStatelessInternal(depth byte, comm *Point) VerkleNode {
+	node := &InternalNode{
+		children:   make([]VerkleNode, NodeWidth),
+		depth:      depth,
+		commitment: comm,
+	}
 	for idx := range node.children {
 		node.children[idx] = Unknown(struct{}{})
 	}
@@ -411,11 +414,7 @@ func (n *InternalNode) CreatePath(path []byte, stemInfo stemInfo, comms []*Point
 	switch child := n.children[path[0]].(type) {
 	case Unknown:
 		// create the child node if missing
-		n.children[path[0]] = &InternalNode{
-			children:   make([]VerkleNode, NodeWidth),
-			depth:      n.depth + 1,
-			commitment: comms[0],
-		}
+		n.children[path[0]] = NewStatelessInternal(n.depth+1, comms[0])
 		comms = comms[1:]
 	case *InternalNode:
 	// nothing else to do
@@ -754,7 +753,9 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 
 		// Special case of a proof of absence: no children
 		// commitment, as the value is 0.
-		if _, ok := n.children[childIdx].(Empty); ok || n.children[childIdx] == nil {
+		_, isempty := n.children[childIdx].(Empty)
+		_, isunknown := n.children[childIdx].(Unknown)
+		if isempty || isunknown /* this is probably wrong, unknown != empty */ {
 			// A question arises here: what if this proof of absence
 			// corresponds to several stems? Should the ext status be
 			// repeated as many times? It would be wasteful, so the

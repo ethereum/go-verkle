@@ -335,8 +335,7 @@ func TreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) {
 		}
 	}
 
-	root := NewStatelessInternal().(*InternalNode)
-	root.commitment = rootC
+	root := NewStatelessInternal(0, rootC).(*InternalNode)
 	comms := proof.Cs
 	for _, p := range paths {
 		values := make([][]byte, NodeWidth)
