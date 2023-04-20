@@ -171,7 +171,7 @@ type (
 
 	LeafNode struct {
 		stem   []byte
-		values map[byte][]byte
+		values [][]byte
 
 		commitment *Point
 		c1, c2     *Point
@@ -231,16 +231,10 @@ func NewLeafNode(stem []byte, values [][]byte) *LeafNode {
 	StemFromBytes(&poly[1], stem)
 	toFrMultiple([]*Fr{&poly[2], &poly[3]}, []*Point{c1, c2})
 
-	vals := make(map[byte][]byte, len(values))
-	for i, v := range values {
-		if v != nil {
-			vals[byte(i)] = v
-		}
-	}
 	return &LeafNode{
 		// depth will be 0, but the commitment calculation
 		// does not need it, and so it won't be free.
-		values:     vals,
+		values:     values,
 		stem:       stem,
 		commitment: cfg.CommitToPoly(poly[:], NodeWidth-4),
 		c1:         c1,
@@ -252,16 +246,10 @@ func NewLeafNode(stem []byte, values [][]byte) *LeafNode {
 // commitments. The created node's commitments are intended to be
 // initialized with `SetTrustedBytes` in a deserialization context.
 func NewLeafNodeWithNoComms(stem []byte, values [][]byte) *LeafNode {
-	vals := make(map[byte][]byte, len(values))
-	for i, v := range values {
-		if v != nil {
-			vals[byte(i)] = v
-		}
-	}
 	return &LeafNode{
 		// depth will be 0, but the commitment calculation
 		// does not need it, and so it won't be free.
-		values: vals,
+		values: values,
 		stem:   stem,
 	}
 }
@@ -387,11 +375,7 @@ func (n *InternalNode) GetStem(stem []byte, resolver NodeResolverFn) ([][]byte, 
 		return n.GetStem(stem, resolver)
 	case *LeafNode:
 		if equalPaths(child.stem, stem) {
-			values := make([][]byte, NodeWidth)
-			for i, v := range child.values {
-				values[i] = v
-			}
-			return values, nil
+			return child.values, nil
 		}
 		return nil, nil
 	case *InternalNode:
@@ -1111,14 +1095,10 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 			suffPoly [NodeWidth]Fr // suffix-level polynomial
 			count    int
 		)
-		vals := make([][]byte, NodeWidth)
-		for idx := range n.values {
-			vals[idx] = n.values[idx]
-		}
 		if suffix >= 128 {
-			count = fillSuffixTreePoly(suffPoly[:], vals[128:])
+			count = fillSuffixTreePoly(suffPoly[:], n.values[128:])
 		} else {
-			count = fillSuffixTreePoly(suffPoly[:], vals[:128])
+			count = fillSuffixTreePoly(suffPoly[:], n.values[:128])
 		}
 
 		// Proof of absence: case of a missing suffix tree.
@@ -1190,7 +1170,7 @@ func (n *LeafNode) Serialize() ([]byte, error) {
 func (n *LeafNode) Copy() VerkleNode {
 	l := &LeafNode{}
 	l.stem = make([]byte, len(n.stem))
-	l.values = make(map[byte][]byte, len(n.values))
+	l.values = make([][]byte, len(n.values))
 
 	l.depth = n.depth
 	copy(l.stem, n.stem)
