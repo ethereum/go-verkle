@@ -1134,7 +1134,7 @@ func TestBatchMigratedKeyValues(t *testing.T) {
 				runtime.GC()
 
 				// ***Insert the key pairs 'naively' ***
-				rand := mRand.New(mRand.NewSource(42))
+				rand := mRand.New(mRand.NewSource(42)) //skipcq: GSC-G404
 				tree := genRandomTree(rand, treeInitialKeyValCount)
 				randomKeyValues := genRandomKeyValues(rand, migrationKeyValueCount)
 
@@ -1151,7 +1151,7 @@ func TestBatchMigratedKeyValues(t *testing.T) {
 				unbatchedDuration += time.Since(now)
 
 				// ***Insert the key pairs with optimized strategy & methods***
-				rand = mRand.New(mRand.NewSource(42))
+				rand = mRand.New(mRand.NewSource(42)) //skipcq: GSC-G404
 				tree = genRandomTree(rand, treeInitialKeyValCount)
 				randomKeyValues = genRandomKeyValues(rand, migrationKeyValueCount)
 
@@ -1234,7 +1234,7 @@ func BenchmarkBatchLeavesInsert(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
-		rand := mRand.New(mRand.NewSource(42))
+		rand := mRand.New(mRand.NewSource(42)) //skipcq: GSC-G404
 		tree := genRandomTree(rand, treeInitialKeyValCount)
 		randomKeyValues := genRandomKeyValues(rand, migrationKeyValueCount)
 		b.StartTimer()

@@ -87,7 +87,7 @@ func (n *InternalNode) InsertMigratedLeaves(leaves []LeafNode, resolver NodeReso
 		ln := leaves[i]
 		parent := n
 
-		// Look for the appropiate parent for the leaf node.
+		// Look for the appropriate parent for the leaf node.
 		for {
 			if hashedNode, ok := parent.children[ln.stem[parent.depth]].(*HashedNode); ok {
 				serialized, err := resolver(hashedNode.commitment)

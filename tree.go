@@ -893,7 +893,7 @@ func (n *LeafNode) updateMultipleLeaves(values [][]byte) {
 	// commitment. We copy the original point in oldC1 and oldC2, so we can batch their Fr transformation
 	// after this loop.
 	for i, v := range values {
-		if len(v) != 0 && !bytes.Equal(v, n.values[byte(i)]) {
+		if len(v) != 0 && !bytes.Equal(v, n.values[i]) {
 			if i < NodeWidth/2 {
 				// First time we touch C1? Save the original point for later.
 				if oldC1 == nil {
@@ -911,7 +911,7 @@ func (n *LeafNode) updateMultipleLeaves(values [][]byte) {
 				// We update C2 directly in `n`. We have our original copy in oldC2.
 				n.updateCn(byte(i), v, n.c2)
 			}
-			n.values[byte(i)] = v
+			n.values[i] = v
 		}
 	}
 
@@ -1171,7 +1171,6 @@ func (n *LeafNode) Copy() VerkleNode {
 	l := &LeafNode{}
 	l.stem = make([]byte, len(n.stem))
 	l.values = make([][]byte, len(n.values))
-
 	l.depth = n.depth
 	copy(l.stem, n.stem)
 	for i, v := range n.values {
@@ -1225,11 +1224,7 @@ func (n *LeafNode) setDepth(d byte) {
 }
 
 func (n *LeafNode) Values() [][]byte {
-	vals := make([][]byte, NodeWidth)
-	for idx := range n.values {
-		vals[idx] = n.values[idx]
-	}
-	return vals
+	return n.values
 }
 
 func setBit(bitlist []byte, index int) {
@@ -1376,11 +1371,7 @@ func (n *LeafNode) serializeWithCompressedCommitments(c1Bytes [32]byte, c2Bytes 
 	// Create bitlist and store in children LeafValueSize (padded) values.
 	children := make([]byte, 0, NodeWidth*LeafValueSize)
 	var bitlist [bitlistSize]byte
-	vals := make([][]byte, NodeWidth)
-	for i := range n.values {
-		vals[i] = n.values[i]
-	}
-	for i, v := range vals {
+	for i, v := range n.values {
 		if v != nil {
 			setBit(bitlist[:], i)
 			children = append(children, v...)
