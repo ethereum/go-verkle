@@ -199,6 +199,9 @@ func New() VerkleNode {
 func NewStatelessInternal() VerkleNode {
 	node := new(InternalNode)
 	node.children = make([]VerkleNode, NodeWidth)
+	for idx := range node.children {
+		node.children[idx] = Unknown(struct{}{})
+	}
 	return node
 }
 
@@ -302,10 +305,7 @@ func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeRes
 	n.cowChild(nChild)
 
 	switch child := n.children[nChild].(type) {
-	case nil:
-		// Finding nil in a tree means that this is a stateless tree, so
-		// some information is missing. Typically, this means that the proof
-		// is incorrect, or that there is a bug in tree reconstruction.
+	case Unknown:
 		return errMissingNodeInStateless
 	case Empty:
 		n.children[nChild] = NewLeafNode(stem, values)
@@ -409,7 +409,7 @@ func (n *InternalNode) CreatePath(path []byte, stemInfo stemInfo, comms []*Point
 	}
 
 	switch child := n.children[path[0]].(type) {
-	case nil:
+	case Unknown:
 		// create the child node if missing
 		n.children[path[0]] = &InternalNode{
 			children:   make([]VerkleNode, NodeWidth),
@@ -437,10 +437,7 @@ func (n *InternalNode) CreatePath(path []byte, stemInfo stemInfo, comms []*Point
 func (n *InternalNode) GetStem(stem []byte, resolver NodeResolverFn) ([][]byte, error) {
 	nchild := offset2key(stem, n.depth) // index of the child pointed by the next byte in the key
 	switch child := n.children[nchild].(type) {
-	case nil:
-		// Finding nil in a tree means that this is a stateless tree, so
-		// some information is missing. Typically, this means that the proof
-		// is incorrect, or that there is a bug in tree reconstruction.
+	case Unknown:
 		return nil, errMissingNodeInStateless
 	case Empty:
 		return nil, nil
