@@ -557,3 +557,165 @@ func TestVerkleProofMarshalUnmarshalJSON(t *testing.T) {
 		t.Errorf("expected %v, got %v", vp1, vp2)
 	}
 }
+
+func TestStatelessDeserialize(t *testing.T) {
+	root := New()
+	for _, k := range [][]byte{zeroKeyTest, oneKeyTest, fourtyKeyTest, ffx32KeyTest} {
+		root.Insert(k, fourtyKeyTest, nil)
+	}
+
+	proof, _, _, _, _ := MakeVerkleMultiProof(root, keylist{zeroKeyTest, fourtyKeyTest}, map[string][]byte{string(zeroKeyTest): fourtyKeyTest, string(fourtyKeyTest): fourtyKeyTest})
+
+	serialized, statediff, err := SerializeProof(proof)
+	if err != nil {
+		t.Fatalf("could not serialize proof: %v", err)
+	}
+
+	dproof, err := DeserializeProof(serialized, statediff)
+	if err != nil {
+		t.Fatalf("error deserializing proof: %v", err)
+	}
+
+	droot, err := TreeFromProof(dproof, root.Commit())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !Equal(droot.Commit(), root.Commitment()) {
+		t.Log(ToDot(droot), ToDot(root))
+		t.Fatalf("differing root commitments %x != %x", droot.Commitment().Bytes(), root.Commitment().Bytes())
+	}
+
+	if !Equal(droot.(*InternalNode).children[0].(*LeafNode).commitment, root.(*InternalNode).children[0].Commit()) {
+		t.Fatal("differing commitment for child #0")
+	}
+
+	if !Equal(droot.(*InternalNode).children[64].Commit(), root.(*InternalNode).children[64].Commit()) {
+		t.Fatal("differing commitment for child #64")
+	}
+}
+
+func TestStatelessDeserializeMissginChildNode(t *testing.T) {
+	root := New()
+	for _, k := range [][]byte{zeroKeyTest, oneKeyTest, ffx32KeyTest} {
+		root.Insert(k, fourtyKeyTest, nil)
+	}
+
+	proof, _, _, _, _ := MakeVerkleMultiProof(root, keylist{zeroKeyTest, fourtyKeyTest}, map[string][]byte{string(zeroKeyTest): fourtyKeyTest, string(fourtyKeyTest): nil})
+
+	serialized, statediff, err := SerializeProof(proof)
+	if err != nil {
+		t.Fatalf("could not serialize proof: %v", err)
+	}
+
+	dproof, err := DeserializeProof(serialized, statediff)
+	if err != nil {
+		t.Fatalf("error deserializing proof: %v", err)
+	}
+
+	droot, err := TreeFromProof(dproof, root.Commit())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !Equal(droot.Commit(), root.Commit()) {
+		t.Fatal("differing root commitments")
+	}
+	if !Equal(droot.(*InternalNode).children[0].Commit(), root.(*InternalNode).children[0].Commit()) {
+		t.Fatal("differing commitment for child #0")
+	}
+
+	if droot.(*InternalNode).children[64] != nil {
+		t.Fatalf("non-nil child #64: %v", droot.(*InternalNode).children[64])
+	}
+}
+
+func TestStatelessDeserializeDepth2(t *testing.T) {
+	root := New()
+	key1, _ := hex.DecodeString("0000010000000000000000000000000000000000000000000000000000000000")
+	for _, k := range [][]byte{zeroKeyTest, key1} {
+		root.Insert(k, fourtyKeyTest, nil)
+	}
+
+	proof, _, _, _, _ := MakeVerkleMultiProof(root, keylist{zeroKeyTest, key1}, map[string][]byte{string(zeroKeyTest): fourtyKeyTest, string(key1): nil})
+
+	serialized, statediff, err := SerializeProof(proof)
+	if err != nil {
+		t.Fatalf("could not serialize proof: %v", err)
+	}
+
+	dproof, err := DeserializeProof(serialized, statediff)
+	if err != nil {
+		t.Fatalf("error deserializing proof: %v", err)
+	}
+
+	droot, err := TreeFromProof(dproof, root.Commit())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !Equal(droot.Commit(), root.Commit()) {
+		t.Fatal("differing root commitments")
+	}
+
+	if !Equal(droot.(*InternalNode).children[0].Commit(), root.(*InternalNode).children[0].Commit()) {
+		t.Fatal("differing commitment for child #0")
+	}
+}
+
+func TestStatelessGetProofItems(t *testing.T) {
+	insertedKeys := [][]byte{zeroKeyTest, oneKeyTest, ffx32KeyTest}
+	provenKeys := [][]byte{zeroKeyTest, fourtyKeyTest}
+
+	root := New()
+	for _, k := range insertedKeys {
+		root.Insert(k, fourtyKeyTest, nil)
+	}
+
+	proof, _, _, _, _ := MakeVerkleMultiProof(root, keylist(provenKeys), map[string][]byte{string(zeroKeyTest): fourtyKeyTest, string(fourtyKeyTest): nil})
+
+	serialized, statediff, err := SerializeProof(proof)
+	if err != nil {
+		t.Fatalf("could not serialize proof: %v", err)
+	}
+
+	dproof, err := DeserializeProof(serialized, statediff)
+	if err != nil {
+		t.Fatalf("error deserializing proof: %v", err)
+	}
+
+	droot, err := TreeFromProof(dproof, root.Commit())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pel, _, _ := droot.GetProofItems(keylist(provenKeys))
+	pef, _, _ := root.GetProofItems(keylist(provenKeys))
+
+	for i, c := range pel.Cis {
+		if !Equal(c, pef.Cis[i]) {
+			t.Fatalf("differing commitment at %d: %x != %x", i, c.Bytes(), pef.Cis[i].Bytes())
+		}
+	}
+	if len(pel.Cis) != len(pef.Cis) {
+		t.Fatal("commitments have different length")
+	}
+
+	if !bytes.Equal(pel.Zis, pef.Zis) {
+		t.Fatalf("differing index list %v != %v", pel.Zis, pef.Zis)
+	}
+	if len(pel.Zis) != len(pef.Zis) {
+		t.Fatal("indices have different length")
+	}
+
+	for i, y := range pel.Yis {
+		l := y.Bytes()
+		f := pef.Yis[i].Bytes()
+		if !bytes.Equal(l[:], f[:]) {
+			t.Fatalf("differing eval #%d %x != %x", i, l, f)
+		}
+	}
+	if len(pel.Yis) != len(pef.Yis) {
+		t.Fatal("evaluations have different length")
+	}
+}
