@@ -74,7 +74,7 @@ type StemStateDiff struct {
 
 type StateDiff []StemStateDiff
 
-func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte) (*ProofElements, []byte, [][]byte) {
+func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte) (*ProofElements, []byte, [][]byte, error) {
 	sort.Sort(keylist(keys))
 	return root.GetProofItems(keylist(keys))
 }
@@ -89,7 +89,10 @@ func MakeVerkleMultiProof(root VerkleNode, keys [][]byte, keyvals map[string][]b
 	tr := common.NewTranscript("vt")
 	root.Commit()
 
-	pe, es, poas := GetCommitmentsForMultiproof(root, keys)
+	pe, es, poas, err := GetCommitmentsForMultiproof(root, keys)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
 
 	var vals [][]byte
 	for _, k := range keys {
@@ -335,8 +338,7 @@ func TreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) {
 		}
 	}
 
-	root := NewStatelessInternal().(*InternalNode)
-	root.commitment = rootC
+	root := NewStatelessInternal(0, rootC).(*InternalNode)
 	comms := proof.Cs
 	for _, p := range paths {
 		values := make([][]byte, NodeWidth)

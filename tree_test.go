@@ -793,7 +793,10 @@ func TestEmptyCommitment(t *testing.T) {
 	root := New()
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
 	root.Commit()
-	pe, _, _ := root.GetProofItems(keylist{ffx32KeyTest})
+	pe, _, _, err := root.GetProofItems(keylist{ffx32KeyTest})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(pe.Cis) != 1 || len(pe.Zis) != 1 || len(pe.Yis) != 1 || len(pe.Fis) != 1 {
 		t.Fatalf("invalid parameter list length")
 	}
@@ -843,7 +846,10 @@ func TestGetProofItemsNoPoaIfStemPresent(t *testing.T) {
 	key1, _ := hex.DecodeString("ffff00ffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
 	key2, _ := hex.DecodeString("ffffff00ffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
 
-	_, esses, poas := root.GetProofItems(keylist{key1, key2, ffx32KeyTest})
+	_, esses, poas, err := root.GetProofItems(keylist{key1, key2, ffx32KeyTest})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(poas) != 0 {
 		t.Fatalf("returned %d poas instead of 0", len(poas))
 	}
@@ -1059,7 +1065,10 @@ func TestRustBanderwagonBlock48(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pe, _, _ := droot.GetProofItems(keys)
+	pe, _, _, err := droot.GetProofItems(keys)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if !VerifyVerkleProof(dproof, pe.Cis, pe.Zis, pe.Yis, cfg) {
 		t.Fatal("deserialized proof didn't verify")

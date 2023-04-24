@@ -27,52 +27,50 @@ package verkle
 
 import "errors"
 
-type Empty struct{}
+type UnknownNode struct{}
 
-var errDirectInsertIntoEmptyNode = errors.New("an empty node should not be inserted directly into")
-
-func (Empty) Insert([]byte, []byte, NodeResolverFn) error {
-	return errDirectInsertIntoEmptyNode
+func (UnknownNode) Insert([]byte, []byte, NodeResolverFn) error {
+	return errMissingNodeInStateless
 }
 
-func (Empty) Delete([]byte, NodeResolverFn) error {
-	return errors.New("cant delete an empty node")
+func (UnknownNode) Delete([]byte, NodeResolverFn) error {
+	return errors.New("cant delete in a subtree missing form a stateless view")
 }
 
-func (Empty) Get([]byte, NodeResolverFn) ([]byte, error) {
+func (UnknownNode) Get([]byte, NodeResolverFn) ([]byte, error) {
 	return nil, nil
 }
 
-func (n Empty) Commit() *Point {
+func (n UnknownNode) Commit() *Point {
 	return n.Commitment()
 }
 
-func (Empty) Commitment() *Point {
+func (UnknownNode) Commitment() *Point {
 	var id Point
 	id.Identity()
 	return &id
 }
 
-func (Empty) GetProofItems(keylist) (*ProofElements, []byte, [][]byte, error) {
-	return nil, nil, nil, errors.New("trying to produce a commitment for an empty subtree")
+func (UnknownNode) GetProofItems(keylist) (*ProofElements, []byte, [][]byte, error) {
+	panic("trying to produce a commitment for a subtree missing from the stateless view")
 }
 
-func (Empty) Serialize() ([]byte, error) {
-	return nil, errors.New("can't encode empty node to RLP")
+func (UnknownNode) Serialize() ([]byte, error) {
+	return nil, errors.New("trying to serialize a subtree missing from the statless view")
 }
 
-func (Empty) Copy() VerkleNode {
-	return Empty(struct{}{})
+func (UnknownNode) Copy() VerkleNode {
+	return UnknownNode(struct{}{})
 }
 
-func (Empty) toDot(string, string) string {
+func (UnknownNode) toDot(string, string) string {
 	return ""
 }
 
-func (Empty) setDepth(_ byte) {
-	panic("should not be try to set the depth of an Empty node")
+func (UnknownNode) setDepth(_ byte) {
+	panic("should not be try to set the depth of an UnknownNode node")
 }
 
-func (Empty) Hash() *Fr {
+func (UnknownNode) Hash() *Fr {
 	return &FrZero
 }
