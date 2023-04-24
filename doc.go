@@ -33,7 +33,6 @@ var (
 	errDeleteHash              = errors.New("trying to delete from a hashed subtree")
 	errReadFromInvalid         = errors.New("trying to read from an invalid child")
 	errSerializeHashedNode     = errors.New("trying to serialize a hashed internal node")
-	errNotSupportedInStateless = errors.New("not implemented in stateless")
 	errInsertIntoOtherStem     = errors.New("insert splits a stem where it should not happen")
 	errStatelessAndStatefulMix = errors.New("a stateless node should not be found in a stateful tree")
 	errMissingNodeInStateless  = errors.New("trying to access a node that is missing from the stateless view")
