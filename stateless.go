@@ -468,7 +468,7 @@ func (n *StatelessNode) Hash() *Fr {
 	return n.hash
 }
 
-func (n *StatelessNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte) {
+func (n *StatelessNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte, error) {
 	var (
 		pe = &ProofElements{
 			Cis:    []*Point{},
@@ -520,7 +520,10 @@ func (n *StatelessNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][
 				continue
 			}
 
-			pec, es, other := n.children[childIdx].GetProofItems(group)
+			pec, es, other, err := n.children[childIdx].GetProofItems(group)
+			if err != nil {
+				return nil, nil, nil, err
+			}
 			pe.Merge(pec)
 			poass = append(poass, other...)
 			esses = append(esses, es...)
@@ -639,7 +642,7 @@ func (n *StatelessNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][
 		}
 
 	}
-	return pe, esses, poass
+	return pe, esses, poass, nil
 }
 
 func (n *StatelessNode) Serialize() ([]byte, error) {

@@ -77,7 +77,7 @@ type VerkleNode interface {
 	// returns them breadth-first. On top of that, it returns
 	// one "extension status" per stem, and an alternate stem
 	// if the key is missing but another stem has been found.
-	GetProofItems(keylist) (*ProofElements, []byte, [][]byte)
+	GetProofItems(keylist) (*ProofElements, []byte, [][]byte, error)
 
 	// Serialize encodes the node to RLP.
 	Serialize() ([]byte, error)
@@ -704,7 +704,7 @@ func groupKeys(keys keylist, depth byte) []keylist {
 	return groups
 }
 
-func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte) {
+func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte, error) {
 	var (
 		groups = groupKeys(keys, n.depth)
 		pe     = &ProofElements{
@@ -751,11 +751,14 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 	for _, group := range groups {
 		childIdx := offset2key(group[0], n.depth)
 
+		if _, isunknown := n.children[childIdx].(UnknownNode); isunknown {
+			return nil, nil, nil, errMissingNodeInStateless
+		}
+
 		// Special case of a proof of absence: no children
 		// commitment, as the value is 0.
 		_, isempty := n.children[childIdx].(Empty)
-		_, isunknown := n.children[childIdx].(UnknownNode)
-		if isempty || isunknown /* this is probably wrong, unknown != empty */ {
+		if isempty {
 			// A question arises here: what if this proof of absence
 			// corresponds to several stems? Should the ext status be
 			// repeated as many times? It would be wasteful, so the
@@ -764,13 +767,16 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 			continue
 		}
 
-		pec, es, other := n.children[childIdx].GetProofItems(group)
+		pec, es, other, err := n.children[childIdx].GetProofItems(group)
+		if err != nil {
+			return nil, nil, nil, err
+		}
 		pe.Merge(pec)
 		poass = append(poass, other...)
 		esses = append(esses, es...)
 	}
 
-	return pe, esses, poass
+	return pe, esses, poass, nil
 }
 
 func (n *InternalNode) Serialize() ([]byte, error) {
@@ -1112,7 +1118,7 @@ func leafToComms(poly []Fr, val []byte) {
 	}
 }
 
-func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte) {
+func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte, error) {
 	var (
 		poly [256]Fr // top-level polynomial
 		pe           = &ProofElements{
@@ -1251,7 +1257,7 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 		pe.ByPath[slotPath] = scomm
 	}
 
-	return pe, esses, poass
+	return pe, esses, poass, nil
 }
 
 // Serialize serializes a LeafNode.

@@ -51,7 +51,7 @@ func (UnknownNode) Commitment() *Point {
 	return &id
 }
 
-func (UnknownNode) GetProofItems(keylist) (*ProofElements, []byte, [][]byte) {
+func (UnknownNode) GetProofItems(keylist) (*ProofElements, []byte, [][]byte, error) {
 	panic("trying to produce a commitment for a subtree missing from the stateless view")
 }
 

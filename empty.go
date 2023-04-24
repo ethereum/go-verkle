@@ -53,8 +53,8 @@ func (Empty) Commitment() *Point {
 	return &id
 }
 
-func (Empty) GetProofItems(keylist) (*ProofElements, []byte, [][]byte) {
-	panic("trying to produce a commitment for an empty subtree")
+func (Empty) GetProofItems(keylist) (*ProofElements, []byte, [][]byte, error) {
+	return nil, nil, nil, errors.New("trying to produce a commitment for an empty subtree")
 }
 
 func (Empty) Serialize() ([]byte, error) {
