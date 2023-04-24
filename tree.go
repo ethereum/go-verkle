@@ -203,7 +203,7 @@ func NewStatelessInternal(depth byte, comm *Point) VerkleNode {
 		commitment: comm,
 	}
 	for idx := range node.children {
-		node.children[idx] = Unknown(struct{}{})
+		node.children[idx] = UnknownNode(struct{}{})
 	}
 	return node
 }
@@ -308,7 +308,7 @@ func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeRes
 	n.cowChild(nChild)
 
 	switch child := n.children[nChild].(type) {
-	case Unknown:
+	case UnknownNode:
 		return errMissingNodeInStateless
 	case Empty:
 		n.children[nChild] = NewLeafNode(stem, values)
@@ -412,7 +412,7 @@ func (n *InternalNode) CreatePath(path []byte, stemInfo stemInfo, comms []*Point
 	}
 
 	switch child := n.children[path[0]].(type) {
-	case Unknown:
+	case UnknownNode:
 		// create the child node if missing
 		n.children[path[0]] = NewStatelessInternal(n.depth+1, comms[0])
 		comms = comms[1:]
@@ -436,7 +436,7 @@ func (n *InternalNode) CreatePath(path []byte, stemInfo stemInfo, comms []*Point
 func (n *InternalNode) GetStem(stem []byte, resolver NodeResolverFn) ([][]byte, error) {
 	nchild := offset2key(stem, n.depth) // index of the child pointed by the next byte in the key
 	switch child := n.children[nchild].(type) {
-	case Unknown:
+	case UnknownNode:
 		return nil, errMissingNodeInStateless
 	case Empty:
 		return nil, nil
@@ -754,7 +754,7 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 		// Special case of a proof of absence: no children
 		// commitment, as the value is 0.
 		_, isempty := n.children[childIdx].(Empty)
-		_, isunknown := n.children[childIdx].(Unknown)
+		_, isunknown := n.children[childIdx].(UnknownNode)
 		if isempty || isunknown /* this is probably wrong, unknown != empty */ {
 			// A question arises here: what if this proof of absence
 			// corresponds to several stems? Should the ext status be

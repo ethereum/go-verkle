@@ -625,7 +625,7 @@ func TestStatelessDeserializeMissginChildNode(t *testing.T) {
 		t.Fatal("differing commitment for child #0")
 	}
 
-	if droot.(*InternalNode).children[64] != Unknown(struct{}{}) {
+	if droot.(*InternalNode).children[64] != UnknownNode(struct{}{}) {
 		t.Fatalf("non-nil child #64: %v", droot.(*InternalNode).children[64])
 	}
 }

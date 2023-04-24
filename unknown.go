@@ -27,50 +27,50 @@ package verkle
 
 import "errors"
 
-type Unknown struct{}
+type UnknownNode struct{}
 
-func (Unknown) Insert([]byte, []byte, NodeResolverFn) error {
+func (UnknownNode) Insert([]byte, []byte, NodeResolverFn) error {
 	return errMissingNodeInStateless
 }
 
-func (Unknown) Delete([]byte, NodeResolverFn) error {
+func (UnknownNode) Delete([]byte, NodeResolverFn) error {
 	return errors.New("cant delete in a subtree missing form a stateless view")
 }
 
-func (Unknown) Get([]byte, NodeResolverFn) ([]byte, error) {
+func (UnknownNode) Get([]byte, NodeResolverFn) ([]byte, error) {
 	return nil, nil
 }
 
-func (n Unknown) Commit() *Point {
+func (n UnknownNode) Commit() *Point {
 	return n.Commitment()
 }
 
-func (Unknown) Commitment() *Point {
+func (UnknownNode) Commitment() *Point {
 	var id Point
 	id.Identity()
 	return &id
 }
 
-func (Unknown) GetProofItems(keylist) (*ProofElements, []byte, [][]byte) {
+func (UnknownNode) GetProofItems(keylist) (*ProofElements, []byte, [][]byte) {
 	panic("trying to produce a commitment for a subtree missing from the stateless view")
 }
 
-func (Unknown) Serialize() ([]byte, error) {
+func (UnknownNode) Serialize() ([]byte, error) {
 	return nil, errors.New("trying to serialize a subtree missing from the statless view")
 }
 
-func (Unknown) Copy() VerkleNode {
-	return Unknown(struct{}{})
+func (UnknownNode) Copy() VerkleNode {
+	return UnknownNode(struct{}{})
 }
 
-func (Unknown) toDot(string, string) string {
+func (UnknownNode) toDot(string, string) string {
 	return ""
 }
 
-func (Unknown) setDepth(_ byte) {
-	panic("should not be try to set the depth of an Unknown node")
+func (UnknownNode) setDepth(_ byte) {
+	panic("should not be try to set the depth of an UnknownNode node")
 }
 
-func (Unknown) Hash() *Fr {
+func (UnknownNode) Hash() *Fr {
 	return &FrZero
 }
