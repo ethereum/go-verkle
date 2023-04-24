@@ -294,7 +294,7 @@ func (n *InternalNode) Children() []VerkleNode {
 }
 
 func (n *InternalNode) SetChild(i int, c VerkleNode) error {
-	if i >= NodeWidth-1 {
+	if i >= NodeWidth {
 		return errors.New("child index higher than node width")
 	}
 	n.children[i] = c
@@ -818,7 +818,7 @@ func (n *InternalNode) setDepth(d byte) {
 func MergeTrees(subroots []*InternalNode) VerkleNode {
 	root := New().(*InternalNode)
 	for _, subroot := range subroots {
-		for i := 0; i < 256; i++ {
+		for i := 0; i < NodeWidth; i++ {
 			if _, ok := subroot.children[i].(Empty); ok {
 				continue
 			}
@@ -872,7 +872,7 @@ func (n *LeafNode) updateCn(index byte, value []byte, c *Point) {
 	var (
 		old, newH [2]Fr
 		diff      Point
-		poly      [256]Fr
+		poly      [NodeWidth]Fr
 	)
 
 	// Optimization idea:
@@ -1056,8 +1056,8 @@ func leafToComms(poly []Fr, val []byte) {
 
 func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte) {
 	var (
-		poly [256]Fr // top-level polynomial
-		pe           = &ProofElements{
+		poly [NodeWidth]Fr // top-level polynomial
+		pe                 = &ProofElements{
 			Cis:    []*Point{n.commitment, n.commitment},
 			Zis:    []byte{0, 1},
 			Yis:    []*Fr{&poly[0], &poly[1]}, // Should be 0
@@ -1127,10 +1127,9 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 
 		var (
 			suffix   = key[31]
-			suffPoly [256]Fr // suffix-level polynomial
+			suffPoly [NodeWidth]Fr // suffix-level polynomial
 			count    int
 		)
-
 		if suffix >= 128 {
 			count = fillSuffixTreePoly(suffPoly[:], n.values[128:])
 		} else {
@@ -1237,7 +1236,10 @@ func (n *LeafNode) Key(i int) []byte {
 }
 
 func (n *LeafNode) Value(i int) []byte {
-	return n.values[i]
+	if i >= NodeWidth {
+		panic("leaf node index out of range")
+	}
+	return n.values[byte(i)]
 }
 
 func (n *LeafNode) toDot(parent, path string) string {
