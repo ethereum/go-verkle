@@ -78,7 +78,7 @@ type VerkleNode interface {
 	// returns them breadth-first. On top of that, it returns
 	// one "extension status" per stem, and an alternate stem
 	// if the key is missing but another stem has been found.
-	GetProofItems(keylist) (*ProofElements, []byte, [][]byte)
+	GetProofItems(keylist) (*ProofElements, []byte, [][]byte, error)
 
 	// Serialize encodes the node to RLP.
 	Serialize() ([]byte, error)
@@ -231,9 +231,15 @@ func New() VerkleNode {
 	return newInternalNode(0)
 }
 
-func NewStatelessInternal() VerkleNode {
-	node := new(InternalNode)
-	node.children = make([]VerkleNode, NodeWidth)
+func NewStatelessInternal(depth byte, comm *Point) VerkleNode {
+	node := &InternalNode{
+		children:   make([]VerkleNode, NodeWidth),
+		depth:      depth,
+		commitment: comm,
+	}
+	for idx := range node.children {
+		node.children[idx] = UnknownNode(struct{}{})
+	}
 	return node
 }
 
@@ -337,10 +343,7 @@ func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeRes
 	n.cowChild(nChild)
 
 	switch child := n.children[nChild].(type) {
-	case nil:
-		// Finding nil in a tree means that this is a stateless tree, so
-		// some information is missing. Typically, this means that the proof
-		// is incorrect, or that there is a bug in tree reconstruction.
+	case UnknownNode:
 		return errMissingNodeInStateless
 	case Empty:
 		n.children[nChild] = NewLeafNode(stem, values)
@@ -444,13 +447,9 @@ func (n *InternalNode) CreatePath(path []byte, stemInfo stemInfo, comms []*Point
 	}
 
 	switch child := n.children[path[0]].(type) {
-	case nil:
+	case UnknownNode:
 		// create the child node if missing
-		n.children[path[0]] = &InternalNode{
-			children:   make([]VerkleNode, NodeWidth),
-			depth:      n.depth + 1,
-			commitment: comms[0],
-		}
+		n.children[path[0]] = NewStatelessInternal(n.depth+1, comms[0])
 		comms = comms[1:]
 	case *InternalNode:
 	// nothing else to do
@@ -472,10 +471,7 @@ func (n *InternalNode) CreatePath(path []byte, stemInfo stemInfo, comms []*Point
 func (n *InternalNode) GetStem(stem []byte, resolver NodeResolverFn) ([][]byte, error) {
 	nchild := offset2key(stem, n.depth) // index of the child pointed by the next byte in the key
 	switch child := n.children[nchild].(type) {
-	case nil:
-		// Finding nil in a tree means that this is a stateless tree, so
-		// some information is missing. Typically, this means that the proof
-		// is incorrect, or that there is a bug in tree reconstruction.
+	case UnknownNode:
 		return nil, errMissingNodeInStateless
 	case Empty:
 		return nil, nil
@@ -743,7 +739,7 @@ func groupKeys(keys keylist, depth byte) []keylist {
 	return groups
 }
 
-func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte) {
+func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte, error) {
 	var (
 		groups = groupKeys(keys, n.depth)
 		pe     = &ProofElements{
@@ -790,9 +786,14 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 	for _, group := range groups {
 		childIdx := offset2key(group[0], n.depth)
 
+		if _, isunknown := n.children[childIdx].(UnknownNode); isunknown {
+			return nil, nil, nil, errMissingNodeInStateless
+		}
+
 		// Special case of a proof of absence: no children
 		// commitment, as the value is 0.
-		if _, ok := n.children[childIdx].(Empty); ok || n.children[childIdx] == nil {
+		_, isempty := n.children[childIdx].(Empty)
+		if isempty {
 			// A question arises here: what if this proof of absence
 			// corresponds to several stems? Should the ext status be
 			// repeated as many times? It would be wasteful, so the
@@ -801,13 +802,16 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 			continue
 		}
 
-		pec, es, other := n.children[childIdx].GetProofItems(group)
+		pec, es, other, err := n.children[childIdx].GetProofItems(group)
+		if err != nil {
+			return nil, nil, nil, err
+		}
 		pe.Merge(pec)
 		poass = append(poass, other...)
 		esses = append(esses, es...)
 	}
 
-	return pe, esses, poass
+	return pe, esses, poass, nil
 }
 
 func (n *InternalNode) Serialize() ([]byte, error) {
@@ -1149,7 +1153,7 @@ func leafToComms(poly []Fr, val []byte) {
 	}
 }
 
-func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte) {
+func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte, error) {
 	var (
 		poly [NodeWidth]Fr // top-level polynomial
 		pe                 = &ProofElements{
@@ -1287,7 +1291,7 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 		pe.ByPath[slotPath] = scomm
 	}
 
-	return pe, esses, poass
+	return pe, esses, poass, nil
 }
 
 // Serialize serializes a LeafNode.

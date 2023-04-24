@@ -65,8 +65,8 @@ func (n *HashedNode) Commitment() *Point {
 	return n.Commit()
 }
 
-func (*HashedNode) GetProofItems(keylist) (*ProofElements, []byte, [][]byte) {
-	panic("can not get the full path, and there is no proof of absence")
+func (*HashedNode) GetProofItems(keylist) (*ProofElements, []byte, [][]byte, error) {
+	return nil, nil, nil, errors.New("can not get the full path, and there is no proof of absence")
 }
 
 func (*HashedNode) Serialize() ([]byte, error) {
