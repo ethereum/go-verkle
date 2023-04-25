@@ -341,6 +341,10 @@ func TreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) {
 	root := NewStatelessInternal(0, rootC).(*InternalNode)
 	comms := proof.Cs
 	for _, p := range paths {
+		// NOTE: the reconstructed tree won't tell the
+		// difference between leaves missing from view
+		// and absent leaves. This is enough for verification
+		// but not for block validation.
 		values := make([][]byte, NodeWidth)
 		for i, k := range proof.Keys {
 			if len(proof.Values[i]) == 0 {
