@@ -86,20 +86,6 @@ func ParseNode(serializedNode []byte, depth byte, comm SerializedPointCompressed
 	}
 }
 
-func ParseStatelessNode(serialized []byte, depth byte, comm SerializedPointCompressed) (VerkleNode, error) {
-	if len(serialized) < 1+StemSize+SerializedPointCompressedSize {
-		return nil, errSerializedPayloadTooShort
-	}
-	switch serialized[0] {
-	case leafRLPType:
-		return parseLeafNode(serialized, depth, comm)
-	case internalRLPType:
-		return deserializeIntoStateless(serialized[1:33], serialized[33:], depth, comm)
-	default:
-		return nil, ErrInvalidNodeEncoding
-	}
-}
-
 func parseLeafNode(serialized []byte, depth byte, comm SerializedPointCompressed) (VerkleNode, error) {
 	bitlist := serialized[leafBitlistOffset : leafBitlistOffset+bitlistSize]
 	var values [NodeWidth][]byte
@@ -122,23 +108,6 @@ func parseLeafNode(serialized []byte, depth byte, comm SerializedPointCompressed
 	ln.commitment = new(Point)
 	ln.commitment.SetBytesTrusted(comm)
 	return ln, nil
-}
-
-func deserializeIntoStateless(bitlist []byte, raw []byte, depth byte, comm SerializedPointCompressed) (*StatelessNode, error) {
-	// GetTreeConfig caches computation result, hence
-	// this op has low overhead
-	n := NewStateless()
-	n.setDepth(depth)
-	indices := indicesFromBitlist(bitlist)
-	if len(raw)/SerializedPointCompressedSize != len(indices) {
-		return nil, ErrInvalidNodeEncoding
-	}
-	for i, index := range indices {
-		n.unresolved[byte(index)] = raw[i*SerializedPointCompressedSize : (i+1)*SerializedPointCompressedSize]
-	}
-	n.commitment = new(Point)
-	n.commitment.SetBytesTrusted(comm)
-	return n, nil
 }
 
 func CreateInternalNode(bitlist []byte, raw []byte, depth byte, comm SerializedPointCompressed) (*InternalNode, error) {

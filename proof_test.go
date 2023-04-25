@@ -85,7 +85,10 @@ func TestMultiProofVerifyMultipleLeaves(t *testing.T) {
 
 	proof, _, _, _, _ := MakeVerkleMultiProof(root, keys[0:2], kv)
 
-	pe, _, _ := GetCommitmentsForMultiproof(root, keys[0:2])
+	pe, _, _, err := GetCommitmentsForMultiproof(root, keys[0:2])
+	if err != nil {
+		t.Fatal(err)
+	}
 	cfg := GetConfig()
 	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, cfg) {
 		t.Fatal("could not verify verkle proof")
@@ -118,7 +121,10 @@ func TestMultiProofVerifyMultipleLeavesWithAbsentStem(t *testing.T) {
 
 	proof, _, _, _, _ := MakeVerkleMultiProof(root, keys, kv)
 
-	pe, _, isabsent := GetCommitmentsForMultiproof(root, keys)
+	pe, _, isabsent, err := GetCommitmentsForMultiproof(root, keys)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(isabsent) == 0 {
 		t.Fatal("should have detected an absent stem")
 	}
@@ -145,7 +151,10 @@ func TestMultiProofVerifyMultipleLeavesCommitmentRedundancy(t *testing.T) {
 
 	proof, _, _, _, _ := MakeVerkleMultiProof(root, keys, kv)
 
-	pe, _, _ := GetCommitmentsForMultiproof(root, keys)
+	pe, _, _, err := GetCommitmentsForMultiproof(root, keys)
+	if err != nil {
+		t.Fatal(err)
+	}
 	cfg := GetConfig()
 	if !VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, cfg) {
 		t.Fatal("could not verify verkle proof")
@@ -347,7 +356,10 @@ func TestProofDeserialize(t *testing.T) {
 	}
 	_ = deserialized
 
-	pe, _, _ := root.GetProofItems(keylist{absentkey[:]})
+	pe, _, _, err := root.GetProofItems(keylist{absentkey[:]})
+	if err != nil {
+		t.Fatal(err)
+	}
 	cfg := GetConfig()
 	if !VerifyVerkleProof(deserialized, pe.Cis, pe.Zis, pe.Yis, cfg) {
 		t.Fatal("could not verify verkle proof")
@@ -555,5 +567,110 @@ func TestVerkleProofMarshalUnmarshalJSON(t *testing.T) {
 	}
 	if !reflect.DeepEqual(vp1, vp2) {
 		t.Errorf("expected %v, got %v", vp1, vp2)
+	}
+}
+
+func TestStatelessDeserialize(t *testing.T) {
+	root := New()
+	for _, k := range [][]byte{zeroKeyTest, oneKeyTest, fourtyKeyTest, ffx32KeyTest} {
+		root.Insert(k, fourtyKeyTest, nil)
+	}
+
+	proof, _, _, _, _ := MakeVerkleMultiProof(root, keylist{zeroKeyTest, fourtyKeyTest}, map[string][]byte{string(zeroKeyTest): fourtyKeyTest, string(fourtyKeyTest): fourtyKeyTest})
+
+	serialized, statediff, err := SerializeProof(proof)
+	if err != nil {
+		t.Fatalf("could not serialize proof: %v", err)
+	}
+
+	dproof, err := DeserializeProof(serialized, statediff)
+	if err != nil {
+		t.Fatalf("error deserializing proof: %v", err)
+	}
+
+	droot, err := TreeFromProof(dproof, root.Commit())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !Equal(droot.Commit(), root.Commitment()) {
+		t.Log(ToDot(droot), ToDot(root))
+		t.Fatalf("differing root commitments %x != %x", droot.Commitment().Bytes(), root.Commitment().Bytes())
+	}
+
+	if !Equal(droot.(*InternalNode).children[0].(*LeafNode).commitment, root.(*InternalNode).children[0].Commit()) {
+		t.Fatal("differing commitment for child #0")
+	}
+
+	if !Equal(droot.(*InternalNode).children[64].Commit(), root.(*InternalNode).children[64].Commit()) {
+		t.Fatal("differing commitment for child #64")
+	}
+}
+
+func TestStatelessDeserializeMissginChildNode(t *testing.T) {
+	root := New()
+	for _, k := range [][]byte{zeroKeyTest, oneKeyTest, ffx32KeyTest} {
+		root.Insert(k, fourtyKeyTest, nil)
+	}
+
+	proof, _, _, _, _ := MakeVerkleMultiProof(root, keylist{zeroKeyTest, fourtyKeyTest}, map[string][]byte{string(zeroKeyTest): fourtyKeyTest, string(fourtyKeyTest): nil})
+
+	serialized, statediff, err := SerializeProof(proof)
+	if err != nil {
+		t.Fatalf("could not serialize proof: %v", err)
+	}
+
+	dproof, err := DeserializeProof(serialized, statediff)
+	if err != nil {
+		t.Fatalf("error deserializing proof: %v", err)
+	}
+
+	droot, err := TreeFromProof(dproof, root.Commit())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !Equal(droot.Commit(), root.Commit()) {
+		t.Fatal("differing root commitments")
+	}
+	if !Equal(droot.(*InternalNode).children[0].Commit(), root.(*InternalNode).children[0].Commit()) {
+		t.Fatal("differing commitment for child #0")
+	}
+
+	if droot.(*InternalNode).children[64] != UnknownNode(struct{}{}) {
+		t.Fatalf("non-nil child #64: %v", droot.(*InternalNode).children[64])
+	}
+}
+
+func TestStatelessDeserializeDepth2(t *testing.T) {
+	root := New()
+	key1, _ := hex.DecodeString("0000010000000000000000000000000000000000000000000000000000000000")
+	for _, k := range [][]byte{zeroKeyTest, key1} {
+		root.Insert(k, fourtyKeyTest, nil)
+	}
+
+	proof, _, _, _, _ := MakeVerkleMultiProof(root, keylist{zeroKeyTest, key1}, map[string][]byte{string(zeroKeyTest): fourtyKeyTest, string(key1): nil})
+
+	serialized, statediff, err := SerializeProof(proof)
+	if err != nil {
+		t.Fatalf("could not serialize proof: %v", err)
+	}
+
+	dproof, err := DeserializeProof(serialized, statediff)
+	if err != nil {
+		t.Fatalf("error deserializing proof: %v", err)
+	}
+
+	droot, err := TreeFromProof(dproof, root.Commit())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !Equal(droot.Commit(), root.Commit()) {
+		t.Fatal("differing root commitments")
+	}
+
+	if !Equal(droot.(*InternalNode).children[0].Commit(), root.(*InternalNode).children[0].Commit()) {
+		t.Fatal("differing commitment for child #0")
 	}
 }

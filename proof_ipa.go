@@ -74,7 +74,7 @@ type StemStateDiff struct {
 
 type StateDiff []StemStateDiff
 
-func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte) (*ProofElements, []byte, [][]byte) {
+func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte) (*ProofElements, []byte, [][]byte, error) {
 	sort.Sort(keylist(keys))
 	return root.GetProofItems(keylist(keys))
 }
@@ -89,7 +89,10 @@ func MakeVerkleMultiProof(root VerkleNode, keys [][]byte, keyvals map[string][]b
 	tr := common.NewTranscript("vt")
 	root.Commit()
 
-	pe, es, poas := GetCommitmentsForMultiproof(root, keys)
+	pe, es, poas, err := GetCommitmentsForMultiproof(root, keys)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
 
 	var vals [][]byte
 	for _, k := range keys {
@@ -335,23 +338,26 @@ func TreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) {
 		}
 	}
 
-	root := NewStatelessWithCommitment(rootC)
+	root := NewStatelessInternal(0, rootC).(*InternalNode)
 	comms := proof.Cs
 	for _, p := range paths {
-		comms, err = root.insertStem(p, info[string(p)], comms)
-		if err != nil {
-			return nil, err
-		}
-	}
+		// NOTE: the reconstructed tree won't tell the
+		// difference between leaves missing from view
+		// and absent leaves. This is enough for verification
+		// but not for block validation.
+		values := make([][]byte, NodeWidth)
+		for i, k := range proof.Keys {
+			if len(proof.Values[i]) == 0 {
+				// Skip the nil keys, they are here to prove
+				// an absence.
+				continue
+			}
 
-	for i, k := range proof.Keys {
-		if len(proof.Values[i]) == 0 {
-			// Skip the nil keys, they are here to prove
-			// an absence.
-			continue
+			if bytes.Equal(k, info[string(p)].stem) {
+				values[k[31]] = proof.Values[i]
+			}
 		}
-
-		err = root.insertValue(k, proof.Values[i])
+		comms, err = root.CreatePath(p, info[string(p)], comms, values)
 		if err != nil {
 			return nil, err
 		}

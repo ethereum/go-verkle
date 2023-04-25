@@ -23,28 +23,54 @@
 //
 // For more information, please refer to <https://unlicense.org>
 
-//go:build go1.18
-// +build go1.18
-
 package verkle
 
-import (
-	"testing"
-)
+import "errors"
 
-func FuzzStatelessVsStateful(f *testing.F) {
-	f.Add([]byte{})
-	f.Fuzz(func(t *testing.T, input []byte) {
-		rootF := New()
-		rootL := NewStateless()
+type UnknownNode struct{}
 
-		for i := 0; i < len(input)/64; i++ {
-			rootF.Insert(input[i*64:i*64+32], input[i*64+32:(i+1)*64], nil)
-			rootL.Insert(input[i*64:i*64+32], input[i*64+32:(i+1)*64], nil)
-		}
+func (UnknownNode) Insert([]byte, []byte, NodeResolverFn) error {
+	return errMissingNodeInStateless
+}
 
-		if !Equal(rootL.Commitment(), rootF.Commit()) {
-			t.Fatalf("root commitment for state-less != -ful %x != %x", rootL.Commitment().Bytes(), rootF.Commit().Bytes())
-		}
-	})
+func (UnknownNode) Delete([]byte, NodeResolverFn) error {
+	return errors.New("cant delete in a subtree missing form a stateless view")
+}
+
+func (UnknownNode) Get([]byte, NodeResolverFn) ([]byte, error) {
+	return nil, nil
+}
+
+func (n UnknownNode) Commit() *Point {
+	return n.Commitment()
+}
+
+func (UnknownNode) Commitment() *Point {
+	var id Point
+	id.Identity()
+	return &id
+}
+
+func (UnknownNode) GetProofItems(keylist) (*ProofElements, []byte, [][]byte, error) {
+	panic("trying to produce a commitment for a subtree missing from the stateless view")
+}
+
+func (UnknownNode) Serialize() ([]byte, error) {
+	return nil, errors.New("trying to serialize a subtree missing from the statless view")
+}
+
+func (UnknownNode) Copy() VerkleNode {
+	return UnknownNode(struct{}{})
+}
+
+func (UnknownNode) toDot(string, string) string {
+	return ""
+}
+
+func (UnknownNode) setDepth(_ byte) {
+	panic("should not be try to set the depth of an UnknownNode node")
+}
+
+func (UnknownNode) Hash() *Fr {
+	return &FrZero
 }
