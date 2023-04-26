@@ -1143,7 +1143,6 @@ func TestInsertNewLeaves(t *testing.T) {
 			for i := 0; i < iterations; i++ {
 				runtime.GC()
 
-				// ***Insert the key pairs 'naively' ***
 				rand := mRand.New(mRand.NewSource(42)) //skipcq: GSC-G404
 				tree := genRandomTree(rand, treeInitialKeyValCount)
 				randomKeyValues := genRandomKeyValues(rand, migrationKeyValueCount)
