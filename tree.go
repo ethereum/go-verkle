@@ -30,6 +30,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"runtime"
+	"sync"
 
 	"github.com/crate-crypto/go-ipa/banderwagon"
 )
@@ -1535,4 +1537,88 @@ func (n *LeafNode) serializeWithCompressedCommitments(c1Bytes [32]byte, c2Bytes 
 	result = append(result, children...)
 
 	return result
+}
+
+func batchCommitLeafNodes(leaves []*LeafNode) {
+	minBatchSize := 8
+	if len(leaves) < minBatchSize {
+		commitLeafNodes(leaves)
+		return
+	}
+
+	batchSize := len(leaves) / runtime.NumCPU()
+	if batchSize < minBatchSize {
+		batchSize = minBatchSize
+	}
+
+	var wg sync.WaitGroup
+	for start := 0; start < len(leaves); start += batchSize {
+		end := start + batchSize
+		if end > len(leaves) {
+			end = len(leaves)
+		}
+		wg.Add(1)
+		go func(leaves []*LeafNode) {
+			defer wg.Done()
+			commitLeafNodes(leaves)
+		}(leaves[start:end])
+	}
+	wg.Wait()
+}
+
+func commitLeafNodes(leaves []*LeafNode) {
+	cfg := GetConfig()
+
+	c1c2points := make([]*Point, 2*len(leaves))
+	c1c2frs := make([]*Fr, 2*len(leaves))
+	for i, n := range leaves {
+		// C1.
+		var c1poly [NodeWidth]Fr
+		count := fillSuffixTreePoly(c1poly[:], n.values[:NodeWidth/2])
+		containsEmptyCodeHash := len(c1poly) >= EmptyCodeHashSecondHalfIdx &&
+			c1poly[EmptyCodeHashFirstHalfIdx].Equal(&EmptyCodeHashFirstHalfValue) &&
+			c1poly[EmptyCodeHashSecondHalfIdx].Equal(&EmptyCodeHashSecondHalfValue)
+		if containsEmptyCodeHash {
+			// Clear out values of the cached point.
+			c1poly[EmptyCodeHashFirstHalfIdx] = FrZero
+			c1poly[EmptyCodeHashSecondHalfIdx] = FrZero
+			// Calculate the remaining part of c1 and add to the base value.
+			partialc1 := cfg.CommitToPoly(c1poly[:], NodeWidth-count-2)
+			n.c1 = new(Point)
+			n.c1.Add(&EmptyCodeHashPoint, partialc1)
+		} else {
+			n.c1 = cfg.CommitToPoly(c1poly[:], NodeWidth-count)
+		}
+
+		// C2.
+		var c2poly [NodeWidth]Fr
+		count = fillSuffixTreePoly(c2poly[:], n.values[NodeWidth/2:])
+		n.c2 = cfg.CommitToPoly(c2poly[:], NodeWidth-count)
+
+		c1c2points[2*i], c1c2points[2*i+1] = n.c1, n.c2
+		c1c2frs[2*i], c1c2frs[2*i+1] = new(Fr), new(Fr)
+	}
+
+	toFrMultiple(c1c2frs, c1c2points)
+
+	var poly [NodeWidth]Fr
+	poly[0].SetUint64(1)
+	for i, nv := range leaves {
+		StemFromBytes(&poly[1], nv.stem)
+		poly[2] = *c1c2frs[2*i]
+		poly[3] = *c1c2frs[2*i+1]
+
+		nv.commitment = cfg.CommitToPoly(poly[:], 252)
+	}
+}
+
+// firstDiffByteIdx will return the first index in which the two stems differ.
+// Both stems *must* be different.
+func firstDiffByteIdx(stem1 []byte, stem2 []byte) int {
+	for i := range stem1 {
+		if stem1[i] != stem2[i] {
+			return i
+		}
+	}
+	panic("stems are equal")
 }
