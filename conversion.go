@@ -8,26 +8,24 @@ import (
 )
 
 func batchCommitLeafNodes(leaves []*LeafNode) {
-	minBatchSize := 4
+	minBatchSize := 8
 	if len(leaves) < minBatchSize {
 		commitLeafNodes(leaves)
 		return
 	}
 
-	numBatches := runtime.NumCPU()
-	if numBatches > (len(leaves)+minBatchSize-1)/minBatchSize {
-		numBatches = (len(leaves) + minBatchSize - 1) / minBatchSize
+	batchSize := len(leaves) / runtime.NumCPU()
+	if batchSize < minBatchSize {
+		batchSize = minBatchSize
 	}
-	batchSize := len(leaves) / numBatches
 
 	var wg sync.WaitGroup
-	wg.Add(numBatches)
-	for i := 0; i < numBatches; i++ {
-		start := i * batchSize
-		end := (i + 1) * batchSize
-		if i == numBatches-1 {
+	for start := 0; start < len(leaves); start += batchSize {
+		end := start + batchSize
+		if end > len(leaves) {
 			end = len(leaves)
 		}
+		wg.Add(1)
 		go func(leaves []*LeafNode) {
 			defer wg.Done()
 			commitLeafNodes(leaves)
