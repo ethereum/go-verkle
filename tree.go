@@ -1611,14 +1611,3 @@ func commitLeafNodes(leaves []*LeafNode) {
 		nv.commitment = cfg.CommitToPoly(poly[:], 252)
 	}
 }
-
-// firstDiffByteIdx will return the first index in which the two stems differ.
-// Both stems *must* be different.
-func firstDiffByteIdx(stem1 []byte, stem2 []byte) int {
-	for i := range stem1 {
-		if stem1[i] != stem2[i] {
-			return i
-		}
-	}
-	panic("stems are equal")
-}
