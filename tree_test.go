@@ -885,6 +885,7 @@ func TestLeafToCommsLessThan16(*testing.T) {
 func TestGetProofItemsNoPoaIfStemPresent(t *testing.T) {
 	root := New()
 	root.Insert(ffx32KeyTest, zeroKeyTest, nil)
+	root.Commit()
 
 	// insert two keys that differ from the inserted stem
 	// by one byte.
@@ -1195,6 +1196,7 @@ func TestEmptyHashCodeCachedPoint(t *testing.T) {
 	values := make([][]byte, NodeWidth)
 	values[CodeHashVectorPosition] = emptyHashCode
 	ln := NewLeafNode(zeroKeyTest, values)
+	ln.Commit()
 
 	// Compare the result (which used the cached point) with the expected result which was
 	// calculated by a previous version of the library that didn't use a cached point.
@@ -1208,18 +1210,17 @@ func TestEmptyHashCodeCachedPoint(t *testing.T) {
 	}
 }
 
-func TestBatchMigratedKeyValues(t *testing.T) {
+func TestInsertNewLeaves(t *testing.T) {
 	_ = GetConfig()
 
 	for _, treeInitialKeyValCount := range []int{0, 500, 1_000, 2_000, 5_000} {
 		fmt.Printf("Assuming %d key/values touched by block execution:\n", treeInitialKeyValCount)
 		for _, migrationKeyValueCount := range []int{1_000, 2_000, 5_000, 8_000} {
-			iterations := 5
-			var batchedDuration, unbatchedDuration time.Duration
+			iterations := 10
+			var unbatchedDuration time.Duration
 			for i := 0; i < iterations; i++ {
 				runtime.GC()
 
-				// ***Insert the key pairs 'naively' ***
 				rand := mRand.New(mRand.NewSource(42)) //skipcq: GSC-G404
 				tree := genRandomTree(rand, treeInitialKeyValCount)
 				randomKeyValues := genRandomKeyValues(rand, migrationKeyValueCount)
@@ -1230,60 +1231,17 @@ func TestBatchMigratedKeyValues(t *testing.T) {
 						t.Fatalf("failed to insert key: %v", err)
 					}
 				}
-				unbatchedRoot := tree.Commit().Bytes()
+				tree.Commit()
 				if _, err := tree.(*InternalNode).BatchSerialize(); err != nil {
 					t.Fatalf("failed to serialize unbatched tree: %v", err)
 				}
 				unbatchedDuration += time.Since(now)
-
-				// ***Insert the key pairs with optimized strategy & methods***
-				rand = mRand.New(mRand.NewSource(42)) //skipcq: GSC-G404
-				tree = genRandomTree(rand, treeInitialKeyValCount)
-				randomKeyValues = genRandomKeyValues(rand, migrationKeyValueCount)
-
-				now = time.Now()
-				// Create LeafNodes in batch mode.
-				nodeValues := make([]BatchNewLeafNodeData, 0, len(randomKeyValues))
-				curr := BatchNewLeafNodeData{
-					Stem:   randomKeyValues[0].key[:StemSize],
-					Values: map[byte][]byte{randomKeyValues[0].key[StemSize]: randomKeyValues[0].value},
-				}
-				for _, kv := range randomKeyValues[1:] {
-					if bytes.Equal(curr.Stem, kv.key[:StemSize]) {
-						curr.Values[kv.key[StemSize]] = kv.value
-						continue
-					}
-					nodeValues = append(nodeValues, curr)
-					curr = BatchNewLeafNodeData{
-						Stem:   kv.key[:StemSize],
-						Values: map[byte][]byte{kv.key[StemSize]: kv.value},
-					}
-				}
-				// Append last remaining node.
-				nodeValues = append(nodeValues, curr)
-
-				// Create all leaves in batch mode so we can optimize cryptography operations.
-				newLeaves := BatchNewLeafNode(nodeValues)
-				if err := tree.(*InternalNode).InsertMigratedLeaves(newLeaves, nil); err != nil {
-					t.Fatalf("failed to insert key: %v", err)
-				}
-
-				batchedRoot := tree.Commit().Bytes()
-				if _, err := tree.(*InternalNode).BatchSerialize(); err != nil {
-					t.Fatalf("failed to serialize batched tree: %v", err)
-				}
-				batchedDuration += time.Since(now)
-
-				if unbatchedRoot != batchedRoot {
-					t.Fatalf("expected %x, got %x", unbatchedRoot, batchedRoot)
-				}
 			}
 
-			fmt.Printf("\tIf %d extra key-values are migrated: unbatched %dms, batched %dms, %.02fx\n", migrationKeyValueCount, (unbatchedDuration / time.Duration(iterations)).Milliseconds(), (batchedDuration / time.Duration(iterations)).Milliseconds(), float64(unbatchedDuration.Milliseconds())/float64(batchedDuration.Milliseconds()))
+			fmt.Printf("\tIf %d extra key-values are migrated: unbatched %dms\n", migrationKeyValueCount, (unbatchedDuration / time.Duration(iterations)).Milliseconds())
 		}
 	}
 }
-
 func genRandomTree(rand *mRand.Rand, keyValueCount int) VerkleNode {
 	tree := New()
 	for _, kv := range genRandomKeyValues(rand, keyValueCount) {
@@ -1310,7 +1268,7 @@ func genRandomKeyValues(rand *mRand.Rand, count int) []keyValue {
 	return ret
 }
 
-func BenchmarkBatchLeavesInsert(b *testing.B) {
+func BenchmarkNewLeavesInsert(b *testing.B) {
 	treeInitialKeyValCount := 1_000
 	migrationKeyValueCount := 5_000
 
@@ -1326,31 +1284,10 @@ func BenchmarkBatchLeavesInsert(b *testing.B) {
 		b.StartTimer()
 
 		// Create LeafNodes in batch mode.
-		nodeValues := make([]BatchNewLeafNodeData, 0, len(randomKeyValues))
-		curr := BatchNewLeafNodeData{
-			Stem:   randomKeyValues[0].key[:StemSize],
-			Values: map[byte][]byte{randomKeyValues[0].key[StemSize]: randomKeyValues[0].value},
-		}
 		for _, kv := range randomKeyValues[1:] {
-			if bytes.Equal(curr.Stem, kv.key[:StemSize]) {
-				curr.Values[kv.key[StemSize]] = kv.value
-				continue
-			}
-			nodeValues = append(nodeValues, curr)
-			curr = BatchNewLeafNodeData{
-				Stem:   kv.key[:StemSize],
-				Values: map[byte][]byte{kv.key[StemSize]: kv.value},
-			}
+			tree.Insert(kv.key, kv.value, nil)
 		}
-		// Append last remaining node.
-		nodeValues = append(nodeValues, curr)
-
-		// Create all leaves in batch mode so we can optimize cryptography operations.
-		newLeaves := BatchNewLeafNode(nodeValues)
-		if err := tree.(*InternalNode).InsertMigratedLeaves(newLeaves, nil); err != nil {
-			b.Fatalf("failed to insert key: %v", err)
-		}
-
+		tree.Commit()
 		if _, err := tree.(*InternalNode).BatchSerialize(); err != nil {
 			b.Fatalf("failed to serialize batched tree: %v", err)
 		}

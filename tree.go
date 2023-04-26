@@ -30,6 +30,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"runtime"
+	"sync"
 
 	"github.com/crate-crypto/go-ipa/banderwagon"
 )
@@ -200,6 +202,7 @@ func (n *InternalNode) toExportable() *ExportableInternalNode {
 		case *InternalNode:
 			exportable.Children[i] = child.toExportable()
 		case *LeafNode:
+			child.Commit()
 			exportable.Children[i] = &ExportableLeafNode{
 				Stem:   child.stem,
 				Values: child.values,
@@ -248,47 +251,14 @@ func NewStatelessInternal(depth byte, comm *Point) VerkleNode {
 
 // New creates a new leaf node
 func NewLeafNode(stem []byte, values [][]byte) *LeafNode {
-	cfg := GetConfig()
-
-	// C1.
-	var c1poly [NodeWidth]Fr
-	var c1 *Point
-	count := fillSuffixTreePoly(c1poly[:], values[:NodeWidth/2])
-	containsEmptyCodeHash := len(c1poly) >= EmptyCodeHashSecondHalfIdx &&
-		c1poly[EmptyCodeHashFirstHalfIdx].Equal(&EmptyCodeHashFirstHalfValue) &&
-		c1poly[EmptyCodeHashSecondHalfIdx].Equal(&EmptyCodeHashSecondHalfValue)
-	if containsEmptyCodeHash {
-		// Clear out values of the cached point.
-		c1poly[EmptyCodeHashFirstHalfIdx] = FrZero
-		c1poly[EmptyCodeHashSecondHalfIdx] = FrZero
-		// Calculate the remaining part of c1 and add to the base value.
-		partialc1 := cfg.CommitToPoly(c1poly[:], NodeWidth-count-2)
-		c1 = new(Point)
-		c1.Add(&EmptyCodeHashPoint, partialc1)
-	} else {
-		c1 = cfg.CommitToPoly(c1poly[:], NodeWidth-count)
-	}
-
-	// C2.
-	var c2poly [NodeWidth]Fr
-	count = fillSuffixTreePoly(c2poly[:], values[NodeWidth/2:])
-	c2 := cfg.CommitToPoly(c2poly[:], NodeWidth-count)
-
-	// Root commitment preparation for calculation.
-	stem = stem[:StemSize] // enforce a 31-byte length
-	var poly [NodeWidth]Fr
-	poly[0].SetUint64(1)
-	StemFromBytes(&poly[1], stem)
-	toFrMultiple([]*Fr{&poly[2], &poly[3]}, []*Point{c1, c2})
-
 	return &LeafNode{
 		// depth will be 0, but the commitment calculation
 		// does not need it, and so it won't be free.
 		values:     values,
 		stem:       stem,
-		commitment: cfg.CommitToPoly(poly[:], NodeWidth-4),
-		c1:         c1,
-		c2:         c2,
+		commitment: nil,
+		c1:         nil,
+		c2:         nil,
 	}
 }
 
@@ -654,11 +624,33 @@ func (n *InternalNode) fillLevels(levels [][]*InternalNode) {
 	}
 }
 
+func (n *InternalNode) findNewLeafNodes(newLeaves []*LeafNode) []*LeafNode {
+	for idx := range n.cow {
+		child := n.children[idx]
+		if childInternalNode, ok := child.(*InternalNode); ok && len(childInternalNode.cow) > 0 {
+			newLeaves = childInternalNode.findNewLeafNodes(newLeaves)
+		} else if leafNode, ok := child.(*LeafNode); ok {
+			if leafNode.commitment == nil {
+				newLeaves = append(newLeaves, leafNode)
+			}
+		}
+	}
+	return newLeaves
+}
+
 func (n *InternalNode) Commit() *Point {
 	if len(n.cow) == 0 {
 		return n.commitment
 	}
 
+	// New leaf nodes.
+	newLeaves := make([]*LeafNode, 0, 64)
+	newLeaves = n.findNewLeafNodes(newLeaves)
+	if len(newLeaves) > 0 {
+		batchCommitLeafNodes(newLeaves)
+	}
+
+	// Internal nodes.
 	internalNodeLevels := make([][]*InternalNode, StemSize)
 	n.fillLevels(internalNodeLevels)
 
@@ -1027,6 +1019,11 @@ func (n *LeafNode) updateCn(index byte, value []byte, c *Point) {
 }
 
 func (n *LeafNode) updateLeaf(index byte, value []byte) {
+	if n.commitment == nil {
+		n.values[index] = value
+		return
+	}
+
 	// Update the corresponding C1 or C2 commitment.
 	var c *Point
 	var oldC Point
@@ -1051,6 +1048,15 @@ func (n *LeafNode) updateLeaf(index byte, value []byte) {
 }
 
 func (n *LeafNode) updateMultipleLeaves(values [][]byte) {
+	if n.commitment == nil {
+		for i, v := range values {
+			if len(v) != 0 && !bytes.Equal(v, n.values[i]) {
+				n.values[i] = v
+			}
+		}
+		return
+	}
+
 	var oldC1, oldC2 *Point
 
 	// We iterate the values, and we update the C1 and/or C2 commitments depending on the index.
@@ -1224,6 +1230,10 @@ func (n *LeafNode) Commitment() *Point {
 }
 
 func (n *LeafNode) Commit() *Point {
+	if n.commitment == nil {
+		commitLeafNodes([]*LeafNode{n})
+	}
+
 	return n.commitment
 }
 
@@ -1405,6 +1415,7 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 // Serialize serializes a LeafNode.
 // The format is: <nodeType><stem><bitlist><c1comm><c2comm><children...>
 func (n *LeafNode) Serialize() ([]byte, error) {
+	n.Commit()
 	cBytes := banderwagon.ElementsToBytes([]*banderwagon.Element{n.c1, n.c2})
 	return n.serializeWithCompressedCommitments(cBytes[0], cBytes[1]), nil
 }
@@ -1634,4 +1645,77 @@ func (n *LeafNode) serializeWithCompressedCommitments(c1Bytes [32]byte, c2Bytes 
 	result = append(result, children...)
 
 	return result
+}
+
+func batchCommitLeafNodes(leaves []*LeafNode) {
+	minBatchSize := 8
+	if len(leaves) < minBatchSize {
+		commitLeafNodes(leaves)
+		return
+	}
+
+	batchSize := len(leaves) / runtime.NumCPU()
+	if batchSize < minBatchSize {
+		batchSize = minBatchSize
+	}
+
+	var wg sync.WaitGroup
+	for start := 0; start < len(leaves); start += batchSize {
+		end := start + batchSize
+		if end > len(leaves) {
+			end = len(leaves)
+		}
+		wg.Add(1)
+		go func(leaves []*LeafNode) {
+			defer wg.Done()
+			commitLeafNodes(leaves)
+		}(leaves[start:end])
+	}
+	wg.Wait()
+}
+
+func commitLeafNodes(leaves []*LeafNode) {
+	cfg := GetConfig()
+
+	c1c2points := make([]*Point, 2*len(leaves))
+	c1c2frs := make([]*Fr, 2*len(leaves))
+	for i, n := range leaves {
+		// C1.
+		var c1poly [NodeWidth]Fr
+		count := fillSuffixTreePoly(c1poly[:], n.values[:NodeWidth/2])
+		containsEmptyCodeHash := len(c1poly) >= EmptyCodeHashSecondHalfIdx &&
+			c1poly[EmptyCodeHashFirstHalfIdx].Equal(&EmptyCodeHashFirstHalfValue) &&
+			c1poly[EmptyCodeHashSecondHalfIdx].Equal(&EmptyCodeHashSecondHalfValue)
+		if containsEmptyCodeHash {
+			// Clear out values of the cached point.
+			c1poly[EmptyCodeHashFirstHalfIdx] = FrZero
+			c1poly[EmptyCodeHashSecondHalfIdx] = FrZero
+			// Calculate the remaining part of c1 and add to the base value.
+			partialc1 := cfg.CommitToPoly(c1poly[:], NodeWidth-count-2)
+			n.c1 = new(Point)
+			n.c1.Add(&EmptyCodeHashPoint, partialc1)
+		} else {
+			n.c1 = cfg.CommitToPoly(c1poly[:], NodeWidth-count)
+		}
+
+		// C2.
+		var c2poly [NodeWidth]Fr
+		count = fillSuffixTreePoly(c2poly[:], n.values[NodeWidth/2:])
+		n.c2 = cfg.CommitToPoly(c2poly[:], NodeWidth-count)
+
+		c1c2points[2*i], c1c2points[2*i+1] = n.c1, n.c2
+		c1c2frs[2*i], c1c2frs[2*i+1] = new(Fr), new(Fr)
+	}
+
+	toFrMultiple(c1c2frs, c1c2points)
+
+	var poly [NodeWidth]Fr
+	poly[0].SetUint64(1)
+	for i, nv := range leaves {
+		StemFromBytes(&poly[1], nv.stem)
+		poly[2] = *c1c2frs[2*i]
+		poly[3] = *c1c2frs[2*i+1]
+
+		nv.commitment = cfg.CommitToPoly(poly[:], 252)
+	}
 }
