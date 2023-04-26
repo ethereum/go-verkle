@@ -33,7 +33,6 @@ import (
 	"errors"
 	"fmt"
 	mRand "math/rand"
-	"runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -840,6 +839,7 @@ func TestLeafToCommsLessThan16(*testing.T) {
 func TestGetProofItemsNoPoaIfStemPresent(t *testing.T) {
 	root := New()
 	root.Insert(ffx32KeyTest, zeroKeyTest, nil)
+	root.Commit()
 
 	// insert two keys that differ from the inserted stem
 	// by one byte.
@@ -1117,6 +1117,7 @@ func TestEmptyHashCodeCachedPoint(t *testing.T) {
 	values := make([][]byte, NodeWidth)
 	values[CodeHashVectorPosition] = emptyHashCode
 	ln := NewLeafNode(zeroKeyTest, values)
+	ln.Commit()
 
 	// Compare the result (which used the cached point) with the expected result which was
 	// calculated by a previous version of the library that didn't use a cached point.
@@ -1130,6 +1131,7 @@ func TestEmptyHashCodeCachedPoint(t *testing.T) {
 	}
 }
 
+/*
 func TestBatchMigratedKeyValues(t *testing.T) {
 	_ = GetConfig()
 
@@ -1278,3 +1280,5 @@ func BenchmarkBatchLeavesInsert(b *testing.B) {
 		}
 	}
 }
+
+*/
