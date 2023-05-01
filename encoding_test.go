@@ -22,3 +22,23 @@ func TestLeafStemLength(t *testing.T) {
 		t.Fatalf("invalid serialization when the stem is longer than 31 bytes: %x (%d bytes)", ser, len(ser))
 	}
 }
+
+func TestInvalidNodeEncoding(t *testing.T) {
+	// Test a short payload.
+	if _, err := ParseNode([]byte{leafRLPType}, 0, SerializedPointCompressed{}); err != errSerializedPayloadTooShort {
+		t.Fatalf("invalid error, got %v, expected %v", err, errSerializedPayloadTooShort)
+	}
+
+	// Test an invalid node type.
+	values := make([][]byte, NodeWidth)
+	values[42] = testValue
+	ln := NewLeafNode(ffx32KeyTest, values)
+	lnbytes, err := ln.Serialize()
+	if err != nil {
+		t.Fatalf("serializing leaf node: %v", err)
+	}
+	lnbytes[0] = leafRLPType + internalRLPType // Change the type of the node to something invalid.
+	if _, err := ParseNode(lnbytes, 0, SerializedPointCompressed{}); err != ErrInvalidNodeEncoding {
+		t.Fatalf("invalid error, got %v, expected %v", err, ErrInvalidNodeEncoding)
+	}
+}
