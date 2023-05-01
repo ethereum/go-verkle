@@ -75,7 +75,3 @@ func FromBytes(fr *Fr, data []byte) {
 func Equal(self *Point, other *Point) bool {
 	return other.Equal(self)
 }
-
-func Generator() *Point {
-	return new(Point).Identity()
-}
