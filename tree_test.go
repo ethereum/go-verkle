@@ -698,6 +698,10 @@ func TestGetResolveFromHash(t *testing.T) {
 	if !bytes.Equal(data, zeroKeyTest) {
 		t.Fatalf("invalid result: %x != %x", zeroKeyTest, len(data))
 	}
+
+	if hsh := root.Hash(); hsh == nil {
+		t.Fatalf("root hash can't be nil")
+	}
 }
 
 func TestGetKey(t *testing.T) {
@@ -1278,4 +1282,65 @@ func BenchmarkBatchLeavesInsert(b *testing.B) {
 			b.Fatalf("failed to serialize batched tree: %v", err)
 		}
 	}
+}
+
+func TestManipulateChildren(t *testing.T) {
+	root := New()
+	root.Insert(ffx32KeyTest, testValue, nil)
+
+	// Verify that Children() is returning what's expected.
+	ln, ok := root.(*InternalNode).Children()[NodeWidth-1].(*LeafNode)
+	if !ok {
+		t.Fatalf("failed to get expected leaf node")
+	}
+	if !bytes.Equal(ln.stem, ffx32KeyTest[:StemSize]) || !bytes.Equal(ln.values[NodeWidth-1], testValue) {
+		t.Fatalf("failed to get expected leaf node stem and values")
+	}
+
+	// Verify SetChild()
+	if err := root.(*InternalNode).SetChild(0, Empty{}); err != nil {
+		t.Fatalf("failed to set child: %v", err)
+	}
+	if _, ok := root.(*InternalNode).Children()[0].(Empty); !ok {
+		t.Fatalf("failed to set child")
+	}
+
+	// Verify SetChild() error case.
+	if err := root.(*InternalNode).SetChild(NodeWidth, Empty{}); err == nil {
+		t.Fatalf("expected error")
+	}
+}
+
+func TestLeafNodeInsert(t *testing.T) {
+	values := make([][]byte, NodeWidth)
+	values[42] = testValue
+	ln := NewLeafNode(ffx32KeyTest[:StemSize], values)
+
+	// Check success case.
+	ffx32KeyTest2 := append([]byte{}, ffx32KeyTest...)
+	ffx32KeyTest2[StemSize] = 11
+	newValue := []byte("22222222222222222222222222222222")
+	if err := ln.Insert(ffx32KeyTest2, newValue, nil); err != nil {
+		t.Fatalf("failed to insert leaf node key/value: %v", err)
+	}
+	if !bytes.Equal(ln.values[42], testValue) {
+		t.Fatalf("the original value in other index should not be overwritten")
+	}
+	if !bytes.Equal(ln.values[11], newValue) {
+		t.Fatalf("the inserted value isn't present")
+	}
+
+	// Check wrong *key* length.
+	if err := ln.Insert(ffx32KeyTest2[:StemSize], newValue, nil); err == nil {
+		t.Fatalf("key with size 31 should not be accepted, keys must have length StemSize+1")
+	}
+
+	// Check insertion of key without the same stem
+	ffx32KeyTest3 := append([]byte{}, ffx32KeyTest...)
+	ffx32KeyTest3[StemSize] = 11
+	ffx32KeyTest3[StemSize-5] = 99
+	if err := ln.Insert(ffx32KeyTest3, newValue, nil); err == nil {
+		t.Fatalf("inserting a key with a different stem should fail")
+	}
+
 }
