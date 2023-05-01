@@ -52,7 +52,7 @@ func (UnknownNode) Commitment() *Point {
 }
 
 func (UnknownNode) GetProofItems(keylist) (*ProofElements, []byte, [][]byte, error) {
-	panic("trying to produce a commitment for a subtree missing from the stateless view")
+	return nil, nil, nil, errors.New("can't generate proof items for unknown node")
 }
 
 func (UnknownNode) Serialize() ([]byte, error) {
