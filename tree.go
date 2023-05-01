@@ -912,23 +912,6 @@ func (n *InternalNode) setDepth(d byte) {
 	n.depth = d
 }
 
-// MergeTrees takes a series of subtrees that got filled following
-// a command-and-conquer method, and merges them into a single tree.
-func MergeTrees(subroots []*InternalNode) VerkleNode {
-	root := New().(*InternalNode)
-	for _, subroot := range subroots {
-		for i := 0; i < NodeWidth; i++ {
-			if _, ok := subroot.children[i].(Empty); ok {
-				continue
-			}
-			root.TouchCoW(byte(i))
-			root.children[i] = subroot.children[i]
-		}
-	}
-
-	return root
-}
-
 func (n *LeafNode) ToHashedNode() *HashedNode {
 	if n.commitment == nil {
 		panic("nil commitment")
