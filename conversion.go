@@ -53,7 +53,7 @@ func BatchNewLeafNode(nodesValues []BatchNewLeafNodeData) []LeafNode {
 			var poly [NodeWidth]Fr
 			poly[0].SetUint64(1)
 			for i, nv := range nodesValues {
-				StemFromBytes(&poly[1], nv.Stem)
+				FromLEBytes(&poly[1], nv.Stem)
 				poly[2] = *c1c2frs[2*i]
 				poly[3] = *c1c2frs[2*i+1]
 

@@ -58,8 +58,11 @@ func toFrMultiple(res []*Fr, ps []*Point) {
 }
 
 func FromLEBytes(fr *Fr, data []byte) {
+	if len(data) > 32 {
+		panic("data is too long")
+	}
 	var aligned [32]byte
-	copy(aligned[:len(data)], data)
+	copy(aligned[:], data)
 	fr.SetBytesLE(aligned[:])
 }
 
@@ -67,12 +70,6 @@ func FromBytes(fr *Fr, data []byte) {
 	var aligned [32]byte
 	copy(aligned[32-len(data):], data)
 	fr.SetBytes(aligned[:])
-}
-
-func StemFromBytes(fr *Fr, data []byte) {
-	bytes := make([]byte, len(data))
-	copy(bytes, data)
-	fr.SetBytesLE(bytes)
 }
 
 func Equal(self *Point, other *Point) bool {
