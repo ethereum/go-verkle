@@ -286,37 +286,46 @@ func TestDeletePrune(t *testing.T) {
 	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
 	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
 	key4, _ := hex.DecodeString("0407000000000000000000000000000000000000000000000000000000000000")
+	key5, _ := hex.DecodeString("04070000000000000000000000000000000000000000000000000000000000FF")
 	tree := New()
 	tree.Insert(key1, fourtyKeyTest, nil)
 	tree.Insert(key2, fourtyKeyTest, nil)
 
-	var hash1, hash2 Point
-	CopyPoint(&hash1, tree.Commit())
+	var hashPostKey2, hashPostKey4 Point
+	CopyPoint(&hashPostKey2, tree.Commit())
 	tree.Insert(key3, fourtyKeyTest, nil)
-	CopyPoint(&hash2, tree.Commit())
 	tree.Insert(key4, fourtyKeyTest, nil)
+	CopyPoint(&hashPostKey4, tree.Commit())
+	tree.Insert(key5, fourtyKeyTest, nil)
 	tree.Commit()
 
-	if err := tree.Delete(key4, nil); err != nil {
+	// Delete key5.
+	if err := tree.Delete(key5, nil); err != nil {
 		t.Error(err)
 	}
 	postHash := tree.Commit()
-	if Equal(&hash2, postHash) {
-		t.Error("deleting leaf #4 resulted in unexpected tree")
+	// The post deletion hash should be different from the post key4 hash.
+	if Equal(&hashPostKey4, postHash) {
+		t.Error("deleting leaf #5 resulted in unexpected tree")
 	}
-	res, err := tree.Get(key4, nil)
+	res, err := tree.Get(key5, nil)
 	if err != nil {
 		t.Error(err)
 	}
 	if !bytes.Equal(res, zeroKeyTest) {
-		t.Error("leaf hasnt been deleted")
+		t.Error("leaf #5 hasn't been deleted")
 	}
 
+	// Delete key4 and key3.
+	if err := tree.Delete(key4, nil); err != nil {
+		t.Error(err)
+	}
 	if err := tree.Delete(key3, nil); err != nil {
 		t.Error(err)
 	}
 	postHash = tree.Commit()
-	if Equal(&hash1, postHash) {
+	// The post deletion hash should be different from the post key2 hash.
+	if Equal(&hashPostKey2, postHash) {
 		t.Error("deleting leaf #3 resulted in unexpected tree")
 	}
 	res, err = tree.Get(key3, nil)

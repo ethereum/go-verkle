@@ -769,6 +769,7 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 		childIdx := offset2key(group[0], n.depth)
 
 		if _, isunknown := n.children[childIdx].(UnknownNode); isunknown {
+			// TODO: add a test case to cover this scenario.
 			return nil, nil, nil, errMissingNodeInStateless
 		}
 
@@ -786,6 +787,7 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 
 		pec, es, other, err := n.children[childIdx].GetProofItems(group)
 		if err != nil {
+			// TODO: add a test case to cover this scenario.
 			return nil, nil, nil, err
 		}
 		pe.Merge(pec)
