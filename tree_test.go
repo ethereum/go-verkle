@@ -931,6 +931,39 @@ func TestInsertStem(t *testing.T) {
 	}
 }
 
+func TestInsertStemTouchingBothHalves(t *testing.T) {
+	root := New()
+
+	// Insert keys such that both C1 and C2 have values.
+	if err := root.Insert(zeroKeyTest, testValue, nil); err != nil {
+		t.Fatalf("error inserting: %v", err)
+	}
+	zeroKeyTest2 := append([]byte{}, zeroKeyTest...)
+	zeroKeyTest2[StemSize] = NodeWidth - 1 // Insert "on the opposite side" of the leaf vector.
+	root.Commit()
+
+	// Invariant check for the test.
+	ln := root.(*InternalNode).children[0].(*LeafNode)
+	if ln.c1 == nil || ln.c2 == nil {
+		t.Fatalf("invariant violated: leaf node does not have both c1 and c2")
+	}
+	originalC1 := *ln.c1
+	originalC2 := *ln.c2
+
+	// Insert a stem that touches both halves of the leaf vector.
+	newValues := make([][]byte, NodeWidth)
+	newValues[1] = testValue
+	newValues[NodeWidth-2] = testValue
+	if err := root.(*InternalNode).InsertStem(zeroKeyTest[:StemSize], newValues, nil); err != nil {
+		t.Fatalf("error inserting stem: %v", err)
+	}
+	root.Commit()
+
+	if originalC1.Equal(ln.c1) || originalC2.Equal(ln.c2) {
+		t.Fatalf("c1 and c2 must have changed")
+	}
+}
+
 func TestInsertResolveSplitLeaf(t *testing.T) {
 	var leaf *LeafNode
 
