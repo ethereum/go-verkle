@@ -1355,8 +1355,30 @@ func TestManipulateChildren(t *testing.T) {
 
 func TestLeafNodeInsert(t *testing.T) {
 	values := make([][]byte, NodeWidth)
-	values[42] = testValue
+	valIdx := 42
+	values[valIdx] = testValue
 	ln := NewLeafNode(ffx32KeyTest[:StemSize], values)
+
+	// Check we get the value correctly via Get(...).
+	getValue, err := ln.Get(append(ffx32KeyTest[:StemSize], byte(valIdx)), nil)
+	if err != nil {
+		t.Fatalf("failed to get leaf node key/value: %v", err)
+	}
+	if !bytes.Equal(getValue, testValue) {
+		t.Fatalf("failed to get expected value")
+	}
+
+	// Check we get the value correctly via Value(...).
+	getValue = ln.Value(valIdx)
+	if !bytes.Equal(getValue, testValue) {
+		t.Fatalf("failed to get expected value")
+	}
+
+	// Check we get the correct value via Values().
+	getValues := ln.Values()
+	if !bytes.Equal(getValues[valIdx], testValue) {
+		t.Fatalf("failed to get expected value")
+	}
 
 	// Check success case.
 	ffx32KeyTest2 := append([]byte{}, ffx32KeyTest...)
@@ -1365,7 +1387,7 @@ func TestLeafNodeInsert(t *testing.T) {
 	if err := ln.Insert(ffx32KeyTest2, newValue, nil); err != nil {
 		t.Fatalf("failed to insert leaf node key/value: %v", err)
 	}
-	if !bytes.Equal(ln.values[42], testValue) {
+	if !bytes.Equal(ln.values[valIdx], testValue) {
 		t.Fatalf("the original value in other index should not be overwritten")
 	}
 	if !bytes.Equal(ln.values[11], newValue) {
@@ -1377,7 +1399,7 @@ func TestLeafNodeInsert(t *testing.T) {
 		t.Fatalf("key with size 31 should not be accepted, keys must have length StemSize+1")
 	}
 
-	// Check insertion of key without the same stem
+	// Check insertion of key without the same stem.
 	ffx32KeyTest3 := append([]byte{}, ffx32KeyTest...)
 	ffx32KeyTest3[StemSize] = 11
 	ffx32KeyTest3[StemSize-5] = 99
@@ -1385,4 +1407,8 @@ func TestLeafNodeInsert(t *testing.T) {
 		t.Fatalf("inserting a key with a different stem should fail")
 	}
 
+	// Test that getting the hash returns an expected value.
+	if h := ln.Hash(); h == nil {
+		t.Fatalf("hash should not be nil")
+	}
 }

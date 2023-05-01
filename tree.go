@@ -1063,7 +1063,7 @@ func (n *LeafNode) Get(k []byte, _ NodeResolverFn) ([]byte, error) {
 		return nil, nil
 	}
 	// value can be nil, as expected by geth
-	return n.values[k[StemSize-1]], nil
+	return n.values[k[StemSize]], nil
 }
 
 func (n *LeafNode) Hash() *Fr {
