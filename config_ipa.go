@@ -59,7 +59,7 @@ func (ipac *IPAConfig) CommitToPoly(poly []Fr, _ int) *Point {
 
 var cfg *Config
 
-const precompFileName = "precomp"
+var precompFileName = "precomp"
 
 func GetConfig() *Config {
 	if cfg == nil {
