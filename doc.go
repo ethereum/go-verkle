@@ -28,13 +28,14 @@ package verkle
 import "errors"
 
 var (
-	errInsertIntoHash          = errors.New("trying to insert into hashed node")
-	errDeleteHash              = errors.New("trying to delete from a hashed subtree")
-	errReadFromInvalid         = errors.New("trying to read from an invalid child")
-	errSerializeHashedNode     = errors.New("trying to serialize a hashed internal node")
-	errInsertIntoOtherStem     = errors.New("insert splits a stem where it should not happen")
-	errStatelessAndStatefulMix = errors.New("a stateless node should not be found in a stateful tree")
-	errMissingNodeInStateless  = errors.New("trying to access a node that is missing from the stateless view")
+	errInsertIntoHash         = errors.New("trying to insert into hashed node")
+	errDeleteNonExistent      = errors.New("trying to delete non-existent leaf")
+	errDeleteHash             = errors.New("trying to delete from a hashed subtree")
+	errReadFromInvalid        = errors.New("trying to read from an invalid child")
+	errSerializeHashedNode    = errors.New("trying to serialize a hashed internal node")
+	errInsertIntoOtherStem    = errors.New("insert splits a stem where it should not happen")
+	errUnknownNodeType        = errors.New("unkown node type detected")
+	errMissingNodeInStateless = errors.New("trying to access a node that is missing from the stateless view")
 )
 
 const (
