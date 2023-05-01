@@ -44,10 +44,11 @@ import (
 var testValue = []byte("0123456789abcdef0123456789abcdef")
 
 var (
-	zeroKeyTest, _   = hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000000")
-	oneKeyTest, _    = hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000001")
-	fourtyKeyTest, _ = hex.DecodeString("4000000000000000000000000000000000000000000000000000000000000000")
-	ffx32KeyTest, _  = hex.DecodeString("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
+	zeroKeyTest, _    = hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000000")
+	oneKeyTest, _     = hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000001")
+	forkOneKeyTest, _ = hex.DecodeString("0001000000000000000000000000000000000000000000000000000000000001")
+	fourtyKeyTest, _  = hex.DecodeString("4000000000000000000000000000000000000000000000000000000000000000")
+	ffx32KeyTest, _   = hex.DecodeString("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
 )
 
 func TestInsertIntoRoot(t *testing.T) {
