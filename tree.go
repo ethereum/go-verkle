@@ -899,6 +899,32 @@ func (n *InternalNode) setDepth(d byte) {
 	n.depth = d
 }
 
+// MergeTrees takes a series of subtrees that got filled following
+// a command-and-conquer method, and merges them into a single tree.
+// This method is deprecated, use with caution.
+func MergeTrees(subroots []*InternalNode) VerkleNode {
+	root := New().(*InternalNode)
+	for _, subroot := range subroots {
+		for i := 0; i < NodeWidth; i++ {
+			if _, ok := subroot.children[i].(Empty); ok {
+				continue
+			}
+			root.touchCoW(byte(i))
+			root.children[i] = subroot.children[i]
+		}
+	}
+
+	return root
+}
+
+// TouchCoW is a helper function that will mark a child as
+// "inserted into". It is used by the conversion code to
+// mark reconstructed subtrees as 'written to', so that its
+// root commitment can be computed.
+func (n *InternalNode) touchCoW(index byte) {
+	n.cowChild(index)
+}
+
 func (n *LeafNode) ToHashedNode() *HashedNode {
 	if n.commitment == nil {
 		panic("nil commitment")
