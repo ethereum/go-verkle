@@ -388,7 +388,7 @@ func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeRes
 		newBranch.children[nextWordInInsertedKey] = leaf
 	case *InternalNode:
 		return child.InsertStem(stem, values, resolver)
-	default:
+	default: // It should be an UknonwnNode.
 		return errUnknownNodeType
 	}
 
@@ -597,6 +597,9 @@ func (n *InternalNode) Get(key []byte, resolver NodeResolverFn) ([]byte, error) 
 		return nil, nil
 	}
 
+	// Return nil as a signal that the value isn't
+	// present in the tree. This matches the behavior
+	// of SecureTrie in Geth.
 	return stemValues[key[StemSize]], nil
 }
 
