@@ -275,7 +275,7 @@ func NewLeafNode(stem []byte, values [][]byte) *LeafNode {
 	stem = stem[:StemSize] // enforce a 31-byte length
 	var poly [NodeWidth]Fr
 	poly[0].SetUint64(1)
-	FromLEBytes(&poly[1], stem)
+	StemFromBytes(&poly[1], stem)
 	toFrMultiple([]*Fr{&poly[2], &poly[3]}, []*Point{c1, c2})
 
 	return &LeafNode{
@@ -1172,7 +1172,7 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 
 	// Initialize the top-level polynomial with 1 + stem + C1 + C2
 	poly[0].SetUint64(1)
-	FromLEBytes(&poly[1], n.stem)
+	StemFromBytes(&poly[1], n.stem)
 	toFrMultiple([]*Fr{&poly[2], &poly[3]}, []*Point{n.c1, n.c2})
 
 	// First pass: add top-level elements first

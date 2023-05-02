@@ -53,7 +53,7 @@ func extensionAndSuffixOneKey(key, value []byte, ret *Point) {
 		t1, t2, c1                      Point
 	)
 	stemComm0 := srs[0]
-	FromLEBytes(&v, key[:31])
+	StemFromBytes(&v, key[:31])
 	stemComm1.ScalarMul(&srs[1], &v)
 
 	leafToComms(vs[:], value)
@@ -146,7 +146,7 @@ func TestInsertSameStemTwoLeaves(t *testing.T) {
 	comm := root.Commit()
 
 	stemComm0 := srs[0]
-	FromLEBytes(&v, key_a[:31])
+	StemFromBytes(&v, key_a[:31])
 	stemComm1.ScalarMul(&srs[1], &v)
 
 	leafToComms(vs[:], key_a)
@@ -267,7 +267,7 @@ func TestPaddingInFromLEBytes(t *testing.T) {
 	var fr1, fr2 Fr
 	FromLEBytes(&fr1, ffx32KeyTest[:16])
 	key, _ := hex.DecodeString("ffffffffffffffffffffffffffffffff00000000000000000000000000000000")
-	FromLEBytes(&fr2, key)
+	StemFromBytes(&fr2, key[:StemSize])
 
 	if !fr1.Equal(&fr2) {
 		t.Fatal("byte alignment")

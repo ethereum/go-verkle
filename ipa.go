@@ -66,6 +66,13 @@ func FromLEBytes(fr *Fr, data []byte) {
 	fr.SetBytesLE(aligned[:])
 }
 
+func StemFromBytes(fr *Fr, data []byte) {
+	if len(data) != StemSize {
+		panic("data length must be StemSize")
+	}
+	FromLEBytes(fr, data)
+}
+
 func FromBytes(fr *Fr, data []byte) {
 	var aligned [32]byte
 	copy(aligned[32-len(data):], data)
