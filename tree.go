@@ -942,12 +942,12 @@ func (n *LeafNode) Insert(key []byte, value []byte, _ NodeResolverFn) error {
 	}
 	values := make([][]byte, NodeWidth)
 	values[key[StemSize]] = value
-	return n.insertMultiple(key, values)
+	return n.insertMultiple(key[:StemSize], values)
 }
 
-func (n *LeafNode) insertMultiple(key []byte, values [][]byte) error {
-	// Sanity check: ensure the stems are is the same.
-	if !equalPaths(key, n.stem) {
+func (n *LeafNode) insertMultiple(stem []byte, values [][]byte) error {
+	// Sanity check: ensure the stems are the same.
+	if !equalPaths(stem, n.stem) {
 		return errInsertIntoOtherStem
 	}
 
