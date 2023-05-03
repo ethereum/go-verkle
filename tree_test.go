@@ -688,12 +688,12 @@ func TestGetResolveFromHash(t *testing.T) {
 	}
 
 	data, err := root.Get(zeroKeyTest, nil)
-	if err != errReadFromInvalid || len(data) != 0 {
+	if !errors.Is(err, errReadFromInvalid) || len(data) != 0 {
 		t.Fatal(err)
 	}
 
 	data, err = root.Get(zeroKeyTest, failingGetter)
-	if err != dummyError || len(data) != 0 {
+	if !errors.Is(err, dummyError) || len(data) != 0 {
 		t.Fatal(err)
 	}
 

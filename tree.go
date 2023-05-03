@@ -475,12 +475,12 @@ func (n *InternalNode) GetStem(stem []byte, resolver NodeResolverFn) ([][]byte, 
 		return nil, nil
 	case *HashedNode:
 		if resolver == nil {
-			return nil, errReadFromInvalid
+			return nil, fmt.Errorf("hashed node %x at depth %d along stem %x could not be resolved: %w", child.Commitment().Bytes(), n.depth, stem, errReadFromInvalid)
 		}
 		hash := child.commitment
 		serialized, err := resolver(hash)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("resolving node %x at depth %d: %w", stem, n.depth, err)
 		}
 		resolved, err := ParseNode(serialized, n.depth+1, hash)
 		if err != nil {
