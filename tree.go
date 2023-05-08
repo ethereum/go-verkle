@@ -516,7 +516,7 @@ func (n *InternalNode) Delete(key []byte, resolver NodeResolverFn) error {
 	nChild := offset2key(key, n.depth)
 	switch child := n.children[nChild].(type) {
 	case Empty:
-		return errDeleteNonExistent
+		return nil
 	case *HashedNode:
 		if resolver == nil {
 			return errDeleteHash
@@ -1073,7 +1073,7 @@ func (n *LeafNode) updateMultipleLeaves(values [][]byte) {
 func (n *LeafNode) Delete(k []byte, _ NodeResolverFn) error {
 	// Sanity check: ensure the key header is the same:
 	if !equalPaths(k, n.stem) {
-		return errDeleteNonExistent
+		return nil
 	}
 
 	var zero [32]byte
