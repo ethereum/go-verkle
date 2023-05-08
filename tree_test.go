@@ -275,8 +275,8 @@ func TestDeleteNonExistent(t *testing.T) {
 	tree := New()
 	tree.Insert(key1, fourtyKeyTest, nil)
 	tree.Insert(key2, fourtyKeyTest, nil)
-	if err := tree.Delete(key3, nil); err != errDeleteNonExistent {
-		t.Error("should fail to delete non-existent key")
+	if err := tree.Delete(key3, nil); err != nil {
+		t.Error("should not fail when deleting a non-existent key")
 	}
 }
 
@@ -354,8 +354,8 @@ func TestDeleteUnequalPath(t *testing.T) {
 	tree.Insert(key3, fourtyKeyTest, nil)
 	tree.Commit()
 
-	if err := tree.Delete(key2, nil); err != errDeleteNonExistent {
-		t.Fatalf("didn't catch the deletion of non-existing key, err =%v", err)
+	if err := tree.Delete(key2, nil); err != nil {
+		t.Fatalf("errored during the deletion of non-existing key, err =%v", err)
 	}
 }
 
