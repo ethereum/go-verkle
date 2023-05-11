@@ -267,7 +267,7 @@ func TestPaddingInFromLEBytes(t *testing.T) {
 	var fr1, fr2 Fr
 	FromLEBytes(&fr1, ffx32KeyTest[:16])
 	key, _ := hex.DecodeString("ffffffffffffffffffffffffffffffff00000000000000000000000000000000")
-	FromLEBytes(&fr2, key)
+	StemFromBytes(&fr2, key[:StemSize])
 
 	if !fr1.Equal(&fr2) {
 		t.Fatal("byte alignment")

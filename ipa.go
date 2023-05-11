@@ -58,9 +58,19 @@ func toFrMultiple(res []*Fr, ps []*Point) {
 }
 
 func FromLEBytes(fr *Fr, data []byte) {
+	if len(data) > 32 {
+		panic("data is too long")
+	}
 	var aligned [32]byte
-	copy(aligned[:len(data)], data)
+	copy(aligned[:], data)
 	fr.SetBytesLE(aligned[:])
+}
+
+func StemFromBytes(fr *Fr, data []byte) {
+	if len(data) != StemSize {
+		panic("data length must be StemSize")
+	}
+	FromLEBytes(fr, data)
 }
 
 func FromBytes(fr *Fr, data []byte) {
@@ -69,16 +79,6 @@ func FromBytes(fr *Fr, data []byte) {
 	fr.SetBytes(aligned[:])
 }
 
-func StemFromBytes(fr *Fr, data []byte) {
-	bytes := make([]byte, len(data))
-	copy(bytes, data)
-	fr.SetBytesLE(bytes)
-}
-
 func Equal(self *Point, other *Point) bool {
 	return other.Equal(self)
-}
-
-func Generator() *Point {
-	return new(Point).Identity()
 }

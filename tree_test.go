@@ -44,10 +44,11 @@ import (
 var testValue = []byte("0123456789abcdef0123456789abcdef")
 
 var (
-	zeroKeyTest, _   = hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000000")
-	oneKeyTest, _    = hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000001")
-	fourtyKeyTest, _ = hex.DecodeString("4000000000000000000000000000000000000000000000000000000000000000")
-	ffx32KeyTest, _  = hex.DecodeString("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
+	zeroKeyTest, _    = hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000000")
+	oneKeyTest, _     = hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000001")
+	forkOneKeyTest, _ = hex.DecodeString("0001000000000000000000000000000000000000000000000000000000000001")
+	fourtyKeyTest, _  = hex.DecodeString("4000000000000000000000000000000000000000000000000000000000000000")
+	ffx32KeyTest, _   = hex.DecodeString("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
 )
 
 func TestInsertIntoRoot(t *testing.T) {
@@ -285,37 +286,46 @@ func TestDeletePrune(t *testing.T) {
 	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
 	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
 	key4, _ := hex.DecodeString("0407000000000000000000000000000000000000000000000000000000000000")
+	key5, _ := hex.DecodeString("04070000000000000000000000000000000000000000000000000000000000FF")
 	tree := New()
 	tree.Insert(key1, fourtyKeyTest, nil)
 	tree.Insert(key2, fourtyKeyTest, nil)
 
-	var hash1, hash2 Point
-	CopyPoint(&hash1, tree.Commit())
+	var hashPostKey2, hashPostKey4 Point
+	CopyPoint(&hashPostKey2, tree.Commit())
 	tree.Insert(key3, fourtyKeyTest, nil)
-	CopyPoint(&hash2, tree.Commit())
 	tree.Insert(key4, fourtyKeyTest, nil)
+	CopyPoint(&hashPostKey4, tree.Commit())
+	tree.Insert(key5, fourtyKeyTest, nil)
 	tree.Commit()
 
-	if err := tree.Delete(key4, nil); err != nil {
+	// Delete key5.
+	if err := tree.Delete(key5, nil); err != nil {
 		t.Error(err)
 	}
 	postHash := tree.Commit()
-	if Equal(&hash2, postHash) {
-		t.Error("deleting leaf #4 resulted in unexpected tree")
+	// The post deletion hash should be different from the post key4 hash.
+	if Equal(&hashPostKey4, postHash) {
+		t.Error("deleting leaf #5 resulted in unexpected tree")
 	}
-	res, err := tree.Get(key4, nil)
+	res, err := tree.Get(key5, nil)
 	if err != nil {
 		t.Error(err)
 	}
 	if !bytes.Equal(res, zeroKeyTest) {
-		t.Error("leaf hasnt been deleted")
+		t.Error("leaf #5 hasn't been deleted")
 	}
 
+	// Delete key4 and key3.
+	if err := tree.Delete(key4, nil); err != nil {
+		t.Error(err)
+	}
 	if err := tree.Delete(key3, nil); err != nil {
 		t.Error(err)
 	}
 	postHash = tree.Commit()
-	if Equal(&hash1, postHash) {
+	// The post deletion hash should be different from the post key2 hash.
+	if Equal(&hashPostKey2, postHash) {
 		t.Error("deleting leaf #3 resulted in unexpected tree")
 	}
 	res, err = tree.Get(key3, nil)
@@ -678,12 +688,12 @@ func TestGetResolveFromHash(t *testing.T) {
 	}
 
 	data, err := root.Get(zeroKeyTest, nil)
-	if err != errReadFromInvalid || len(data) != 0 {
+	if !errors.Is(err, errReadFromInvalid) || len(data) != 0 {
 		t.Fatal(err)
 	}
 
 	data, err = root.Get(zeroKeyTest, failingGetter)
-	if err != dummyError || len(data) != 0 {
+	if !errors.Is(err, dummyError) || len(data) != 0 {
 		t.Fatal(err)
 	}
 
@@ -696,6 +706,10 @@ func TestGetResolveFromHash(t *testing.T) {
 	}
 	if !bytes.Equal(data, zeroKeyTest) {
 		t.Fatalf("invalid result: %x != %x", zeroKeyTest, len(data))
+	}
+
+	if hsh := root.Hash(); hsh == nil {
+		t.Fatalf("root hash can't be nil")
 	}
 }
 
@@ -914,6 +928,39 @@ func TestInsertStem(t *testing.T) {
 
 	if !Equal(r1c, r2c) {
 		t.Fatalf("differing commitments %x != %x %s %s", r1c.Bytes(), r2c.Bytes(), ToDot(root1), ToDot(root2))
+	}
+}
+
+func TestInsertStemTouchingBothHalves(t *testing.T) {
+	root := New()
+
+	// Insert keys such that both C1 and C2 have values.
+	if err := root.Insert(zeroKeyTest, testValue, nil); err != nil {
+		t.Fatalf("error inserting: %v", err)
+	}
+	zeroKeyTest2 := append([]byte{}, zeroKeyTest...)
+	zeroKeyTest2[StemSize] = NodeWidth - 1 // Insert "on the opposite side" of the leaf vector.
+	root.Commit()
+
+	// Invariant check for the test.
+	ln := root.(*InternalNode).children[0].(*LeafNode)
+	if ln.c1 == nil || ln.c2 == nil {
+		t.Fatalf("invariant violated: leaf node does not have both c1 and c2")
+	}
+	originalC1 := *ln.c1
+	originalC2 := *ln.c2
+
+	// Insert a stem that touches both halves of the leaf vector.
+	newValues := make([][]byte, NodeWidth)
+	newValues[1] = testValue
+	newValues[NodeWidth-2] = testValue
+	if err := root.(*InternalNode).InsertStem(zeroKeyTest[:StemSize], newValues, nil); err != nil {
+		t.Fatalf("error inserting stem: %v", err)
+	}
+	root.Commit()
+
+	if originalC1.Equal(ln.c1) || originalC2.Equal(ln.c2) {
+		t.Fatalf("c1 and c2 must have changed")
 	}
 }
 
@@ -1276,5 +1323,92 @@ func BenchmarkBatchLeavesInsert(b *testing.B) {
 		if _, err := tree.(*InternalNode).BatchSerialize(); err != nil {
 			b.Fatalf("failed to serialize batched tree: %v", err)
 		}
+	}
+}
+
+func TestManipulateChildren(t *testing.T) {
+	root := New()
+	root.Insert(ffx32KeyTest, testValue, nil)
+
+	// Verify that Children() is returning what's expected.
+	ln, ok := root.(*InternalNode).Children()[NodeWidth-1].(*LeafNode)
+	if !ok {
+		t.Fatalf("failed to get expected leaf node")
+	}
+	if !bytes.Equal(ln.stem, ffx32KeyTest[:StemSize]) || !bytes.Equal(ln.values[NodeWidth-1], testValue) {
+		t.Fatalf("failed to get expected leaf node stem and values")
+	}
+
+	// Verify SetChild()
+	if err := root.(*InternalNode).SetChild(0, Empty{}); err != nil {
+		t.Fatalf("failed to set child: %v", err)
+	}
+	if _, ok := root.(*InternalNode).Children()[0].(Empty); !ok {
+		t.Fatalf("failed to set child")
+	}
+
+	// Verify SetChild() error case.
+	if err := root.(*InternalNode).SetChild(NodeWidth, Empty{}); err == nil {
+		t.Fatalf("expected error")
+	}
+}
+
+func TestLeafNodeInsert(t *testing.T) {
+	values := make([][]byte, NodeWidth)
+	valIdx := 42
+	values[valIdx] = testValue
+	ln := NewLeafNode(ffx32KeyTest[:StemSize], values)
+
+	// Check we get the value correctly via Get(...).
+	getValue, err := ln.Get(append(ffx32KeyTest[:StemSize], byte(valIdx)), nil)
+	if err != nil {
+		t.Fatalf("failed to get leaf node key/value: %v", err)
+	}
+	if !bytes.Equal(getValue, testValue) {
+		t.Fatalf("failed to get expected value")
+	}
+
+	// Check we get the value correctly via Value(...).
+	getValue = ln.Value(valIdx)
+	if !bytes.Equal(getValue, testValue) {
+		t.Fatalf("failed to get expected value")
+	}
+
+	// Check we get the correct value via Values().
+	getValues := ln.Values()
+	if !bytes.Equal(getValues[valIdx], testValue) {
+		t.Fatalf("failed to get expected value")
+	}
+
+	// Check success case.
+	ffx32KeyTest2 := append([]byte{}, ffx32KeyTest...)
+	ffx32KeyTest2[StemSize] = 11
+	newValue := []byte("22222222222222222222222222222222")
+	if err := ln.Insert(ffx32KeyTest2, newValue, nil); err != nil {
+		t.Fatalf("failed to insert leaf node key/value: %v", err)
+	}
+	if !bytes.Equal(ln.values[valIdx], testValue) {
+		t.Fatalf("the original value in other index should not be overwritten")
+	}
+	if !bytes.Equal(ln.values[11], newValue) {
+		t.Fatalf("the inserted value isn't present")
+	}
+
+	// Check wrong *key* length.
+	if err := ln.Insert(ffx32KeyTest2[:StemSize], newValue, nil); err == nil {
+		t.Fatalf("key with size 31 should not be accepted, keys must have length StemSize+1")
+	}
+
+	// Check insertion of key without the same stem.
+	ffx32KeyTest3 := append([]byte{}, ffx32KeyTest...)
+	ffx32KeyTest3[StemSize] = 11
+	ffx32KeyTest3[StemSize-5] = 99
+	if err := ln.Insert(ffx32KeyTest3, newValue, nil); err == nil {
+		t.Fatalf("inserting a key with a different stem should fail")
+	}
+
+	// Test that getting the hash returns an expected value.
+	if h := ln.Hash(); h == nil {
+		t.Fatalf("hash should not be nil")
 	}
 }

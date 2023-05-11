@@ -44,4 +44,20 @@ func TestEmptyFuncs(t *testing.T) {
 	if v != nil {
 		t.Fatal("non-nil get from empty")
 	}
+
+	if !e.Commitment().Equal(e.Commit()) {
+		t.Fatal("commitment and commit mismatch")
+	}
+
+	if _, _, _, err := e.GetProofItems(nil); err == nil {
+		t.Fatal("get proof items should error")
+	}
+
+	if _, err := e.Serialize(); err == nil {
+		t.Fatal("serialize should error")
+	}
+
+	if !e.Hash().Equal(&FrZero) {
+		t.Fatal("hash should be the zero element")
+	}
 }

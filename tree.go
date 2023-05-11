@@ -301,24 +301,19 @@ func NewLeafNodeWithNoComms(stem []byte, values [][]byte) *LeafNode {
 	}
 }
 
+// Children return the children of the node. The returned slice is
+// internal to the tree, so callers *must* consider it readonly.
 func (n *InternalNode) Children() []VerkleNode {
 	return n.children
 }
 
+// SetChild *replaces* the child at the given index with the given node.
 func (n *InternalNode) SetChild(i int, c VerkleNode) error {
 	if i >= NodeWidth {
 		return errors.New("child index higher than node width")
 	}
 	n.children[i] = c
 	return nil
-}
-
-// TouchCoW is a helper function that will mark a child as
-// "inserted into". It is used by the conversion code to
-// mark reconstructed subtrees as 'written to', so that its
-// root commitment can be computed.
-func (n *InternalNode) TouchCoW(index byte) {
-	n.cowChild(index)
 }
 
 func (n *InternalNode) cowChild(index byte) {
@@ -393,8 +388,8 @@ func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeRes
 		newBranch.children[nextWordInInsertedKey] = leaf
 	case *InternalNode:
 		return child.InsertStem(stem, values, resolver)
-	default: // StatelessNode
-		return errStatelessAndStatefulMix
+	default: // It should be an UknonwnNode.
+		return errUnknownNodeType
 	}
 
 	return nil
@@ -468,6 +463,9 @@ func (n *InternalNode) CreatePath(path []byte, stemInfo stemInfo, comms []*Point
 	return child.CreatePath(path[1:], stemInfo, comms, values)
 }
 
+// GetStem returns the all NodeWidth values of the stem.
+// The returned slice is internal to the tree, so it *must* be considered readonly
+// for callers.
 func (n *InternalNode) GetStem(stem []byte, resolver NodeResolverFn) ([][]byte, error) {
 	nchild := offset2key(stem, n.depth) // index of the child pointed by the next byte in the key
 	switch child := n.children[nchild].(type) {
@@ -477,12 +475,12 @@ func (n *InternalNode) GetStem(stem []byte, resolver NodeResolverFn) ([][]byte, 
 		return nil, nil
 	case *HashedNode:
 		if resolver == nil {
-			return nil, fmt.Errorf("hashed node %x at depth %d along stem %x could not be resolved", child.Commitment().Bytes(), n.depth, stem)
+			return nil, fmt.Errorf("hashed node %x at depth %d along stem %x could not be resolved: %w", child.Commitment().Bytes(), n.depth, stem, errReadFromInvalid)
 		}
 		hash := child.commitment
 		serialized, err := resolver(hash)
 		if err != nil {
-			return nil, fmt.Errorf("verkle tree: error resolving node %x at depth %d: %w", stem, n.depth, err)
+			return nil, fmt.Errorf("resolving node %x at depth %d: %w", stem, n.depth, err)
 		}
 		resolved, err := ParseNode(serialized, n.depth+1, hash)
 		if err != nil {
@@ -499,8 +497,8 @@ func (n *InternalNode) GetStem(stem []byte, resolver NodeResolverFn) ([][]byte, 
 		return nil, nil
 	case *InternalNode:
 		return child.GetStem(stem, resolver)
-	default: // StatelessNode
-		return nil, errStatelessAndStatefulMix
+	default:
+		return nil, errUnknownNodeType
 	}
 }
 
@@ -585,38 +583,24 @@ func (n *InternalNode) FlushAtDepth(depth uint8, flush NodeFlushFn) {
 	}
 }
 
-func (n *InternalNode) Get(k []byte, getter NodeResolverFn) ([]byte, error) {
-	nChild := offset2key(k, n.depth)
-
-	switch child := n.children[nChild].(type) {
-	case Empty, nil:
-		// Return nil as a signal that the value isn't
-		// present in the tree. This matches the behavior
-		// of SecureTrie in Geth.
-		return nil, nil
-	case *HashedNode:
-		// if a resolution function is set, resolve the
-		// current hash node.
-		if getter == nil {
-			return nil, errReadFromInvalid
-		}
-
-		payload, err := getter(child.commitment)
-		if err != nil {
-			return nil, err
-		}
-
-		// deserialize the payload and set it as the child
-		c, err := ParseNode(payload, n.depth+1, child.commitment)
-		if err != nil {
-			return nil, err
-		}
-		n.children[nChild] = c
-
-		return c.Get(k, getter)
-	default: // InternalNode
-		return child.Get(k, getter)
+func (n *InternalNode) Get(key []byte, resolver NodeResolverFn) ([]byte, error) {
+	if len(key) != StemSize+1 {
+		return nil, fmt.Errorf("invalid key length, expected %d, got %d", StemSize+1, len(key))
 	}
+	stemValues, err := n.GetStem(key[:StemSize], resolver)
+	if err != nil {
+		return nil, err
+	}
+
+	// If the stem results in an empty node, return nil.
+	if stemValues == nil {
+		return nil, nil
+	}
+
+	// Return nil as a signal that the value isn't
+	// present in the tree. This matches the behavior
+	// of SecureTrie in Geth.
+	return stemValues[key[StemSize]], nil
 }
 
 func (n *InternalNode) Hash() *Fr {
@@ -763,6 +747,7 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 		if child != nil {
 			points[i] = child.Commitment()
 		} else {
+			// TODO: add a test case to cover this scenario.
 			points[i] = new(Point)
 		}
 	}
@@ -787,6 +772,7 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 		childIdx := offset2key(group[0], n.depth)
 
 		if _, isunknown := n.children[childIdx].(UnknownNode); isunknown {
+			// TODO: add a test case to cover this scenario.
 			return nil, nil, nil, errMissingNodeInStateless
 		}
 
@@ -804,6 +790,7 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 
 		pec, es, other, err := n.children[childIdx].GetProofItems(group)
 		if err != nil {
+			// TODO: add a test case to cover this scenario.
 			return nil, nil, nil, err
 		}
 		pe.Merge(pec)
@@ -914,6 +901,7 @@ func (n *InternalNode) setDepth(d byte) {
 
 // MergeTrees takes a series of subtrees that got filled following
 // a command-and-conquer method, and merges them into a single tree.
+// This method is deprecated, use with caution.
 func MergeTrees(subroots []*InternalNode) VerkleNode {
 	root := New().(*InternalNode)
 	for _, subroot := range subroots {
@@ -921,12 +909,20 @@ func MergeTrees(subroots []*InternalNode) VerkleNode {
 			if _, ok := subroot.children[i].(Empty); ok {
 				continue
 			}
-			root.TouchCoW(byte(i))
+			root.touchCoW(byte(i))
 			root.children[i] = subroot.children[i]
 		}
 	}
 
 	return root
+}
+
+// TouchCoW is a helper function that will mark a child as
+// "inserted into". It is used by the conversion code to
+// mark reconstructed subtrees as 'written to', so that its
+// root commitment can be computed.
+func (n *InternalNode) touchCoW(index byte) {
+	n.cowChild(index)
 }
 
 func (n *LeafNode) ToHashedNode() *HashedNode {
@@ -937,15 +933,21 @@ func (n *LeafNode) ToHashedNode() *HashedNode {
 	return &HashedNode{commitment: comm[:]}
 }
 
-func (n *LeafNode) Insert(k []byte, value []byte, _ NodeResolverFn) error {
+func (n *LeafNode) Insert(key []byte, value []byte, _ NodeResolverFn) error {
+	if len(key) != StemSize+1 {
+		return fmt.Errorf("invalid key size: %d", len(key))
+	}
+	if !bytes.Equal(key[:StemSize], n.stem) {
+		return fmt.Errorf("stems doesn't match: %x != %x", key[:StemSize], n.stem)
+	}
 	values := make([][]byte, NodeWidth)
-	values[k[31]] = value
-	return n.insertMultiple(k[:31], values)
+	values[key[StemSize]] = value
+	return n.insertMultiple(key[:StemSize], values)
 }
 
-func (n *LeafNode) insertMultiple(k []byte, values [][]byte) error {
-	// Sanity check: ensure the key header is the same:
-	if !equalPaths(k, n.stem) {
+func (n *LeafNode) insertMultiple(stem []byte, values [][]byte) error {
+	// Sanity check: ensure the stems are the same.
+	if !equalPaths(stem, n.stem) {
 		return errInsertIntoOtherStem
 	}
 
@@ -1090,7 +1092,7 @@ func (n *LeafNode) Get(k []byte, _ NodeResolverFn) ([]byte, error) {
 		return nil, nil
 	}
 	// value can be nil, as expected by geth
-	return n.values[k[31]], nil
+	return n.values[k[StemSize]], nil
 }
 
 func (n *LeafNode) Hash() *Fr {
