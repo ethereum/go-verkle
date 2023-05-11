@@ -409,7 +409,10 @@ func (n *InternalNode) CreatePath(path []byte, stemInfo stemInfo, comms []*Point
 	if len(path) == 1 {
 		switch stemInfo.stemType & 3 {
 		case extStatusAbsentEmpty:
-			// nothing to do
+			// Set child to Empty so that, in a stateless context,
+			// a node known to be absent is differentiated from an
+			// unknown node.
+			n.children[path[0]] = Empty{}
 		case extStatusAbsentOther:
 			// insert poa stem
 		case extStatusPresent:
