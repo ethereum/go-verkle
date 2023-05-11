@@ -96,7 +96,7 @@ type VerkleNode interface {
 type ProofElements struct {
 	Cis    []*Point
 	Zis    []byte
-	Yis    []*Fr
+	Yis    []*Fr // [Comment: couldn't we remove Yis, and know that Yis[i] = Fis[Zis[i]]]? (i.e: Yis is always a value on the domain)
 	Fis    [][]Fr
 	ByPath map[string]*Point // Gather commitments by path
 
@@ -729,7 +729,7 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 		pe     = &ProofElements{
 			Cis:    []*Point{},
 			Zis:    []byte{},
-			Yis:    []*Fr{}, // Should be 0
+			Yis:    []*Fr{}, // Should be 0  [Comment: what do we mean here? 0 in which sense?]
 			Fis:    [][]Fr{},
 			ByPath: map[string]*Point{},
 		}
@@ -746,9 +746,9 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 		fiPtrs[i] = &fi[i]
 		if child != nil {
 			points[i] = child.Commitment()
-		} else {
+		} else { // [Comment: AFAIK, we shouldn't have nil children but at least Empty or Unkown ones? So this shouldn't happen and signals a bug somewhere?]
 			// TODO: add a test case to cover this scenario.
-			points[i] = new(Point)
+			points[i] = new(Point) // [Comment: I'm not sure this is even correct, since the Point default value isn't Identity() (as EmptyNode.Commitment() would return)]
 		}
 	}
 	toFrMultiple(fiPtrs[:], points[:])
@@ -767,7 +767,7 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 	}
 
 	// Loop over again, collecting the children's proof elements
-	// This is because the order is breadth-first.
+	// This is because the order is breadth-first. [Comment: Looks to me this is depth-first search? We're recursing deep into one group first, and then the second, etc]
 	for _, group := range groups {
 		childIdx := offset2key(group[0], n.depth)
 
@@ -1156,12 +1156,26 @@ func leafToComms(poly []Fr, val []byte) {
 }
 
 func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte, error) {
+	// [Comment: despite I think this will work fine if len(keys)==0, is this something that makes sense or is probably a bug that we should check?]
+
+	// [Comment: not strictly necessary, but worth adding the check?:
+	//           for _, k := range keys {
+	//	            !bytes.Equal(n.stem, k[:StemSize]) { return errors.New("invalid keylist stem")}
+	//           }
+	//
+	//           Can be somewhat annoying to check for all (potential 256) items, so maybe avoid `for` and at least check
+	//           for the first?:
+	//           if len(keys) > 0 && !bytes.Equal(n.stem, k[0][:StemSize])) { return errors.New(....)}
+	//
+	//           Maybe I'm a bit paranoid and isn't worth it; this comment can be dismissed.
+	// ]
+
 	var (
 		poly [NodeWidth]Fr // top-level polynomial
 		pe                 = &ProofElements{
 			Cis:    []*Point{n.commitment, n.commitment},
 			Zis:    []byte{0, 1},
-			Yis:    []*Fr{&poly[0], &poly[1]}, // Should be 0
+			Yis:    []*Fr{&poly[0], &poly[1]}, // Should be 0 [Comment: can we remove this comment?]
 			Fis:    [][]Fr{poly[:], poly[:]},
 			ByPath: map[string]*Point{},
 		}
@@ -1178,6 +1192,9 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 	// First pass: add top-level elements first
 	var hasC1, hasC2 bool
 	for _, key := range keys {
+		// [Comment: Shouldn't we check if `key` matches the stem of this leaf node?
+		//           If the key ends up being a proof of absence, then hasC1 or hasC2 shouldn't make sense?
+		// ]
 		hasC1 = hasC1 || (key[31] < 128)
 		hasC2 = hasC2 || (key[31] >= 128)
 		if hasC2 {
@@ -1249,6 +1266,15 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 			// as all the information is available before fillSuffixTreePoly
 			// has to be called, save the count.
 			esses = append(esses, extStatusAbsentEmpty|(n.depth<<3))
+			// [Comment: There's some tricky invariant holding here.
+			//            It's true that we have the invariant len(esses)==1; this `append` can't violate that
+			//            since that would mean we have a leaf node with two empty suffix trees, which is impossible
+			//            since that kind of LeafNode can't exist. Is this right? Might worth a comment?]
+
+			// [Comment: I get that we need to return a slice of `esses`, but maybe it can help readers using
+			//           var esse byte, and do return ..., []byte{esse}; which would avoid `len(esses)` that doesn't
+			//           make much sense since that should be always 0 or 1.]
+			//           Also, note how below we do `esses[len(esses)-1]`, shouldn't that always be `esses[0]`?
 			continue
 		}
 
