@@ -29,6 +29,7 @@ import (
 	"bytes"
 	"errors"
 	"sort"
+	"time"
 	"unsafe"
 
 	ipa "github.com/crate-crypto/go-ipa"
@@ -79,6 +80,12 @@ func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte) (*ProofElements
 	return root.GetProofItems(keylist(keys))
 }
 
+var (
+	BenchCollectPolynomialsDuration time.Duration
+
+	BenchNumPolynomials int
+)
+
 func MakeVerkleMultiProof(root VerkleNode, keys [][]byte, keyvals map[string][]byte) (*Proof, []*Point, []byte, []*Fr, error) {
 	// go-ipa won't accept no key as an input, catch this corner case
 	// and return an empty result.
@@ -89,6 +96,7 @@ func MakeVerkleMultiProof(root VerkleNode, keys [][]byte, keyvals map[string][]b
 	tr := common.NewTranscript("vt")
 	root.Commit()
 
+	cmpStart := time.Now()
 	pe, es, poas, err := GetCommitmentsForMultiproof(root, keys)
 	if err != nil {
 		return nil, nil, nil, nil, err
@@ -101,6 +109,8 @@ func MakeVerkleMultiProof(root VerkleNode, keys [][]byte, keyvals map[string][]b
 		// vals = append(vals, val)
 		vals = append(vals, keyvals[string(k)])
 	}
+	BenchCollectPolynomialsDuration += time.Since(cmpStart)
+	BenchNumPolynomials += len(pe.Cis)
 
 	cfg := GetConfig()
 	mpArg := ipa.CreateMultiProof(tr, cfg.conf, pe.Cis, pe.Fis, pe.Zis)
