@@ -106,7 +106,7 @@ func (n *InternalNode) InsertMigratedLeaves(leaves []LeafNode, resolver NodeReso
 				if err != nil {
 					return fmt.Errorf("resolving node %x: %w", hashedNode.commitment, err)
 				}
-				resolved, err := ParseNode(serialized, parent.depth+1, hashedNode.commitment)
+				resolved, err := ParseNode(serialized, parent.depth+1)
 				if err != nil {
 					return fmt.Errorf("parsing node %x: %w", serialized, err)
 				}
