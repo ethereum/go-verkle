@@ -35,7 +35,7 @@ import (
 )
 
 type (
-	NodeFlushFn    func(VerkleNode)
+	NodeFlushFn    func([]byte, VerkleNode)
 	NodeResolverFn func([]byte) ([]byte, error)
 )
 
@@ -338,24 +338,23 @@ func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn)
 
 func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeResolverFn) error {
 	nChild := offset2key(stem, n.depth) // index of the child pointed by the next byte in the key
-	n.cowChild(nChild)
 
 	switch child := n.children[nChild].(type) {
 	case UnknownNode:
 		return errMissingNodeInStateless
 	case Empty:
+		n.cowChild(nChild)
 		n.children[nChild] = NewLeafNode(stem, values)
 		n.children[nChild].setDepth(n.depth + 1)
 	case *HashedNode:
 		if resolver == nil {
 			return errInsertIntoHash
 		}
-		hash := child.commitment
-		serialized, err := resolver(hash)
+		serialized, err := resolver(stem[:n.depth+1])
 		if err != nil {
 			return fmt.Errorf("verkle tree: error resolving node %x at depth %d: %w", stem, n.depth, err)
 		}
-		resolved, err := ParseNode(serialized, n.depth+1, hash)
+		resolved, err := ParseNode(serialized, n.depth+1)
 		if err != nil {
 			return fmt.Errorf("verkle tree: error parsing resolved node %x: %w", stem, err)
 		}
@@ -364,6 +363,7 @@ func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeRes
 		// splits.
 		return n.InsertStem(stem, values, resolver)
 	case *LeafNode:
+		n.cowChild(nChild)
 		if equalPaths(child.stem, stem) {
 			return child.insertMultiple(stem, values)
 		}
@@ -390,8 +390,9 @@ func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeRes
 		newBranch.cowChild(nextWordInInsertedKey)
 		newBranch.children[nextWordInInsertedKey] = leaf
 	case *InternalNode:
+		n.cowChild(nChild)
 		return child.InsertStem(stem, values, resolver)
-	default: // It should be an UknonwnNode.
+	default: // It should be an UknownNode.
 		return errUnknownNodeType
 	}
 
@@ -483,12 +484,11 @@ func (n *InternalNode) GetStem(stem []byte, resolver NodeResolverFn) ([][]byte, 
 		if resolver == nil {
 			return nil, fmt.Errorf("hashed node %x at depth %d along stem %x could not be resolved: %w", child.Commitment().Bytes(), n.depth, stem, errReadFromInvalid)
 		}
-		hash := child.commitment
-		serialized, err := resolver(hash)
+		serialized, err := resolver(stem[:n.depth+1])
 		if err != nil {
 			return nil, fmt.Errorf("resolving node %x at depth %d: %w", stem, n.depth, err)
 		}
-		resolved, err := ParseNode(serialized, n.depth+1, hash)
+		resolved, err := ParseNode(serialized, n.depth+1)
 		if err != nil {
 			return nil, fmt.Errorf("verkle tree: error parsing resolved node %x: %w", stem, err)
 		}
@@ -525,13 +525,12 @@ func (n *InternalNode) Delete(key []byte, resolver NodeResolverFn) (bool, error)
 		if resolver == nil {
 			return false, errDeleteHash
 		}
-		comm := child.commitment
-		payload, err := resolver(comm)
+		payload, err := resolver(key[:n.depth+1])
 		if err != nil {
 			return false, err
 		}
 		// deserialize the payload and set it as the child
-		c, err := ParseNode(payload, n.depth+1, comm)
+		c, err := ParseNode(payload, n.depth+1)
 		if err != nil {
 			return false, err
 		}
@@ -568,19 +567,33 @@ func (n *InternalNode) Delete(key []byte, resolver NodeResolverFn) (bool, error)
 // Flush hashes the children of an internal node and replaces them
 // with HashedNode. It also sends the current node on the flush channel.
 func (n *InternalNode) Flush(flush NodeFlushFn) {
+	//
+	var (
+		path                []byte
+		flushAndCapturePath = func(p []byte, vn VerkleNode) {
+			// wrap the flush function into a function that will
+			// capture the path of the first leaf being flushed,
+			// so that it can be used as the path to call `flush`.
+			if len(path) == 0 {
+				path = p[:n.depth]
+			}
+			flush(p, vn)
+		}
+	)
+
 	n.Commit()
 	for i, child := range n.children {
 		if c, ok := child.(*InternalNode); ok {
 			c.Commit()
-			c.Flush(flush)
+			c.Flush(flushAndCapturePath)
 			n.children[i] = c.toHashedNode()
 		} else if c, ok := child.(*LeafNode); ok {
 			c.Commit()
-			flush(n.children[i])
+			flushAndCapturePath(c.stem[:n.depth+1], n.children[i])
 			n.children[i] = c.ToHashedNode()
 		}
 	}
-	flush(n)
+	flush(path, n)
 }
 
 // FlushAtDepth goes over all internal nodes of a given depth, and
@@ -593,7 +606,7 @@ func (n *InternalNode) FlushAtDepth(depth uint8, flush NodeFlushFn) {
 		if !ok {
 			if c, ok := child.(*LeafNode); ok {
 				c.Commit()
-				flush(c)
+				flush(c.stem[:c.depth], c)
 				n.children[i] = c.ToHashedNode()
 			}
 			continue
@@ -831,49 +844,12 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 }
 
 func (n *InternalNode) Serialize() ([]byte, error) {
-	var (
-		bitlist, hashlist [NodeWidth / 8]byte
-		nhashed           int // number of children who are hashed nodes
-	)
-	commitments := make([]*Point, 0, NodeWidth)
-	for i, c := range n.children {
-		if _, ok := c.(Empty); !ok {
-			setBit(bitlist[:], i)
-			if _, ok := c.(*HashedNode); ok {
-				// don't trigger the commitment on hashed nodes,
-				// as they already hold a serialized version of
-				// their commitment. Instead, just mark them as
-				// hashes so they can be added directly.
-				setBit(hashlist[:], i)
-				nhashed++
-			} else {
-				commitments = append(commitments, c.Commitment())
-			}
-		}
-	}
-
-	ret := make([]byte, nodeTypeSize+bitlistSize+(len(commitments)+nhashed)*SerializedPointCompressedSize)
-
-	// We create a children slice from ret ready to start appending children without allocations.
-	children := ret[internalNodeChildrenOffset:internalNodeChildrenOffset]
-	bytecomms := banderwagon.ElementsToBytes(commitments)
-	consumed := 0
-	for i := 0; i < NodeWidth; i++ {
-		if bit(bitlist[:], i) {
-			// if a child is present and is a hash, add its
-			// internal, serialized representation directly.
-			if bit(hashlist[:], i) {
-				children = append(children, n.children[i].(*HashedNode).commitment...)
-			} else {
-				children = append(children, bytecomms[consumed][:]...)
-				consumed++
-			}
-		}
-	}
+	ret := make([]byte, nodeTypeSize+SerializedPointCompressedSize)
 
 	// Store in ret the serialized result
 	ret[nodeTypeOffset] = internalRLPType
-	copy(ret[internalBitlistOffset:], bitlist[:])
+	comm := n.commitment.Bytes()
+	copy(ret[internalBitlistOffset:], comm[:])
 	// Note that children were already appended in ret through the children slice.
 
 	return ret, nil
@@ -1405,8 +1381,8 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 // Serialize serializes a LeafNode.
 // The format is: <nodeType><stem><bitlist><c1comm><c2comm><children...>
 func (n *LeafNode) Serialize() ([]byte, error) {
-	cBytes := banderwagon.ElementsToBytes([]*banderwagon.Element{n.c1, n.c2})
-	return n.serializeWithCompressedCommitments(cBytes[0], cBytes[1]), nil
+	cBytes := banderwagon.ElementsToBytes([]*banderwagon.Element{n.commitment, n.c1, n.c2})
+	return n.serializeLeafWithCompressedCommitments(cBytes[0], cBytes[1], cBytes[2]), nil
 }
 
 func (n *LeafNode) Copy() VerkleNode {
@@ -1523,20 +1499,25 @@ func (n *InternalNode) BatchSerialize() ([]SerializedNode, error) {
 	for i := range nodes {
 		switch n := nodes[i].(type) {
 		case *InternalNode:
+			serialized, err := n.serializeInternalWithCompressedCommitment(compressedPointsIdxs, compressedPoints)
+			if err != nil {
+				return nil, err
+			}
 			sn := SerializedNode{
 				Node:            n,
 				CommitmentBytes: compressedPoints[idx],
-				SerializedBytes: n.serializeWithCompressedChildren(compressedPointsIdxs, compressedPoints),
+				SerializedBytes: serialized,
 			}
 			ret = append(ret, sn)
 			idx++
 		case *LeafNode:
+			cBytes := compressedPoints[idx]
 			c1Bytes := compressedPoints[idx+1]
 			c2Bytes := compressedPoints[idx+2]
 			sn := SerializedNode{
 				Node:            n,
 				CommitmentBytes: compressedPoints[idx],
-				SerializedBytes: n.serializeWithCompressedCommitments(c1Bytes, c2Bytes),
+				SerializedBytes: n.serializeLeafWithCompressedCommitments(cBytes, c1Bytes, c2Bytes),
 			}
 			ret = append(ret, sn)
 			idx += 3
@@ -1559,54 +1540,19 @@ func (n *InternalNode) collectNonHashedNodes(list []VerkleNode) []VerkleNode {
 	return list
 }
 
-func (n *InternalNode) serializeWithCompressedChildren(compressedPointsIdxs map[VerkleNode]int, compressedPoints [][32]byte) []byte {
-	var (
-		hashlist                    [NodeWidth / 8]byte
-		nonHashedCount, hashedCount int
-	)
-
-	ret := make([]byte, nodeTypeSize+bitlistSize+NodeWidth*SerializedPointCompressedSize)
-	bitlist := ret[internalBitlistOffset:]
-	for i, c := range n.children {
-		if _, ok := c.(Empty); !ok {
-			setBit(bitlist, i)
-			if _, ok := c.(*HashedNode); ok {
-				setBit(hashlist[:], i)
-				hashedCount++
-			} else {
-				nonHashedCount++
-			}
-		}
+func (n *InternalNode) serializeInternalWithCompressedCommitment(compressedPointsIdxs map[VerkleNode]int, compressedPoints [][32]byte) ([]byte, error) {
+	serialized := make([]byte, nodeTypeSize+SerializedPointCompressedSize)
+	serialized[nodeTypeOffset] = internalRLPType
+	pointidx, ok := compressedPointsIdxs[n]
+	if !ok {
+		return nil, fmt.Errorf("child node not found in cache")
 	}
+	copy(serialized[nodeTypeSize:], compressedPoints[pointidx][:])
 
-	ret = ret[:nodeTypeSize+bitlistSize+(nonHashedCount+hashedCount)*SerializedPointCompressedSize]
-	children := ret[internalNodeChildrenOffset:internalNodeChildrenOffset]
-	consumed := 0
-	for i := 0; i < NodeWidth; i++ {
-		if bit(bitlist, i) {
-			if bit(hashlist[:], i) {
-				children = append(children, n.children[i].(*HashedNode).commitment...)
-			} else {
-				childIdx, ok := compressedPointsIdxs[n.children[i]]
-				if !ok {
-					panic("children commitment not found in cache")
-				}
-				children = append(children, compressedPoints[childIdx][:]...)
-				consumed++
-			}
-		}
-	}
-
-	// Store in ret the serialized result
-	ret[nodeTypeOffset] = internalRLPType
-	// Note that:
-	// - Children were already appended in ret through the children slice.
-	// - Bitlist was embedded in ret.
-
-	return ret
+	return serialized, nil
 }
 
-func (n *LeafNode) serializeWithCompressedCommitments(c1Bytes [32]byte, c2Bytes [32]byte) []byte {
+func (n *LeafNode) serializeLeafWithCompressedCommitments(cBytes, c1Bytes, c2Bytes [32]byte) []byte {
 	// Empty value in LeafNode used for padding.
 	var emptyValue [LeafValueSize]byte
 
@@ -1624,11 +1570,12 @@ func (n *LeafNode) serializeWithCompressedCommitments(c1Bytes [32]byte, c2Bytes 
 	}
 
 	// Create the serialization.
-	baseSize := nodeTypeSize + StemSize + bitlistSize + 2*SerializedPointCompressedSize
+	baseSize := nodeTypeSize + StemSize + bitlistSize + 3*SerializedPointCompressedSize
 	result := make([]byte, baseSize, baseSize+4*32) // Extra pre-allocated capacity for 4 values.
 	result[0] = leafRLPType
 	copy(result[leafSteamOffset:], n.stem[:StemSize])
 	copy(result[leafBitlistOffset:], bitlist[:])
+	copy(result[leafCommitmentOffset:], cBytes[:])
 	copy(result[leafC1CommitmentOffset:], c1Bytes[:])
 	copy(result[leafC2CommitmentOffset:], c2Bytes[:])
 	result = append(result, children...)
