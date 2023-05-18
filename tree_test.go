@@ -248,7 +248,7 @@ func TestDelLeaf(t *testing.T) {
 	CopyPoint(&init, tree.Commit())
 
 	tree.Insert(key3, fourtyKeyTest, nil)
-	if err := tree.Delete(key3, nil); err != nil {
+	if err, _ := tree.Delete(key3, nil); err != nil {
 		t.Error(err)
 	}
 
@@ -276,7 +276,7 @@ func TestDeleteNonExistent(t *testing.T) {
 	tree := New()
 	tree.Insert(key1, fourtyKeyTest, nil)
 	tree.Insert(key2, fourtyKeyTest, nil)
-	if err := tree.Delete(key3, nil); err != nil {
+	if err, _ := tree.Delete(key3, nil); err != nil {
 		t.Error("should not fail when deleting a non-existent key")
 	}
 }
@@ -300,7 +300,7 @@ func TestDeletePrune(t *testing.T) {
 	tree.Commit()
 
 	// Delete key5.
-	if err := tree.Delete(key5, nil); err != nil {
+	if err, _ := tree.Delete(key5, nil); err != nil {
 		t.Error(err)
 	}
 	postHash := tree.Commit()
@@ -317,10 +317,10 @@ func TestDeletePrune(t *testing.T) {
 	}
 
 	// Delete key4 and key3.
-	if err := tree.Delete(key4, nil); err != nil {
+	if err, _ := tree.Delete(key4, nil); err != nil {
 		t.Error(err)
 	}
-	if err := tree.Delete(key3, nil); err != nil {
+	if err, _ := tree.Delete(key3, nil); err != nil {
 		t.Error(err)
 	}
 	postHash = tree.Commit()
@@ -350,7 +350,7 @@ func TestDeleteHash(t *testing.T) {
 	tree.Insert(key3, fourtyKeyTest, nil)
 	tree.(*InternalNode).FlushAtDepth(0, func(vn VerkleNode) {})
 	tree.Commit()
-	if err := tree.Delete(key2, nil); err != errDeleteHash {
+	if err, _ := tree.Delete(key2, nil); err != errDeleteHash {
 		t.Fatalf("did not report the correct error while deleting from a hash: %v", err)
 	}
 }
@@ -364,7 +364,7 @@ func TestDeleteUnequalPath(t *testing.T) {
 	tree.Insert(key3, fourtyKeyTest, nil)
 	tree.Commit()
 
-	if err := tree.Delete(key2, nil); err != nil {
+	if err, _ := tree.Delete(key2, nil); err != nil {
 		t.Fatalf("errored during the deletion of non-existing key, err =%v", err)
 	}
 }
@@ -385,7 +385,7 @@ func TestDeleteResolve(t *testing.T) {
 	tree.Commit()
 
 	var called bool
-	err := tree.Delete(key2, func(comm []byte) ([]byte, error) {
+	err, _ := tree.Delete(key2, func(comm []byte) ([]byte, error) {
 		called = true
 		for _, node := range savedNodes {
 			c := node.Commit().Bytes()

@@ -58,7 +58,7 @@ type VerkleNode interface {
 	Insert([]byte, []byte, NodeResolverFn) error
 
 	// Delete a leaf with the given key
-	Delete([]byte, NodeResolverFn) error
+	Delete([]byte, NodeResolverFn) (error, bool)
 
 	// Get value at a given key
 	Get([]byte, NodeResolverFn) ([]byte, error)
@@ -513,30 +513,52 @@ func (n *InternalNode) toHashedNode() *HashedNode {
 	return &HashedNode{commitment: comm[:]}
 }
 
-func (n *InternalNode) Delete(key []byte, resolver NodeResolverFn) error {
+func (n *InternalNode) Delete(key []byte, resolver NodeResolverFn) (error, bool) {
 	nChild := offset2key(key, n.depth)
 	switch child := n.children[nChild].(type) {
 	case Empty:
-		return nil
+		return nil, false
 	case *HashedNode:
 		if resolver == nil {
-			return errDeleteHash
+			return errDeleteHash, false
 		}
 		comm := child.commitment
 		payload, err := resolver(comm)
 		if err != nil {
-			return err
+			return err, false
 		}
 		// deserialize the payload and set it as the child
 		c, err := ParseNode(payload, n.depth+1, comm)
 		if err != nil {
-			return err
+			return err, false
 		}
 		n.children[nChild] = c
 		return n.Delete(key, resolver)
 	default:
 		n.cowChild(nChild)
-		return child.Delete(key, resolver)
+		err, delete := child.Delete(key, resolver)
+		if err != nil {
+			return err, false
+		}
+
+		// delete the entire child if instructed to by
+		// the recursive algorightm.
+		if delete {
+			n.children[nChild] = Empty{}
+
+			// Check if all children are gone, if so
+			// signal that this node should be deleted
+			// as well.
+			for _, c := range n.children {
+				if _, ok := c.(Empty); !ok {
+					break
+				}
+			}
+
+			return nil, true
+		}
+
+		return nil, false
 	}
 }
 
@@ -1075,15 +1097,61 @@ func (n *LeafNode) updateMultipleLeaves(values [][]byte) {
 	}
 }
 
-func (n *LeafNode) Delete(k []byte, _ NodeResolverFn) error {
+// Delete deletes a value from the leaf, return `true` as a second
+// return value, if the parent should entirely delete the child.
+func (n *LeafNode) Delete(k []byte, _ NodeResolverFn) (error, bool) {
 	// Sanity check: ensure the key header is the same:
 	if !equalPaths(k, n.stem) {
-		return nil
+		return nil, false
 	}
 
+	// Erase the value it used to contain
+	n.values[k[31]] = nil
+
+	// Check if a Cn subtree is entirely empty, or if
+	// the entire subtree is empty.
+	var (
+		isCnempty = true
+		isCempty  = true
+	)
+	for i := 0; i < NodeWidth; i++ {
+		if len(n.values[i]) > 0 {
+			// if i and k[31] are in the same subtree,
+			// set both values and return.
+			if byte(i/128) == k[31]/128 {
+				isCnempty = false
+				isCempty = false
+				break
+			} else {
+				// i and k[31] were in a different subtree,
+				// so all we can say at this stage, is that
+				// the whole tree isn't empty.
+				// TODO if i < 128, then k[31] >= 128 and
+				// we could skip to 128, but that's an
+				// optimization for later.
+				isCempty = false
+			}
+		}
+	}
+
+	// if the whole subtree is empty, then the
+	// entire node should be deleted.
+	if isCempty {
+		return nil, true
+	}
+
+	// if a Cn branch becomes empty as a result
+	// of removing the last value, update C by
+	// adding -Cn to it and exit.
+	if isCnempty {
+		// TODO
+		return nil, false
+	}
+
+	// FIXME recompute Cn', add -Cn', compute C'
 	var zero [32]byte
 	n.updateLeaf(k[31], zero[:])
-	return nil
+	return nil, false
 }
 
 func (n *LeafNode) Get(k []byte, _ NodeResolverFn) ([]byte, error) {
