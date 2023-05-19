@@ -1106,6 +1106,7 @@ func (n *LeafNode) Delete(k []byte, _ NodeResolverFn) (error, bool) {
 	}
 
 	// Erase the value it used to contain
+	original := n.values[k[31]] // save original value
 	n.values[k[31]] = nil
 
 	// Check if a Cn subtree is entirely empty, or if
@@ -1144,13 +1145,27 @@ func (n *LeafNode) Delete(k []byte, _ NodeResolverFn) (error, bool) {
 	// of removing the last value, update C by
 	// adding -Cn to it and exit.
 	if isCnempty {
-		// TODO
+		var cn *Point
+		if k[31] < 128 {
+			cn = n.c1
+		} else {
+			cn = n.c2
+		}
+		n.commitment.Add(n.commitment, cn.Neg(cn))
 		return nil, false
 	}
 
-	// FIXME recompute Cn', add -Cn', compute C'
-	var zero [32]byte
-	n.updateLeaf(k[31], zero[:])
+	// Recompute Cn', add -Cn', compute C'
+	// This is done by setting the leaf value
+	// to `nil` at this point, and all the
+	// diff computation will be performed by
+	// updateLeaf since leafToComms supports
+	// nil values.
+	// Note that the value is set to nil by
+	// the method, as it needs the original
+	// value to compute the commitment diffs.
+	n.values[k[31]] = original
+	n.updateLeaf(k[31], nil)
 	return nil, false
 }
 

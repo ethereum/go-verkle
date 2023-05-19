@@ -256,7 +256,7 @@ func TestDelLeaf(t *testing.T) {
 	// as deleting a value means replacing it with a 0 in verkle
 	// trees.
 	postHash := tree.Commit()
-	if Equal(&init, postHash) {
+	if !Equal(&init, postHash) {
 		t.Errorf("deleting leaf resulted in unexpected tree %x %x", init.Bytes(), postHash.Bytes())
 	}
 
@@ -264,7 +264,7 @@ func TestDelLeaf(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if !bytes.Equal(res, zeroKeyTest) {
+	if len(res) > 0 {
 		t.Error("leaf hasnt been deleted")
 	}
 }
@@ -312,7 +312,7 @@ func TestDeletePrune(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if !bytes.Equal(res, zeroKeyTest) {
+	if len(res) > 0 {
 		t.Error("leaf #5 hasn't been deleted")
 	}
 
@@ -325,14 +325,14 @@ func TestDeletePrune(t *testing.T) {
 	}
 	postHash = tree.Commit()
 	// The post deletion hash should be different from the post key2 hash.
-	if Equal(&hashPostKey2, postHash) {
+	if !Equal(&hashPostKey2, postHash) {
 		t.Error("deleting leaf #3 resulted in unexpected tree")
 	}
 	res, err = tree.Get(key3, nil)
 	if err != nil {
 		t.Error(err)
 	}
-	if !bytes.Equal(res, zeroKeyTest) {
+	if len(res) > 0 {
 		t.Error("leaf hasnt been deleted")
 	}
 }
