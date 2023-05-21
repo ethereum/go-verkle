@@ -536,14 +536,14 @@ func (n *InternalNode) Delete(key []byte, resolver NodeResolverFn) (error, bool)
 		return n.Delete(key, resolver)
 	default:
 		n.cowChild(nChild)
-		err, delete := child.Delete(key, resolver)
+		err, del := child.Delete(key, resolver)
 		if err != nil {
 			return err, false
 		}
 
 		// delete the entire child if instructed to by
 		// the recursive algorightm.
-		if delete {
+		if del {
 			n.children[nChild] = Empty{}
 
 			// Check if all children are gone, if so
@@ -1123,15 +1123,15 @@ func (n *LeafNode) Delete(k []byte, _ NodeResolverFn) (error, bool) {
 				isCnempty = false
 				isCempty = false
 				break
-			} else {
-				// i and k[31] were in a different subtree,
-				// so all we can say at this stage, is that
-				// the whole tree isn't empty.
-				// TODO if i < 128, then k[31] >= 128 and
-				// we could skip to 128, but that's an
-				// optimization for later.
-				isCempty = false
 			}
+
+			// i and k[31] were in a different subtree,
+			// so all we can say at this stage, is that
+			// the whole tree isn't empty.
+			// TODO if i < 128, then k[31] >= 128 and
+			// we could skip to 128, but that's an
+			// optimization for later.
+			isCempty = false
 		}
 	}
 
