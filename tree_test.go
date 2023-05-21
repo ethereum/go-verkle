@@ -239,10 +239,14 @@ func TestCachedCommitment(t *testing.T) {
 
 func TestDelLeaf(t *testing.T) {
 	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
+	key1p, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000001")  // same Cn group as key1
+	key1pp, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000081") // Other Cn group as key1
 	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
 	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
 	tree := New()
 	tree.Insert(key1, fourtyKeyTest, nil)
+	tree.Insert(key1p, fourtyKeyTest, nil)
+	tree.Insert(key1pp, fourtyKeyTest, nil)
 	tree.Insert(key2, fourtyKeyTest, nil)
 	var init Point
 	CopyPoint(&init, tree.Commit())
@@ -261,6 +265,28 @@ func TestDelLeaf(t *testing.T) {
 	}
 
 	res, err := tree.Get(key3, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	if len(res) > 0 {
+		t.Error("leaf hasnt been deleted")
+	}
+
+	if err, _ := tree.Delete(key1pp, nil); err != nil {
+		t.Fatal(err)
+	}
+	res, err = tree.Get(key1pp, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	if len(res) > 0 {
+		t.Error("leaf hasnt been deleted")
+	}
+
+	if err, _ := tree.Delete(key1p, nil); err != nil {
+		t.Fatal(err)
+	}
+	res, err = tree.Get(key1p, nil)
 	if err != nil {
 		t.Error(err)
 	}
