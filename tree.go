@@ -1145,17 +1145,35 @@ func (n *LeafNode) Delete(k []byte, _ NodeResolverFn) (bool, error) {
 	// of removing the last value, update C by
 	// adding -Cn to it and exit.
 	if isCnempty {
-		var cn *Point
+		var (
+			cn           *Point
+			subtreeindex = 2 + k[31]/128
+		)
+
 		if k[31] < 128 {
 			cn = n.c1
 		} else {
 			cn = n.c2
 		}
-		n.commitment.Add(n.commitment, cn.Neg(cn))
+
+		// Update C by subtracting the old value for Cn
+		// Note: this isn't done in one swoop, which would make sense
+		// since presumably a lot of values would be deleted at the same
+		// time when reorging. Nonetheless, a reorg is an already complex
+		// operation which is slow no matter what, so ensuring correctness
+		// is more important than
+		var poly [4]Fr
+		toFr(&poly[subtreeindex], cn)
+		n.commitment.Sub(n.commitment, cfg.CommitToPoly(poly[:], 0))
+
+		// Clear the corresponding commitment
+		cn.SetBytes(nil)
+
 		return false, nil
 	}
 
-	// Recompute Cn', add -Cn', compute C'
+	// Recompute the updated C & Cn
+	//
 	// This is done by setting the leaf value
 	// to `nil` at this point, and all the
 	// diff computation will be performed by

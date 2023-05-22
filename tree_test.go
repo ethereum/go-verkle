@@ -317,21 +317,26 @@ func TestDeletePrune(t *testing.T) {
 	tree.Insert(key1, fourtyKeyTest, nil)
 	tree.Insert(key2, fourtyKeyTest, nil)
 
-	var hashPostKey2, hashPostKey4 Point
+	var hashPostKey2, hashPostKey4, completeTreeHash Point
 	CopyPoint(&hashPostKey2, tree.Commit())
 	tree.Insert(key3, fourtyKeyTest, nil)
 	tree.Insert(key4, fourtyKeyTest, nil)
 	CopyPoint(&hashPostKey4, tree.Commit())
 	tree.Insert(key5, fourtyKeyTest, nil)
-	tree.Commit()
+	CopyPoint(&completeTreeHash, tree.Commit()) // hash when the tree has received all its keys
 
 	// Delete key5.
 	if _, err := tree.Delete(key5, nil); err != nil {
 		t.Error(err)
 	}
 	postHash := tree.Commit()
-	// The post deletion hash should be different from the post key4 hash.
-	if Equal(&hashPostKey4, postHash) {
+	// Check that the deletion updated the root hash and that it's not
+	// the same as the pre-deletion hash.
+	if Equal(&completeTreeHash, postHash) {
+		t.Fatalf("deletion did not update the hash %x == %x", completeTreeHash, postHash)
+	}
+	// The post deletion hash should be the same as the post key4 hash.
+	if !Equal(&hashPostKey4, postHash) {
 		t.Error("deleting leaf #5 resulted in unexpected tree")
 	}
 	res, err := tree.Get(key5, nil)
