@@ -34,7 +34,7 @@ func TestHashedNodeFuncs(t *testing.T) {
 	if err != errInsertIntoHash {
 		t.Fatal("got nil error when inserting into a hashed node")
 	}
-	err, _ = e.Delete(zeroKeyTest, nil)
+	_, err = e.Delete(zeroKeyTest, nil)
 	if err == nil {
 		t.Fatal("got nil error when deleting from a hashed node")
 	}

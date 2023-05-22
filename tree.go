@@ -58,7 +58,7 @@ type VerkleNode interface {
 	Insert([]byte, []byte, NodeResolverFn) error
 
 	// Delete a leaf with the given key
-	Delete([]byte, NodeResolverFn) (error, bool)
+	Delete([]byte, NodeResolverFn) (bool, error)
 
 	// Get value at a given key
 	Get([]byte, NodeResolverFn) ([]byte, error)
@@ -513,32 +513,32 @@ func (n *InternalNode) toHashedNode() *HashedNode {
 	return &HashedNode{commitment: comm[:]}
 }
 
-func (n *InternalNode) Delete(key []byte, resolver NodeResolverFn) (error, bool) {
+func (n *InternalNode) Delete(key []byte, resolver NodeResolverFn) (bool, error) {
 	nChild := offset2key(key, n.depth)
 	switch child := n.children[nChild].(type) {
 	case Empty:
-		return nil, false
+		return false, nil
 	case *HashedNode:
 		if resolver == nil {
-			return errDeleteHash, false
+			return false, errDeleteHash
 		}
 		comm := child.commitment
 		payload, err := resolver(comm)
 		if err != nil {
-			return err, false
+			return false, err
 		}
 		// deserialize the payload and set it as the child
 		c, err := ParseNode(payload, n.depth+1, comm)
 		if err != nil {
-			return err, false
+			return false, err
 		}
 		n.children[nChild] = c
 		return n.Delete(key, resolver)
 	default:
 		n.cowChild(nChild)
-		err, del := child.Delete(key, resolver)
+		del, err := child.Delete(key, resolver)
 		if err != nil {
-			return err, false
+			return false, err
 		}
 
 		// delete the entire child if instructed to by
@@ -555,10 +555,10 @@ func (n *InternalNode) Delete(key []byte, resolver NodeResolverFn) (error, bool)
 				}
 			}
 
-			return nil, true
+			return true, nil
 		}
 
-		return nil, false
+		return false, nil
 	}
 }
 
@@ -1099,10 +1099,10 @@ func (n *LeafNode) updateMultipleLeaves(values [][]byte) {
 
 // Delete deletes a value from the leaf, return `true` as a second
 // return value, if the parent should entirely delete the child.
-func (n *LeafNode) Delete(k []byte, _ NodeResolverFn) (error, bool) {
+func (n *LeafNode) Delete(k []byte, _ NodeResolverFn) (bool, error) {
 	// Sanity check: ensure the key header is the same:
 	if !equalPaths(k, n.stem) {
-		return nil, false
+		return false, nil
 	}
 
 	// Erase the value it used to contain
@@ -1138,7 +1138,7 @@ func (n *LeafNode) Delete(k []byte, _ NodeResolverFn) (error, bool) {
 	// if the whole subtree is empty, then the
 	// entire node should be deleted.
 	if isCempty {
-		return nil, true
+		return true, nil
 	}
 
 	// if a Cn branch becomes empty as a result
@@ -1152,7 +1152,7 @@ func (n *LeafNode) Delete(k []byte, _ NodeResolverFn) (error, bool) {
 			cn = n.c2
 		}
 		n.commitment.Add(n.commitment, cn.Neg(cn))
-		return nil, false
+		return false, nil
 	}
 
 	// Recompute Cn', add -Cn', compute C'
@@ -1166,7 +1166,7 @@ func (n *LeafNode) Delete(k []byte, _ NodeResolverFn) (error, bool) {
 	// value to compute the commitment diffs.
 	n.values[k[31]] = original
 	n.updateLeaf(k[31], nil)
-	return nil, false
+	return false, nil
 }
 
 func (n *LeafNode) Get(k []byte, _ NodeResolverFn) ([]byte, error) {

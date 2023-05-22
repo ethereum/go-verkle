@@ -33,8 +33,8 @@ func (UnknownNode) Insert([]byte, []byte, NodeResolverFn) error {
 	return errMissingNodeInStateless
 }
 
-func (UnknownNode) Delete([]byte, NodeResolverFn) (error, bool) {
-	return errors.New("cant delete in a subtree missing form a stateless view"), false
+func (UnknownNode) Delete([]byte, NodeResolverFn) (bool, error) {
+	return false, errors.New("cant delete in a subtree missing form a stateless view")
 }
 
 func (UnknownNode) Get([]byte, NodeResolverFn) ([]byte, error) {
