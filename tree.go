@@ -988,6 +988,9 @@ func (n *LeafNode) updateCn(index byte, value []byte, c *Point) {
 }
 
 func (n *LeafNode) updateLeaf(index byte, value []byte) {
+	// If the commitment is nil, it means this is a new leaf.
+	// We just update the value since the commitment of all new leaves will
+	// be calculated when calling Commit().
 	if n.commitment == nil {
 		n.values[index] = value
 		return
@@ -1017,6 +1020,9 @@ func (n *LeafNode) updateLeaf(index byte, value []byte) {
 }
 
 func (n *LeafNode) updateMultipleLeaves(values [][]byte) {
+	// If the leaf node commitment is nil, it means this is a new leaf.
+	// We just update the provided value in the right slot, and we're done.
+	// The commitment will be calculated when the tree calls Commit().
 	if n.commitment == nil {
 		for i, v := range values {
 			if len(v) != 0 && !bytes.Equal(v, n.values[i]) {
@@ -1026,6 +1032,7 @@ func (n *LeafNode) updateMultipleLeaves(values [][]byte) {
 		return
 	}
 
+	// If the n.commitment isn't nil, we do diff updating.
 	var oldC1, oldC2 *Point
 
 	// We iterate the values, and we update the C1 and/or C2 commitments depending on the index.
