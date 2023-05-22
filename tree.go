@@ -1261,31 +1261,20 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 		} else {
 			scomm = n.c2
 		}
-
-		slotPath := string(key[:n.depth]) + string([]byte{2 + suffix/128})
-
-		// Proof of absence: case of a missing value.
-		//
-		// Suffix tree is present as a child of the extension,
-		// but does not contain the requested suffix. This can
-		// only happen when the leaf has never been written to
-		// since after deletion the value would be set to zero
-		// but still contain the leaf marker 2^128.
-		if n.values[suffix] == nil {
-			pe.Cis = append(pe.Cis, scomm, scomm)
-			pe.Zis = append(pe.Zis, 2*suffix, 2*suffix+1)
-			pe.Yis = append(pe.Yis, &FrZero, &FrZero)
-			pe.Fis = append(pe.Fis, suffPoly[:], suffPoly[:])
-			if len(esses) == 0 || esses[len(esses)-1] != extStatusPresent|(n.depth<<3) {
-				esses = append(esses, extStatusPresent|(n.depth<<3))
-			}
-			pe.ByPath[slotPath] = scomm
-			continue
-		}
-
-		// suffix tree is present and contains the key
 		var leaves [2]Fr
-		leafToComms(leaves[:], n.values[suffix])
+		if n.values[suffix] == nil {
+			// Proof of absence: case of a missing value.
+			//
+			// Suffix tree is present as a child of the extension,
+			// but does not contain the requested suffix. This can
+			// only happen when the leaf has never been written to
+			// since after deletion the value would be set to zero
+			// but still contain the leaf marker 2^128.
+			leaves[0], leaves[1] = FrZero, FrZero
+		} else {
+			// suffix tree is present and contains the key
+			leaves[0], leaves[1] = suffPoly[2*suffix], suffPoly[2*suffix+1]
+		}
 		pe.Cis = append(pe.Cis, scomm, scomm)
 		pe.Zis = append(pe.Zis, 2*suffix, 2*suffix+1)
 		pe.Yis = append(pe.Yis, &leaves[0], &leaves[1])
@@ -1293,6 +1282,7 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 		if len(esses) == 0 || esses[len(esses)-1] != extStatusPresent|(n.depth<<3) {
 			esses = append(esses, extStatusPresent|(n.depth<<3))
 		}
+		slotPath := string(key[:n.depth]) + string([]byte{2 + suffix/128})
 		pe.ByPath[slotPath] = scomm
 	}
 
