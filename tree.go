@@ -542,7 +542,7 @@ func (n *InternalNode) Delete(key []byte, resolver NodeResolverFn) (bool, error)
 		}
 
 		// delete the entire child if instructed to by
-		// the recursive algorightm.
+		// the recursive algorigthm.
 		if del {
 			n.children[nChild] = Empty{}
 
