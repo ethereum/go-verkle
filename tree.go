@@ -1167,7 +1167,11 @@ func (n *LeafNode) Delete(k []byte, _ NodeResolverFn) (bool, error) {
 		n.commitment.Sub(n.commitment, cfg.CommitToPoly(poly[:], 0))
 
 		// Clear the corresponding commitment
-		cn.SetBytes(nil)
+		if k[31] < 128 {
+			n.c1 = nil
+		} else {
+			n.c2 = nil
+		}
 
 		return false, nil
 	}
