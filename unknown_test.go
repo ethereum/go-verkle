@@ -8,7 +8,7 @@ func TestUnknownFuncs(t *testing.T) {
 	if err := un.Insert(nil, nil, nil); err != errMissingNodeInStateless {
 		t.Errorf("got %v, want %v", err, errMissingNodeInStateless)
 	}
-	if err := un.Delete(nil, nil); err == nil {
+	if _, err := un.Delete(nil, nil); err == nil {
 		t.Errorf("got nil error when deleting from a hashed node")
 	}
 	if _, err := un.Get(nil, nil); err != nil {

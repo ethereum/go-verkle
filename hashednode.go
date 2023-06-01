@@ -39,8 +39,8 @@ func (*HashedNode) Insert([]byte, []byte, NodeResolverFn) error {
 	return errInsertIntoHash
 }
 
-func (*HashedNode) Delete([]byte, NodeResolverFn) error {
-	return errors.New("cant delete a hashed node in-place")
+func (*HashedNode) Delete([]byte, NodeResolverFn) (bool, error) {
+	return false, errors.New("cant delete a hashed node in-place")
 }
 
 func (*HashedNode) Get([]byte, NodeResolverFn) ([]byte, error) {

@@ -58,7 +58,7 @@ type VerkleNode interface {
 	Insert([]byte, []byte, NodeResolverFn) error
 
 	// Delete a leaf with the given key
-	Delete([]byte, NodeResolverFn) error
+	Delete([]byte, NodeResolverFn) (bool, error)
 
 	// Get value at a given key
 	Get([]byte, NodeResolverFn) ([]byte, error)
@@ -513,30 +513,52 @@ func (n *InternalNode) toHashedNode() *HashedNode {
 	return &HashedNode{commitment: comm[:]}
 }
 
-func (n *InternalNode) Delete(key []byte, resolver NodeResolverFn) error {
+func (n *InternalNode) Delete(key []byte, resolver NodeResolverFn) (bool, error) {
 	nChild := offset2key(key, n.depth)
 	switch child := n.children[nChild].(type) {
 	case Empty:
-		return nil
+		return false, nil
 	case *HashedNode:
 		if resolver == nil {
-			return errDeleteHash
+			return false, errDeleteHash
 		}
 		comm := child.commitment
 		payload, err := resolver(comm)
 		if err != nil {
-			return err
+			return false, err
 		}
 		// deserialize the payload and set it as the child
 		c, err := ParseNode(payload, n.depth+1, comm)
 		if err != nil {
-			return err
+			return false, err
 		}
 		n.children[nChild] = c
 		return n.Delete(key, resolver)
 	default:
 		n.cowChild(nChild)
-		return child.Delete(key, resolver)
+		del, err := child.Delete(key, resolver)
+		if err != nil {
+			return false, err
+		}
+
+		// delete the entire child if instructed to by
+		// the recursive algorigthm.
+		if del {
+			n.children[nChild] = Empty{}
+
+			// Check if all children are gone, if so
+			// signal that this node should be deleted
+			// as well.
+			for _, c := range n.children {
+				if _, ok := c.(Empty); !ok {
+					break
+				}
+			}
+
+			return true, nil
+		}
+
+		return false, nil
 	}
 }
 
@@ -1075,15 +1097,98 @@ func (n *LeafNode) updateMultipleLeaves(values [][]byte) {
 	}
 }
 
-func (n *LeafNode) Delete(k []byte, _ NodeResolverFn) error {
+// Delete deletes a value from the leaf, return `true` as a second
+// return value, if the parent should entirely delete the child.
+func (n *LeafNode) Delete(k []byte, _ NodeResolverFn) (bool, error) {
 	// Sanity check: ensure the key header is the same:
 	if !equalPaths(k, n.stem) {
-		return nil
+		return false, nil
 	}
 
-	var zero [32]byte
-	n.updateLeaf(k[31], zero[:])
-	return nil
+	// Erase the value it used to contain
+	original := n.values[k[31]] // save original value
+	n.values[k[31]] = nil
+
+	// Check if a Cn subtree is entirely empty, or if
+	// the entire subtree is empty.
+	var (
+		isCnempty = true
+		isCempty  = true
+	)
+	for i := 0; i < NodeWidth; i++ {
+		if len(n.values[i]) > 0 {
+			// if i and k[31] are in the same subtree,
+			// set both values and return.
+			if byte(i/128) == k[31]/128 {
+				isCnempty = false
+				isCempty = false
+				break
+			}
+
+			// i and k[31] were in a different subtree,
+			// so all we can say at this stage, is that
+			// the whole tree isn't empty.
+			// TODO if i < 128, then k[31] >= 128 and
+			// we could skip to 128, but that's an
+			// optimization for later.
+			isCempty = false
+		}
+	}
+
+	// if the whole subtree is empty, then the
+	// entire node should be deleted.
+	if isCempty {
+		return true, nil
+	}
+
+	// if a Cn branch becomes empty as a result
+	// of removing the last value, update C by
+	// adding -Cn to it and exit.
+	if isCnempty {
+		var (
+			cn           *Point
+			subtreeindex = 2 + k[31]/128
+		)
+
+		if k[31] < 128 {
+			cn = n.c1
+		} else {
+			cn = n.c2
+		}
+
+		// Update C by subtracting the old value for Cn
+		// Note: this isn't done in one swoop, which would make sense
+		// since presumably a lot of values would be deleted at the same
+		// time when reorging. Nonetheless, a reorg is an already complex
+		// operation which is slow no matter what, so ensuring correctness
+		// is more important than
+		var poly [4]Fr
+		toFr(&poly[subtreeindex], cn)
+		n.commitment.Sub(n.commitment, cfg.CommitToPoly(poly[:], 0))
+
+		// Clear the corresponding commitment
+		if k[31] < 128 {
+			n.c1 = nil
+		} else {
+			n.c2 = nil
+		}
+
+		return false, nil
+	}
+
+	// Recompute the updated C & Cn
+	//
+	// This is done by setting the leaf value
+	// to `nil` at this point, and all the
+	// diff computation will be performed by
+	// updateLeaf since leafToComms supports
+	// nil values.
+	// Note that the value is set to nil by
+	// the method, as it needs the original
+	// value to compute the commitment diffs.
+	n.values[k[31]] = original
+	n.updateLeaf(k[31], nil)
+	return false, nil
 }
 
 func (n *LeafNode) Get(k []byte, _ NodeResolverFn) ([]byte, error) {

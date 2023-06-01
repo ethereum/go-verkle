@@ -239,16 +239,20 @@ func TestCachedCommitment(t *testing.T) {
 
 func TestDelLeaf(t *testing.T) {
 	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
+	key1p, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000001")  // same Cn group as key1
+	key1pp, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000081") // Other Cn group as key1
 	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
 	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
 	tree := New()
 	tree.Insert(key1, fourtyKeyTest, nil)
+	tree.Insert(key1p, fourtyKeyTest, nil)
+	tree.Insert(key1pp, fourtyKeyTest, nil)
 	tree.Insert(key2, fourtyKeyTest, nil)
 	var init Point
 	CopyPoint(&init, tree.Commit())
 
 	tree.Insert(key3, fourtyKeyTest, nil)
-	if err := tree.Delete(key3, nil); err != nil {
+	if _, err := tree.Delete(key3, nil); err != nil {
 		t.Error(err)
 	}
 
@@ -256,7 +260,7 @@ func TestDelLeaf(t *testing.T) {
 	// as deleting a value means replacing it with a 0 in verkle
 	// trees.
 	postHash := tree.Commit()
-	if Equal(&init, postHash) {
+	if !Equal(&init, postHash) {
 		t.Errorf("deleting leaf resulted in unexpected tree %x %x", init.Bytes(), postHash.Bytes())
 	}
 
@@ -264,7 +268,29 @@ func TestDelLeaf(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if !bytes.Equal(res, zeroKeyTest) {
+	if len(res) > 0 {
+		t.Error("leaf hasnt been deleted")
+	}
+
+	if _, err := tree.Delete(key1pp, nil); err != nil {
+		t.Fatal(err)
+	}
+	res, err = tree.Get(key1pp, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	if len(res) > 0 {
+		t.Error("leaf hasnt been deleted")
+	}
+
+	if _, err := tree.Delete(key1p, nil); err != nil {
+		t.Fatal(err)
+	}
+	res, err = tree.Get(key1p, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	if len(res) > 0 {
 		t.Error("leaf hasnt been deleted")
 	}
 }
@@ -276,7 +302,7 @@ func TestDeleteNonExistent(t *testing.T) {
 	tree := New()
 	tree.Insert(key1, fourtyKeyTest, nil)
 	tree.Insert(key2, fourtyKeyTest, nil)
-	if err := tree.Delete(key3, nil); err != nil {
+	if _, err := tree.Delete(key3, nil); err != nil {
 		t.Error("should not fail when deleting a non-existent key")
 	}
 }
@@ -291,48 +317,53 @@ func TestDeletePrune(t *testing.T) {
 	tree.Insert(key1, fourtyKeyTest, nil)
 	tree.Insert(key2, fourtyKeyTest, nil)
 
-	var hashPostKey2, hashPostKey4 Point
+	var hashPostKey2, hashPostKey4, completeTreeHash Point
 	CopyPoint(&hashPostKey2, tree.Commit())
 	tree.Insert(key3, fourtyKeyTest, nil)
 	tree.Insert(key4, fourtyKeyTest, nil)
 	CopyPoint(&hashPostKey4, tree.Commit())
 	tree.Insert(key5, fourtyKeyTest, nil)
-	tree.Commit()
+	CopyPoint(&completeTreeHash, tree.Commit()) // hash when the tree has received all its keys
 
 	// Delete key5.
-	if err := tree.Delete(key5, nil); err != nil {
+	if _, err := tree.Delete(key5, nil); err != nil {
 		t.Error(err)
 	}
 	postHash := tree.Commit()
-	// The post deletion hash should be different from the post key4 hash.
-	if Equal(&hashPostKey4, postHash) {
+	// Check that the deletion updated the root hash and that it's not
+	// the same as the pre-deletion hash.
+	if Equal(&completeTreeHash, postHash) {
+		t.Fatalf("deletion did not update the hash %x == %x", completeTreeHash, postHash)
+	}
+	// The post deletion hash should be the same as the post key4 hash.
+	if !Equal(&hashPostKey4, postHash) {
 		t.Error("deleting leaf #5 resulted in unexpected tree")
 	}
 	res, err := tree.Get(key5, nil)
 	if err != nil {
 		t.Error(err)
 	}
-	if !bytes.Equal(res, zeroKeyTest) {
+	if len(res) > 0 {
 		t.Error("leaf #5 hasn't been deleted")
 	}
 
 	// Delete key4 and key3.
-	if err := tree.Delete(key4, nil); err != nil {
+	if _, err := tree.Delete(key4, nil); err != nil {
 		t.Error(err)
 	}
-	if err := tree.Delete(key3, nil); err != nil {
+	if _, err := tree.Delete(key3, nil); err != nil {
 		t.Error(err)
 	}
 	postHash = tree.Commit()
 	// The post deletion hash should be different from the post key2 hash.
-	if Equal(&hashPostKey2, postHash) {
+	if !Equal(&hashPostKey2, postHash) {
 		t.Error("deleting leaf #3 resulted in unexpected tree")
 	}
 	res, err = tree.Get(key3, nil)
 	if err != nil {
 		t.Error(err)
 	}
-	if !bytes.Equal(res, zeroKeyTest) {
+	if len(res) > 0 {
 		t.Error("leaf hasnt been deleted")
 	}
 }
@@ -350,7 +381,7 @@ func TestDeleteHash(t *testing.T) {
 	tree.Insert(key3, fourtyKeyTest, nil)
 	tree.(*InternalNode).FlushAtDepth(0, func(vn VerkleNode) {})
 	tree.Commit()
-	if err := tree.Delete(key2, nil); err != errDeleteHash {
+	if _, err := tree.Delete(key2, nil); err != errDeleteHash {
 		t.Fatalf("did not report the correct error while deleting from a hash: %v", err)
 	}
 }
@@ -364,7 +395,7 @@ func TestDeleteUnequalPath(t *testing.T) {
 	tree.Insert(key3, fourtyKeyTest, nil)
 	tree.Commit()
 
-	if err := tree.Delete(key2, nil); err != nil {
+	if _, err := tree.Delete(key2, nil); err != nil {
 		t.Fatalf("errored during the deletion of non-existing key, err =%v", err)
 	}
 }
@@ -385,7 +416,7 @@ func TestDeleteResolve(t *testing.T) {
 	tree.Commit()
 
 	var called bool
-	err := tree.Delete(key2, func(comm []byte) ([]byte, error) {
+	_, err := tree.Delete(key2, func(comm []byte) ([]byte, error) {
 		called = true
 		for _, node := range savedNodes {
 			c := node.Commit().Bytes()
