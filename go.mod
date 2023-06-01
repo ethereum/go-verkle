@@ -2,7 +2,7 @@ module github.com/gballet/go-verkle
 
 go 1.18
 
-require github.com/crate-crypto/go-ipa v0.0.0-20230410135559-ce4a96995014
+require github.com/crate-crypto/go-ipa v0.0.0-20230601100809-a49f82a18f8c
 
 require (
 	golang.org/x/sync v0.1.0 // indirect
