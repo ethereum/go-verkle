@@ -40,22 +40,22 @@ jobs:
         echo 230080 > conversion.txt
         ./geth import --datadir=../.ethereum /home/devops/verkle-test-dependencies/next_blocks4
 
-    - name: Upload profiler file
-      uses: actions/upload-artifact@v3
-      with:
-        name: cpu.out
-        path: ./geth/cpu.out
+    # - name: Upload profiler file
+    #   uses: actions/upload-artifact@v3
+    #   with:
+    #     name: cpu.out
+    #     path: ./geth/cpu.out
 
-    - name: Generate profile diagram
-      run: |
-        cd geth
-        go tool pprof -png cpu.out > profile001.png
+    # - name: Generate profile diagram
+    #   run: |
+    #     cd geth
+    #     go tool pprof -png cpu.out > profile001.png
 
-    - name: Upload profiler picture
-      uses: actions/upload-artifact@v3
-      with:
-        name: profile.png
-        path: ./geth/profile001.png
+    # - name: Upload profiler picture
+    #   uses: actions/upload-artifact@v3
+    #   with:
+    #     name: profile.png
+    #     path: ./geth/profile001.png
 
     - name: Cleanup
       if: always()
