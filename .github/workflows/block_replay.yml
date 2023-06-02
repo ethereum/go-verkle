@@ -20,9 +20,10 @@ jobs:
         tar xf /home/devops/verkle-test-dependencies/replay_converted.tgz --strip-components=1 -C .ethereum
 
     - name: Download geth from the proper repo
-      run: git clone https://github.com/gballet/go-ethereum -b beverly-hills+sepolia-replay geth
+      run: git clone https://github.com/gballet/go-ethereum -b overlay/changes-for-replay geth
+      # run: git clone https://github.com/gballet/go-ethereum -b beverly-hills+sepolia-replay geth
 
-    - name: Edit geth to use this repo
+    - name: Edit geth to use this repo and build it
       run: |
         cd geth
         cp /home/devops/verkle-test-dependencies/precomp .
@@ -36,6 +37,7 @@ jobs:
     - name: Run replay
       run: |
         cd geth
+        echo 230080 > conversion.txt
         ./geth import --datadir=../.ethereum /home/devops/verkle-test-dependencies/next_blocks4
 
     - name: Upload profiler file
