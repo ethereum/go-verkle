@@ -79,7 +79,7 @@ func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte) (*ProofElements
 	return root.GetProofItems(keylist(keys))
 }
 
-func MakeVerkleMultiProof(root VerkleNode, keys [][]byte, keyvals map[string][]byte) (*Proof, []*Point, []byte, []*Fr, error) {
+func MakeVerkleMultiProof(root VerkleNode, keys [][]byte) (*Proof, []*Point, []byte, []*Fr, error) {
 	// go-ipa won't accept no key as an input, catch this corner case
 	// and return an empty result.
 	if len(keys) == 0 {
@@ -94,13 +94,18 @@ func MakeVerkleMultiProof(root VerkleNode, keys [][]byte, keyvals map[string][]b
 		return nil, nil, nil, nil, err
 	}
 
-	var vals [][]byte
-	for _, k := range keys {
-		// TODO at the moment, do not include the post-data
-		// val, _ := root.Get(k, nil)
-		// vals = append(vals, val)
-		vals = append(vals, keyvals[string(k)])
-	}
+	// NOTE this is leftover code from the time the proof was
+	// made against the POST state. Since proofs are expected
+	// to prove PRE and POST state in the future, I'm leaving
+	// this for reference - eventhough it's unlikely that the
+	// final version will look like this, but you never know.
+	// var vals [][]byte
+	// for _, k := range keys {
+	// 	// TODO at the moment, do not include the post-data
+	// 	// val, _ := root.Get(k, nil)
+	// 	// vals = append(vals, val)
+	// 	vals = append(vals, keyvals[string(k)])
+	// }
 
 	cfg := GetConfig()
 	mpArg := ipa.CreateMultiProof(tr, cfg.conf, pe.Cis, pe.Fis, pe.Zis)
@@ -127,7 +132,7 @@ func MakeVerkleMultiProof(root VerkleNode, keys [][]byte, keyvals map[string][]b
 		ExtStatus:  es,
 		PoaStems:   poas,
 		Keys:       keys,
-		Values:     vals,
+		Values:     pe.Vals,
 	}
 	return proof, pe.Cis, pe.Zis, pe.Yis, nil
 }
@@ -353,7 +358,7 @@ func TreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) {
 				continue
 			}
 
-			if bytes.Equal(k, info[string(p)].stem) {
+			if bytes.Equal(k[:31], info[string(p)].stem) {
 				values[k[31]] = proof.Values[i]
 			}
 		}
