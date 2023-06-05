@@ -99,6 +99,7 @@ type ProofElements struct {
 	Yis    []*Fr
 	Fis    [][]Fr
 	ByPath map[string]*Point // Gather commitments by path
+	Vals   [][]byte          // list of values read from the tree
 
 	// dedups flags the presence of each (Ci,zi) tuple
 	dedups map[*Point]map[byte]struct{}
@@ -146,6 +147,8 @@ func (pe *ProofElements) Merge(other *ProofElements) {
 			pe.ByPath[path] = C
 		}
 	}
+
+	pe.Vals = append(pe.Vals, other.Vals...)
 }
 
 const (
@@ -810,6 +813,7 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 			// repeated as many times? It would be wasteful, so the
 			// decoding code has to be aware of this corner case.
 			esses = append(esses, extStatusAbsentEmpty|((n.depth+1)<<3))
+			pe.Vals = append(pe.Vals, nil)
 			continue
 		}
 
@@ -1271,6 +1275,7 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 			Zis:    []byte{0, 1},
 			Yis:    []*Fr{&poly[0], &poly[1]}, // Should be 0
 			Fis:    [][]Fr{poly[:], poly[:]},
+			Vals:   make([][]byte, 0, len(keys)),
 			ByPath: map[string]*Point{},
 		}
 
@@ -1321,6 +1326,7 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 			if len(esses) == 0 {
 				esses = append(esses, extStatusAbsentOther|(n.depth<<3))
 				poass = append(poass, n.stem)
+				pe.Vals = append(pe.Vals, nil)
 			}
 			continue
 		}
@@ -1357,6 +1363,7 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 			// as all the information is available before fillSuffixTreePoly
 			// has to be called, save the count.
 			esses = append(esses, extStatusAbsentEmpty|(n.depth<<3))
+			pe.Vals = append(pe.Vals, nil)
 			continue
 		}
 
@@ -1384,6 +1391,7 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 		pe.Zis = append(pe.Zis, 2*suffix, 2*suffix+1)
 		pe.Yis = append(pe.Yis, &leaves[0], &leaves[1])
 		pe.Fis = append(pe.Fis, suffPoly[:], suffPoly[:])
+		pe.Vals = append(pe.Vals, n.values[key[31]])
 		if len(esses) == 0 || esses[len(esses)-1] != extStatusPresent|(n.depth<<3) {
 			esses = append(esses, extStatusPresent|(n.depth<<3))
 		}
