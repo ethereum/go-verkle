@@ -35,12 +35,14 @@ jobs:
       run: go vet
   
   test:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Set up Go
       uses: actions/setup-go@v2
       with:
         go-version: 1.18
+    - name: Download precomp file
+      run: wget https://github.com/gballet/go-verkle/releases/download/banderwagonv3/precomp && ls -al
     - name: Test
       run: go test -v -race ./...
