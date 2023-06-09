@@ -1322,13 +1322,18 @@ func TestManipulateChildren(t *testing.T) {
 }
 
 func TestLeafNodeInsert(t *testing.T) {
-	values := make([][]byte, NodeWidth)
 	valIdx := 42
-	values[valIdx] = testValue
-	ln := NewLeafNode(ffx32KeyTest[:StemSize], values)
+	ffx31plus42 := append(ffx32KeyTest[:StemSize], byte(valIdx))
+
+	tree := New()
+	if err := tree.Insert(ffx31plus42, testValue, nil); err != nil {
+		t.Fatalf("failed to insert key: %v", err)
+	}
+	tree.Commit()
+	ln := tree.(*InternalNode).Children()[ffx32KeyTest[0]].(*LeafNode)
 
 	// Check we get the value correctly via Get(...).
-	getValue, err := ln.Get(append(ffx32KeyTest[:StemSize], byte(valIdx)), nil)
+	getValue, err := ln.Get(ffx31plus42, nil)
 	if err != nil {
 		t.Fatalf("failed to get leaf node key/value: %v", err)
 	}
