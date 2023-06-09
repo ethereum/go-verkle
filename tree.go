@@ -255,7 +255,7 @@ func NewLeafNode(stem []byte, values [][]byte) *LeafNode {
 		// depth will be 0, but the commitment calculation
 		// does not need it, and so it won't be free.
 		values:     values,
-		stem:       stem,
+		stem:       stem[:StemSize],
 		commitment: nil,
 		c1:         nil,
 		c2:         nil,
