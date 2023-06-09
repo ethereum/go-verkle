@@ -1323,7 +1323,9 @@ func TestManipulateChildren(t *testing.T) {
 
 func TestLeafNodeInsert(t *testing.T) {
 	valIdx := 42
-	ffx31plus42 := append(ffx32KeyTest[:StemSize], byte(valIdx))
+	ffx31plus42 := make([]byte, 32)
+	copy(ffx31plus42, ffx32KeyTest[:StemSize])
+	ffx31plus42[StemSize] = byte(valIdx)
 
 	tree := New()
 	if err := tree.Insert(ffx31plus42, testValue, nil); err != nil {
