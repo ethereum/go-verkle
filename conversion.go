@@ -2,10 +2,12 @@ package verkle
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"runtime"
 	"sort"
-	"sync"
+
+	"golang.org/x/sync/errgroup"
 )
 
 // BatchNewLeafNodeData is a struct that contains the data needed to create a new leaf node.
@@ -23,56 +25,56 @@ func BatchNewLeafNode(nodesValues []BatchNewLeafNodeData) ([]LeafNode, error) {
 	numBatches := runtime.NumCPU()
 	batchSize := len(nodesValues) / numBatches
 
-	var (
-		wg  sync.WaitGroup
-		err error
-	)
-	wg.Add(numBatches)
+	group, _ := errgroup.WithContext(context.Background())
 	for i := 0; i < numBatches; i++ {
 		start := i * batchSize
 		end := (i + 1) * batchSize
 		if i == numBatches-1 {
 			end = len(nodesValues)
 		}
-		go func(ret []LeafNode, nodesValues []BatchNewLeafNodeData) {
-			defer wg.Done()
 
-			c1c2points := make([]*Point, 2*len(nodesValues))
-			c1c2frs := make([]*Fr, 2*len(nodesValues))
-			for i, nv := range nodesValues {
-				valsslice := make([][]byte, NodeWidth)
-				for idx := range nv.Values {
-					valsslice[idx] = nv.Values[idx]
+		work := func(ret []LeafNode, nodesValues []BatchNewLeafNodeData) func() error {
+			return func() error {
+				c1c2points := make([]*Point, 2*len(nodesValues))
+				c1c2frs := make([]*Fr, 2*len(nodesValues))
+				for i, nv := range nodesValues {
+					valsslice := make([][]byte, NodeWidth)
+					for idx := range nv.Values {
+						valsslice[idx] = nv.Values[idx]
+					}
+
+					var leaf *LeafNode
+					leaf, err := NewLeafNode(nv.Stem, valsslice)
+					if err != nil {
+						return err
+					}
+					ret[i] = *leaf
+
+					c1c2points[2*i], c1c2points[2*i+1] = ret[i].c1, ret[i].c2
+					c1c2frs[2*i], c1c2frs[2*i+1] = new(Fr), new(Fr)
 				}
 
-				var leaf *LeafNode
-				leaf, err = NewLeafNode(nv.Stem, valsslice)
-				if err != nil {
-					return
-				}
-				ret[i] = *leaf
+				toFrMultiple(c1c2frs, c1c2points)
 
-				c1c2points[2*i], c1c2points[2*i+1] = ret[i].c1, ret[i].c2
-				c1c2frs[2*i], c1c2frs[2*i+1] = new(Fr), new(Fr)
+				var poly [NodeWidth]Fr
+				poly[0].SetUint64(1)
+				for i, nv := range nodesValues {
+					if err := StemFromBytes(&poly[1], nv.Stem); err != nil {
+						return err
+					}
+					poly[2] = *c1c2frs[2*i]
+					poly[3] = *c1c2frs[2*i+1]
+
+					ret[i].commitment = cfg.CommitToPoly(poly[:], 252)
+				}
+				return nil
 			}
-
-			toFrMultiple(c1c2frs, c1c2points)
-
-			var poly [NodeWidth]Fr
-			poly[0].SetUint64(1)
-			for i, nv := range nodesValues {
-				if err = StemFromBytes(&poly[1], nv.Stem); err != nil {
-					return
-				}
-				poly[2] = *c1c2frs[2*i]
-				poly[3] = *c1c2frs[2*i+1]
-
-				ret[i].commitment = cfg.CommitToPoly(poly[:], 252)
-			}
-
-		}(ret[start:end], nodesValues[start:end])
+		}
+		group.Go(work(ret[start:end], nodesValues[start:end]))
 	}
-	wg.Wait()
+	if err := group.Wait(); err != nil {
+		return nil, fmt.Errorf("creating leaf node: %s", err)
+	}
 
 	sort.Slice(ret, func(i, j int) bool {
 		return bytes.Compare(ret[i].stem, ret[j].stem) < 0
