@@ -85,7 +85,9 @@ func GetConfig() *Config {
 		values := make([][]byte, NodeWidth)
 		values[CodeHashVectorPosition] = emptyHashCode
 		var c1poly [NodeWidth]Fr
-		fillSuffixTreePoly(c1poly[:], values[:NodeWidth/2])
+		if _, err := fillSuffixTreePoly(c1poly[:], values[:NodeWidth/2]); err != nil {
+			panic(err)
+		}
 		EmptyCodeHashPoint = *cfg.CommitToPoly(c1poly[:], 0)
 		EmptyCodeHashFirstHalfValue = c1poly[EmptyCodeHashFirstHalfIdx]
 		EmptyCodeHashSecondHalfValue = c1poly[EmptyCodeHashSecondHalfIdx]

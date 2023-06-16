@@ -16,14 +16,17 @@ type BatchNewLeafNodeData struct {
 
 // BatchNewLeafNode creates a new leaf node from the given data. It optimizes LeafNode creation
 // by batching expensive cryptography operations. It returns the LeafNodes sorted by stem.
-func BatchNewLeafNode(nodesValues []BatchNewLeafNodeData) []LeafNode {
+func BatchNewLeafNode(nodesValues []BatchNewLeafNodeData) ([]LeafNode, error) {
 	cfg := GetConfig()
 	ret := make([]LeafNode, len(nodesValues))
 
 	numBatches := runtime.NumCPU()
 	batchSize := len(nodesValues) / numBatches
 
-	var wg sync.WaitGroup
+	var (
+		wg  sync.WaitGroup
+		err error
+	)
 	wg.Add(numBatches)
 	for i := 0; i < numBatches; i++ {
 		start := i * batchSize
@@ -42,7 +45,12 @@ func BatchNewLeafNode(nodesValues []BatchNewLeafNodeData) []LeafNode {
 					valsslice[idx] = nv.Values[idx]
 				}
 
-				ret[i] = *NewLeafNode(nv.Stem, valsslice)
+				var leaf *LeafNode
+				leaf, err = NewLeafNode(nv.Stem, valsslice)
+				if err != nil {
+					return
+				}
+				ret[i] = *leaf
 
 				c1c2points[2*i], c1c2points[2*i+1] = ret[i].c1, ret[i].c2
 				c1c2frs[2*i], c1c2frs[2*i+1] = new(Fr), new(Fr)
@@ -53,7 +61,9 @@ func BatchNewLeafNode(nodesValues []BatchNewLeafNodeData) []LeafNode {
 			var poly [NodeWidth]Fr
 			poly[0].SetUint64(1)
 			for i, nv := range nodesValues {
-				StemFromBytes(&poly[1], nv.Stem)
+				if err = StemFromBytes(&poly[1], nv.Stem); err != nil {
+					return
+				}
 				poly[2] = *c1c2frs[2*i]
 				poly[3] = *c1c2frs[2*i+1]
 
@@ -68,7 +78,7 @@ func BatchNewLeafNode(nodesValues []BatchNewLeafNodeData) []LeafNode {
 		return bytes.Compare(ret[i].stem, ret[j].stem) < 0
 	})
 
-	return ret
+	return ret, nil
 }
 
 // firstDiffByteIdx will return the first index in which the two stems differ.
@@ -127,7 +137,9 @@ func (n *InternalNode) InsertMigratedLeaves(leaves []LeafNode, resolver NodeReso
 					}
 				}
 
-				node.updateMultipleLeaves(nonPresentValues)
+				if err := node.updateMultipleLeaves(nonPresentValues); err != nil {
+					return nil
+				}
 				continue
 			}
 

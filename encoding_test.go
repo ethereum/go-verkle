@@ -13,7 +13,10 @@ func TestLeafStemLength(t *testing.T) {
 	// Serialize a leaf with no values, but whose stem is 32 bytes. The
 	// serialization should trim the extra byte.
 	toolong := make([]byte, 32)
-	leaf := NewLeafNode(toolong, make([][]byte, NodeWidth))
+	leaf, err := NewLeafNode(toolong, make([][]byte, NodeWidth))
+	if err != nil {
+		t.Fatal(err)
+	}
 	ser, err := leaf.Serialize()
 	if err != nil {
 		t.Fatal(err)
@@ -32,7 +35,10 @@ func TestInvalidNodeEncoding(t *testing.T) {
 	// Test an invalid node type.
 	values := make([][]byte, NodeWidth)
 	values[42] = testValue
-	ln := NewLeafNode(ffx32KeyTest, values)
+	ln, err := NewLeafNode(ffx32KeyTest, values)
+	if err != nil {
+		t.Fatal(err)
+	}
 	lnbytes, err := ln.Serialize()
 	if err != nil {
 		t.Fatalf("serializing leaf node: %v", err)
