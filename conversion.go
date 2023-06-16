@@ -138,7 +138,7 @@ func (n *InternalNode) InsertMigratedLeaves(leaves []LeafNode, resolver NodeReso
 				}
 
 				if err := node.updateMultipleLeaves(nonPresentValues); err != nil {
-					return nil
+					return fmt.Errorf("updating leaves: %s", err)
 				}
 				continue
 			}
