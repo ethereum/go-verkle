@@ -1504,6 +1504,7 @@ func ToDot(root VerkleNode) string {
 // Providing both allows this library to do more optimizations.
 type SerializedNode struct {
 	Node            VerkleNode
+	CommitmentBytes [32]byte
 	Path            []byte
 	SerializedBytes []byte
 }
@@ -1551,6 +1552,7 @@ func (n *InternalNode) BatchSerialize() ([]SerializedNode, error) {
 			sn := SerializedNode{
 				Node:            n,
 				Path:            paths[i],
+				CommitmentBytes: compressedPoints[idx],
 				SerializedBytes: serialized,
 			}
 			ret = append(ret, sn)
@@ -1562,6 +1564,7 @@ func (n *InternalNode) BatchSerialize() ([]SerializedNode, error) {
 			sn := SerializedNode{
 				Node:            n,
 				Path:            paths[i],
+				CommitmentBytes: compressedPoints[idx],
 				SerializedBytes: n.serializeLeafWithCompressedCommitments(cBytes, c1Bytes, c2Bytes),
 			}
 			ret = append(ret, sn)
