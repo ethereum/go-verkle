@@ -1504,7 +1504,7 @@ func ToDot(root VerkleNode) string {
 // Providing both allows this library to do more optimizations.
 type SerializedNode struct {
 	Node            VerkleNode
-	CommitmentBytes [32]byte
+	Path            []byte
 	SerializedBytes []byte
 }
 
@@ -1516,7 +1516,8 @@ func (n *InternalNode) BatchSerialize() ([]SerializedNode, error) {
 
 	// Collect all nodes that we need to serialize.
 	nodes := make([]VerkleNode, 0, 1024)
-	nodes = n.collectNonHashedNodes(nodes)
+	paths := make([][]byte, 0, 1024)
+	nodes, paths = n.collectNonHashedNodes(nodes, paths, nil)
 
 	// We collect all the *Point, so we can batch all projective->affine transformations.
 	pointsToCompress := make([]*Point, 0, 3*len(nodes))
@@ -1549,7 +1550,7 @@ func (n *InternalNode) BatchSerialize() ([]SerializedNode, error) {
 			}
 			sn := SerializedNode{
 				Node:            n,
-				CommitmentBytes: compressedPoints[idx],
+				Path:            paths[i],
 				SerializedBytes: serialized,
 			}
 			ret = append(ret, sn)
@@ -1560,7 +1561,7 @@ func (n *InternalNode) BatchSerialize() ([]SerializedNode, error) {
 			c2Bytes := compressedPoints[idx+2]
 			sn := SerializedNode{
 				Node:            n,
-				CommitmentBytes: compressedPoints[idx],
+				Path:            paths[i],
 				SerializedBytes: n.serializeLeafWithCompressedCommitments(cBytes, c1Bytes, c2Bytes),
 			}
 			ret = append(ret, sn)
@@ -1571,17 +1572,22 @@ func (n *InternalNode) BatchSerialize() ([]SerializedNode, error) {
 	return ret, nil
 }
 
-func (n *InternalNode) collectNonHashedNodes(list []VerkleNode) []VerkleNode {
+func (n *InternalNode) collectNonHashedNodes(list []VerkleNode, paths [][]byte, path []byte) ([]VerkleNode, [][]byte) {
 	list = append(list, n)
-	for _, child := range n.children {
+	paths = append(paths, path)
+	for i, child := range n.children {
+		childpath := make([]byte, len(path)+1)
+		copy(childpath[:], path)
+		childpath[len(path)] = byte(i)
 		switch childNode := child.(type) {
 		case *LeafNode:
 			list = append(list, childNode)
+			paths = append(paths, childpath)
 		case *InternalNode:
-			list = childNode.collectNonHashedNodes(list)
+			list, paths = childNode.collectNonHashedNodes(list, paths, childpath)
 		}
 	}
-	return list
+	return list, paths
 }
 
 func (n *InternalNode) serializeInternalWithCompressedCommitment(compressedPointsIdxs map[VerkleNode]int, compressedPoints [][32]byte) ([]byte, error) {
