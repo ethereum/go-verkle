@@ -45,7 +45,7 @@ const (
 
 	// Internal nodes offsets.
 	internalBitlistOffset      = nodeTypeOffset + nodeTypeSize
-	internalNodeChildrenOffset = internalBitlistOffset
+	internalNodeChildrenOffset = internalBitlistOffset + bitlistSize
 
 	// Leaf node offsets.
 	leafSteamOffset        = nodeTypeOffset + nodeTypeSize
@@ -79,7 +79,7 @@ func ParseNode(serializedNode []byte, depth byte) (VerkleNode, error) {
 	case leafRLPType:
 		return parseLeafNode(serializedNode, depth)
 	case internalRLPType:
-		return CreateInternalNode(serializedNode[internalNodeChildrenOffset:], depth)
+		return CreateInternalNode(serializedNode[internalBitlistOffset:internalNodeChildrenOffset], serializedNode[internalNodeChildrenOffset:], depth)
 	default:
 		return nil, ErrInvalidNodeEncoding
 	}
@@ -109,16 +109,34 @@ func parseLeafNode(serialized []byte, depth byte) (VerkleNode, error) {
 	return ln, nil
 }
 
-func CreateInternalNode(raw []byte, depth byte) (*InternalNode, error) {
+func CreateInternalNode(bitlist []byte, raw []byte, depth byte) (*InternalNode, error) {
 	// GetTreeConfig caches computation result, hence
 	// this op has low overhead
-	n := (newInternalNode(depth)).(*InternalNode)
+	node := new(InternalNode)
 
+	if len(bitlist) != bitlistSize {
+		return nil, ErrInvalidNodeEncoding
+	}
+
+	// Create a HashNode placeholder for all values
+	// corresponding to a set bit.
+	node.children = make([]VerkleNode, NodeWidth)
+	for i, b := range bitlist {
+		for j := 0; j < 8; j++ {
+			if b&mask[j] != 0 {
+				node.children[8*i+j] = &HashedNode{}
+			} else {
+
+				node.children[8*i+j] = Empty(struct{}{})
+			}
+		}
+	}
+	node.depth = depth
 	if len(raw) != SerializedPointCompressedSize {
 		return nil, ErrInvalidNodeEncoding
 	}
 
-	n.commitment = new(Point)
-	n.commitment.SetBytesTrusted(raw)
-	return n, nil
+	node.commitment = new(Point)
+	node.commitment.SetBytesTrusted(raw)
+	return node, nil
 }
