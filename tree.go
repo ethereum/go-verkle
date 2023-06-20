@@ -848,13 +848,14 @@ func (n *InternalNode) Serialize() ([]byte, error) {
 	bitlist := ret[internalBitlistOffset:internalNodeChildrenOffset]
 	for i, c := range n.children {
 		if _, ok := c.(Empty); !ok {
-			setBit(bitlist[:], i)
+			setBit(bitlist, i)
 		}
 	}
 
 	// Store in ret the serialized result
 	ret[nodeTypeOffset] = internalRLPType
 	comm := n.commitment.Bytes()
+	// XXX rename
 	copy(ret[internalNodeChildrenOffset:], comm[:])
 	// Note that children were already appended in ret through the children slice.
 
@@ -1542,7 +1543,7 @@ func (n *InternalNode) collectNonHashedNodes(list []VerkleNode, paths [][]byte, 
 	paths = append(paths, path)
 	for i, child := range n.children {
 		childpath := make([]byte, len(path)+1)
-		copy(childpath[:], path)
+		copy(childpath, path)
 		childpath[len(path)] = byte(i)
 		switch childNode := child.(type) {
 		case *LeafNode:
