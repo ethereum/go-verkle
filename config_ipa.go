@@ -51,7 +51,7 @@ var (
 	FrOne  Fr
 
 	cfg     *Config
-	cfgLock sync.Mutex
+	onceCfg sync.Once
 )
 
 func init() {
@@ -66,11 +66,14 @@ type IPAConfig struct {
 type Config = IPAConfig
 
 func GetConfig() *Config {
-	cfgLock.Lock()
-	defer cfgLock.Unlock()
-	if cfg == nil {
-		cfg = &IPAConfig{conf: ipa.NewIPASettings()}
+	onceCfg.Do(func() {
+		conf, err := ipa.NewIPASettings()
+		if err != nil {
+			panic(err)
+		}
+		cfg = &IPAConfig{conf: conf}
 
+		// Initialize the empty code cached values.
 		emptyHashCode, _ := hex.DecodeString("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
 		values := make([][]byte, NodeWidth)
 		values[CodeHashVectorPosition] = emptyHashCode
@@ -81,8 +84,7 @@ func GetConfig() *Config {
 		EmptyCodeHashPoint = *cfg.CommitToPoly(c1poly[:], 0)
 		EmptyCodeHashFirstHalfValue = c1poly[EmptyCodeHashFirstHalfIdx]
 		EmptyCodeHashSecondHalfValue = c1poly[EmptyCodeHashSecondHalfIdx]
-
-	}
+	})
 	return cfg
 }
 
