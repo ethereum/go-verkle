@@ -27,7 +27,7 @@ package verkle
 
 import (
 	"encoding/hex"
-	"os"
+	"sync"
 
 	"github.com/crate-crypto/go-ipa/ipa"
 )
@@ -46,40 +46,30 @@ const (
 	EmptyCodeHashSecondHalfIdx = EmptyCodeHashFirstHalfIdx + 1
 )
 
+var (
+	FrZero Fr
+	FrOne  Fr
+
+	cfg     *Config
+	cfgLock sync.Mutex
+)
+
+func init() {
+	FrZero.SetZero()
+	FrOne.SetOne()
+}
+
 type IPAConfig struct {
 	conf *ipa.IPAConfig
 }
 
 type Config = IPAConfig
 
-func (ipac *IPAConfig) CommitToPoly(poly []Fr, _ int) *Point {
-	ret := ipac.conf.Commit(poly)
-	return &ret
-}
-
-var cfg *Config
-
-var precompFileName = "precomp"
-
 func GetConfig() *Config {
+	cfgLock.Lock()
+	defer cfgLock.Unlock()
 	if cfg == nil {
-		var ipacfg *ipa.IPAConfig
-		if precompSer, err := os.ReadFile(precompFileName); err != nil {
-			ipacfg = ipa.NewIPASettings()
-			serialized, err := ipacfg.SRSPrecompPoints.SerializeSRSPrecomp()
-			if err != nil {
-				panic("error writing serialized precomputed Lagrange points:" + err.Error())
-			} else if err = os.WriteFile(precompFileName, serialized, 0666); err != nil {
-				panic("error saving the precomp: " + err.Error())
-			}
-		} else {
-			srs, err := ipa.DeserializeSRSPrecomp(precompSer)
-			if err != nil {
-				panic("error deserializing precomputed Lagrange points:" + err.Error())
-			}
-			ipacfg = ipa.NewIPASettingsWithSRSPrecomp(srs)
-		}
-		cfg = &IPAConfig{conf: ipacfg}
+		cfg = &IPAConfig{conf: ipa.NewIPASettings()}
 
 		emptyHashCode, _ := hex.DecodeString("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
 		values := make([][]byte, NodeWidth)
@@ -96,12 +86,7 @@ func GetConfig() *Config {
 	return cfg
 }
 
-var (
-	FrZero Fr
-	FrOne  Fr
-)
-
-func init() {
-	FrZero.SetZero()
-	FrOne.SetOne()
+func (conf *IPAConfig) CommitToPoly(poly []Fr, _ int) *Point {
+	ret := conf.conf.Commit(poly)
+	return &ret
 }
