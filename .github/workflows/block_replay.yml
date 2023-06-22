@@ -55,3 +55,7 @@ jobs:
     #   with:
     #     name: profile.png
     #     path: ./geth/profile001.png
+
+    - name: Cleanup
+      if: always()
+      run: rm -rf geth .ethereum
