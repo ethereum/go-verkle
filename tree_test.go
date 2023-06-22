@@ -52,6 +52,8 @@ var (
 )
 
 func TestInsertIntoRoot(t *testing.T) {
+	t.Parallel()
+
 	root := New()
 	err := root.Insert(zeroKeyTest, testValue, nil)
 	if err != nil {
@@ -69,6 +71,8 @@ func TestInsertIntoRoot(t *testing.T) {
 }
 
 func TestInsertTwoLeaves(t *testing.T) {
+	t.Parallel()
+
 	root := New()
 	root.Insert(zeroKeyTest, testValue, nil)
 	root.Insert(ffx32KeyTest, testValue, nil)
@@ -93,6 +97,8 @@ func TestInsertTwoLeaves(t *testing.T) {
 }
 
 func TestInsertTwoLeavesLastLevel(t *testing.T) {
+	t.Parallel()
+
 	root := New()
 	root.Insert(zeroKeyTest, testValue, nil)
 	root.Insert(oneKeyTest, testValue, nil)
@@ -111,6 +117,8 @@ func TestInsertTwoLeavesLastLevel(t *testing.T) {
 }
 
 func TestGetTwoLeaves(t *testing.T) {
+	t.Parallel()
+
 	root := New()
 	root.Insert(zeroKeyTest, testValue, nil)
 	root.Insert(ffx32KeyTest, testValue, nil)
@@ -138,6 +146,8 @@ func TestGetTwoLeaves(t *testing.T) {
 }
 
 func TestOffset2key8BitsWide(t *testing.T) {
+	t.Parallel()
+
 	key, _ := hex.DecodeString("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
 	for i := byte(0); i < 32; i++ {
 		childId := offset2key(key, i)
@@ -148,6 +158,8 @@ func TestOffset2key8BitsWide(t *testing.T) {
 }
 
 func TestFlush1kLeaves(t *testing.T) {
+	t.Parallel()
+
 	n := 1000
 	keys := randomKeysSorted(n)
 
@@ -184,6 +196,8 @@ func TestFlush1kLeaves(t *testing.T) {
 }
 
 func TestCopy(t *testing.T) {
+	t.Parallel()
+
 	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
 	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
 	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
@@ -208,6 +222,8 @@ func TestCopy(t *testing.T) {
 }
 
 func TestCachedCommitment(t *testing.T) {
+	t.Parallel()
+
 	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
 	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
 	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
@@ -238,6 +254,8 @@ func TestCachedCommitment(t *testing.T) {
 }
 
 func TestDelLeaf(t *testing.T) {
+	t.Parallel()
+
 	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
 	key1p, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000001")  // same Cn group as key1
 	key1pp, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000081") // Other Cn group as key1
@@ -296,6 +314,8 @@ func TestDelLeaf(t *testing.T) {
 }
 
 func TestDeleteNonExistent(t *testing.T) {
+	t.Parallel()
+
 	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
 	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
 	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
@@ -308,6 +328,8 @@ func TestDeleteNonExistent(t *testing.T) {
 }
 
 func TestDeletePrune(t *testing.T) {
+	t.Parallel()
+
 	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
 	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
 	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
@@ -390,6 +412,8 @@ func TestDeleteHash(t *testing.T) {
 }
 
 func TestDeleteUnequalPath(t *testing.T) {
+	t.Parallel()
+
 	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
 	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
 	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
@@ -441,6 +465,8 @@ func TestDeleteResolve(t *testing.T) {
 }
 
 func TestConcurrentTrees(t *testing.T) {
+	t.Parallel()
+
 	tree := New()
 	err := tree.Insert(zeroKeyTest, fourtyKeyTest, nil)
 	if err != nil {
@@ -585,6 +611,8 @@ func randomKeysSorted(n int) [][]byte {
 }
 
 func TestNodeSerde(t *testing.T) {
+	t.Parallel()
+
 	tree := New()
 	tree.Insert(zeroKeyTest, testValue, nil)
 	tree.Insert(fourtyKeyTest, testValue, nil)
@@ -746,6 +774,8 @@ func TestGetResolveFromHash(t *testing.T) {
 }
 
 func TestGetKey(t *testing.T) {
+	t.Parallel()
+
 	root := &LeafNode{stem: fourtyKeyTest}
 	for i := 0; i < NodeWidth; i++ {
 		k := root.Key(i)
@@ -820,27 +850,29 @@ func TestToDot(t *testing.T) {
 
 	// ensure the ToDot output contains a single HashedNode
 	if !strings.Contains(ToDot(root), "hash00") {
-		panic("ToDot output does not contain a HashedNode")
+		t.Error("ToDot output does not contain a HashedNode")
 	}
 
 	// ensure the ToDot output contains two LeafNodes
 	if !strings.Contains(ToDot(root), "leaf4000") {
-		panic("ToDot output is missing a LeafNode")
+		t.Error("ToDot output is missing a LeafNode")
 	}
 	if !strings.Contains(ToDot(root), "leaf4020") {
-		panic("ToDot output is missing a LeafNode")
+		t.Error("ToDot output is missing a LeafNode")
 	}
 
 	// ensure the ToDot output contains two InternalNodes
 	if !strings.Contains(ToDot(root), "internal ") {
-		panic("ToDot output is missing an InternalNode")
+		t.Error("ToDot output is missing an InternalNode")
 	}
 	if !strings.Contains(ToDot(root), "internal40") {
-		panic("ToDot output is missing an InternalNode")
+		t.Error("ToDot output is missing an InternalNode")
 	}
 }
 
 func TestEmptyCommitment(t *testing.T) {
+	t.Parallel()
+
 	root := New()
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
 	root.Commit()
@@ -863,6 +895,8 @@ func TestEmptyCommitment(t *testing.T) {
 }
 
 func TestLeafToCommsMoreThan32(t *testing.T) {
+	t.Parallel()
+
 	defer func() {
 	}()
 	var value [33]byte
@@ -872,7 +906,9 @@ func TestLeafToCommsMoreThan32(t *testing.T) {
 	}
 }
 
-func TestLeafToCommsLessThan32(*testing.T) {
+func TestLeafToCommsLessThan32(t *testing.T) {
+	t.Parallel()
+
 	var (
 		value [16]byte
 		p     [2]Fr
@@ -880,7 +916,9 @@ func TestLeafToCommsLessThan32(*testing.T) {
 	leafToComms(p[:], value[:])
 }
 
-func TestLeafToCommsLessThan16(*testing.T) {
+func TestLeafToCommsLessThan16(t *testing.T) {
+	t.Parallel()
+
 	var (
 		value [4]byte
 		p     [2]Fr
@@ -889,6 +927,8 @@ func TestLeafToCommsLessThan16(*testing.T) {
 }
 
 func TestGetProofItemsNoPoaIfStemPresent(t *testing.T) {
+	t.Parallel()
+
 	root := New()
 	root.Insert(ffx32KeyTest, zeroKeyTest, nil)
 
@@ -929,6 +969,8 @@ var (
 )
 
 func TestWithRustCompatibility(t *testing.T) {
+	t.Parallel()
+
 	root := New()
 	for i, key := range testAccountKeys {
 		err := root.Insert(key, testAccountValues[i], nil)
@@ -944,6 +986,8 @@ func TestWithRustCompatibility(t *testing.T) {
 }
 
 func TestInsertStem(t *testing.T) {
+	t.Parallel()
+
 	root1 := New()
 	root2 := New()
 
@@ -969,6 +1013,8 @@ func TestInsertStem(t *testing.T) {
 }
 
 func TestInsertStemTouchingBothHalves(t *testing.T) {
+	t.Parallel()
+
 	root := New()
 
 	// Insert keys such that both C1 and C2 have values.
@@ -1002,6 +1048,8 @@ func TestInsertStemTouchingBothHalves(t *testing.T) {
 }
 
 func TestInsertResolveSplitLeaf(t *testing.T) {
+	t.Parallel()
+
 	var leaf *LeafNode
 
 	// Insert a unique leaf and flush it
@@ -1056,6 +1104,8 @@ func TestInsertResolveSplitLeaf(t *testing.T) {
 }
 
 func TestRustBanderwagonBlock48(t *testing.T) {
+	t.Parallel()
+
 	keyStrings := []string{
 		"744f493648c83c5ede1726a0cfbe36d3830fd5b64a820b79ca77fe1593352600",
 		"744f493648c83c5ede1726a0cfbe36d3830fd5b64a820b79ca77fe1593352601",
@@ -1193,6 +1243,8 @@ func BenchmarkEmptyHashCodeCachedPoint(b *testing.B) {
 }
 
 func TestEmptyHashCodeCachedPoint(t *testing.T) {
+	t.Parallel()
+
 	_ = GetConfig()
 
 	// Calculate the polynomial commitment of a vector only with the empty code hash.
@@ -1217,81 +1269,92 @@ func TestEmptyHashCodeCachedPoint(t *testing.T) {
 }
 
 func TestBatchMigratedKeyValues(t *testing.T) {
+	t.Parallel()
+
 	_ = GetConfig()
 
 	for _, treeInitialKeyValCount := range []int{0, 500, 1_000, 2_000, 5_000} {
-		fmt.Printf("Assuming %d key/values touched by block execution:\n", treeInitialKeyValCount)
-		for _, migrationKeyValueCount := range []int{1_000, 2_000, 5_000, 8_000} {
-			iterations := 5
-			var batchedDuration, unbatchedDuration time.Duration
-			for i := 0; i < iterations; i++ {
-				runtime.GC()
+		treeInitialKeyValCount := treeInitialKeyValCount
+		t.Run(fmt.Sprintf("treeInitialKeyValCount=%d", treeInitialKeyValCount), func(t *testing.T) {
+			t.Parallel()
 
-				// ***Insert the key pairs 'naively' ***
-				rand := mRand.New(mRand.NewSource(42)) //skipcq: GSC-G404
-				tree := genRandomTree(rand, treeInitialKeyValCount)
-				randomKeyValues := genRandomKeyValues(rand, migrationKeyValueCount)
+			fmt.Printf("Assuming %d key/values touched by block execution:\n", treeInitialKeyValCount)
+			for _, migrationKeyValueCount := range []int{1_000, 2_000, 5_000, 8_000} {
+				iterations := 5
+				var batchedDuration, unbatchedDuration time.Duration
+				for i := 0; i < iterations; i++ {
+					runtime.GC()
 
-				now := time.Now()
-				for _, kv := range randomKeyValues {
-					if err := tree.Insert(kv.key, kv.value, nil); err != nil {
+					// ***Insert the key pairs 'naively' ***
+					rand := mRand.New(mRand.NewSource(42)) //skipcq: GSC-G404
+					tree := genRandomTree(rand, treeInitialKeyValCount)
+					randomKeyValues := genRandomKeyValues(rand, migrationKeyValueCount)
+
+					now := time.Now()
+					for _, kv := range randomKeyValues {
+						if err := tree.Insert(kv.key, kv.value, nil); err != nil {
+							t.Fatalf("failed to insert key: %v", err)
+						}
+					}
+					unbatchedRoot := tree.Commit().Bytes()
+					if _, err := tree.(*InternalNode).BatchSerialize(); err != nil {
+						t.Fatalf("failed to serialize unbatched tree: %v", err)
+					}
+					unbatchedDuration += time.Since(now)
+
+					// ***Insert the key pairs with optimized strategy & methods***
+					rand = mRand.New(mRand.NewSource(42)) //skipcq: GSC-G404
+					tree = genRandomTree(rand, treeInitialKeyValCount)
+					randomKeyValues = genRandomKeyValues(rand, migrationKeyValueCount)
+
+					now = time.Now()
+					// Create LeafNodes in batch mode.
+					nodeValues := make([]BatchNewLeafNodeData, 0, len(randomKeyValues))
+					curr := BatchNewLeafNodeData{
+						Stem:   randomKeyValues[0].key[:StemSize],
+						Values: map[byte][]byte{randomKeyValues[0].key[StemSize]: randomKeyValues[0].value},
+					}
+					for _, kv := range randomKeyValues[1:] {
+						if bytes.Equal(curr.Stem, kv.key[:StemSize]) {
+							curr.Values[kv.key[StemSize]] = kv.value
+							continue
+						}
+						nodeValues = append(nodeValues, curr)
+						curr = BatchNewLeafNodeData{
+							Stem:   kv.key[:StemSize],
+							Values: map[byte][]byte{kv.key[StemSize]: kv.value},
+						}
+					}
+					// Append last remaining node.
+					nodeValues = append(nodeValues, curr)
+
+					// Create all leaves in batch mode so we can optimize cryptography operations.
+					newLeaves, err := BatchNewLeafNode(nodeValues)
+					if err != nil {
+						t.Fatalf("failed to create leaves: %v", err)
+					}
+
+					if err := tree.(*InternalNode).InsertMigratedLeaves(newLeaves, nil); err != nil {
 						t.Fatalf("failed to insert key: %v", err)
 					}
-				}
-				unbatchedRoot := tree.Commit().Bytes()
-				if _, err := tree.(*InternalNode).BatchSerialize(); err != nil {
-					t.Fatalf("failed to serialize unbatched tree: %v", err)
-				}
-				unbatchedDuration += time.Since(now)
 
-				// ***Insert the key pairs with optimized strategy & methods***
-				rand = mRand.New(mRand.NewSource(42)) //skipcq: GSC-G404
-				tree = genRandomTree(rand, treeInitialKeyValCount)
-				randomKeyValues = genRandomKeyValues(rand, migrationKeyValueCount)
-
-				now = time.Now()
-				// Create LeafNodes in batch mode.
-				nodeValues := make([]BatchNewLeafNodeData, 0, len(randomKeyValues))
-				curr := BatchNewLeafNodeData{
-					Stem:   randomKeyValues[0].key[:StemSize],
-					Values: map[byte][]byte{randomKeyValues[0].key[StemSize]: randomKeyValues[0].value},
-				}
-				for _, kv := range randomKeyValues[1:] {
-					if bytes.Equal(curr.Stem, kv.key[:StemSize]) {
-						curr.Values[kv.key[StemSize]] = kv.value
-						continue
+					if err = tree.(*InternalNode).InsertMigratedLeaves(newLeaves, nil); err != nil {
+						t.Fatalf("failed to insert key: %v", err)
 					}
-					nodeValues = append(nodeValues, curr)
-					curr = BatchNewLeafNodeData{
-						Stem:   kv.key[:StemSize],
-						Values: map[byte][]byte{kv.key[StemSize]: kv.value},
+					batchedRoot := tree.Commit().Bytes()
+					if _, err := tree.(*InternalNode).BatchSerialize(); err != nil {
+						t.Fatalf("failed to serialize batched tree: %v", err)
+					}
+					batchedDuration += time.Since(now)
+
+					if unbatchedRoot != batchedRoot {
+						t.Fatalf("expected %x, got %x", unbatchedRoot, batchedRoot)
 					}
 				}
-				// Append last remaining node.
-				nodeValues = append(nodeValues, curr)
 
-				// Create all leaves in batch mode so we can optimize cryptography operations.
-				newLeaves, err := BatchNewLeafNode(nodeValues)
-				if err != nil {
-					t.Fatalf("failed to batch create leaf nodes: %v", err)
-				}
-				if err = tree.(*InternalNode).InsertMigratedLeaves(newLeaves, nil); err != nil {
-					t.Fatalf("failed to insert key: %v", err)
-				}
-
-				batchedRoot := tree.Commit().Bytes()
-				if _, err := tree.(*InternalNode).BatchSerialize(); err != nil {
-					t.Fatalf("failed to serialize batched tree: %v", err)
-				}
-				batchedDuration += time.Since(now)
-
-				if unbatchedRoot != batchedRoot {
-					t.Fatalf("expected %x, got %x", unbatchedRoot, batchedRoot)
-				}
+				fmt.Printf("\tIf %d extra key-values are migrated: unbatched %dms, batched %dms, %.02fx\n", migrationKeyValueCount, (unbatchedDuration / time.Duration(iterations)).Milliseconds(), (batchedDuration / time.Duration(iterations)).Milliseconds(), float64(unbatchedDuration.Milliseconds())/float64(batchedDuration.Milliseconds()))
 			}
-
-			fmt.Printf("\tIf %d extra key-values are migrated: unbatched %dms, batched %dms, %.02fx\n", migrationKeyValueCount, (unbatchedDuration / time.Duration(iterations)).Milliseconds(), (batchedDuration / time.Duration(iterations)).Milliseconds(), float64(unbatchedDuration.Milliseconds())/float64(batchedDuration.Milliseconds()))
-		}
+		})
 	}
 }
 
@@ -1372,6 +1435,8 @@ func BenchmarkBatchLeavesInsert(b *testing.B) {
 }
 
 func TestManipulateChildren(t *testing.T) {
+	t.Parallel()
+
 	root := New()
 	root.Insert(ffx32KeyTest, testValue, nil)
 
@@ -1399,13 +1464,20 @@ func TestManipulateChildren(t *testing.T) {
 }
 
 func TestLeafNodeInsert(t *testing.T) {
+	t.Parallel()
+
+	keyTest := make([]byte, len(ffx32KeyTest))
+	copy(keyTest, ffx32KeyTest)
 	values := make([][]byte, NodeWidth)
 	valIdx := 42
 	values[valIdx] = testValue
-	ln, _ := NewLeafNode(ffx32KeyTest[:StemSize], values)
+	ln, err := NewLeafNode(keyTest[:StemSize], values)
+	if err != nil {
+		t.Fatalf("failed to create leaf node: %v", err)
+	}
 
 	// Check we get the value correctly via Get(...).
-	getValue, err := ln.Get(append(ffx32KeyTest[:StemSize], byte(valIdx)), nil)
+	getValue, err := ln.Get(append(keyTest[:StemSize], byte(valIdx)), nil)
 	if err != nil {
 		t.Fatalf("failed to get leaf node key/value: %v", err)
 	}
@@ -1426,7 +1498,7 @@ func TestLeafNodeInsert(t *testing.T) {
 	}
 
 	// Check success case.
-	ffx32KeyTest2 := append([]byte{}, ffx32KeyTest...)
+	ffx32KeyTest2 := append([]byte{}, keyTest...)
 	ffx32KeyTest2[StemSize] = 11
 	newValue := []byte("22222222222222222222222222222222")
 	if err := ln.Insert(ffx32KeyTest2, newValue, nil); err != nil {
@@ -1445,7 +1517,7 @@ func TestLeafNodeInsert(t *testing.T) {
 	}
 
 	// Check insertion of key without the same stem.
-	ffx32KeyTest3 := append([]byte{}, ffx32KeyTest...)
+	ffx32KeyTest3 := append([]byte{}, keyTest...)
 	ffx32KeyTest3[StemSize] = 11
 	ffx32KeyTest3[StemSize-5] = 99
 	if err := ln.Insert(ffx32KeyTest3, newValue, nil); err == nil {

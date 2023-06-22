@@ -28,7 +28,10 @@ package verkle
 import "testing"
 
 func TestHashedNodeFuncs(t *testing.T) {
-	e := HashedNode{}
+	t.Parallel()
+
+	fakeCommitment := EmptyCodeHashPoint.Bytes()
+	e := HashedNode{commitment: fakeCommitment[:]}
 	err := e.Insert(zeroKeyTest, zeroKeyTest, nil)
 	if err != errInsertIntoHash {
 		t.Fatal("got nil error when inserting into a hashed node")

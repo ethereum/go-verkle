@@ -30,6 +30,8 @@ import (
 )
 
 func TestJSON(t *testing.T) {
+	t.Parallel()
+
 	root := New()
 	root.Insert(zeroKeyTest, fourtyKeyTest, nil)
 	root.Insert(oneKeyTest, zeroKeyTest, nil)
