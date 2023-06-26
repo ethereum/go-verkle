@@ -53,7 +53,7 @@ func (n *HashedNode) Commit() *Point {
 	}
 	if n.cachedPoint == nil {
 		n.cachedPoint = new(Point)
-		n.cachedPoint.SetBytesTrusted(n.commitment)
+		n.cachedPoint.SetBytesUncompressed(n.commitment, true)
 	}
 	return n.cachedPoint
 }
