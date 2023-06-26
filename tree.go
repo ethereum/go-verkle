@@ -844,7 +844,7 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 }
 
 func (n *InternalNode) Serialize() ([]byte, error) {
-	ret := make([]byte, nodeTypeSize+bitlistSize+SerializedPointCompressedSize)
+	ret := make([]byte, nodeTypeSize+bitlistSize+SerializedPointUncompressedSize)
 	bitlist := ret[internalBitlistOffset:internalNodeChildrenOffset]
 	for i, c := range n.children {
 		if _, ok := c.(Empty); !ok {
@@ -1558,7 +1558,7 @@ func (n *InternalNode) collectNonHashedNodes(list []VerkleNode, paths [][]byte, 
 
 // unpack one compressed commitment from the list of batch-compressed commitments
 func (n *InternalNode) serializeInternalWithCompressedCommitment(compressedPointsIdxs map[VerkleNode]int, compressedPoints [][32]byte) ([]byte, error) {
-	serialized := make([]byte, nodeTypeSize+bitlistSize+SerializedPointCompressedSize)
+	serialized := make([]byte, nodeTypeSize+bitlistSize+SerializedPointUncompressedSize)
 	bitlist := serialized[internalBitlistOffset:internalNodeChildrenOffset]
 	for i, c := range n.children {
 		if _, ok := c.(Empty); !ok {
@@ -1593,7 +1593,7 @@ func (n *LeafNode) serializeLeafWithCompressedCommitments(cBytes, c1Bytes, c2Byt
 	}
 
 	// Create the serialization.
-	baseSize := nodeTypeSize + StemSize + bitlistSize + 3*SerializedPointCompressedSize
+	baseSize := nodeTypeSize + StemSize + bitlistSize + 3*SerializedPointUncompressedSize
 	result := make([]byte, baseSize, baseSize+4*32) // Extra pre-allocated capacity for 4 values.
 	result[0] = leafRLPType
 	copy(result[leafSteamOffset:], n.stem[:StemSize])

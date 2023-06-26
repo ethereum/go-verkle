@@ -18,8 +18,8 @@ func TestLeafStemLength(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(ser) != nodeTypeSize+StemSize+bitlistSize+3*SerializedPointCompressedSize {
-		t.Fatalf("invalid serialization when the stem is longer than 31 bytes: %x (%d bytes != %d)", ser, len(ser), nodeTypeSize+StemSize+bitlistSize+2*SerializedPointCompressedSize)
+	if len(ser) != nodeTypeSize+StemSize+bitlistSize+3*SerializedPointUncompressedSize {
+		t.Fatalf("invalid serialization when the stem is longer than 31 bytes: %x (%d bytes != %d)", ser, len(ser), nodeTypeSize+StemSize+bitlistSize+2*SerializedPointUncompressedSize)
 	}
 }
 
