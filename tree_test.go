@@ -770,7 +770,7 @@ func TestInsertIntoHashedNode(t *testing.T) {
 	resolver := func(h []byte) ([]byte, error) {
 		values := make([][]byte, NodeWidth)
 		values[0] = zeroKeyTest
-		node := NewLeafNode(zeroKeyTest[:31], values)
+		node, _ := NewLeafNode(zeroKeyTest[:31], values)
 
 		return node.Serialize()
 	}
@@ -783,7 +783,7 @@ func TestInsertIntoHashedNode(t *testing.T) {
 	invalidRLPResolver := func(h []byte) ([]byte, error) {
 		values := make([][]byte, NodeWidth)
 		values[0] = zeroKeyTest
-		node := NewLeafNode(zeroKeyTest[:31], values)
+		node, _ := NewLeafNode(zeroKeyTest[:31], values)
 
 		rlp, _ := node.Serialize()
 		return rlp[:len(rlp)-10], nil
@@ -858,12 +858,12 @@ func TestEmptyCommitment(t *testing.T) {
 
 func TestLeafToCommsMoreThan32(t *testing.T) {
 	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("didn't catch length error")
-		}
 	}()
 	var value [33]byte
-	leafToComms([]Fr{}, value[:])
+	err := leafToComms([]Fr{}, value[:])
+	if err == nil {
+		t.Fatal("didn't catch length error")
+	}
 }
 
 func TestLeafToCommsLessThan32(*testing.T) {
@@ -1178,7 +1178,7 @@ func BenchmarkEmptyHashCodeCachedPoint(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				_ = NewLeafNode(zeroKeyTest, values)
+				_, _ = NewLeafNode(zeroKeyTest, values)
 			}
 		})
 	}
@@ -1194,7 +1194,7 @@ func TestEmptyHashCodeCachedPoint(t *testing.T) {
 	}
 	values := make([][]byte, NodeWidth)
 	values[CodeHashVectorPosition] = emptyHashCode
-	ln := NewLeafNode(zeroKeyTest, values)
+	ln, _ := NewLeafNode(zeroKeyTest, values)
 
 	// Compare the result (which used the cached point) with the expected result which was
 	// calculated by a previous version of the library that didn't use a cached point.
@@ -1263,8 +1263,11 @@ func TestBatchMigratedKeyValues(t *testing.T) {
 				nodeValues = append(nodeValues, curr)
 
 				// Create all leaves in batch mode so we can optimize cryptography operations.
-				newLeaves := BatchNewLeafNode(nodeValues)
-				if err := tree.(*InternalNode).InsertMigratedLeaves(newLeaves, nil); err != nil {
+				newLeaves, err := BatchNewLeafNode(nodeValues)
+				if err != nil {
+					t.Fatalf("failed to batch create leaf nodes: %v", err)
+				}
+				if err = tree.(*InternalNode).InsertMigratedLeaves(newLeaves, nil); err != nil {
 					t.Fatalf("failed to insert key: %v", err)
 				}
 
@@ -1346,7 +1349,10 @@ func BenchmarkBatchLeavesInsert(b *testing.B) {
 		nodeValues = append(nodeValues, curr)
 
 		// Create all leaves in batch mode so we can optimize cryptography operations.
-		newLeaves := BatchNewLeafNode(nodeValues)
+		newLeaves, err := BatchNewLeafNode(nodeValues)
+		if err != nil {
+			b.Fatalf("failed to batch-create leaf node: %v", err)
+		}
 		if err := tree.(*InternalNode).InsertMigratedLeaves(newLeaves, nil); err != nil {
 			b.Fatalf("failed to insert key: %v", err)
 		}
@@ -1388,7 +1394,7 @@ func TestLeafNodeInsert(t *testing.T) {
 	values := make([][]byte, NodeWidth)
 	valIdx := 42
 	values[valIdx] = testValue
-	ln := NewLeafNode(ffx32KeyTest[:StemSize], values)
+	ln, _ := NewLeafNode(ffx32KeyTest[:StemSize], values)
 
 	// Check we get the value correctly via Get(...).
 	getValue, err := ln.Get(append(ffx32KeyTest[:StemSize], byte(valIdx)), nil)

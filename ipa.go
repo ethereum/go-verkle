@@ -26,6 +26,8 @@
 package verkle
 
 import (
+	"errors"
+
 	"github.com/crate-crypto/go-ipa/bandersnatch/fr"
 	"github.com/crate-crypto/go-ipa/banderwagon"
 )
@@ -57,20 +59,21 @@ func toFrMultiple(res []*Fr, ps []*Point) {
 	banderwagon.MultiMapToScalarField(res, ps)
 }
 
-func FromLEBytes(fr *Fr, data []byte) {
+func FromLEBytes(fr *Fr, data []byte) error {
 	if len(data) > 32 {
-		panic("data is too long")
+		return errors.New("data is too long")
 	}
 	var aligned [32]byte
 	copy(aligned[:], data)
 	fr.SetBytesLE(aligned[:])
+	return nil
 }
 
-func StemFromBytes(fr *Fr, data []byte) {
+func StemFromBytes(fr *Fr, data []byte) error {
 	if len(data) != StemSize {
-		panic("data length must be StemSize")
+		return errors.New("data length must be StemSize")
 	}
-	FromLEBytes(fr, data)
+	return FromLEBytes(fr, data)
 }
 
 func FromBytes(fr *Fr, data []byte) {

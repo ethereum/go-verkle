@@ -247,13 +247,16 @@ func NewStatelessInternal(depth byte, comm *Point) VerkleNode {
 }
 
 // New creates a new leaf node
-func NewLeafNode(stem []byte, values [][]byte) *LeafNode {
+func NewLeafNode(stem []byte, values [][]byte) (*LeafNode, error) {
 	cfg := GetConfig()
 
 	// C1.
 	var c1poly [NodeWidth]Fr
 	var c1 *Point
-	count := fillSuffixTreePoly(c1poly[:], values[:NodeWidth/2])
+	count, err := fillSuffixTreePoly(c1poly[:], values[:NodeWidth/2])
+	if err != nil {
+		return nil, err
+	}
 	containsEmptyCodeHash := len(c1poly) >= EmptyCodeHashSecondHalfIdx &&
 		c1poly[EmptyCodeHashFirstHalfIdx].Equal(&EmptyCodeHashFirstHalfValue) &&
 		c1poly[EmptyCodeHashSecondHalfIdx].Equal(&EmptyCodeHashSecondHalfValue)
@@ -271,14 +274,19 @@ func NewLeafNode(stem []byte, values [][]byte) *LeafNode {
 
 	// C2.
 	var c2poly [NodeWidth]Fr
-	count = fillSuffixTreePoly(c2poly[:], values[NodeWidth/2:])
+	count, err = fillSuffixTreePoly(c2poly[:], values[NodeWidth/2:])
+	if err != nil {
+		return nil, err
+	}
 	c2 := cfg.CommitToPoly(c2poly[:], NodeWidth-count)
 
 	// Root commitment preparation for calculation.
 	stem = stem[:StemSize] // enforce a 31-byte length
 	var poly [NodeWidth]Fr
 	poly[0].SetUint64(1)
-	StemFromBytes(&poly[1], stem)
+	if err := StemFromBytes(&poly[1], stem); err != nil {
+		return nil, err
+	}
 	toFrMultiple([]*Fr{&poly[2], &poly[3]}, []*Point{c1, c2})
 
 	return &LeafNode{
@@ -289,7 +297,7 @@ func NewLeafNode(stem []byte, values [][]byte) *LeafNode {
 		commitment: cfg.CommitToPoly(poly[:], NodeWidth-4),
 		c1:         c1,
 		c2:         c2,
-	}
+	}, nil
 }
 
 // NewLeafNodeWithNoComms create a leaf node but does compute its
@@ -344,7 +352,11 @@ func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeRes
 	case UnknownNode:
 		return errMissingNodeInStateless
 	case Empty:
-		n.children[nChild] = NewLeafNode(stem, values)
+		var err error
+		n.children[nChild], err = NewLeafNode(stem, values)
+		if err != nil {
+			return err
+		}
 		n.children[nChild].setDepth(n.depth + 1)
 	case *HashedNode:
 		if resolver == nil {
@@ -385,7 +397,10 @@ func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeRes
 
 		// Next word differs, so this was the last level.
 		// Insert it directly into its final slot.
-		leaf := NewLeafNode(stem, values)
+		leaf, err := NewLeafNode(stem, values)
+		if err != nil {
+			return err
+		}
 		leaf.setDepth(n.depth + 2)
 		newBranch.cowChild(nextWordInInsertedKey)
 		newBranch.children[nextWordInInsertedKey] = leaf
@@ -980,9 +995,7 @@ func (n *LeafNode) insertMultiple(stem []byte, values [][]byte) error {
 		return errInsertIntoOtherStem
 	}
 
-	n.updateMultipleLeaves(values)
-
-	return nil
+	return n.updateMultipleLeaves(values)
 }
 
 func (n *LeafNode) updateC(cxIndex int, newC Fr, oldC Fr) {
@@ -998,7 +1011,7 @@ func (n *LeafNode) updateC(cxIndex int, newC Fr, oldC Fr) {
 	n.commitment.Add(n.commitment, cfg.CommitToPoly(poly[:], 0))
 }
 
-func (n *LeafNode) updateCn(index byte, value []byte, c *Point) {
+func (n *LeafNode) updateCn(index byte, value []byte, c *Point) error {
 	var (
 		old, newH [2]Fr
 		diff      Point
@@ -1011,8 +1024,13 @@ func (n *LeafNode) updateCn(index byte, value []byte, c *Point) {
 	// do not include it. The result should be the same,
 	// but the computation time should be faster as one doesn't need to
 	// compute 1 - 1 mod N.
-	leafToComms(old[:], n.values[index])
-	leafToComms(newH[:], value)
+	err := leafToComms(old[:], n.values[index])
+	if err != nil {
+		return err
+	}
+	if err = leafToComms(newH[:], value); err != nil {
+		return err
+	}
 
 	newH[0].Sub(&newH[0], &old[0])
 	poly[2*(index%128)] = newH[0]
@@ -1024,9 +1042,11 @@ func (n *LeafNode) updateCn(index byte, value []byte, c *Point) {
 	poly[2*(index%128)+1] = newH[1]
 	diff = cfg.conf.Commit(poly[:])
 	c.Add(c, &diff)
+
+	return nil
 }
 
-func (n *LeafNode) updateLeaf(index byte, value []byte) {
+func (n *LeafNode) updateLeaf(index byte, value []byte) error {
 	// Update the corresponding C1 or C2 commitment.
 	var c *Point
 	var oldC Point
@@ -1037,7 +1057,9 @@ func (n *LeafNode) updateLeaf(index byte, value []byte) {
 		c = n.c2
 		oldC = *n.c2
 	}
-	n.updateCn(index, value, c)
+	if err := n.updateCn(index, value, c); err != nil {
+		return err
+	}
 
 	// Batch the Fr transformation of the new and old CX.
 	var frs [2]Fr
@@ -1048,9 +1070,10 @@ func (n *LeafNode) updateLeaf(index byte, value []byte) {
 	n.updateC(cxIndex, frs[0], frs[1])
 
 	n.values[index] = value
+	return nil
 }
 
-func (n *LeafNode) updateMultipleLeaves(values [][]byte) {
+func (n *LeafNode) updateMultipleLeaves(values [][]byte) error {
 	var oldC1, oldC2 *Point
 
 	// We iterate the values, and we update the C1 and/or C2 commitments depending on the index.
@@ -1066,7 +1089,9 @@ func (n *LeafNode) updateMultipleLeaves(values [][]byte) {
 					oldC1.Set(n.c1)
 				}
 				// We update C1 directly in `n`. We have our original copy in oldC1.
-				n.updateCn(byte(i), v, n.c1)
+				if err := n.updateCn(byte(i), v, n.c1); err != nil {
+					return err
+				}
 			} else {
 				// First time we touch C2? Save the original point for later.
 				if oldC2 == nil {
@@ -1074,7 +1099,9 @@ func (n *LeafNode) updateMultipleLeaves(values [][]byte) {
 					oldC2.Set(n.c2)
 				}
 				// We update C2 directly in `n`. We have our original copy in oldC2.
-				n.updateCn(byte(i), v, n.c2)
+				if err := n.updateCn(byte(i), v, n.c2); err != nil {
+					return err
+				}
 			}
 			n.values[i] = v
 		}
@@ -1099,6 +1126,8 @@ func (n *LeafNode) updateMultipleLeaves(values [][]byte) {
 		toFrMultiple([]*Fr{&frs[0], &frs[1]}, []*Point{n.c2, oldC2})
 		n.updateC(c2Idx, frs[0], frs[1])
 	}
+
+	return nil
 }
 
 // Delete deletes a value from the leaf, return `true` as a second
@@ -1191,8 +1220,7 @@ func (n *LeafNode) Delete(k []byte, _ NodeResolverFn) (bool, error) {
 	// the method, as it needs the original
 	// value to compute the commitment diffs.
 	n.values[k[31]] = original
-	n.updateLeaf(k[31], nil)
-	return false, nil
+	return false, n.updateLeaf(k[31], nil)
 }
 
 func (n *LeafNode) Get(k []byte, _ NodeResolverFn) ([]byte, error) {
@@ -1230,7 +1258,7 @@ func (n *LeafNode) Commit() *Point {
 // fillSuffixTreePoly takes one of the two suffix tree and
 // builds the associated polynomial, to be used to compute
 // the corresponding C{1,2} commitment.
-func fillSuffixTreePoly(poly []Fr, values [][]byte) int {
+func fillSuffixTreePoly(poly []Fr, values [][]byte) (int, error) {
 	count := 0
 	for idx, val := range values {
 		if val == nil {
@@ -1238,33 +1266,41 @@ func fillSuffixTreePoly(poly []Fr, values [][]byte) int {
 		}
 		count++
 
-		leafToComms(poly[(idx<<1)&0xFF:], val)
+		if err := leafToComms(poly[(idx<<1)&0xFF:], val); err != nil {
+			return 0, err
+		}
 	}
-	return count
+	return count, nil
 }
 
 // leafToComms turns a leaf into two commitments of the suffix
 // and extension tree.
-func leafToComms(poly []Fr, val []byte) {
+func leafToComms(poly []Fr, val []byte) error {
 	if len(val) == 0 {
-		return
+		return nil
 	}
 	if len(val) > 32 {
-		panic(fmt.Sprintf("invalid leaf length %d, %v", len(val), val))
+		return fmt.Errorf("invalid leaf length %d, %v", len(val), val)
 	}
 	var (
 		valLoWithMarker [17]byte
 		loEnd           = 16
+		err             error
 	)
 	if len(val) < loEnd {
 		loEnd = len(val)
 	}
 	copy(valLoWithMarker[:loEnd], val[:loEnd])
 	valLoWithMarker[16] = 1 // 2**128
-	FromLEBytes(&poly[0], valLoWithMarker[:])
-	if len(val) >= 16 {
-		FromLEBytes(&poly[1], val[16:])
+	if err = FromLEBytes(&poly[0], valLoWithMarker[:]); err != nil {
+		return err
 	}
+	if len(val) >= 16 {
+		if err = FromLEBytes(&poly[1], val[16:]); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte, error) {
@@ -1285,7 +1321,9 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 
 	// Initialize the top-level polynomial with 1 + stem + C1 + C2
 	poly[0].SetUint64(1)
-	StemFromBytes(&poly[1], n.stem)
+	if err := StemFromBytes(&poly[1], n.stem); err != nil {
+		return nil, nil, nil, err
+	}
 	toFrMultiple([]*Fr{&poly[2], &poly[3]}, []*Point{n.c1, n.c2})
 
 	// First pass: add top-level elements first
@@ -1344,11 +1382,18 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 			suffix   = key[31]
 			suffPoly [NodeWidth]Fr // suffix-level polynomial
 			count    int
+			err      error
 		)
 		if suffix >= 128 {
-			count = fillSuffixTreePoly(suffPoly[:], n.values[128:])
+			count, err = fillSuffixTreePoly(suffPoly[:], n.values[128:])
+			if err != nil {
+				return nil, nil, nil, err
+			}
 		} else {
-			count = fillSuffixTreePoly(suffPoly[:], n.values[:128])
+			count, err = fillSuffixTreePoly(suffPoly[:], n.values[:128])
+			if err != nil {
+				return nil, nil, nil, err
+			}
 		}
 
 		// Proof of absence: case of a missing suffix tree.
