@@ -1028,8 +1028,7 @@ func (n *LeafNode) updateCn(index byte, value []byte, c *Point) error {
 	if err != nil {
 		return err
 	}
-	err = leafToComms(newH[:], value)
-	if err != nil {
+	if err = leafToComms(newH[:], value); err != nil {
 		return err
 	}
 
@@ -1267,8 +1266,7 @@ func fillSuffixTreePoly(poly []Fr, values [][]byte) (int, error) {
 		}
 		count++
 
-		err := leafToComms(poly[(idx<<1)&0xFF:], val)
-		if err != nil {
+		if err := leafToComms(poly[(idx<<1)&0xFF:], val); err != nil {
 			return 0, err
 		}
 	}
@@ -1298,9 +1296,11 @@ func leafToComms(poly []Fr, val []byte) error {
 		return err
 	}
 	if len(val) >= 16 {
-		err = FromLEBytes(&poly[1], val[16:])
+		if err = FromLEBytes(&poly[1], val[16:]); err != nil {
+			return err
+		}
 	}
-	return err
+	return nil
 }
 
 func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte, error) {
@@ -1321,8 +1321,7 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 
 	// Initialize the top-level polynomial with 1 + stem + C1 + C2
 	poly[0].SetUint64(1)
-	err := StemFromBytes(&poly[1], n.stem)
-	if err != nil {
+	if err := StemFromBytes(&poly[1], n.stem); err != nil {
 		return nil, nil, nil, err
 	}
 	toFrMultiple([]*Fr{&poly[2], &poly[3]}, []*Point{n.c1, n.c2})
