@@ -38,7 +38,7 @@ type (
 )
 
 const (
-	SerializedPointCompressedSize = 32
+	SerializedPointUncompressedSize = 64
 )
 
 func CopyFr(dst, src *Fr) {
