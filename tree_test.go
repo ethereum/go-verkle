@@ -582,7 +582,7 @@ func TestNodeSerde(t *testing.T) {
 	tree := New()
 	tree.Insert(zeroKeyTest, testValue, nil)
 	tree.Insert(fourtyKeyTest, testValue, nil)
-	origComm := tree.Commit().Bytes()
+	origComm := tree.Commit().BytesUncompressed()
 	root := tree.(*InternalNode)
 
 	// Serialize all the nodes
@@ -626,10 +626,10 @@ func TestNodeSerde(t *testing.T) {
 	resRoot.children[64] = resLeaf64
 
 	if !isInternalEqual(root, resRoot) {
-		t.Fatalf("parsed node not equal, %x != %x", root.commitment.Bytes(), resRoot.commitment.Bytes())
+		t.Fatalf("parsed node not equal, %x != %x", root.commitment.BytesUncompressed(), resRoot.commitment.BytesUncompressed())
 	}
 
-	if resRoot.Commitment().Bytes() != origComm {
+	if resRoot.Commitment().BytesUncompressed() != origComm {
 		t.Fatal("invalid deserialized commitment")
 	}
 }
