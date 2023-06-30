@@ -15,7 +15,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
-        go-version: 1.18
+        go-version: 1.20.5
     - name: Build
       run: go build -v ./...
 
@@ -26,7 +26,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v2
       with:
-        go-version: 1.18
+        go-version: 1.20.5
     - name: Download golangci-lint
       run: wget -O- -nv https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s latest
     - name: Lint
@@ -41,6 +41,8 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v2
       with:
-        go-version: 1.18
+        go-version: 1.20.5
+    - name: Download precomp file
+      run: wget https://github.com/gballet/go-verkle/releases/download/banderwagonv3/precomp && ls -al
     - name: Test
       run: go test -v -race ./...
