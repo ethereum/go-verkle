@@ -1538,6 +1538,14 @@ func (n *InternalNode) BatchSerialize() ([]SerializedNode, error) {
 		}
 	}
 
+	for i := range n.children {
+		if ch, ok := n.children[i].(*InternalNode); ok {
+			n.children[i] = ch.toHashedNode()
+		} else if ch, ok := n.children[i].(*LeafNode); ok {
+			n.children[i] = ch.ToHashedNode()
+		}
+	}
+
 	return ret, nil
 }
 
