@@ -64,7 +64,7 @@ func (HashedNode) Copy() VerkleNode {
 	return HashedNode{}
 }
 
-func (n HashedNode) toDot(parent, path string) string {
+func (HashedNode) toDot(parent, path string) string {
 	return fmt.Sprintf("hash%s \n%s -> hash%s\n", path, parent, path)
 }
 
@@ -72,6 +72,6 @@ func (HashedNode) setDepth(_ byte) {
 	// do nothing
 }
 
-func (n HashedNode) Hash() *Fr {
+func (HashedNode) Hash() *Fr {
 	panic("can not hash a hashed node")
 }
