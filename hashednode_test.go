@@ -28,8 +28,7 @@ package verkle
 import "testing"
 
 func TestHashedNodeFuncs(t *testing.T) {
-	fakeCommitment := EmptyCodeHashPoint.Bytes()
-	e := HashedNode{commitment: fakeCommitment[:]}
+	e := HashedNode{}
 	err := e.Insert(zeroKeyTest, zeroKeyTest, nil)
 	if err != errInsertIntoHash {
 		t.Fatal("got nil error when inserting into a hashed node")
@@ -50,8 +49,5 @@ func TestHashedNodeFuncs(t *testing.T) {
 	}
 	if _, err := e.Serialize(); err != errSerializeHashedNode {
 		t.Fatal("got nil error when serializing a hashed node")
-	}
-	if hash := e.Hash(); hash == nil {
-		t.Fatal("got nil hash when hashing a hashed node")
 	}
 }

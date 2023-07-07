@@ -89,7 +89,7 @@ func (n *InternalNode) InsertMigratedLeaves(leaves []LeafNode, resolver NodeReso
 
 		// Look for the appropriate parent for the leaf node.
 		for {
-			if _, ok := parent.children[ln.stem[parent.depth]].(*HashedNode); ok {
+			if _, ok := parent.children[ln.stem[parent.depth]].(HashedNode); ok {
 				serialized, err := resolver(ln.stem[:parent.depth+1])
 				if err != nil {
 					return fmt.Errorf("resolving node path=%x: %w", ln.stem[:parent.depth+1], err)

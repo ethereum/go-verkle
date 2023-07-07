@@ -130,7 +130,7 @@ func CreateInternalNode(bitlist []byte, raw []byte, depth byte) (*InternalNode, 
 	for i, b := range bitlist {
 		for j := 0; j < 8; j++ {
 			if b&mask[j] != 0 {
-				node.children[8*i+j] = &HashedNode{}
+				node.children[8*i+j] = HashedNode{}
 			} else {
 
 				node.children[8*i+j] = Empty(struct{}{})
