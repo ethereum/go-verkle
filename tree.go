@@ -195,7 +195,7 @@ func (n *InternalNode) toExportable() *ExportableInternalNode {
 		switch child := n.children[i].(type) {
 		case Empty:
 			exportable.Children[i] = nil
-		case *HashedNode:
+		case HashedNode:
 			exportable.Children[i] = n.commitment.Bytes()
 		case *InternalNode:
 			exportable.Children[i] = child.toExportable()
@@ -357,7 +357,7 @@ func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeRes
 			return err
 		}
 		n.children[nChild].setDepth(n.depth + 1)
-	case *HashedNode:
+	case HashedNode:
 		if resolver == nil {
 			return errInsertIntoHash
 		}
@@ -494,7 +494,7 @@ func (n *InternalNode) GetStem(stem []byte, resolver NodeResolverFn) ([][]byte, 
 		return nil, errMissingNodeInStateless
 	case Empty:
 		return nil, nil
-	case *HashedNode:
+	case HashedNode:
 		if resolver == nil {
 			return nil, fmt.Errorf("hashed node %x at depth %d along stem %x could not be resolved: %w", child.Commitment().Bytes(), n.depth, stem, errReadFromInvalid)
 		}
@@ -522,20 +522,12 @@ func (n *InternalNode) GetStem(stem []byte, resolver NodeResolverFn) ([][]byte, 
 	}
 }
 
-func (n *InternalNode) toHashedNode() *HashedNode {
-	if n.commitment == nil {
-		panic("nil commitment")
-	}
-	comm := n.commitment.BytesUncompressed()
-	return &HashedNode{commitment: comm[:]}
-}
-
 func (n *InternalNode) Delete(key []byte, resolver NodeResolverFn) (bool, error) {
 	nChild := offset2key(key, n.depth)
 	switch child := n.children[nChild].(type) {
 	case Empty:
 		return false, nil
-	case *HashedNode:
+	case HashedNode:
 		if resolver == nil {
 			return false, errDeleteHash
 		}
@@ -600,11 +592,11 @@ func (n *InternalNode) Flush(flush NodeFlushFn) {
 		if c, ok := child.(*InternalNode); ok {
 			c.Commit()
 			c.Flush(flushAndCapturePath)
-			n.children[i] = c.toHashedNode()
+			n.children[i] = HashedNode{}
 		} else if c, ok := child.(*LeafNode); ok {
 			c.Commit()
 			flushAndCapturePath(c.stem[:n.depth+1], n.children[i])
-			n.children[i] = c.ToHashedNode()
+			n.children[i] = HashedNode{}
 		}
 	}
 	flush(path, n)
@@ -621,7 +613,7 @@ func (n *InternalNode) FlushAtDepth(depth uint8, flush NodeFlushFn) {
 			if c, ok := child.(*LeafNode); ok {
 				c.Commit()
 				flush(c.stem[:c.depth], c)
-				n.children[i] = c.ToHashedNode()
+				n.children[i] = HashedNode{}
 			}
 			continue
 		}
@@ -634,7 +626,7 @@ func (n *InternalNode) FlushAtDepth(depth uint8, flush NodeFlushFn) {
 
 		child.Commit()
 		c.Flush(flush)
-		n.children[i] = c.toHashedNode()
+		n.children[i] = HashedNode{}
 	}
 }
 
@@ -953,14 +945,6 @@ func MergeTrees(subroots []*InternalNode) VerkleNode {
 // root commitment can be computed.
 func (n *InternalNode) touchCoW(index byte) {
 	n.cowChild(index)
-}
-
-func (n *LeafNode) ToHashedNode() *HashedNode {
-	if n.commitment == nil {
-		panic("nil commitment")
-	}
-	comm := n.commitment.BytesUncompressed()
-	return &HashedNode{commitment: comm[:]}
 }
 
 func (n *LeafNode) Insert(key []byte, value []byte, _ NodeResolverFn) error {
@@ -1587,10 +1571,9 @@ func (n *InternalNode) BatchSerialize() ([]SerializedNode, error) {
 	//       the current influx PBSS effort, there're still calls to Commit() storage tries
 	//       which in VKT doesn't make sense anymore. This changes makes those calls a ~noop.
 	for i := range n.children {
-		if ch, ok := n.children[i].(*InternalNode); ok {
-			n.children[i] = ch.toHashedNode()
-		} else if ch, ok := n.children[i].(*LeafNode); ok {
-			n.children[i] = ch.ToHashedNode()
+		switch n.children[i].(type) {
+		case *InternalNode, *LeafNode:
+			n.children[i] = HashedNode{}
 		}
 	}
 

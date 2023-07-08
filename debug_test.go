@@ -35,7 +35,7 @@ func TestJSON(t *testing.T) {
 	root.Insert(oneKeyTest, zeroKeyTest, nil)
 	root.Insert(forkOneKeyTest, zeroKeyTest, nil) // Force an internal node in the first layer.
 	root.Insert(fourtyKeyTest, oneKeyTest, nil)
-	root.(*InternalNode).children[152] = &HashedNode{commitment: []byte{1, 2, 3, 4}}
+	root.(*InternalNode).children[152] = HashedNode{}
 	root.Commit()
 
 	output, err := root.(*InternalNode).ToJSON()
