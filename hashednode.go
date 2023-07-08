@@ -71,7 +71,7 @@ func (HashedNode) Copy() VerkleNode {
 }
 
 func (HashedNode) toDot(parent, path string) string {
-	return fmt.Sprintf("hash%s \n%s -> hash%s\n", path, parent, path)
+	return fmt.Sprintf("hash%s [label=\"unresolved\"]\n%s -> hash%s\n", path, parent, path)
 }
 
 func (HashedNode) setDepth(_ byte) {
