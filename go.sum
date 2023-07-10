@@ -1,5 +1,5 @@
-github.com/crate-crypto/go-ipa v0.0.0-20230710183535-d5eb1c4661bd h1:jgf65Q4+jHFuLlhVApaVfTUwcU7dAdXK+GESow2UlaI=
-github.com/crate-crypto/go-ipa v0.0.0-20230710183535-d5eb1c4661bd/go.mod h1:gzbVz57IDJgQ9rLQwfSk696JGWof8ftznEL9GoAv3NI=
+github.com/crate-crypto/go-ipa v0.0.0-20230710185135-8249e705b57d h1:wZKlEND8FH+tAVviiC0F8xuBHFuxj9oIwS8cBbF2mBs=
+github.com/crate-crypto/go-ipa v0.0.0-20230710185135-8249e705b57d/go.mod h1:gzbVz57IDJgQ9rLQwfSk696JGWof8ftznEL9GoAv3NI=
 github.com/leanovate/gopter v0.2.9 h1:fQjYxZaynp97ozCzfOyOuAGOU4aU/z37zf/tOujFk7c=
 github.com/leanovate/gopter v0.2.9/go.mod h1:U2L/78B+KVFIx2VmW6onHJQzXtFb+p5y3y2Sh+Jxxv8=
 golang.org/x/sync v0.1.0 h1:wsuoTGHzEhffawBOhz5CYhcrV4IdKZbEyZjBMuTp12o=

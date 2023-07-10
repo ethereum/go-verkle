@@ -30,8 +30,7 @@ import "testing"
 func TestHashedNodeFuncs(t *testing.T) {
 	t.Parallel()
 
-	fakeCommitment := EmptyCodeHashPoint.Bytes()
-	e := HashedNode{commitment: fakeCommitment[:]}
+	e := HashedNode{}
 	err := e.Insert(zeroKeyTest, zeroKeyTest, nil)
 	if err != errInsertIntoHash {
 		t.Fatal("got nil error when inserting into a hashed node")
