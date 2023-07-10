@@ -351,6 +351,7 @@ func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeRes
 	case UnknownNode:
 		return errMissingNodeInStateless
 	case Empty:
+		n.cowChild(nChild)
 		var err error
 		n.children[nChild], err = NewLeafNode(stem, values)
 		if err != nil {
@@ -370,6 +371,7 @@ func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeRes
 			return fmt.Errorf("verkle tree: error parsing resolved node %x: %w", stem, err)
 		}
 		n.children[nChild] = resolved
+		n.cowChild(nChild)
 		// recurse to handle the case of a LeafNode child that
 		// splits.
 		return n.InsertStem(stem, values, resolver)
