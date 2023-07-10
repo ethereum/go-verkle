@@ -30,69 +30,54 @@ import (
 	"fmt"
 )
 
-type HashedNode struct {
-	commitment  []byte
-	cachedPoint *Point
-}
+type HashedNode struct{}
 
-func (*HashedNode) Insert([]byte, []byte, NodeResolverFn) error {
+func (HashedNode) Insert([]byte, []byte, NodeResolverFn) error {
 	return errInsertIntoHash
 }
 
-func (*HashedNode) Delete([]byte, NodeResolverFn) (bool, error) {
+func (HashedNode) Delete([]byte, NodeResolverFn) (bool, error) {
 	return false, errors.New("cant delete a hashed node in-place")
 }
 
-func (*HashedNode) Get([]byte, NodeResolverFn) ([]byte, error) {
+func (HashedNode) Get([]byte, NodeResolverFn) ([]byte, error) {
 	return nil, errors.New("can not read from a hash node")
 }
 
-func (n *HashedNode) Commit() *Point {
-	if n.commitment == nil {
-		panic("nil commitment")
-	}
-	if n.cachedPoint == nil {
-		n.cachedPoint = new(Point)
-		n.cachedPoint.SetBytesTrusted(n.commitment)
-	}
-	return n.cachedPoint
+func (HashedNode) Commit() *Point {
+	// TODO: we should reconsider what to do with the VerkleNode interface and how
+	//       HashedNode fits into the picture, since Commit(), Commitment() and Hash()
+	//	     now panics. Despite these calls must not happen at runtime, it is still
+	//	     quite risky. The reason we end up in this place is because PBSS came quite
+	//	     recently compared with the VerkleNode interface design. We should probably
+	//	     reconsider splitting the interface or find some safer workaround.
+	panic("can not commit a hash node")
 }
 
-func (n *HashedNode) Commitment() *Point {
-	if n.commitment == nil {
-		panic("nil commitment")
-	}
-	return n.Commit()
+func (HashedNode) Commitment() *Point {
+	panic("can not get commitment of a hash node")
 }
 
-func (*HashedNode) GetProofItems(keylist) (*ProofElements, []byte, [][]byte, error) {
+func (HashedNode) GetProofItems(keylist) (*ProofElements, []byte, [][]byte, error) {
 	return nil, nil, nil, errors.New("can not get the full path, and there is no proof of absence")
 }
 
-func (*HashedNode) Serialize() ([]byte, error) {
+func (HashedNode) Serialize() ([]byte, error) {
 	return nil, errSerializeHashedNode
 }
 
-func (n *HashedNode) Copy() VerkleNode {
-	if n.commitment == nil {
-		panic("nil commitment")
-	}
-	c := &HashedNode{commitment: make([]byte, len(n.commitment))}
-	copy(c.commitment, n.commitment)
-	return c
+func (HashedNode) Copy() VerkleNode {
+	return HashedNode{}
 }
 
-func (n *HashedNode) toDot(parent, path string) string {
-	return fmt.Sprintf("hash%s [label=\"H: %x\"]\n%s -> hash%s\n", path, n.commitment, parent, path)
+func (HashedNode) toDot(parent, path string) string {
+	return fmt.Sprintf("hash%s [label=\"unresolved\"]\n%s -> hash%s\n", path, parent, path)
 }
 
-func (*HashedNode) setDepth(_ byte) {
+func (HashedNode) setDepth(_ byte) {
 	// do nothing
 }
 
-func (n *HashedNode) Hash() *Fr {
-	comm := n.Commitment()
-	hash := new(Fr)
-	toFr(hash, comm)
-	return hash
+func (HashedNode) Hash() *Fr {
+	panic("can not hash a hashed node")
 }
