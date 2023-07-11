@@ -834,7 +834,7 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 			// repeated as many times? It would be wasteful, so the
 			// decoding code has to be aware of this corner case.
 			esses = append(esses, extStatusAbsentEmpty|((n.depth+1)<<3))
-			for _ = range group {
+			for i := 0; i < len(group); i++ {
 				// Append one nil value per key in this missing stem
 				pe.Vals = append(pe.Vals, nil)
 			}
