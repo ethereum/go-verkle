@@ -74,12 +74,12 @@ type StemStateDiff struct {
 
 type StateDiff []StemStateDiff
 
-func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte) (*ProofElements, []byte, [][]byte, error) {
+func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte, resolver NodeResolverFn) (*ProofElements, []byte, [][]byte, error) {
 	sort.Sort(keylist(keys))
-	return root.GetProofItems(keylist(keys))
+	return root.GetProofItems(keylist(keys), resolver)
 }
 
-func MakeVerkleMultiProof(root VerkleNode, keys [][]byte) (*Proof, []*Point, []byte, []*Fr, error) {
+func MakeVerkleMultiProof(root VerkleNode, keys [][]byte, resolver NodeResolverFn) (*Proof, []*Point, []byte, []*Fr, error) {
 	// go-ipa won't accept no key as an input, catch this corner case
 	// and return an empty result.
 	if len(keys) == 0 {
@@ -89,7 +89,7 @@ func MakeVerkleMultiProof(root VerkleNode, keys [][]byte) (*Proof, []*Point, []b
 	tr := common.NewTranscript("vt")
 	root.Commit()
 
-	pe, es, poas, err := GetCommitmentsForMultiproof(root, keys)
+	pe, es, poas, err := GetCommitmentsForMultiproof(root, keys, resolver)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}

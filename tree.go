@@ -78,7 +78,7 @@ type VerkleNode interface {
 	// returns them breadth-first. On top of that, it returns
 	// one "extension status" per stem, and an alternate stem
 	// if the key is missing but another stem has been found.
-	GetProofItems(keylist) (*ProofElements, []byte, [][]byte, error)
+	GetProofItems(keylist, NodeResolverFn) (*ProofElements, []byte, [][]byte, error)
 
 	// Serialize encodes the node to RLP.
 	Serialize() ([]byte, error)
@@ -772,7 +772,7 @@ func groupKeys(keys keylist, depth byte) []keylist {
 	return groups
 }
 
-func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte, error) {
+func (n *InternalNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*ProofElements, []byte, [][]byte, error) {
 	var (
 		groups = groupKeys(keys, n.depth)
 		pe     = &ProofElements{
@@ -794,7 +794,20 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 	for i, child := range n.children {
 		fiPtrs[i] = &fi[i]
 		if child != nil {
-			points[i] = child.Commitment()
+			var c VerkleNode
+			if _, ok := child.(HashedNode); ok {
+				serialized, err := resolver(keys[0][:n.depth+1])
+				if err != nil {
+					return nil, nil, nil, err
+				}
+				c, err = ParseNode(serialized, n.depth+1)
+				if err != nil {
+					return nil, nil, nil, err
+				}
+			} else {
+				c = child
+			}
+			points[i] = c.Commitment()
 		} else {
 			// TODO: add a test case to cover this scenario.
 			points[i] = new(Point)
@@ -841,7 +854,7 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 			continue
 		}
 
-		pec, es, other, err := n.children[childIdx].GetProofItems(group)
+		pec, es, other, err := n.children[childIdx].GetProofItems(group, resolver)
 		if err != nil {
 			// TODO: add a test case to cover this scenario.
 			return nil, nil, nil, err
@@ -1278,7 +1291,7 @@ func leafToComms(poly []Fr, val []byte) error {
 	return nil
 }
 
-func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte, error) {
+func (n *LeafNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*ProofElements, []byte, [][]byte, error) {
 	var (
 		poly [NodeWidth]Fr // top-level polynomial
 		pe                 = &ProofElements{

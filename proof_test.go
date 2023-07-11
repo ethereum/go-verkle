@@ -43,7 +43,7 @@ func TestProofVerifyTwoLeaves(t *testing.T) {
 	root.Insert(ffx32KeyTest, zeroKeyTest, nil)
 	root.Commit()
 
-	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, [][]byte{ffx32KeyTest})
+	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, [][]byte{ffx32KeyTest}, nil)
 
 	cfg := GetConfig()
 	if !VerifyVerkleProof(proof, cis, zis, yis, cfg) {
@@ -65,7 +65,7 @@ func TestProofVerifyMultipleLeaves(t *testing.T) {
 		root.Insert(key, fourtyKeyTest, nil)
 	}
 
-	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, [][]byte{keys[0]})
+	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, [][]byte{keys[0]}, nil)
 
 	cfg := GetConfig()
 	if !VerifyVerkleProof(proof, cis, zis, yis, cfg) {
@@ -87,9 +87,9 @@ func TestMultiProofVerifyMultipleLeaves(t *testing.T) {
 		root.Insert(key, fourtyKeyTest, nil)
 	}
 
-	proof, _, _, _, _ := MakeVerkleMultiProof(root, keys[0:2])
+	proof, _, _, _, _ := MakeVerkleMultiProof(root, keys[0:2], nil)
 
-	pe, _, _, err := GetCommitmentsForMultiproof(root, keys[0:2])
+	pe, _, _, err := GetCommitmentsForMultiproof(root, keys[0:2], nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,9 +123,9 @@ func TestMultiProofVerifyMultipleLeavesWithAbsentStem(t *testing.T) {
 	absent[3] = 1 // and the stem differs
 	keys = append(keys, absent)
 
-	proof, _, _, _, _ := MakeVerkleMultiProof(root, keys)
+	proof, _, _, _, _ := MakeVerkleMultiProof(root, keys, nil)
 
-	pe, _, isabsent, err := GetCommitmentsForMultiproof(root, keys)
+	pe, _, isabsent, err := GetCommitmentsForMultiproof(root, keys, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,9 +152,9 @@ func TestMultiProofVerifyMultipleLeavesCommitmentRedundancy(t *testing.T) {
 	keys[1] = oneKeyTest
 	root.Insert(keys[1], fourtyKeyTest, nil)
 
-	proof, _, _, _, _ := MakeVerkleMultiProof(root, keys)
+	proof, _, _, _, _ := MakeVerkleMultiProof(root, keys, nil)
 
-	pe, _, _, err := GetCommitmentsForMultiproof(root, keys)
+	pe, _, _, err := GetCommitmentsForMultiproof(root, keys, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +171,7 @@ func TestProofOfAbsenceInternalVerify(t *testing.T) {
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
 	root.Insert(oneKeyTest, zeroKeyTest, nil)
 
-	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, [][]byte{ffx32KeyTest})
+	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, [][]byte{ffx32KeyTest}, nil)
 
 	cfg := GetConfig()
 	if !VerifyVerkleProof(proof, cis, zis, yis, cfg) {
@@ -186,7 +186,7 @@ func TestProofOfAbsenceLeafVerify(t *testing.T) {
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
 	root.Insert(ffx32KeyTest, zeroKeyTest, nil)
 
-	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, [][]byte{oneKeyTest})
+	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, [][]byte{oneKeyTest}, nil)
 
 	cfg := GetConfig()
 	if !VerifyVerkleProof(proof, cis, zis, yis, cfg) {
@@ -205,7 +205,7 @@ func TestProofOfAbsenceLeafVerifyOtherSuffix(t *testing.T) {
 		return ret
 	}()
 
-	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, [][]byte{key})
+	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, [][]byte{key}, nil)
 
 	cfg := GetConfig()
 	if !VerifyVerkleProof(proof, cis, zis, yis, cfg) {
@@ -224,7 +224,7 @@ func TestProofOfAbsenceStemVerify(t *testing.T) {
 		return ret
 	}()
 
-	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, [][]byte{key})
+	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, [][]byte{key}, nil)
 
 	cfg := GetConfig()
 	if !VerifyVerkleProof(proof, cis, zis, yis, cfg) {
@@ -246,7 +246,7 @@ func BenchmarkProofCalculation(b *testing.B) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		MakeVerkleMultiProof(root, [][]byte{keys[len(keys)/2]})
+		MakeVerkleMultiProof(root, [][]byte{keys[len(keys)/2]}, nil)
 	}
 }
 
@@ -261,7 +261,7 @@ func BenchmarkProofVerification(b *testing.B) {
 	}
 
 	root.Commit()
-	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, [][]byte{keys[len(keys)/2]})
+	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, [][]byte{keys[len(keys)/2]}, nil)
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -286,7 +286,7 @@ func TestProofSerializationNoAbsentStem(t *testing.T) {
 		root.Insert(key, fourtyKeyTest, nil)
 	}
 
-	proof, _, _, _, _ := MakeVerkleMultiProof(root, [][]byte{keys[0]})
+	proof, _, _, _, _ := MakeVerkleMultiProof(root, [][]byte{keys[0]}, nil)
 
 	vp, statediff, err := SerializeProof(proof)
 	if err != nil {
@@ -322,7 +322,7 @@ func TestProofSerializationWithAbsentStem(t *testing.T) {
 	absentkey[2] = 2
 	absentkey[3] = 1
 
-	proof, _, _, _, _ := MakeVerkleMultiProof(root, [][]byte{absentkey[:]})
+	proof, _, _, _, _ := MakeVerkleMultiProof(root, [][]byte{absentkey[:]}, nil)
 
 	vp, statediff, err := SerializeProof(proof)
 	if err != nil {
@@ -360,7 +360,7 @@ func TestProofDeserialize(t *testing.T) {
 	absentkey[2] = 2
 	absentkey[3] = 1
 
-	proof, _, _, _, _ := MakeVerkleMultiProof(root, [][]byte{absentkey[:]})
+	proof, _, _, _, _ := MakeVerkleMultiProof(root, [][]byte{absentkey[:]}, nil)
 
 	vp, statediff, err := SerializeProof(proof)
 	if err != nil {
@@ -373,7 +373,7 @@ func TestProofDeserialize(t *testing.T) {
 	}
 	_ = deserialized
 
-	pe, _, _, err := root.GetProofItems(keylist{absentkey[:]})
+	pe, _, _, err := root.GetProofItems(keylist{absentkey[:]}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -390,7 +390,7 @@ func TestProofOfAbsenceEdgeCase(t *testing.T) {
 	root.Commit()
 
 	ret, _ := hex.DecodeString("0303030303030303030303030303030303030303030303030303030303030303")
-	proof, cs, zis, yis, _ := MakeVerkleMultiProof(root, [][]byte{ret})
+	proof, cs, zis, yis, _ := MakeVerkleMultiProof(root, [][]byte{ret}, nil)
 	cfg := GetConfig()
 	if !VerifyVerkleProof(proof, cs, zis, yis, cfg) {
 		t.Fatal("could not verify proof")
@@ -409,7 +409,7 @@ func TestProofOfAbsenceOtherMultipleLeaves(t *testing.T) {
 
 	ret1, _ := hex.DecodeString("0303030303030303030303030303030303030303030303030303030303030300")
 	ret2, _ := hex.DecodeString("0303030303030303030303030303030303030303030303030303030303030301")
-	proof, cs, zis, yis, _ := MakeVerkleMultiProof(root, [][]byte{ret1, ret2})
+	proof, cs, zis, yis, _ := MakeVerkleMultiProof(root, [][]byte{ret1, ret2}, nil)
 	cfg := GetConfig()
 	if !VerifyVerkleProof(proof, cs, zis, yis, cfg) {
 		t.Fatal("could not verify proof")
@@ -430,7 +430,7 @@ func TestProofOfAbsenceNoneMultipleStems(t *testing.T) {
 
 	ret1, _ := hex.DecodeString("0303030303030303030303030303030303030303030303030303030303030300")
 	ret2, _ := hex.DecodeString("0303030303030303030303030303030303030303030303030303030303030200")
-	proof, cs, zis, yis, _ := MakeVerkleMultiProof(root, [][]byte{ret1, ret2})
+	proof, cs, zis, yis, _ := MakeVerkleMultiProof(root, [][]byte{ret1, ret2}, nil)
 	cfg := GetConfig()
 	if !VerifyVerkleProof(proof, cs, zis, yis, cfg) {
 		t.Fatal("could not verify proof")
@@ -611,7 +611,7 @@ func TestStatelessDeserialize(t *testing.T) {
 		root.Insert(k, fourtyKeyTest, nil)
 	}
 
-	proof, _, _, _, _ := MakeVerkleMultiProof(root, keylist{zeroKeyTest, fourtyKeyTest})
+	proof, _, _, _, _ := MakeVerkleMultiProof(root, keylist{zeroKeyTest, fourtyKeyTest}, nil)
 
 	serialized, statediff, err := SerializeProof(proof)
 	if err != nil {
@@ -650,7 +650,7 @@ func TestStatelessDeserializeMissingChildNode(t *testing.T) {
 		root.Insert(k, fourtyKeyTest, nil)
 	}
 
-	proof, _, _, _, _ := MakeVerkleMultiProof(root, keylist{zeroKeyTest, fourtyKeyTest})
+	proof, _, _, _, _ := MakeVerkleMultiProof(root, keylist{zeroKeyTest, fourtyKeyTest}, nil)
 
 	serialized, statediff, err := SerializeProof(proof)
 	if err != nil {
@@ -688,7 +688,7 @@ func TestStatelessDeserializeDepth2(t *testing.T) {
 		root.Insert(k, fourtyKeyTest, nil)
 	}
 
-	proof, _, _, _, _ := MakeVerkleMultiProof(root, keylist{zeroKeyTest, key1})
+	proof, _, _, _, _ := MakeVerkleMultiProof(root, keylist{zeroKeyTest, key1}, nil)
 
 	serialized, statediff, err := SerializeProof(proof)
 	if err != nil {
