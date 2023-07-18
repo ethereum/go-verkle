@@ -129,13 +129,13 @@ func (n *InternalNode) InsertMigratedLeaves(leaves []LeafNode, resolver NodeReso
 			start := currStemFirstByte
 			end := i
 			group.Go(func() error {
-				return n.insertMigratedLeaves(leaves[start:end], resolver)
+				return n.insertMigratedLeavesSubtree(leaves[start:end], resolver)
 			})
 			currStemFirstByte = i
 		}
 	}
 	group.Go(func() error {
-		return n.insertMigratedLeaves(leaves[currStemFirstByte:], resolver)
+		return n.insertMigratedLeavesSubtree(leaves[currStemFirstByte:], resolver)
 	})
 	if err := group.Wait(); err != nil {
 		return fmt.Errorf("inserting migrated leaves: %w", err)
@@ -144,7 +144,7 @@ func (n *InternalNode) InsertMigratedLeaves(leaves []LeafNode, resolver NodeReso
 	return nil
 }
 
-func (n *InternalNode) insertMigratedLeaves(leaves []LeafNode, resolver NodeResolverFn) error {
+func (n *InternalNode) insertMigratedLeavesSubtree(leaves []LeafNode, resolver NodeResolverFn) error {
 	for i := range leaves {
 		ln := leaves[i]
 		parent := n
