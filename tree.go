@@ -1571,17 +1571,6 @@ func (n *InternalNode) BatchSerialize() ([]SerializedNode, error) {
 		}
 	}
 
-	// TODO: we transform nodes in the first layer to HashedNodes, to avoid further calls
-	//       to this method to do double-work. This is a temporary change for geth since in
-	//       the current influx PBSS effort, there're still calls to Commit() storage tries
-	//       which in VKT doesn't make sense anymore. This changes makes those calls a ~noop.
-	for i := range n.children {
-		switch n.children[i].(type) {
-		case *InternalNode, *LeafNode:
-			n.children[i] = HashedNode{}
-		}
-	}
-
 	return ret, nil
 }
 
