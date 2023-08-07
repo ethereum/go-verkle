@@ -1410,7 +1410,7 @@ func (n *LeafNode) GetProofItems(keys keylist, _ NodeResolverFn) (*ProofElements
 			if len(esses) == 0 {
 				esses = append(esses, extStatusAbsentOther|(n.depth<<3))
 				poass = append(poass, n.stem)
-				pe.Vals = append(pe.Vals, nil)
+				pe.Vals = append(pe.Vals, nil) // jsign comment: there's the cause.
 			}
 			continue
 		}
