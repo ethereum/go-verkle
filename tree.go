@@ -835,6 +835,33 @@ func groupKeys(keys keylist, depth byte) []keylist {
 	return groups
 }
 
+func (n *InternalNode) LoadKeyForProof(key []byte, resolver NodeResolverFn) error {
+	// Each internal node that is part of the proof needs to load all it's
+	// children since it's needed for proof openings.
+	childrenKey := make([]byte, n.depth+1)
+	copy(childrenKey, key[:n.depth])
+	for i := range n.children {
+		if _, ok := n.children[i].(HashedNode); ok {
+			childrenKey[n.depth] = byte(i)
+			serialized, err := resolver(childrenKey)
+			if err != nil {
+				return err
+			}
+			c, err := ParseNode(serialized, n.depth+1)
+			if err != nil {
+				return err
+			}
+			n.children[i] = c
+		}
+		if child, ok := n.children[i].(*InternalNode); ok {
+			if err := child.LoadKeyForProof(childrenKey, resolver); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (n *InternalNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*ProofElements, []byte, [][]byte, error) {
 	var (
 		groups = groupKeys(keys, n.depth)
