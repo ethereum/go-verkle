@@ -909,7 +909,7 @@ func TestProofOfAbsenceBorderCase(t *testing.T) {
 	key2, _ := hex.DecodeString("0001000000000000000000000000000000000000000000000000000000000001")
 
 	// Insert an arbitrary value at key 0000000000000000000000000000000000000000000000000000000000000001
-	root.Insert(oneKeyTest, fourtyKeyTest, nil)
+	root.Insert(key1, fourtyKeyTest, nil)
 
 	// Generate a proof for the following keys:
 	// - key1, which is present.
@@ -937,6 +937,41 @@ func TestProofOfAbsenceBorderCase(t *testing.T) {
 	}
 
 	if !droot.(*InternalNode).children[0].Commit().Equal(root.(*InternalNode).children[0].Commit()) {
+		t.Fatal("differing commitment for child #0")
+	}
+}
+
+func TestProofDeduping(t *testing.T) {
+	root := New()
+
+	key1, _ := hex.DecodeString("00000000000000000000000000000000000000000000000000000000000000fe")
+	key2, _ := hex.DecodeString("01000000000000000000000000000000000000000000000000000000000000fe")
+
+	root.Insert(key1, fourtyKeyTest, nil)
+	root.Insert(key2, fourtyKeyTest, nil)
+
+	proof, _, _, _, _ := MakeVerkleMultiProof(root, keylist{key1, key2})
+
+	serialized, statediff, err := SerializeProof(proof)
+	if err != nil {
+		t.Fatalf("could not serialize proof: %v", err)
+	}
+
+	dproof, err := DeserializeProof(serialized, statediff)
+	if err != nil {
+		t.Fatalf("error deserializing proof: %v", err)
+	}
+
+	droot, err := TreeFromProof(dproof, root.Commit())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !Equal(droot.Commit(), root.Commit()) {
+		t.Fatal("differing root commitments")
+	}
+
+	if !Equal(droot.(*InternalNode).children[0].Commit(), root.(*InternalNode).children[0].Commit()) {
 		t.Fatal("differing commitment for child #0")
 	}
 }
