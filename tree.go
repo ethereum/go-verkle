@@ -835,7 +835,7 @@ func groupKeys(keys keylist, depth byte) []keylist {
 	return groups
 }
 
-func (n *InternalNode) LoadKeyForProof(key []byte, resolver NodeResolverFn) error {
+func (n *InternalNode) GetAndLoadForProof(key []byte, resolver NodeResolverFn) ([]byte, error) {
 	// Each internal node that is part of the proof needs to load all it's
 	// children since it's needed for proof openings.
 	childrenKey := make([]byte, n.depth+1)
@@ -845,21 +845,23 @@ func (n *InternalNode) LoadKeyForProof(key []byte, resolver NodeResolverFn) erro
 			childrenKey[n.depth] = byte(i)
 			serialized, err := resolver(childrenKey)
 			if err != nil {
-				return err
+				return nil, fmt.Errorf("resolving node: %s", err)
 			}
 			c, err := ParseNode(serialized, n.depth+1)
 			if err != nil {
-				return err
+				return nil, fmt.Errorf("parsing resolved node: %s", err)
 			}
 			n.children[i] = c
 		}
-		if child, ok := n.children[i].(*InternalNode); ok {
-			if err := child.LoadKeyForProof(childrenKey, resolver); err != nil {
-				return err
-			}
-		}
 	}
-	return nil
+	switch child := n.children[key[n.depth+1]].(type) {
+	case *InternalNode: // If next node is an internal node, recurse.
+		return child.GetAndLoadForProof(childrenKey, resolver)
+	case *LeafNode: // If next node is a leaf node, return the value.
+		return child.Get(key, nil)
+	default:
+		panic("invalid node type")
+	}
 }
 
 func (n *InternalNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*ProofElements, []byte, [][]byte, error) {
