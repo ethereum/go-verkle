@@ -26,7 +26,6 @@ jobs:
     - name: Edit geth to use this repo and build it
       run: |
         cd geth
-        cp /home/devops/verkle-test-dependencies/precomp .
         cp /home/devops/verkle-test-dependencies/fork.txt .
         go mod edit -replace=github.com/gballet/go-verkle=$PWD/..
         go mod edit -replace=github.com/crate-crypto/go-ipa=github.com/crate-crypto/go-ipa@`grep go-ipa ../go.mod | cut -d'-' -f 5`
@@ -59,4 +58,4 @@ jobs:
 
     - name: Cleanup
       if: always()
-      run: rm -rf geth .ethereum precomp
+      run: rm -rf geth .ethereum

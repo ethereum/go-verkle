@@ -35,6 +35,8 @@ import (
 )
 
 func TestProofVerifyTwoLeaves(t *testing.T) {
+	t.Parallel()
+
 	root := New()
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
 	root.Insert(oneKeyTest, zeroKeyTest, nil)
@@ -50,6 +52,8 @@ func TestProofVerifyTwoLeaves(t *testing.T) {
 }
 
 func TestProofVerifyMultipleLeaves(t *testing.T) {
+	t.Parallel()
+
 	const leafCount = 1000
 
 	keys := make([][]byte, leafCount)
@@ -70,6 +74,8 @@ func TestProofVerifyMultipleLeaves(t *testing.T) {
 }
 
 func TestMultiProofVerifyMultipleLeaves(t *testing.T) {
+	t.Parallel()
+
 	const leafCount = 1000
 
 	keys := make([][]byte, leafCount)
@@ -94,6 +100,8 @@ func TestMultiProofVerifyMultipleLeaves(t *testing.T) {
 }
 
 func TestMultiProofVerifyMultipleLeavesWithAbsentStem(t *testing.T) {
+	t.Parallel()
+
 	const leafCount = 10
 
 	var keys [][]byte
@@ -135,6 +143,8 @@ func TestMultiProofVerifyMultipleLeavesWithAbsentStem(t *testing.T) {
 }
 
 func TestMultiProofVerifyMultipleLeavesCommitmentRedundancy(t *testing.T) {
+	t.Parallel()
+
 	keys := make([][]byte, 2)
 	root := New()
 	keys[0] = zeroKeyTest
@@ -155,6 +165,8 @@ func TestMultiProofVerifyMultipleLeavesCommitmentRedundancy(t *testing.T) {
 }
 
 func TestProofOfAbsenceInternalVerify(t *testing.T) {
+	t.Parallel()
+
 	root := New()
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
 	root.Insert(oneKeyTest, zeroKeyTest, nil)
@@ -168,6 +180,8 @@ func TestProofOfAbsenceInternalVerify(t *testing.T) {
 }
 
 func TestProofOfAbsenceLeafVerify(t *testing.T) {
+	t.Parallel()
+
 	root := New()
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
 	root.Insert(ffx32KeyTest, zeroKeyTest, nil)
@@ -180,6 +194,8 @@ func TestProofOfAbsenceLeafVerify(t *testing.T) {
 	}
 }
 func TestProofOfAbsenceLeafVerifyOtherSuffix(t *testing.T) {
+	t.Parallel()
+
 	root := New()
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
 	root.Insert(ffx32KeyTest, zeroKeyTest, nil)
@@ -198,6 +214,8 @@ func TestProofOfAbsenceLeafVerifyOtherSuffix(t *testing.T) {
 }
 
 func TestProofOfAbsenceStemVerify(t *testing.T) {
+	t.Parallel()
+
 	root := New()
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
 
@@ -255,6 +273,8 @@ func BenchmarkProofVerification(b *testing.B) {
 }
 
 func TestProofSerializationNoAbsentStem(t *testing.T) {
+	t.Parallel()
+
 	const leafCount = 1000
 
 	keys := make([][]byte, leafCount)
@@ -282,6 +302,8 @@ func TestProofSerializationNoAbsentStem(t *testing.T) {
 }
 
 func TestProofSerializationWithAbsentStem(t *testing.T) {
+	t.Parallel()
+
 	const leafCount = 256
 
 	keys := make([][]byte, leafCount)
@@ -318,6 +340,8 @@ func TestProofSerializationWithAbsentStem(t *testing.T) {
 }
 
 func TestProofDeserialize(t *testing.T) {
+	t.Parallel()
+
 	const leafCount = 256
 
 	keys := make([][]byte, leafCount)
@@ -360,6 +384,8 @@ func TestProofDeserialize(t *testing.T) {
 }
 
 func TestProofOfAbsenceEdgeCase(t *testing.T) {
+	t.Parallel()
+
 	root := New()
 	root.Commit()
 
@@ -372,6 +398,8 @@ func TestProofOfAbsenceEdgeCase(t *testing.T) {
 }
 
 func TestProofOfAbsenceOtherMultipleLeaves(t *testing.T) {
+	t.Parallel()
+
 	// Create a stem that isn't the one that will be proven,
 	// but does look the same for most of its length.
 	root := New()
@@ -393,6 +421,8 @@ func TestProofOfAbsenceOtherMultipleLeaves(t *testing.T) {
 }
 
 func TestProofOfAbsenceNoneMultipleStems(t *testing.T) {
+	t.Parallel()
+
 	root := New()
 	key, _ := hex.DecodeString("0403030303030303030303030303030303030303030303030303030303030000")
 	root.Insert(key, testValue, nil)
@@ -416,6 +446,8 @@ func TestProofOfAbsenceNoneMultipleStems(t *testing.T) {
 }
 
 func TestSuffixStateDiffJSONMarshalUn(t *testing.T) {
+	t.Parallel()
+
 	ssd := SuffixStateDiff{
 		Suffix: 0x41,
 		CurrentValue: &[32]byte{
@@ -452,6 +484,8 @@ func TestSuffixStateDiffJSONMarshalUn(t *testing.T) {
 }
 
 func TestStemStateDiffJSONMarshalUn(t *testing.T) {
+	t.Parallel()
+
 	ssd := StemStateDiff{
 		Stem: [31]byte{10},
 		SuffixDiffs: []SuffixStateDiff{{
@@ -491,6 +525,8 @@ func TestStemStateDiffJSONMarshalUn(t *testing.T) {
 }
 
 func TestSuffixStateDiffJSONMarshalUnCurrentValueNil(t *testing.T) {
+	t.Parallel()
+
 	ssd := SuffixStateDiff{
 		Suffix:       0x41,
 		CurrentValue: nil,
@@ -518,6 +554,8 @@ func TestSuffixStateDiffJSONMarshalUnCurrentValueNil(t *testing.T) {
 }
 
 func TestIPAProofMarshalUnmarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	ip1 := &IPAProof{
 		CL:              [IPA_PROOF_DEPTH][32]byte{{1}, {2}, {3}},
 		CR:              [IPA_PROOF_DEPTH][32]byte{{4}, {5}, {6}},
@@ -538,6 +576,8 @@ func TestIPAProofMarshalUnmarshalJSON(t *testing.T) {
 }
 
 func TestVerkleProofMarshalUnmarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	vp1 := &VerkleProof{
 		OtherStems:            [][31]byte{{1}, {2}, {3}},
 		DepthExtensionPresent: []byte{4, 5, 6},
@@ -564,6 +604,8 @@ func TestVerkleProofMarshalUnmarshalJSON(t *testing.T) {
 }
 
 func TestStatelessDeserialize(t *testing.T) {
+	t.Parallel()
+
 	root := New()
 	for _, k := range [][]byte{zeroKeyTest, oneKeyTest, fourtyKeyTest, ffx32KeyTest} {
 		root.Insert(k, fourtyKeyTest, nil)
@@ -601,6 +643,8 @@ func TestStatelessDeserialize(t *testing.T) {
 }
 
 func TestStatelessDeserializeMissingChildNode(t *testing.T) {
+	t.Parallel()
+
 	root := New()
 	for _, k := range [][]byte{zeroKeyTest, oneKeyTest, ffx32KeyTest} {
 		root.Insert(k, fourtyKeyTest, nil)
@@ -636,6 +680,8 @@ func TestStatelessDeserializeMissingChildNode(t *testing.T) {
 }
 
 func TestStatelessDeserializeDepth2(t *testing.T) {
+	t.Parallel()
+
 	root := New()
 	key1, _ := hex.DecodeString("0000010000000000000000000000000000000000000000000000000000000000")
 	for _, k := range [][]byte{zeroKeyTest, key1} {

@@ -7,6 +7,8 @@ import (
 )
 
 func TestFromBytes(t *testing.T) {
+	t.Parallel()
+
 	var fr Fr
 
 	var beFortyTwo [8]byte

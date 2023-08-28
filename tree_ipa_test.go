@@ -48,7 +48,7 @@ func extensionAndSuffixOneKey(key, value []byte, ret *Point) {
 		v                               Fr
 		vs                              [2]Fr
 		cfg                             = GetConfig()
-		srs                             = cfg.conf.SRSPrecompPoints.SRS
+		srs                             = cfg.conf.SRS
 		stemComm1, stemComm3, stemComm2 Point
 		t1, t2, c1                      Point
 	)
@@ -73,12 +73,14 @@ func extensionAndSuffixOneKey(key, value []byte, ret *Point) {
 }
 
 func TestInsertKey0Value0(t *testing.T) {
+	t.Parallel()
+
 	var (
 		expected  Fr
 		root      = New()
 		expectedP Point
 		cfg       = GetConfig()
-		srs       = cfg.conf.SRSPrecompPoints.SRS
+		srs       = cfg.conf.SRS
 	)
 
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
@@ -99,12 +101,14 @@ func TestInsertKey0Value0(t *testing.T) {
 }
 
 func TestInsertKey1Value1(t *testing.T) {
+	t.Parallel()
+
 	var (
 		v, expected Fr
 		root        = New()
 		expectedP   Point
 		cfg         = GetConfig()
-		srs         = cfg.conf.SRSPrecompPoints.SRS
+		srs         = cfg.conf.SRS
 	)
 	key := []byte{
 		1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
@@ -127,6 +131,8 @@ func TestInsertKey1Value1(t *testing.T) {
 }
 
 func TestInsertSameStemTwoLeaves(t *testing.T) {
+	t.Parallel()
+
 	var (
 		v, expected                     Fr
 		vs                              [2]Fr
@@ -134,7 +140,7 @@ func TestInsertSameStemTwoLeaves(t *testing.T) {
 		expectedP, c1, c2, t1, t2       Point
 		stemComm1, stemComm3, stemComm2 Point
 		cfg                             = GetConfig()
-		srs                             = cfg.conf.SRSPrecompPoints.SRS
+		srs                             = cfg.conf.SRS
 	)
 	key_a := []byte{
 		1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
@@ -181,12 +187,14 @@ func TestInsertSameStemTwoLeaves(t *testing.T) {
 }
 
 func TestInsertKey1Val1Key2Val2(t *testing.T) {
+	t.Parallel()
+
 	var (
 		v, v1, v2, expected Fr
 		root                = New()
 		expectedP, t1, t2   Point
 		cfg                 = GetConfig()
-		srs                 = cfg.conf.SRSPrecompPoints.SRS
+		srs                 = cfg.conf.SRS
 	)
 	key_b, _ := hex.DecodeString("0101010101010101010101010101010101010101010101010101010101010101")
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
@@ -213,6 +221,8 @@ func TestInsertKey1Val1Key2Val2(t *testing.T) {
 }
 
 func TestEmptyTrie(t *testing.T) {
+	t.Parallel()
+
 	root := New()
 	comm := root.Commit()
 
@@ -222,6 +232,8 @@ func TestEmptyTrie(t *testing.T) {
 }
 
 func TestGroupToField(t *testing.T) {
+	t.Parallel()
+
 	point := banderwagon.Generator
 	var v Fr
 	toFr(&v, &point)
@@ -270,6 +282,8 @@ func BenchmarkGroupToField(b *testing.B) {
 }
 
 func TestPaddingInFromLEBytes(t *testing.T) {
+	t.Parallel()
+
 	var fr1, fr2 Fr
 	if err := FromLEBytes(&fr1, ffx32KeyTest[:16]); err != nil {
 		t.Fatal(err)

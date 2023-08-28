@@ -28,6 +28,8 @@ package verkle
 import "testing"
 
 func TestHashedNodeFuncs(t *testing.T) {
+	t.Parallel()
+
 	e := HashedNode{}
 	err := e.Insert(zeroKeyTest, zeroKeyTest, nil)
 	if err != errInsertIntoHash {

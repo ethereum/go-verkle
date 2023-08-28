@@ -28,6 +28,8 @@ package verkle
 import "testing"
 
 func TestEmptyFuncs(t *testing.T) {
+	t.Parallel()
+
 	var e Empty
 	err := e.Insert(zeroKeyTest, zeroKeyTest, nil)
 	if err == nil {

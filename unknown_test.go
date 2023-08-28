@@ -3,6 +3,8 @@ package verkle
 import "testing"
 
 func TestUnknownFuncs(t *testing.T) {
+	t.Parallel()
+
 	un := UnknownNode{}
 
 	if err := un.Insert(nil, nil, nil); err != errMissingNodeInStateless {
