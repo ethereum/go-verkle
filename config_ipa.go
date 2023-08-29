@@ -30,6 +30,7 @@ import (
 	"sync"
 
 	"github.com/crate-crypto/go-ipa/ipa"
+	"github.com/gballet/go-verkle/crypto"
 )
 
 // EmptyCodeHashPoint is a cached point that is used to represent an empty code hash.
@@ -67,7 +68,7 @@ type Config = IPAConfig
 
 func GetConfig() *Config {
 	onceCfg.Do(func() {
-		conf, err := ipa.NewIPASettings()
+		conf, err := crypto.NewIPASettings()
 		if err != nil {
 			panic(err)
 		}

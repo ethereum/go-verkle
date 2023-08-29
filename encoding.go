@@ -28,6 +28,8 @@ package verkle
 import (
 	"errors"
 	"fmt"
+
+	"github.com/gballet/go-verkle/crypto"
 )
 
 var (
@@ -51,9 +53,9 @@ const (
 	leafSteamOffset        = nodeTypeOffset + nodeTypeSize
 	leafBitlistOffset      = leafSteamOffset + StemSize
 	leafCommitmentOffset   = leafBitlistOffset + bitlistSize
-	leafC1CommitmentOffset = leafCommitmentOffset + SerializedPointUncompressedSize
-	leafC2CommitmentOffset = leafC1CommitmentOffset + SerializedPointUncompressedSize
-	leafChildrenOffset     = leafC2CommitmentOffset + SerializedPointUncompressedSize
+	leafC1CommitmentOffset = leafCommitmentOffset + crypto.SerializedPointUncompressedSize
+	leafC2CommitmentOffset = leafC1CommitmentOffset + crypto.SerializedPointUncompressedSize
+	leafChildrenOffset     = leafC2CommitmentOffset + crypto.SerializedPointUncompressedSize
 )
 
 func bit(bitlist []byte, nr int) bool {
@@ -71,7 +73,7 @@ var errSerializedPayloadTooShort = errors.New("verkle payload is too short")
 // - Leaf nodes:     <nodeType><stem><bitlist><comm><c1comm><c2comm><children...>
 func ParseNode(serializedNode []byte, depth byte) (VerkleNode, error) {
 	// Check that the length of the serialized node is at least the smallest possible serialized node.
-	if len(serializedNode) < nodeTypeSize+SerializedPointUncompressedSize {
+	if len(serializedNode) < nodeTypeSize+crypto.SerializedPointUncompressedSize {
 		return nil, errSerializedPayloadTooShort
 	}
 
@@ -103,13 +105,13 @@ func parseLeafNode(serialized []byte, depth byte) (VerkleNode, error) {
 	ln.c1 = new(Point)
 
 	// Sanity check that we have at least 3*SerializedPointUncompressedSize bytes left in the serialized payload.
-	if len(serialized[leafCommitmentOffset:]) < 3*SerializedPointUncompressedSize {
-		return nil, fmt.Errorf("leaf node commitments are not the correct size, expected at least %d, got %d", 3*SerializedPointUncompressedSize, len(serialized[leafC1CommitmentOffset:]))
+	if len(serialized[leafCommitmentOffset:]) < 3*crypto.SerializedPointUncompressedSize {
+		return nil, fmt.Errorf("leaf node commitments are not the correct size, expected at least %d, got %d", 3*crypto.SerializedPointUncompressedSize, len(serialized[leafC1CommitmentOffset:]))
 	}
 
-	ln.c1.SetBytesUncompressed(serialized[leafC1CommitmentOffset:leafC1CommitmentOffset+SerializedPointUncompressedSize], true)
+	ln.c1.SetBytesUncompressed(serialized[leafC1CommitmentOffset:leafC1CommitmentOffset+crypto.SerializedPointUncompressedSize], true)
 	ln.c2 = new(Point)
-	ln.c2.SetBytesUncompressed(serialized[leafC2CommitmentOffset:leafC2CommitmentOffset+SerializedPointUncompressedSize], true)
+	ln.c2.SetBytesUncompressed(serialized[leafC2CommitmentOffset:leafC2CommitmentOffset+crypto.SerializedPointUncompressedSize], true)
 	ln.commitment = new(Point)
 	ln.commitment.SetBytesUncompressed(serialized[leafCommitmentOffset:leafC1CommitmentOffset], true)
 	return ln, nil
@@ -138,11 +140,18 @@ func CreateInternalNode(bitlist []byte, raw []byte, depth byte) (*InternalNode, 
 		}
 	}
 	node.depth = depth
-	if len(raw) != SerializedPointUncompressedSize {
+	if len(raw) != crypto.SerializedPointUncompressedSize {
 		return nil, ErrInvalidNodeEncoding
 	}
 
 	node.commitment = new(Point)
 	node.commitment.SetBytesUncompressed(raw, true)
 	return node, nil
+}
+
+func StemFromBytes(fr *Fr, data []byte) error {
+	if len(data) != StemSize {
+		return errors.New("data length must be StemSize")
+	}
+	return crypto.FromLEBytes(fr, data)
 }

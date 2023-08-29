@@ -32,6 +32,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/gballet/go-verkle/crypto"
 )
 
 func TestProofVerifyTwoLeaves(t *testing.T) {
@@ -628,16 +630,16 @@ func TestStatelessDeserialize(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !Equal(droot.Commit(), root.Commitment()) {
+	if !crypto.Equal(droot.Commit(), root.Commitment()) {
 		t.Log(ToDot(droot), ToDot(root))
 		t.Fatalf("differing root commitments %x != %x", droot.Commitment().Bytes(), root.Commitment().Bytes())
 	}
 
-	if !Equal(droot.(*InternalNode).children[0].(*LeafNode).commitment, root.(*InternalNode).children[0].Commit()) {
+	if !crypto.Equal(droot.(*InternalNode).children[0].(*LeafNode).commitment, root.(*InternalNode).children[0].Commit()) {
 		t.Fatal("differing commitment for child #0")
 	}
 
-	if !Equal(droot.(*InternalNode).children[64].Commit(), root.(*InternalNode).children[64].Commit()) {
+	if !crypto.Equal(droot.(*InternalNode).children[64].Commit(), root.(*InternalNode).children[64].Commit()) {
 		t.Fatal("differing commitment for child #64")
 	}
 }
@@ -667,10 +669,10 @@ func TestStatelessDeserializeMissingChildNode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !Equal(droot.Commit(), root.Commit()) {
+	if !crypto.Equal(droot.Commit(), root.Commit()) {
 		t.Fatal("differing root commitments")
 	}
-	if !Equal(droot.(*InternalNode).children[0].Commit(), root.(*InternalNode).children[0].Commit()) {
+	if !crypto.Equal(droot.(*InternalNode).children[0].Commit(), root.(*InternalNode).children[0].Commit()) {
 		t.Fatal("differing commitment for child #0")
 	}
 
@@ -705,11 +707,11 @@ func TestStatelessDeserializeDepth2(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !Equal(droot.Commit(), root.Commit()) {
+	if !crypto.Equal(droot.Commit(), root.Commit()) {
 		t.Fatal("differing root commitments")
 	}
 
-	if !Equal(droot.(*InternalNode).children[0].Commit(), root.(*InternalNode).children[0].Commit()) {
+	if !crypto.Equal(droot.(*InternalNode).children[0].Commit(), root.(*InternalNode).children[0].Commit()) {
 		t.Fatal("differing commitment for child #0")
 	}
 }

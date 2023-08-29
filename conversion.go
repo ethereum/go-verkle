@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"sort"
 
+	"github.com/gballet/go-verkle/crypto"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -54,7 +55,7 @@ func BatchNewLeafNode(nodesValues []BatchNewLeafNodeData) ([]LeafNode, error) {
 					c1c2frs[2*i], c1c2frs[2*i+1] = new(Fr), new(Fr)
 				}
 
-				toFrMultiple(c1c2frs, c1c2points)
+				crypto.ToFrMultiple(c1c2frs, c1c2points)
 
 				var poly [NodeWidth]Fr
 				poly[0].SetUint64(1)

@@ -4,6 +4,8 @@ import (
 	"encoding/binary"
 	"math/big"
 	"testing"
+
+	"github.com/gballet/go-verkle/crypto"
 )
 
 func TestFromBytes(t *testing.T) {
@@ -14,7 +16,7 @@ func TestFromBytes(t *testing.T) {
 	var beFortyTwo [8]byte
 	binary.BigEndian.PutUint64(beFortyTwo[:], 42)
 
-	FromBytes(&fr, beFortyTwo[:])
+	crypto.FromBytes(&fr, beFortyTwo[:])
 
 	bi := big.NewInt(0)
 	if fr.ToBigIntRegular(bi).Int64() != 42 {

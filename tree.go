@@ -31,8 +31,11 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/crate-crypto/go-ipa/banderwagon"
+	"github.com/gballet/go-verkle/crypto"
 )
+
+type Point = crypto.Point
+type Fr = crypto.Fr
 
 type (
 	NodeFlushFn    func([]byte, VerkleNode)
@@ -287,7 +290,7 @@ func NewLeafNode(stem []byte, values [][]byte) (*LeafNode, error) {
 	if err := StemFromBytes(&poly[1], stem); err != nil {
 		return nil, err
 	}
-	toFrMultiple([]*Fr{&poly[2], &poly[3]}, []*Point{c1, c2})
+	crypto.ToFrMultiple([]*Fr{&poly[2], &poly[3]}, []*Point{c1, c2})
 
 	return &LeafNode{
 		// depth will be 0, but the commitment calculation
@@ -334,7 +337,7 @@ func (n *InternalNode) cowChild(index byte) {
 
 	if n.cow[index] == nil {
 		n.cow[index] = new(Point)
-		CopyPoint(n.cow[index], n.children[index].Commitment())
+		crypto.CopyPoint(n.cow[index], n.children[index].Commitment())
 	}
 }
 
@@ -654,7 +657,7 @@ func (n *InternalNode) Get(key []byte, resolver NodeResolverFn) ([]byte, error) 
 
 func (n *InternalNode) Hash() *Fr {
 	var hash Fr
-	toFr(&hash, n.Commitment())
+	crypto.ToFr(&hash, n.Commitment())
 	return &hash
 }
 
@@ -712,7 +715,7 @@ func (n *InternalNode) Commit() *Point {
 		}
 
 		// Do a single batch calculation for all the points in this level.
-		toFrMultiple(frs, points)
+		crypto.ToFrMultiple(frs, points)
 
 		// We calculate the difference between each (new commitment - old commitment) pair, and store it
 		// in the same slice to avoid allocations.
@@ -800,14 +803,14 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 			points[i] = new(Point)
 		}
 	}
-	toFrMultiple(fiPtrs[:], points[:])
+	crypto.ToFrMultiple(fiPtrs[:], points[:])
 
 	for _, group := range groups {
 		childIdx := offset2key(group[0], n.depth)
 
 		// Build the list of elements for this level
 		var yi Fr
-		CopyFr(&yi, &fi[childIdx])
+		crypto.CopyFr(&yi, &fi[childIdx])
 		pe.Cis = append(pe.Cis, n.commitment)
 		pe.Zis = append(pe.Zis, childIdx)
 		pe.Yis = append(pe.Yis, &yi)
@@ -857,7 +860,7 @@ func (n *InternalNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]
 // Serialize returns the serialized form of the internal node.
 // The format is: <nodeType><bitlist><commitment>
 func (n *InternalNode) Serialize() ([]byte, error) {
-	ret := make([]byte, nodeTypeSize+bitlistSize+SerializedPointUncompressedSize)
+	ret := make([]byte, nodeTypeSize+bitlistSize+crypto.SerializedPointUncompressedSize)
 
 	// Write the <bitlist>.
 	bitlist := ret[internalBitlistOffset:internalCommitmentOffset]
@@ -889,14 +892,14 @@ func (n *InternalNode) Copy() VerkleNode {
 	}
 
 	if n.commitment != nil {
-		CopyPoint(ret.commitment, n.commitment)
+		crypto.CopyPoint(ret.commitment, n.commitment)
 	}
 
 	if n.cow != nil {
 		ret.cow = make(map[byte]*Point)
 		for k, v := range n.cow {
 			ret.cow[k] = new(Point)
-			CopyPoint(ret.cow[k], v)
+			crypto.CopyPoint(ret.cow[k], v)
 		}
 	}
 
@@ -906,7 +909,7 @@ func (n *InternalNode) Copy() VerkleNode {
 func (n *InternalNode) toDot(parent, path string) string {
 	me := fmt.Sprintf("internal%s", path)
 	var hash Fr
-	toFr(&hash, n.commitment)
+	crypto.ToFr(&hash, n.commitment)
 	ret := fmt.Sprintf("%s [label=\"I: %x\"]\n", me, hash.BytesLE())
 	if len(parent) > 0 {
 		ret = fmt.Sprintf("%s %s -> %s\n", ret, parent, me)
@@ -1038,7 +1041,7 @@ func (n *LeafNode) updateLeaf(index byte, value []byte) error {
 
 	// Batch the Fr transformation of the new and old CX.
 	var frs [2]Fr
-	toFrMultiple([]*Fr{&frs[0], &frs[1]}, []*Point{c, &oldC})
+	crypto.ToFrMultiple([]*Fr{&frs[0], &frs[1]}, []*Point{c, &oldC})
 
 	// If index is in the first NodeWidth/2 elements, we need to update C1. Otherwise, C2.
 	cxIndex := 2 + int(index)/(NodeWidth/2) // [1, stem, -> C1, C2 <-]
@@ -1091,14 +1094,14 @@ func (n *LeafNode) updateMultipleLeaves(values [][]byte) error {
 	const c2Idx = 3 // [1, stem, C1, ->C2<-]
 
 	if oldC1 != nil && oldC2 != nil { // Case 1.
-		toFrMultiple([]*Fr{&frs[0], &frs[1], &frs[2], &frs[3]}, []*Point{n.c1, oldC1, n.c2, oldC2})
+		crypto.ToFrMultiple([]*Fr{&frs[0], &frs[1], &frs[2], &frs[3]}, []*Point{n.c1, oldC1, n.c2, oldC2})
 		n.updateC(c1Idx, frs[0], frs[1])
 		n.updateC(c2Idx, frs[2], frs[3])
 	} else if oldC1 != nil { // Case 2. (C1 touched)
-		toFrMultiple([]*Fr{&frs[0], &frs[1]}, []*Point{n.c1, oldC1})
+		crypto.ToFrMultiple([]*Fr{&frs[0], &frs[1]}, []*Point{n.c1, oldC1})
 		n.updateC(c1Idx, frs[0], frs[1])
 	} else if oldC2 != nil { // Case 2. (C2 touched)
-		toFrMultiple([]*Fr{&frs[0], &frs[1]}, []*Point{n.c2, oldC2})
+		crypto.ToFrMultiple([]*Fr{&frs[0], &frs[1]}, []*Point{n.c2, oldC2})
 		n.updateC(c2Idx, frs[0], frs[1])
 	}
 
@@ -1171,7 +1174,7 @@ func (n *LeafNode) Delete(k []byte, _ NodeResolverFn) (bool, error) {
 		// operation which is slow no matter what, so ensuring correctness
 		// is more important than
 		var poly [4]Fr
-		toFr(&poly[subtreeindex], cn)
+		crypto.ToFr(&poly[subtreeindex], cn)
 		n.commitment.Sub(n.commitment, cfg.CommitToPoly(poly[:], 0))
 
 		// Clear the corresponding commitment
@@ -1215,7 +1218,7 @@ func (n *LeafNode) Hash() *Fr {
 	// to reduce complexity.
 	// TODO use n.commitment once all Insert* are diff-inserts
 	var hash Fr
-	toFr(&hash, n.Commitment())
+	crypto.ToFr(&hash, n.Commitment())
 	return &hash
 }
 
@@ -1267,11 +1270,11 @@ func leafToComms(poly []Fr, val []byte) error {
 	}
 	copy(valLoWithMarker[:loEnd], val[:loEnd])
 	valLoWithMarker[16] = 1 // 2**128
-	if err = FromLEBytes(&poly[0], valLoWithMarker[:]); err != nil {
+	if err = crypto.FromLEBytes(&poly[0], valLoWithMarker[:]); err != nil {
 		return err
 	}
 	if len(val) >= 16 {
-		if err = FromLEBytes(&poly[1], val[16:]); err != nil {
+		if err = crypto.FromLEBytes(&poly[1], val[16:]); err != nil {
 			return err
 		}
 	}
@@ -1299,7 +1302,7 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 	if err := StemFromBytes(&poly[1], n.stem); err != nil {
 		return nil, nil, nil, err
 	}
-	toFrMultiple([]*Fr{&poly[2], &poly[3]}, []*Point{n.c1, n.c2})
+	crypto.ToFrMultiple([]*Fr{&poly[2], &poly[3]}, []*Point{n.c1, n.c2})
 
 	// First pass: add top-level elements first
 	var hasC1, hasC2 bool
@@ -1425,7 +1428,7 @@ func (n *LeafNode) GetProofItems(keys keylist) (*ProofElements, []byte, [][]byte
 // Serialize serializes a LeafNode.
 // The format is: <nodeType><stem><bitlist><comm><c1comm><c2comm><children...>
 func (n *LeafNode) Serialize() ([]byte, error) {
-	cBytes := banderwagon.ElementsToBytesUncompressed([]*banderwagon.Element{n.commitment, n.c1, n.c2})
+	cBytes := crypto.ElementsToBytesUncompressed([]*Point{n.commitment, n.c1, n.c2})
 	return n.serializeLeafWithUncompressedCommitments(cBytes[0], cBytes[1], cBytes[2]), nil
 }
 
@@ -1441,15 +1444,15 @@ func (n *LeafNode) Copy() VerkleNode {
 	}
 	if n.commitment != nil {
 		l.commitment = new(Point)
-		CopyPoint(l.commitment, n.commitment)
+		crypto.CopyPoint(l.commitment, n.commitment)
 	}
 	if n.c1 != nil {
 		l.c1 = new(Point)
-		CopyPoint(l.c1, n.c1)
+		crypto.CopyPoint(l.c1, n.c1)
 	}
 	if n.c2 != nil {
-		l.c2 = new(Point)
-		CopyPoint(l.c2, n.c2)
+		l.c2 = new(crypto.Point)
+		crypto.CopyPoint(l.c2, n.c2)
 	}
 
 	return l
@@ -1471,7 +1474,7 @@ func (n *LeafNode) Value(i int) []byte {
 
 func (n *LeafNode) toDot(parent, path string) string {
 	var hash Fr
-	toFr(&hash, n.Commitment())
+	crypto.ToFr(&hash, n.Commitment())
 	ret := fmt.Sprintf("leaf%s [label=\"L: %x\nC: %x\nC₁: %x\nC₂:%x\"]\n%s -> leaf%s\n", path, hash.Bytes(), n.commitment.Bytes(), n.c1.Bytes(), n.c2.Bytes(), parent, path)
 	for i, v := range n.values {
 		if v != nil {
@@ -1504,7 +1507,7 @@ func ToDot(root VerkleNode) string {
 // Providing both allows this library to do more optimizations.
 type SerializedNode struct {
 	Node            VerkleNode
-	CommitmentBytes [SerializedPointUncompressedSize]byte
+	CommitmentBytes [crypto.SerializedPointUncompressedSize]byte
 	Path            []byte
 	SerializedBytes []byte
 }
@@ -1535,7 +1538,7 @@ func (n *InternalNode) BatchSerialize() ([]SerializedNode, error) {
 	}
 
 	// Now we do the all transformations in a single-shot.
-	serializedPoints := banderwagon.ElementsToBytesUncompressed(pointsToCompress)
+	serializedPoints := crypto.ElementsToBytesUncompressed(pointsToCompress)
 
 	// Now we that we did the heavy CPU work, we have to do the rest of `nodes` serialization
 	// taking the compressed points from this single list.
@@ -1593,8 +1596,8 @@ func (n *InternalNode) collectNonHashedNodes(list []VerkleNode, paths [][]byte, 
 }
 
 // unpack one compressed commitment from the list of batch-compressed commitments
-func (n *InternalNode) serializeInternalWithUncompressedCommitment(pointsIdx map[VerkleNode]int, serializedPoints [][SerializedPointUncompressedSize]byte) ([]byte, error) {
-	serialized := make([]byte, nodeTypeSize+bitlistSize+SerializedPointUncompressedSize)
+func (n *InternalNode) serializeInternalWithUncompressedCommitment(pointsIdx map[VerkleNode]int, serializedPoints [][crypto.SerializedPointUncompressedSize]byte) ([]byte, error) {
+	serialized := make([]byte, nodeTypeSize+bitlistSize+crypto.SerializedPointUncompressedSize)
 	bitlist := serialized[internalBitlistOffset:internalCommitmentOffset]
 	for i, c := range n.children {
 		if _, ok := c.(Empty); !ok {
@@ -1611,7 +1614,7 @@ func (n *InternalNode) serializeInternalWithUncompressedCommitment(pointsIdx map
 	return serialized, nil
 }
 
-func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2Bytes [SerializedPointUncompressedSize]byte) []byte {
+func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2Bytes [crypto.SerializedPointUncompressedSize]byte) []byte {
 	// Empty value in LeafNode used for padding.
 	var emptyValue [LeafValueSize]byte
 
@@ -1629,7 +1632,7 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 	}
 
 	// Create the serialization.
-	result := make([]byte, nodeTypeSize+StemSize+bitlistSize+3*SerializedPointUncompressedSize+len(children))
+	result := make([]byte, nodeTypeSize+StemSize+bitlistSize+3*crypto.SerializedPointUncompressedSize+len(children))
 	result[0] = leafRLPType
 	copy(result[leafSteamOffset:], n.stem[:StemSize])
 	copy(result[leafBitlistOffset:], bitlist[:])
