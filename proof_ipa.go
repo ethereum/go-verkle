@@ -28,6 +28,7 @@ package verkle
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"sort"
 	"unsafe"
 
@@ -79,7 +80,7 @@ func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte, resolver NodeRe
 	return root.GetProofItems(keylist(keys), resolver)
 }
 
-func MakeVerkleMultiProof(root VerkleNode, keys [][]byte, resolver NodeResolverFn) (*Proof, []*Point, []byte, []*Fr, error) {
+func MakeVerkleMultiProof(pre_root, post_root VerkleNode, keys [][]byte, resolver NodeResolverFn) (*Proof, []*Point, []byte, []*Fr, error) {
 	// go-ipa won't accept no key as an input, catch this corner case
 	// and return an empty result.
 	if len(keys) == 0 {
@@ -87,28 +88,42 @@ func MakeVerkleMultiProof(root VerkleNode, keys [][]byte, resolver NodeResolverF
 	}
 
 	tr := common.NewTranscript("vt")
-	root.Commit()
+	pre_root.Commit()
 
-	pe, es, poas, err := GetCommitmentsForMultiproof(root, keys, resolver)
+	pe, es, poas, err := GetCommitmentsForMultiproof(pre_root, keys, resolver)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, fmt.Errorf("error getting pre-state proof data: %w", err)
 	}
 
-	// NOTE this is leftover code from the time the proof was
-	// made against the POST state. Since proofs are expected
-	// to prove PRE and POST state in the future, I'm leaving
-	// this for reference - eventhough it's unlikely that the
-	// final version will look like this, but you never know.
-	// var vals [][]byte
-	// for _, k := range keys {
-	// 	// TODO at the moment, do not include the post-data
-	// 	// val, _ := root.Get(k, nil)
-	// 	// vals = append(vals, val)
-	// 	vals = append(vals, keyvals[string(k)])
-	// }
+	// List of points and vectors and indices used to generate the IPA proof
+	// If only a pre-state root is available, it's a simple copy, but if both
+	// pre- and post-state root are present, it's merging the two lists.
+	var (
+		proof_cis []*Point
+		proof_fs  [][]Fr
+		proof_zs  []uint8
+	)
+	for i := range pe.Cis {
+		proof_cis = append(proof_cis, pe.Cis[i])
+		proof_fs = append(proof_fs, pe.Fis[i])
+		proof_zs = append(proof_zs, pe.Zis[i])
+	}
+
+	if post_root != nil {
+		pe_post, _, _, err := GetCommitmentsForMultiproof(post_root, keys, resolver)
+		if err != nil {
+			return nil, nil, nil, nil, fmt.Errorf("error getting post-state proof data: %w", err)
+		}
+
+		for i := range pe_post.Cis {
+			proof_cis = append(proof_cis, pe_post.Cis[i])
+			proof_fs = append(proof_fs, pe_post.Fis[i])
+			proof_zs = append(proof_zs, pe_post.Zis[i])
+		}
+	}
 
 	cfg := GetConfig()
-	mpArg := ipa.CreateMultiProof(tr, cfg.conf, pe.Cis, pe.Fis, pe.Zis)
+	mpArg := ipa.CreateMultiProof(tr, cfg.conf, proof_cis, proof_fs, proof_zs)
 
 	// It's wheel-reinvention time again 🎉: reimplement a basic
 	// feature that should be part of the stdlib.
