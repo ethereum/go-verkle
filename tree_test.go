@@ -1180,7 +1180,7 @@ func TestRustBanderwagonBlock48(t *testing.T) {
 
 	r := tree.Commit()
 
-	proof, cis, zis, yis, _ := MakeVerkleMultiProof(tree, keys, nil)
+	proof, cis, zis, yis, _ := MakeVerkleMultiProof(tree, nil, keys, nil)
 	vp, statediff, err := SerializeProof(proof)
 	if err != nil {
 		t.Fatal(err)
@@ -1197,7 +1197,7 @@ func TestRustBanderwagonBlock48(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	droot, err := TreeFromProof(dproof, r)
+	droot, err := PreStateTreeFromProof(dproof, r)
 	if err != nil {
 		t.Fatal(err)
 	}
