@@ -58,12 +58,14 @@ type Proof struct {
 	Cs         []*Point        // commitments, sorted by their path in the tree
 	PoaStems   [][]byte        // stems proving another stem is absent
 	Keys       [][]byte
-	Values     [][]byte
+	PreValues  [][]byte
+	PostValues [][]byte
 }
 
 type SuffixStateDiff struct {
 	Suffix       byte      `json:"suffix"`
 	CurrentValue *[32]byte `json:"currentValue"`
+	NewValue     *[32]byte `json:"new_value"`
 }
 
 type SuffixStateDiffs []SuffixStateDiff
@@ -102,6 +104,7 @@ func MakeVerkleMultiProof(pre_root, post_root VerkleNode, keys [][]byte, resolve
 		proof_cis []*Point
 		proof_fs  [][]Fr
 		proof_zs  []uint8
+		postvals  = make([][]byte, len(keys))
 	)
 	for i := range pe.Cis {
 		proof_cis = append(proof_cis, pe.Cis[i])
@@ -119,6 +122,13 @@ func MakeVerkleMultiProof(pre_root, post_root VerkleNode, keys [][]byte, resolve
 			proof_cis = append(proof_cis, pe_post.Cis[i])
 			proof_fs = append(proof_fs, pe_post.Fis[i])
 			proof_zs = append(proof_zs, pe_post.Zis[i])
+		}
+
+		// Set the post values, if they are untouched, leave them `nil`
+		for i, v := range pe.Vals {
+			if !bytes.Equal(v, pe_post.Vals[i]) {
+				postvals[i] = v
+			}
 		}
 	}
 
@@ -141,13 +151,15 @@ func MakeVerkleMultiProof(pre_root, post_root VerkleNode, keys [][]byte, resolve
 	for i, path := range paths {
 		cis[i] = pe.ByPath[path]
 	}
+
 	proof := &Proof{
 		Multipoint: mpArg,
 		Cs:         cis,
 		ExtStatus:  es,
 		PoaStems:   poas,
 		Keys:       keys,
-		Values:     pe.Vals,
+		PreValues:  pe.Vals,
+		PostValues: postvals,
 	}
 	return proof, pe.Cis, pe.Zis, pe.Yis, nil
 }
@@ -192,26 +204,34 @@ func SerializeProof(proof *Proof) (*VerkleProof, StateDiff, error) {
 			stemdiff = &statediff[len(statediff)-1]
 			copy(stemdiff.Stem[:], key[:31])
 		}
-		var valueLen = len(proof.Values[i])
+		newsd := SuffixStateDiff{Suffix: key[31]}
+		stemdiff.SuffixDiffs = append(stemdiff.SuffixDiffs, newsd)
+
+		var valueLen = len(proof.PreValues[i])
 		switch valueLen {
 		case 0:
-			stemdiff.SuffixDiffs = append(stemdiff.SuffixDiffs, SuffixStateDiff{
-				Suffix: key[31],
-			})
+			// null value
 		case 32:
-			stemdiff.SuffixDiffs = append(stemdiff.SuffixDiffs, SuffixStateDiff{
-				Suffix:       key[31],
-				CurrentValue: (*[32]byte)(proof.Values[i]),
-			})
+			newsd.CurrentValue = (*[32]byte)(proof.PreValues[i])
 		default:
 			var aligned [32]byte
-			copy(aligned[:valueLen], proof.Values[i])
-			stemdiff.SuffixDiffs = append(stemdiff.SuffixDiffs, SuffixStateDiff{
-				Suffix:       key[31],
-				CurrentValue: (*[32]byte)(unsafe.Pointer(&aligned[0])),
-			})
+			copy(aligned[:valueLen], proof.PreValues[i])
+			newsd.CurrentValue = (*[32]byte)(unsafe.Pointer(&aligned[0]))
+		}
+
+		valueLen = len(proof.PostValues[i])
+		switch valueLen {
+		case 0:
+			// null value
+		case 32:
+			newsd.NewValue = (*[32]byte)(proof.PostValues[i])
+		default:
+			var aligned [32]byte
+			copy(aligned[:valueLen], proof.PostValues[i])
+			newsd.NewValue = (*[32]byte)(unsafe.Pointer(&aligned[0]))
 		}
 	}
+
 	return &VerkleProof{
 		OtherStems:            otherstems,
 		DepthExtensionPresent: proof.ExtStatus,
