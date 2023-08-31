@@ -1197,7 +1197,7 @@ func TestRustBanderwagonBlock48(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	droot, err := TreeFromProof(dproof, r)
+	droot, err := PreStateTreeFromProof(dproof, r)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -623,7 +623,7 @@ func TestStatelessDeserialize(t *testing.T) {
 		t.Fatalf("error deserializing proof: %v", err)
 	}
 
-	droot, err := TreeFromProof(dproof, root.Commit())
+	droot, err := PreStateTreeFromProof(dproof, root.Commit())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -662,7 +662,7 @@ func TestStatelessDeserializeMissingChildNode(t *testing.T) {
 		t.Fatalf("error deserializing proof: %v", err)
 	}
 
-	droot, err := TreeFromProof(dproof, root.Commit())
+	droot, err := PreStateTreeFromProof(dproof, root.Commit())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -700,7 +700,7 @@ func TestStatelessDeserializeDepth2(t *testing.T) {
 		t.Fatalf("error deserializing proof: %v", err)
 	}
 
-	droot, err := TreeFromProof(dproof, root.Commit())
+	droot, err := PreStateTreeFromProof(dproof, root.Commit())
 	if err != nil {
 		t.Fatal(err)
 	}
