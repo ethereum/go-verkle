@@ -90,7 +90,6 @@ func MakeVerkleMultiProof(pre_root, post_root VerkleNode, keys [][]byte, resolve
 	}
 
 	tr := common.NewTranscript("vt")
-	pre_root.Commit()
 
 	pe, es, poas, err := GetCommitmentsForMultiproof(pre_root, keys, resolver)
 	if err != nil {
