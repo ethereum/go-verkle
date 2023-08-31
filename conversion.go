@@ -95,6 +95,56 @@ func firstDiffByteIdx(stem1 []byte, stem2 []byte) int {
 }
 
 func (n *InternalNode) InsertMigratedLeaves(leaves []LeafNode, resolver NodeResolverFn) error {
+	sort.Slice(leaves, func(i, j int) bool {
+		return bytes.Compare(leaves[i].stem, leaves[j].stem) < 0
+	})
+
+	// We first mark all children of the subtreess that we'll update in parallel,
+	// so the subtree updating doesn't produce a concurrent access to n.cowChild(...).
+	var lastChildrenIdx = -1
+	for i := range leaves {
+		if int(leaves[i].stem[0]) != lastChildrenIdx {
+			lastChildrenIdx = int(leaves[i].stem[0])
+			if _, ok := n.children[lastChildrenIdx].(HashedNode); ok {
+				serialized, err := resolver([]byte{byte(lastChildrenIdx)})
+				if err != nil {
+					return fmt.Errorf("resolving node: %s", err)
+				}
+				resolved, err := ParseNode(serialized, 1)
+				if err != nil {
+					return fmt.Errorf("parsing node %x: %w", serialized, err)
+				}
+				n.children[lastChildrenIdx] = resolved
+			}
+			n.cowChild(byte(lastChildrenIdx))
+		}
+	}
+
+	// We insert the migrated leaves for each subtree of the root node.
+	group, _ := errgroup.WithContext(context.Background())
+	group.SetLimit(runtime.NumCPU())
+	currStemFirstByte := 0
+	for i := range leaves {
+		if leaves[currStemFirstByte].stem[0] != leaves[i].stem[0] {
+			start := currStemFirstByte
+			end := i
+			group.Go(func() error {
+				return n.insertMigratedLeavesSubtree(leaves[start:end], resolver)
+			})
+			currStemFirstByte = i
+		}
+	}
+	group.Go(func() error {
+		return n.insertMigratedLeavesSubtree(leaves[currStemFirstByte:], resolver)
+	})
+	if err := group.Wait(); err != nil {
+		return fmt.Errorf("inserting migrated leaves: %w", err)
+	}
+
+	return nil
+}
+
+func (n *InternalNode) insertMigratedLeavesSubtree(leaves []LeafNode, resolver NodeResolverFn) error {
 	for i := range leaves {
 		ln := leaves[i]
 		parent := n
