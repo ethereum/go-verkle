@@ -203,8 +203,8 @@ func SerializeProof(proof *Proof) (*VerkleProof, StateDiff, error) {
 			stemdiff = &statediff[len(statediff)-1]
 			copy(stemdiff.Stem[:], key[:31])
 		}
-		newsd := SuffixStateDiff{Suffix: key[31]}
-		stemdiff.SuffixDiffs = append(stemdiff.SuffixDiffs, newsd)
+		stemdiff.SuffixDiffs = append(stemdiff.SuffixDiffs, SuffixStateDiff{Suffix: key[31]})
+		newsd := &stemdiff.SuffixDiffs[len(stemdiff.SuffixDiffs)-1]
 
 		var valueLen = len(proof.PreValues[i])
 		switch valueLen {
@@ -292,7 +292,7 @@ func DeserializeProof(vp *VerkleProof, statediff StateDiff) (*Proof, error) {
 			if suffixdiff.CurrentValue != nil {
 				prevalues = append(prevalues, suffixdiff.CurrentValue[:])
 			} else {
-				prevalues = append(postvalues, nil)
+				prevalues = append(prevalues, nil)
 			}
 
 			if suffixdiff.NewValue != nil {
@@ -410,10 +410,6 @@ func PreStateTreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) {
 		}
 	}
 
-	// If the prestate is present, it means that at least one
-	// post value will be non-nil. In this case, make a copy
-	// of the pre tree and update all post values.
-
 	return root, nil
 }
 
@@ -427,6 +423,10 @@ func PostStateTreeFromProof(preroot VerkleNode, statediff StateDiff, rootC *Poin
 
 		for _, suffixdiff := range stemstatediff.SuffixDiffs {
 			if len(suffixdiff.NewValue) > 0 {
+				// If the prestate is present, it means that at least one
+				// post value will be non-nil. In this case, make a copy
+				// of the pre tree and update all post values.
+
 				overwrites = true
 				values[suffixdiff.Suffix] = suffixdiff.NewValue[:]
 			}

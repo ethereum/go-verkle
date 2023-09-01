@@ -20,7 +20,7 @@
 // OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 // ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 // OTHER DEALINGS IN THE SOFTWARE.
-//
+//TestProofOfAbsenceStemVerify
 // For more information, please refer to <https://unlicense.org>
 
 package verkle
@@ -64,6 +64,7 @@ func TestProofVerifyMultipleLeaves(t *testing.T) {
 		keys[i] = key
 		root.Insert(key, fourtyKeyTest, nil)
 	}
+	root.Commit()
 
 	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, nil, [][]byte{keys[0]}, nil)
 
@@ -86,6 +87,7 @@ func TestMultiProofVerifyMultipleLeaves(t *testing.T) {
 		keys[i] = key
 		root.Insert(key, fourtyKeyTest, nil)
 	}
+	root.Commit()
 
 	proof, _, _, _, _ := MakeVerkleMultiProof(root, nil, keys[0:2], nil)
 
@@ -118,6 +120,8 @@ func TestMultiProofVerifyMultipleLeavesWithAbsentStem(t *testing.T) {
 			copy(absentstem[:], key[:31])
 		}
 	}
+	root.Commit()
+
 	absent := make([]byte, 32)
 	absent[2] = 3 // not in the proof, but leads to a stem
 	absent[3] = 1 // and the stem differs
@@ -151,6 +155,7 @@ func TestMultiProofVerifyMultipleLeavesCommitmentRedundancy(t *testing.T) {
 	root.Insert(keys[0], fourtyKeyTest, nil)
 	keys[1] = oneKeyTest
 	root.Insert(keys[1], fourtyKeyTest, nil)
+	root.Commit()
 
 	proof, _, _, _, _ := MakeVerkleMultiProof(root, nil, keys, nil)
 
@@ -170,6 +175,7 @@ func TestProofOfAbsenceInternalVerify(t *testing.T) {
 	root := New()
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
 	root.Insert(oneKeyTest, zeroKeyTest, nil)
+	root.Commit()
 
 	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, nil, [][]byte{ffx32KeyTest}, nil)
 
@@ -185,6 +191,7 @@ func TestProofOfAbsenceLeafVerify(t *testing.T) {
 	root := New()
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
 	root.Insert(ffx32KeyTest, zeroKeyTest, nil)
+	root.Commit()
 
 	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, nil, [][]byte{oneKeyTest}, nil)
 
@@ -199,6 +206,7 @@ func TestProofOfAbsenceLeafVerifyOtherSuffix(t *testing.T) {
 	root := New()
 	root.Insert(zeroKeyTest, zeroKeyTest, nil)
 	root.Insert(ffx32KeyTest, zeroKeyTest, nil)
+	root.Commit()
 
 	key := func() []byte {
 		ret, _ := hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000080")
@@ -224,6 +232,7 @@ func TestProofOfAbsenceStemVerify(t *testing.T) {
 		return ret
 	}()
 
+	root.Commit()
 	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, nil, [][]byte{key}, nil)
 
 	cfg := GetConfig()
@@ -314,6 +323,7 @@ func TestProofSerializationWithAbsentStem(t *testing.T) {
 		keys[i] = key
 		root.Insert(key, fourtyKeyTest, nil)
 	}
+	root.Commit()
 
 	// Create stem  0x0000020100000.... that is not present in the tree,
 	// however stem 0x0000020000000.... is present and will be returned
@@ -352,6 +362,7 @@ func TestProofDeserialize(t *testing.T) {
 		keys[i] = key
 		root.Insert(key, fourtyKeyTest, nil)
 	}
+	root.Commit()
 
 	// Create stem  0x0000020100000.... that is not present in the tree,
 	// however stem 0x0000020000000.... is present and will be returned
@@ -610,6 +621,7 @@ func TestStatelessDeserialize(t *testing.T) {
 	for _, k := range [][]byte{zeroKeyTest, oneKeyTest, fourtyKeyTest, ffx32KeyTest} {
 		root.Insert(k, fourtyKeyTest, nil)
 	}
+	root.Commit()
 
 	proof, _, _, _, _ := MakeVerkleMultiProof(root, nil, keylist{zeroKeyTest, fourtyKeyTest}, nil)
 
@@ -687,6 +699,7 @@ func TestStatelessDeserializeDepth2(t *testing.T) {
 	for _, k := range [][]byte{zeroKeyTest, key1} {
 		root.Insert(k, fourtyKeyTest, nil)
 	}
+	root.Commit()
 
 	proof, _, _, _, _ := MakeVerkleMultiProof(root, nil, keylist{zeroKeyTest, key1}, nil)
 
