@@ -227,7 +227,7 @@ func newInternalNode(depth byte) VerkleNode {
 		node.children[idx] = Empty(struct{}{})
 	}
 	node.depth = depth
-	node.commitment = new(Point).Identity()
+	node.commitment = new(Point).SetIdentity()
 	return node
 }
 
@@ -1467,7 +1467,7 @@ func (n *LeafNode) GetProofItems(keys keylist, _ NodeResolverFn) (*ProofElements
 // Serialize serializes a LeafNode.
 // The format is: <nodeType><stem><bitlist><comm><c1comm><c2comm><children...>
 func (n *LeafNode) Serialize() ([]byte, error) {
-	cBytes := banderwagon.ElementsToBytesUncompressed([]*banderwagon.Element{n.commitment, n.c1, n.c2})
+	cBytes := banderwagon.BatchToBytesUncompressed(n.commitment, n.c1, n.c2)
 	return n.serializeLeafWithUncompressedCommitments(cBytes[0], cBytes[1], cBytes[2]), nil
 }
 
@@ -1577,7 +1577,7 @@ func (n *InternalNode) BatchSerialize() ([]SerializedNode, error) {
 	}
 
 	// Now we do the all transformations in a single-shot.
-	serializedPoints := banderwagon.ElementsToBytesUncompressed(pointsToCompress)
+	serializedPoints := banderwagon.BatchToBytesUncompressed(pointsToCompress...)
 
 	// Now we that we did the heavy CPU work, we have to do the rest of `nodes` serialization
 	// taking the compressed points from this single list.

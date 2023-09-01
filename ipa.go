@@ -28,19 +28,18 @@ package verkle
 import (
 	"errors"
 
-	"github.com/crate-crypto/go-ipa/bandersnatch/fr"
 	"github.com/crate-crypto/go-ipa/banderwagon"
 )
 
 type (
-	Fr                        = fr.Element
+	Fr                        = banderwagon.Fr
 	Point                     = banderwagon.Element
 	SerializedPoint           = []byte
 	SerializedPointCompressed = []byte
 )
 
 const (
-	SerializedPointUncompressedSize = 64
+	SerializedPointUncompressedSize = banderwagon.UncompressedSize
 )
 
 func CopyFr(dst, src *Fr) {
@@ -56,7 +55,7 @@ func toFr(fr *Fr, p *Point) {
 }
 
 func toFrMultiple(res []*Fr, ps []*Point) {
-	banderwagon.MultiMapToScalarField(res, ps)
+	banderwagon.BatchMapToScalarField(res, ps)
 }
 
 func FromLEBytes(fr *Fr, data []byte) error {

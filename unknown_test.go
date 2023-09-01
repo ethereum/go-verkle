@@ -17,7 +17,7 @@ func TestUnknownFuncs(t *testing.T) {
 		t.Errorf("got %v, want nil", err)
 	}
 	var identity Point
-	identity.Identity()
+	identity.SetIdentity()
 	if comm := un.Commit(); !comm.Equal(&identity) {
 		t.Errorf("got %v, want identity", comm)
 	}

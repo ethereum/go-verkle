@@ -39,7 +39,7 @@ var identity *Point
 
 func init() {
 	var id Point
-	id.Identity()
+	id.SetIdentity()
 	identity = &id
 }
 
