@@ -30,6 +30,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"testing"
 )
@@ -724,5 +725,68 @@ func TestStatelessDeserializeDepth2(t *testing.T) {
 
 	if !droot.(*InternalNode).children[0].Commit().Equal(root.(*InternalNode).children[0].Commit()) {
 		t.Fatal("differing commitment for child #0")
+	}
+}
+
+func TestProofVerificationWithPostState(t *testing.T) {
+	testlist := []struct {
+		name                                                string
+		keys, values, keystoprove, updatekeys, updatevalues [][]byte
+	}{
+		{
+			// check for a key present at the root level
+			name:         "key_in_internal_node",
+			keys:         [][]byte{zeroKeyTest, oneKeyTest, ffx32KeyTest},
+			values:       [][]byte{zeroKeyTest, zeroKeyTest, zeroKeyTest},
+			keystoprove:  [][]byte{ffx32KeyTest},
+			updatekeys:   [][]byte{zeroKeyTest, fourtyKeyTest},
+			updatevalues: [][]byte{fourtyKeyTest, fourtyKeyTest},
+		},
+		{
+			// prove an absent key at the root level
+			name:         "absent_key_in_internal_node",
+			keys:         [][]byte{zeroKeyTest, oneKeyTest, ffx32KeyTest},
+			values:       [][]byte{zeroKeyTest, zeroKeyTest, zeroKeyTest},
+			keystoprove:  [][]byte{fourtyKeyTest},
+			updatekeys:   [][]byte{zeroKeyTest, fourtyKeyTest},
+			updatevalues: [][]byte{fourtyKeyTest, fourtyKeyTest},
+		},
+		{
+			// prove an absent key at the leaf level
+			name:         "absent_key_in_leaf_node",
+			keys:         [][]byte{zeroKeyTest, fourtyKeyTest, ffx32KeyTest},
+			values:       [][]byte{zeroKeyTest, zeroKeyTest, zeroKeyTest},
+			keystoprove:  [][]byte{oneKeyTest},
+			updatekeys:   [][]byte{zeroKeyTest, fourtyKeyTest},
+			updatevalues: [][]byte{oneKeyTest, fourtyKeyTest},
+		},
+	}
+	for _, data := range testlist {
+		t.Run(fmt.Sprintf("verification_with_post_state/%s", data.name), func(t *testing.T) {
+			t.Parallel()
+
+			if len(data.keys) != len(data.values) {
+				t.Fatalf("incompatible number of keys and values: %d != %d", len(data.keys), len(data.values))
+			}
+
+			root := New()
+			for i := range data.keys {
+				root.Insert(data.keys[1], data.values[i], nil)
+			}
+			root.Commit()
+
+			postroot := root.Copy()
+			for i := range data.updatekeys {
+				postroot.Insert(data.updatekeys[1], data.updatevalues[i], nil)
+			}
+			postroot.Commit()
+
+			proof, _, _, _, _ := MakeVerkleMultiProof(root, postroot, data.keystoprove, nil)
+
+			cfg := GetConfig()
+			if !VerifyVerkleProofWithPreAndPostTrie(proof, root, postroot, data.keystoprove, nil, cfg) {
+				t.Fatalf("could not verify verkle proof: %s", ToDot(root))
+			}
+		})
 	}
 }

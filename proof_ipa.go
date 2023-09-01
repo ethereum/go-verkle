@@ -82,18 +82,16 @@ func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte, resolver NodeRe
 	return root.GetProofItems(keylist(keys), resolver)
 }
 
-func MakeVerkleMultiProof(preroot, postroot VerkleNode, keys [][]byte, resolver NodeResolverFn) (*Proof, []*Point, []byte, []*Fr, error) {
+func getProofElementsFromTree(preroot, postroot VerkleNode, keys [][]byte, resolver NodeResolverFn) (*ProofElements, []byte, [][]byte, [][]byte, []*Point, [][]Fr, []*Fr, []byte, error) {
 	// go-ipa won't accept no key as an input, catch this corner case
 	// and return an empty result.
 	if len(keys) == 0 {
-		return nil, nil, nil, nil, errors.New("no key provided for proof")
+		return nil, nil, nil, nil, nil, nil, nil, nil, errors.New("no key provided for proof")
 	}
-
-	tr := common.NewTranscript("vt")
 
 	pe, es, poas, err := GetCommitmentsForMultiproof(preroot, keys, resolver)
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("error getting pre-state proof data: %w", err)
+		return nil, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("error getting pre-state proof data: %w", err)
 	}
 
 	// List of points and vectors and indices used to generate the IPA proof
@@ -103,23 +101,26 @@ func MakeVerkleMultiProof(preroot, postroot VerkleNode, keys [][]byte, resolver 
 		proof_cis []*Point
 		proof_fs  [][]Fr
 		proof_zs  []uint8
+		proof_ys  []*Fr
 		postvals  = make([][]byte, len(keys))
 	)
 	for i := range pe.Cis {
 		proof_cis = append(proof_cis, pe.Cis[i])
 		proof_fs = append(proof_fs, pe.Fis[i])
+		proof_ys = append(proof_ys, pe.Yis[i])
 		proof_zs = append(proof_zs, pe.Zis[i])
 	}
 
 	if postroot != nil {
 		pe_post, _, _, err := GetCommitmentsForMultiproof(postroot, keys, resolver)
 		if err != nil {
-			return nil, nil, nil, nil, fmt.Errorf("error getting post-state proof data: %w", err)
+			return nil, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("error getting post-state proof data: %w", err)
 		}
 
 		for i := range pe_post.Cis {
 			proof_cis = append(proof_cis, pe_post.Cis[i])
 			proof_fs = append(proof_fs, pe_post.Fis[i])
+			proof_ys = append(proof_ys, pe_post.Yis[i])
 			proof_zs = append(proof_zs, pe_post.Zis[i])
 		}
 
@@ -131,7 +132,17 @@ func MakeVerkleMultiProof(preroot, postroot VerkleNode, keys [][]byte, resolver 
 		}
 	}
 
+	return pe, es, poas, postvals, proof_cis, proof_fs, proof_ys, proof_zs, nil
+}
+
+func MakeVerkleMultiProof(preroot, postroot VerkleNode, keys [][]byte, resolver NodeResolverFn) (*Proof, []*Point, []byte, []*Fr, error) {
+	pe, es, poas, postvals, proof_cis, proof_fs, _, proof_zs, err := getProofElementsFromTree(preroot, postroot, keys, resolver)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("error getting proof elements: %w", err)
+	}
+
 	cfg := GetConfig()
+	tr := common.NewTranscript("vt")
 	mpArg := ipa.CreateMultiProof(tr, cfg.conf, proof_cis, proof_fs, proof_zs)
 
 	// It's wheel-reinvention time again 🎉: reimplement a basic
@@ -161,6 +172,15 @@ func MakeVerkleMultiProof(preroot, postroot VerkleNode, keys [][]byte, resolver 
 		PostValues: postvals,
 	}
 	return proof, pe.Cis, pe.Zis, pe.Yis, nil
+}
+
+func VerifyVerkleProofWithPreAndPostTrie(proof *Proof, preroot, postroot VerkleNode, keys [][]byte, resolver NodeResolverFn, tc *Config) bool {
+	_, _, _, _, proof_cis, _, proof_ys, proof_zs, err := getProofElementsFromTree(preroot, postroot, keys, resolver)
+	if err != nil {
+		return false
+	}
+
+	return VerifyVerkleProof(proof, proof_cis, proof_zs, proof_ys, tc)
 }
 
 func VerifyVerkleProof(proof *Proof, Cs []*Point, indices []uint8, ys []*Fr, tc *Config) bool {
