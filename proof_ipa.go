@@ -433,7 +433,7 @@ func PreStateTreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) {
 	return root, nil
 }
 
-func PostStateTreeFromProof(preroot VerkleNode, statediff StateDiff, rootC *Point) (VerkleNode, error) {
+func PostStateTreeFromProof(preroot VerkleNode, statediff StateDiff) (VerkleNode, error) {
 	postroot := preroot.Copy()
 	for _, stemstatediff := range statediff {
 		var (
@@ -458,6 +458,7 @@ func PostStateTreeFromProof(preroot VerkleNode, statediff StateDiff, rootC *Poin
 			}
 		}
 	}
+	postroot.Commit()
 
 	return postroot, nil
 }

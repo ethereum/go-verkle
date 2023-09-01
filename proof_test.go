@@ -729,6 +729,8 @@ func TestStatelessDeserializeDepth2(t *testing.T) {
 }
 
 func TestProofVerificationWithPostState(t *testing.T) {
+	t.Parallel()
+
 	testlist := []struct {
 		name                                                string
 		keys, values, keystoprove, updatekeys, updatevalues [][]byte
@@ -762,6 +764,8 @@ func TestProofVerificationWithPostState(t *testing.T) {
 		},
 	}
 	for _, data := range testlist {
+		data := data // make linter happy by not capturing the loop variable
+
 		t.Run(fmt.Sprintf("verification_with_post_state/%s", data.name), func(t *testing.T) {
 			t.Parallel()
 
