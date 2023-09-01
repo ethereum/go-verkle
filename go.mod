@@ -3,8 +3,15 @@ module github.com/gballet/go-verkle
 go 1.19
 
 require (
-	github.com/crate-crypto/go-ipa v0.0.0-20230821223925-c39f2ad018b0
+	github.com/crate-crypto/go-ipa v0.0.0-20230831204142-34060f3f415e
 	golang.org/x/sync v0.1.0
 )
 
-require golang.org/x/sys v0.0.0-20220919091848-fb04ddd9f9c8 // indirect
+require (
+	github.com/bits-and-blooms/bitset v1.7.0 // indirect
+	github.com/consensys/bavard v0.1.13 // indirect
+	github.com/consensys/gnark-crypto v0.11.2 // indirect
+	github.com/mmcloughlin/addchain v0.4.0 // indirect
+	golang.org/x/sys v0.9.0 // indirect
+	rsc.io/tmplfunc v0.0.3 // indirect
+)
