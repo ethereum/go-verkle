@@ -28,6 +28,8 @@ package verkle
 import (
 	"errors"
 	"fmt"
+
+	"github.com/crate-crypto/go-ipa/banderwagon"
 )
 
 var (
@@ -51,9 +53,9 @@ const (
 	leafSteamOffset        = nodeTypeOffset + nodeTypeSize
 	leafBitlistOffset      = leafSteamOffset + StemSize
 	leafCommitmentOffset   = leafBitlistOffset + bitlistSize
-	leafC1CommitmentOffset = leafCommitmentOffset + SerializedPointUncompressedSize
-	leafC2CommitmentOffset = leafC1CommitmentOffset + SerializedPointUncompressedSize
-	leafChildrenOffset     = leafC2CommitmentOffset + SerializedPointUncompressedSize
+	leafC1CommitmentOffset = leafCommitmentOffset + banderwagon.UncompressedSize
+	leafC2CommitmentOffset = leafC1CommitmentOffset + banderwagon.UncompressedSize
+	leafChildrenOffset     = leafC2CommitmentOffset + banderwagon.UncompressedSize
 )
 
 func bit(bitlist []byte, nr int) bool {
@@ -71,7 +73,7 @@ var errSerializedPayloadTooShort = errors.New("verkle payload is too short")
 // - Leaf nodes:     <nodeType><stem><bitlist><comm><c1comm><c2comm><children...>
 func ParseNode(serializedNode []byte, depth byte) (VerkleNode, error) {
 	// Check that the length of the serialized node is at least the smallest possible serialized node.
-	if len(serializedNode) < nodeTypeSize+SerializedPointUncompressedSize {
+	if len(serializedNode) < nodeTypeSize+banderwagon.UncompressedSize {
 		return nil, errSerializedPayloadTooShort
 	}
 
@@ -102,14 +104,14 @@ func parseLeafNode(serialized []byte, depth byte) (VerkleNode, error) {
 	ln.setDepth(depth)
 	ln.c1 = new(Point)
 
-	// Sanity check that we have at least 3*SerializedPointUncompressedSize bytes left in the serialized payload.
-	if len(serialized[leafCommitmentOffset:]) < 3*SerializedPointUncompressedSize {
-		return nil, fmt.Errorf("leaf node commitments are not the correct size, expected at least %d, got %d", 3*SerializedPointUncompressedSize, len(serialized[leafC1CommitmentOffset:]))
+	// Sanity check that we have at least 3*banderwagon.UncompressedSize bytes left in the serialized payload.
+	if len(serialized[leafCommitmentOffset:]) < 3*banderwagon.UncompressedSize {
+		return nil, fmt.Errorf("leaf node commitments are not the correct size, expected at least %d, got %d", 3*banderwagon.UncompressedSize, len(serialized[leafC1CommitmentOffset:]))
 	}
 
-	ln.c1.SetBytesUncompressed(serialized[leafC1CommitmentOffset:leafC1CommitmentOffset+SerializedPointUncompressedSize], true)
+	ln.c1.SetBytesUncompressed(serialized[leafC1CommitmentOffset:leafC1CommitmentOffset+banderwagon.UncompressedSize], true)
 	ln.c2 = new(Point)
-	ln.c2.SetBytesUncompressed(serialized[leafC2CommitmentOffset:leafC2CommitmentOffset+SerializedPointUncompressedSize], true)
+	ln.c2.SetBytesUncompressed(serialized[leafC2CommitmentOffset:leafC2CommitmentOffset+banderwagon.UncompressedSize], true)
 	ln.commitment = new(Point)
 	ln.commitment.SetBytesUncompressed(serialized[leafCommitmentOffset:leafC1CommitmentOffset], true)
 	return ln, nil
@@ -138,7 +140,7 @@ func CreateInternalNode(bitlist []byte, raw []byte, depth byte) (*InternalNode, 
 		}
 	}
 	node.depth = depth
-	if len(raw) != SerializedPointUncompressedSize {
+	if len(raw) != banderwagon.UncompressedSize {
 		return nil, ErrInvalidNodeEncoding
 	}
 
