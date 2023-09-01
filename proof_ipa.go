@@ -82,6 +82,9 @@ func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte, resolver NodeRe
 	return root.GetProofItems(keylist(keys), resolver)
 }
 
+// getProofElementsFromTree factors the logic that is used both in the proving and verification methods. It takes a pre-state
+// tree and an optional post-state tree, extracts the proof data from them and returns all the items required to build/verify
+// a proof.
 func getProofElementsFromTree(preroot, postroot VerkleNode, keys [][]byte, resolver NodeResolverFn) (*ProofElements, []byte, [][]byte, [][]byte, []*Point, [][]Fr, []*Fr, []byte, error) {
 	// go-ipa won't accept no key as an input, catch this corner case
 	// and return an empty result.
@@ -111,6 +114,8 @@ func getProofElementsFromTree(preroot, postroot VerkleNode, keys [][]byte, resol
 		proof_zs = append(proof_zs, pe.Zis[i])
 	}
 
+	// if a post-state tree is present, merge its proof elements with
+	// those of the pre-state tree, so that they can be proved together.
 	if postroot != nil {
 		pe_post, _, _, err := GetCommitmentsForMultiproof(postroot, keys, resolver)
 		if err != nil {
@@ -132,6 +137,9 @@ func getProofElementsFromTree(preroot, postroot VerkleNode, keys [][]byte, resol
 		}
 	}
 
+	// 1..=3: proof elements of the pre-state trie for serialization,
+	// 4: values to be inserted in the post-state trie for serialization
+	// 5..=7: aggregated pre+post elements for proving
 	return pe, es, poas, postvals, proof_cis, proof_fs, proof_ys, proof_zs, nil
 }
 
@@ -174,6 +182,8 @@ func MakeVerkleMultiProof(preroot, postroot VerkleNode, keys [][]byte, resolver 
 	return proof, pe.Cis, pe.Zis, pe.Yis, nil
 }
 
+// VerifyVerkleProofWithPreAndPostTrie takes a pre-state trie, a post-state trie and a list of keys, and verifies that
+// the provided proof verifies. If the post-state trie is `nil`, the behavior is the same as `VerifyVerkleProof`.
 func VerifyVerkleProofWithPreAndPostTrie(proof *Proof, preroot, postroot VerkleNode, keys [][]byte, resolver NodeResolverFn, tc *Config) bool {
 	_, _, _, _, proof_cis, _, proof_ys, proof_zs, err := getProofElementsFromTree(preroot, postroot, keys, resolver)
 	if err != nil {
@@ -433,8 +443,11 @@ func PreStateTreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) {
 	return root, nil
 }
 
+// PostStateTreeFromProof uses the pre-state trie and the list of updated values
+// to produce the stateless post-state trie.
 func PostStateTreeFromProof(preroot VerkleNode, statediff StateDiff) (VerkleNode, error) {
 	postroot := preroot.Copy()
+
 	for _, stemstatediff := range statediff {
 		var (
 			values     = make([][]byte, NodeWidth)
