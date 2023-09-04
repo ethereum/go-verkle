@@ -822,13 +822,13 @@ func (n *InternalNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*Pr
 		if child != nil {
 			var c VerkleNode
 			if _, ok := child.(HashedNode); ok {
-				childpath := make([]byte, n.depth+2)
-				copy(childpath[:n.depth+1], keys[0][:n.depth+1])
-				childpath[n.depth+1] = byte(i)
+				childpath := make([]byte, n.depth+1)
+				copy(childpath[:n.depth+1], keys[0][:n.depth])
+				childpath[n.depth] = byte(i)
 				if resolver == nil {
 					return nil, nil, nil, fmt.Errorf("no resolver for path %x", childpath)
 				}
-				serialized, err := resolver(keys[0][:n.depth+1])
+				serialized, err := resolver(childpath)
 				if err != nil {
 					return nil, nil, nil, fmt.Errorf("error resolving for path %x: %w", childpath, err)
 				}
