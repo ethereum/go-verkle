@@ -227,7 +227,7 @@ func newInternalNode(depth byte) VerkleNode {
 		node.children[idx] = Empty(struct{}{})
 	}
 	node.depth = depth
-	node.commitment = new(Point).Identity()
+	node.commitment = new(Point).SetIdentity()
 	return node
 }
 
@@ -289,7 +289,7 @@ func NewLeafNode(stem []byte, values [][]byte) (*LeafNode, error) {
 	if err := StemFromBytes(&poly[1], stem); err != nil {
 		return nil, err
 	}
-	toFrMultiple([]*Fr{&poly[2], &poly[3]}, []*Point{c1, c2})
+	banderwagon.BatchMapToScalarField([]*Fr{&poly[2], &poly[3]}, []*Point{c1, c2})
 
 	return &LeafNode{
 		// depth will be 0, but the commitment calculation
@@ -336,7 +336,7 @@ func (n *InternalNode) cowChild(index byte) {
 
 	if n.cow[index] == nil {
 		n.cow[index] = new(Point)
-		CopyPoint(n.cow[index], n.children[index].Commitment())
+		n.cow[index].Set(n.children[index].Commitment())
 	}
 }
 
@@ -656,7 +656,7 @@ func (n *InternalNode) Get(key []byte, resolver NodeResolverFn) ([]byte, error) 
 
 func (n *InternalNode) Hash() *Fr {
 	var hash Fr
-	toFr(&hash, n.Commitment())
+	n.Commitment().MapToScalarField(&hash)
 	return &hash
 }
 
@@ -741,7 +741,7 @@ func commitNodesAtLevel(nodes []*InternalNode) {
 	}
 
 	// Do a single batch calculation for all the points in this level.
-	toFrMultiple(frs, points)
+	banderwagon.BatchMapToScalarField(frs, points)
 
 	// We calculate the difference between each (new commitment - old commitment) pair, and store it
 	// in the same slice to avoid allocations.
@@ -842,14 +842,15 @@ func (n *InternalNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*Pr
 			points[i] = new(Point)
 		}
 	}
-	toFrMultiple(fiPtrs[:], points[:])
+	banderwagon.BatchMapToScalarField(fiPtrs[:], points[:])
 
 	for _, group := range groups {
 		childIdx := offset2key(group[0], n.depth)
 
 		// Build the list of elements for this level
 		var yi Fr
-		CopyFr(&yi, &fi[childIdx])
+		yi.Set(&fi[childIdx])
+
 		pe.Cis = append(pe.Cis, n.commitment)
 		pe.Zis = append(pe.Zis, childIdx)
 		pe.Yis = append(pe.Yis, &yi)
@@ -899,7 +900,7 @@ func (n *InternalNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*Pr
 // Serialize returns the serialized form of the internal node.
 // The format is: <nodeType><bitlist><commitment>
 func (n *InternalNode) Serialize() ([]byte, error) {
-	ret := make([]byte, nodeTypeSize+bitlistSize+SerializedPointUncompressedSize)
+	ret := make([]byte, nodeTypeSize+bitlistSize+banderwagon.UncompressedSize)
 
 	// Write the <bitlist>.
 	bitlist := ret[internalBitlistOffset:internalCommitmentOffset]
@@ -931,14 +932,14 @@ func (n *InternalNode) Copy() VerkleNode {
 	}
 
 	if n.commitment != nil {
-		CopyPoint(ret.commitment, n.commitment)
+		ret.commitment.Set(n.commitment)
 	}
 
 	if n.cow != nil {
 		ret.cow = make(map[byte]*Point)
 		for k, v := range n.cow {
 			ret.cow[k] = new(Point)
-			CopyPoint(ret.cow[k], v)
+			ret.cow[k].Set(v)
 		}
 	}
 
@@ -948,7 +949,7 @@ func (n *InternalNode) Copy() VerkleNode {
 func (n *InternalNode) toDot(parent, path string) string {
 	me := fmt.Sprintf("internal%s", path)
 	var hash Fr
-	toFr(&hash, n.commitment)
+	n.commitment.MapToScalarField(&hash)
 	ret := fmt.Sprintf("%s [label=\"I: %x\"]\n", me, hash.BytesLE())
 	if len(parent) > 0 {
 		ret = fmt.Sprintf("%s %s -> %s\n", ret, parent, me)
@@ -1080,7 +1081,7 @@ func (n *LeafNode) updateLeaf(index byte, value []byte) error {
 
 	// Batch the Fr transformation of the new and old CX.
 	var frs [2]Fr
-	toFrMultiple([]*Fr{&frs[0], &frs[1]}, []*Point{c, &oldC})
+	banderwagon.BatchMapToScalarField([]*Fr{&frs[0], &frs[1]}, []*Point{c, &oldC})
 
 	// If index is in the first NodeWidth/2 elements, we need to update C1. Otherwise, C2.
 	cxIndex := 2 + int(index)/(NodeWidth/2) // [1, stem, -> C1, C2 <-]
@@ -1133,14 +1134,14 @@ func (n *LeafNode) updateMultipleLeaves(values [][]byte) error {
 	const c2Idx = 3 // [1, stem, C1, ->C2<-]
 
 	if oldC1 != nil && oldC2 != nil { // Case 1.
-		toFrMultiple([]*Fr{&frs[0], &frs[1], &frs[2], &frs[3]}, []*Point{n.c1, oldC1, n.c2, oldC2})
+		banderwagon.BatchMapToScalarField([]*Fr{&frs[0], &frs[1], &frs[2], &frs[3]}, []*Point{n.c1, oldC1, n.c2, oldC2})
 		n.updateC(c1Idx, frs[0], frs[1])
 		n.updateC(c2Idx, frs[2], frs[3])
 	} else if oldC1 != nil { // Case 2. (C1 touched)
-		toFrMultiple([]*Fr{&frs[0], &frs[1]}, []*Point{n.c1, oldC1})
+		banderwagon.BatchMapToScalarField([]*Fr{&frs[0], &frs[1]}, []*Point{n.c1, oldC1})
 		n.updateC(c1Idx, frs[0], frs[1])
 	} else if oldC2 != nil { // Case 2. (C2 touched)
-		toFrMultiple([]*Fr{&frs[0], &frs[1]}, []*Point{n.c2, oldC2})
+		banderwagon.BatchMapToScalarField([]*Fr{&frs[0], &frs[1]}, []*Point{n.c2, oldC2})
 		n.updateC(c2Idx, frs[0], frs[1])
 	}
 
@@ -1213,7 +1214,7 @@ func (n *LeafNode) Delete(k []byte, _ NodeResolverFn) (bool, error) {
 		// operation which is slow no matter what, so ensuring correctness
 		// is more important than
 		var poly [4]Fr
-		toFr(&poly[subtreeindex], cn)
+		cn.MapToScalarField(&poly[subtreeindex])
 		n.commitment.Sub(n.commitment, cfg.CommitToPoly(poly[:], 0))
 
 		// Clear the corresponding commitment
@@ -1257,7 +1258,7 @@ func (n *LeafNode) Hash() *Fr {
 	// to reduce complexity.
 	// TODO use n.commitment once all Insert* are diff-inserts
 	var hash Fr
-	toFr(&hash, n.Commitment())
+	n.Commitment().MapToScalarField(&hash)
 	return &hash
 }
 
@@ -1341,7 +1342,7 @@ func (n *LeafNode) GetProofItems(keys keylist, _ NodeResolverFn) (*ProofElements
 	if err := StemFromBytes(&poly[1], n.stem); err != nil {
 		return nil, nil, nil, err
 	}
-	toFrMultiple([]*Fr{&poly[2], &poly[3]}, []*Point{n.c1, n.c2})
+	banderwagon.BatchMapToScalarField([]*Fr{&poly[2], &poly[3]}, []*Point{n.c1, n.c2})
 
 	// First pass: add top-level elements first
 	var hasC1, hasC2 bool
@@ -1467,7 +1468,7 @@ func (n *LeafNode) GetProofItems(keys keylist, _ NodeResolverFn) (*ProofElements
 // Serialize serializes a LeafNode.
 // The format is: <nodeType><stem><bitlist><comm><c1comm><c2comm><children...>
 func (n *LeafNode) Serialize() ([]byte, error) {
-	cBytes := banderwagon.ElementsToBytesUncompressed([]*banderwagon.Element{n.commitment, n.c1, n.c2})
+	cBytes := banderwagon.BatchToBytesUncompressed(n.commitment, n.c1, n.c2)
 	return n.serializeLeafWithUncompressedCommitments(cBytes[0], cBytes[1], cBytes[2]), nil
 }
 
@@ -1483,15 +1484,15 @@ func (n *LeafNode) Copy() VerkleNode {
 	}
 	if n.commitment != nil {
 		l.commitment = new(Point)
-		CopyPoint(l.commitment, n.commitment)
+		l.commitment.Set(n.commitment)
 	}
 	if n.c1 != nil {
 		l.c1 = new(Point)
-		CopyPoint(l.c1, n.c1)
+		l.c1.Set(n.c1)
 	}
 	if n.c2 != nil {
 		l.c2 = new(Point)
-		CopyPoint(l.c2, n.c2)
+		l.c2.Set(n.c2)
 	}
 
 	return l
@@ -1513,7 +1514,7 @@ func (n *LeafNode) Value(i int) []byte {
 
 func (n *LeafNode) toDot(parent, path string) string {
 	var hash Fr
-	toFr(&hash, n.Commitment())
+	n.Commitment().MapToScalarField(&hash)
 	ret := fmt.Sprintf("leaf%s [label=\"L: %x\nC: %x\nC₁: %x\nC₂:%x\"]\n%s -> leaf%s\n", path, hash.Bytes(), n.commitment.Bytes(), n.c1.Bytes(), n.c2.Bytes(), parent, path)
 	for i, v := range n.values {
 		if v != nil {
@@ -1546,7 +1547,7 @@ func ToDot(root VerkleNode) string {
 // Providing both allows this library to do more optimizations.
 type SerializedNode struct {
 	Node            VerkleNode
-	CommitmentBytes [SerializedPointUncompressedSize]byte
+	CommitmentBytes [banderwagon.UncompressedSize]byte
 	Path            []byte
 	SerializedBytes []byte
 }
@@ -1577,7 +1578,7 @@ func (n *InternalNode) BatchSerialize() ([]SerializedNode, error) {
 	}
 
 	// Now we do the all transformations in a single-shot.
-	serializedPoints := banderwagon.ElementsToBytesUncompressed(pointsToCompress)
+	serializedPoints := banderwagon.BatchToBytesUncompressed(pointsToCompress...)
 
 	// Now we that we did the heavy CPU work, we have to do the rest of `nodes` serialization
 	// taking the compressed points from this single list.
@@ -1635,8 +1636,8 @@ func (n *InternalNode) collectNonHashedNodes(list []VerkleNode, paths [][]byte, 
 }
 
 // unpack one compressed commitment from the list of batch-compressed commitments
-func (n *InternalNode) serializeInternalWithUncompressedCommitment(pointsIdx map[VerkleNode]int, serializedPoints [][SerializedPointUncompressedSize]byte) ([]byte, error) {
-	serialized := make([]byte, nodeTypeSize+bitlistSize+SerializedPointUncompressedSize)
+func (n *InternalNode) serializeInternalWithUncompressedCommitment(pointsIdx map[VerkleNode]int, serializedPoints [][banderwagon.UncompressedSize]byte) ([]byte, error) {
+	serialized := make([]byte, nodeTypeSize+bitlistSize+banderwagon.UncompressedSize)
 	bitlist := serialized[internalBitlistOffset:internalCommitmentOffset]
 	for i, c := range n.children {
 		if _, ok := c.(Empty); !ok {
@@ -1653,7 +1654,7 @@ func (n *InternalNode) serializeInternalWithUncompressedCommitment(pointsIdx map
 	return serialized, nil
 }
 
-func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2Bytes [SerializedPointUncompressedSize]byte) []byte {
+func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2Bytes [banderwagon.UncompressedSize]byte) []byte {
 	// Empty value in LeafNode used for padding.
 	var emptyValue [LeafValueSize]byte
 
@@ -1671,7 +1672,7 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 	}
 
 	// Create the serialization.
-	result := make([]byte, nodeTypeSize+StemSize+bitlistSize+3*SerializedPointUncompressedSize+len(children))
+	result := make([]byte, nodeTypeSize+StemSize+bitlistSize+3*banderwagon.UncompressedSize+len(children))
 	result[0] = leafRLPType
 	copy(result[leafSteamOffset:], n.stem[:StemSize])
 	copy(result[leafBitlistOffset:], bitlist[:])

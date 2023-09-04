@@ -49,7 +49,7 @@ func (n Empty) Commit() *Point {
 
 func (Empty) Commitment() *Point {
 	var id Point
-	id.Identity()
+	id.SetIdentity()
 	return &id
 }
 

@@ -47,7 +47,7 @@ func (n UnknownNode) Commit() *Point {
 
 func (UnknownNode) Commitment() *Point {
 	var id Point
-	id.Identity()
+	id.SetIdentity()
 	return &id
 }
 

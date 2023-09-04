@@ -39,7 +39,7 @@ var identity *Point
 
 func init() {
 	var id Point
-	id.Identity()
+	id.SetIdentity()
 	identity = &id
 }
 
@@ -61,7 +61,7 @@ func extensionAndSuffixOneKey(key, value []byte, ret *Point) {
 
 	leafToComms(vs[:], value)
 	c1.Add(t1.ScalarMul(&srs[2*key[31]], &vs[0]), t2.ScalarMul(&srs[2*key[31]+1], &vs[1]))
-	toFr(&v, &c1)
+	c1.MapToScalarField(&v)
 	stemComm2.ScalarMul(&srs[2], &v)
 
 	v.SetZero()
@@ -92,10 +92,10 @@ func TestInsertKey0Value0(t *testing.T) {
 		t.Fatal("commitment is identity")
 	}
 
-	toFr(&expected, &expectedP)
+	expectedP.MapToScalarField(&expected)
 	expectedP.ScalarMul(&srs[0], &expected)
 
-	if !Equal(comm, &expectedP) {
+	if !comm.Equal(&expectedP) {
 		t.Fatalf("invalid root commitment %v != %v", comm, &expected)
 	}
 }
@@ -118,14 +118,14 @@ func TestInsertKey1Value1(t *testing.T) {
 	comm := root.Commit()
 
 	extensionAndSuffixOneKey(key, key, &expectedP)
-	toFr(&v, &expectedP)
+	expectedP.MapToScalarField(&v)
 	expectedP.ScalarMul(&srs[1], &v)
 
 	if expectedP.Equal(identity) {
 		t.Fatal("commitment is identity")
 	}
 
-	if !Equal(comm, &expectedP) {
+	if !comm.Equal(&expectedP) {
 		t.Fatalf("invalid root commitment %v != %v", comm, &expected)
 	}
 }
@@ -163,25 +163,25 @@ func TestInsertSameStemTwoLeaves(t *testing.T) {
 
 	leafToComms(vs[:], key_a)
 	c1.Add(t1.ScalarMul(&srs[64], &vs[0]), t2.ScalarMul(&srs[65], &vs[1]))
-	toFr(&v, &c1)
+	c1.MapToScalarField(&v)
 	stemComm2.ScalarMul(&srs[2], &v)
 
 	leafToComms(vs[:], key_b)
 	c2.Add(t1.ScalarMul(&srs[0], &vs[0]), t2.ScalarMul(&srs[1], &vs[1]))
-	toFr(&v, &c2)
+	c2.MapToScalarField(&v)
 	stemComm3.ScalarMul(&srs[3], &v)
 
 	t1.Add(&stemComm0, &stemComm1)
 	t2.Add(&stemComm2, &stemComm3)
 	expectedP.Add(&t1, &t2)
-	toFr(&v, &expectedP)
+	expectedP.MapToScalarField(&v)
 	expectedP.ScalarMul(&srs[1], &v)
 
 	if expectedP.Equal(identity) {
 		t.Fatal("commitment is identity")
 	}
 
-	if !Equal(comm, &expectedP) {
+	if !comm.Equal(&expectedP) {
 		t.Fatalf("invalid root commitment %v != %v", comm, &expected)
 	}
 }
@@ -203,19 +203,19 @@ func TestInsertKey1Val1Key2Val2(t *testing.T) {
 	fmt.Println(root.toDot("", ""))
 
 	extensionAndSuffixOneKey(zeroKeyTest, zeroKeyTest, &t1)
-	toFr(&v1, &t1)
+	t1.MapToScalarField(&v1)
 
 	extensionAndSuffixOneKey(key_b, key_b, &t2)
-	toFr(&v2, &t2)
+	t2.MapToScalarField(&v2)
 
 	expectedP.Add(t1.ScalarMul(&srs[0], &v1), t2.ScalarMul(&srs[1], &v2))
-	toFr(&v, &expectedP)
+	expectedP.MapToScalarField(&v)
 
 	if expectedP.Equal(identity) {
 		t.Fatal("commitment is identity")
 	}
 
-	if !Equal(comm, &expectedP) {
+	if !comm.Equal(&expectedP) {
 		t.Fatalf("invalid root commitment %v != %v", comm, &expected)
 	}
 }
@@ -236,7 +236,7 @@ func TestGroupToField(t *testing.T) {
 
 	point := banderwagon.Generator
 	var v Fr
-	toFr(&v, &point)
+	point.MapToScalarField(&v)
 	bytes := v.BytesLE()
 	hexStr := hex.EncodeToString(bytes[:])
 	if hexStr != "d1e7de2aaea9603d5bc6c208d319596376556ecd8336671ba7670c2139772d14" {
@@ -249,7 +249,7 @@ func BenchmarkGroupToField(b *testing.B) {
 		point := banderwagon.Generator
 		var v Fr
 		for i := 0; i < b.N; i++ {
-			toFr(&v, &point)
+			point.MapToScalarField(&v)
 		}
 	})
 
@@ -272,7 +272,7 @@ func BenchmarkGroupToField(b *testing.B) {
 				b.ReportAllocs()
 				b.ResetTimer()
 				for k := 0; k < b.N; k++ {
-					toFrMultiple(ptrs, points)
+					banderwagon.BatchMapToScalarField(ptrs, points)
 				}
 				b.ReportMetric(float64(time.Since(now).Nanoseconds()/int64(i))/float64(b.N), "ns/value")
 				_ = sink

@@ -1,6 +1,10 @@
 package verkle
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/crate-crypto/go-ipa/banderwagon"
+)
 
 func TestParseNodeEmptyPayload(t *testing.T) {
 	t.Parallel()
@@ -25,8 +29,8 @@ func TestLeafStemLength(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(ser) != nodeTypeSize+StemSize+bitlistSize+3*SerializedPointUncompressedSize {
-		t.Fatalf("invalid serialization when the stem is longer than 31 bytes: %x (%d bytes != %d)", ser, len(ser), nodeTypeSize+StemSize+bitlistSize+2*SerializedPointUncompressedSize)
+	if len(ser) != nodeTypeSize+StemSize+bitlistSize+3*banderwagon.UncompressedSize {
+		t.Fatalf("invalid serialization when the stem is longer than 31 bytes: %x (%d bytes != %d)", ser, len(ser), nodeTypeSize+StemSize+bitlistSize+2*banderwagon.UncompressedSize)
 	}
 }
 

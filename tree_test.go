@@ -210,13 +210,13 @@ func TestCopy(t *testing.T) {
 
 	tree.Insert(key3, fourtyKeyTest, nil)
 
-	if Equal(tree.Commit(), copied.Commit()) {
+	if tree.Commit().Equal(copied.Commit()) {
 		t.Fatal("inserting the copy into the original tree updated the copy's commitment")
 	}
 
 	copied.Insert(key3, fourtyKeyTest, nil)
 
-	if !Equal(tree.Commitment(), copied.Commit()) {
+	if !tree.Commitment().Equal(copied.Commit()) {
 		t.Fatalf("differing final commitments %x != %x", tree.Commitment().Bytes(), copied.Commitment().Bytes())
 	}
 }
@@ -267,7 +267,7 @@ func TestDelLeaf(t *testing.T) {
 	tree.Insert(key1pp, fourtyKeyTest, nil)
 	tree.Insert(key2, fourtyKeyTest, nil)
 	var init Point
-	CopyPoint(&init, tree.Commit())
+	init.Set(tree.Commit())
 
 	tree.Insert(key3, fourtyKeyTest, nil)
 	if _, err := tree.Delete(key3, nil); err != nil {
@@ -278,7 +278,7 @@ func TestDelLeaf(t *testing.T) {
 	// as deleting a value means replacing it with a 0 in verkle
 	// trees.
 	postHash := tree.Commit()
-	if !Equal(&init, postHash) {
+	if !init.Equal(postHash) {
 		t.Errorf("deleting leaf resulted in unexpected tree %x %x", init.Bytes(), postHash.Bytes())
 	}
 
@@ -340,12 +340,12 @@ func TestDeletePrune(t *testing.T) {
 	tree.Insert(key2, fourtyKeyTest, nil)
 
 	var hashPostKey2, hashPostKey4, completeTreeHash Point
-	CopyPoint(&hashPostKey2, tree.Commit())
+	hashPostKey2.Set(tree.Commit())
 	tree.Insert(key3, fourtyKeyTest, nil)
 	tree.Insert(key4, fourtyKeyTest, nil)
-	CopyPoint(&hashPostKey4, tree.Commit())
+	hashPostKey4.Set(tree.Commit())
 	tree.Insert(key5, fourtyKeyTest, nil)
-	CopyPoint(&completeTreeHash, tree.Commit()) // hash when the tree has received all its keys
+	completeTreeHash.Set(tree.Commit()) // hash when the tree has received all its keys
 
 	// Delete key5.
 	if _, err := tree.Delete(key5, nil); err != nil {
@@ -354,11 +354,11 @@ func TestDeletePrune(t *testing.T) {
 	postHash := tree.Commit()
 	// Check that the deletion updated the root hash and that it's not
 	// the same as the pre-deletion hash.
-	if Equal(&completeTreeHash, postHash) {
+	if completeTreeHash.Equal(postHash) {
 		t.Fatalf("deletion did not update the hash %x == %x", completeTreeHash, postHash)
 	}
 	// The post deletion hash should be the same as the post key4 hash.
-	if !Equal(&hashPostKey4, postHash) {
+	if !hashPostKey4.Equal(postHash) {
 		t.Error("deleting leaf #5 resulted in unexpected tree")
 	}
 	res, err := tree.Get(key5, nil)
@@ -378,7 +378,7 @@ func TestDeletePrune(t *testing.T) {
 	}
 	postHash = tree.Commit()
 	// The post deletion hash should be different from the post key2 hash.
-	if !Equal(&hashPostKey2, postHash) {
+	if !hashPostKey2.Equal(postHash) {
 		t.Error("deleting leaf #3 resulted in unexpected tree")
 	}
 	res, err = tree.Get(key3, nil)
@@ -488,7 +488,7 @@ func TestConcurrentTrees(t *testing.T) {
 
 	for i := 0; i < threads; i++ {
 		root := <-ch
-		if !Equal(root, expected) {
+		if !root.Equal(expected) {
 			t.Error("Incorrect root")
 		}
 	}
@@ -1007,7 +1007,7 @@ func TestInsertStem(t *testing.T) {
 	root2.Insert(key192[:], fourtyKeyTest, nil)
 	r2c := root2.Commit()
 
-	if !Equal(r1c, r2c) {
+	if !r1c.Equal(r2c) {
 		t.Fatalf("differing commitments %x != %x %s %s", r1c.Bytes(), r2c.Bytes(), ToDot(root1), ToDot(root2))
 	}
 }
