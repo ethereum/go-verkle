@@ -137,9 +137,9 @@ func getProofElementsFromTree(preroot, postroot VerkleNode, keys [][]byte, resol
 		}
 	}
 
-	// 1..=3: proof elements of the pre-state trie for serialization,
-	// 4: values to be inserted in the post-state trie for serialization
-	// 5..=7: aggregated pre+post elements for proving
+	// [0:3]: proof elements of the pre-state trie for serialization,
+	// 3: values to be inserted in the post-state trie for serialization
+	// [4:8]: aggregated pre+post elements for proving
 	return pe, es, poas, postvals, proof_cis, proof_fs, proof_ys, proof_zs, nil
 }
 
@@ -184,13 +184,17 @@ func MakeVerkleMultiProof(preroot, postroot VerkleNode, keys [][]byte, resolver 
 
 // VerifyVerkleProofWithPreAndPostTrie takes a pre-state trie, a post-state trie and a list of keys, and verifies that
 // the provided proof verifies. If the post-state trie is `nil`, the behavior is the same as `VerifyVerkleProof`.
-func VerifyVerkleProofWithPreAndPostTrie(proof *Proof, preroot, postroot VerkleNode, keys [][]byte, resolver NodeResolverFn, tc *Config) bool {
-	_, _, _, _, proof_cis, _, proof_ys, proof_zs, err := getProofElementsFromTree(preroot, postroot, keys, resolver)
+func VerifyVerkleProofWithPreAndPostTrie(proof *Proof, preroot, postroot VerkleNode, resolver NodeResolverFn) error {
+	_, _, _, _, proof_cis, _, proof_ys, proof_zs, err := getProofElementsFromTree(preroot, postroot, proof.Keys, resolver)
 	if err != nil {
-		return false
+		return fmt.Errorf("error getting proof elements: %w", err)
 	}
 
-	return VerifyVerkleProof(proof, proof_cis, proof_zs, proof_ys, tc)
+	if !VerifyVerkleProof(proof, proof_cis, proof_zs, proof_ys, GetConfig()) {
+		return errors.New("error verifying proof")
+	}
+
+	return nil
 }
 
 func VerifyVerkleProof(proof *Proof, Cs []*Point, indices []uint8, ys []*Fr, tc *Config) bool {
@@ -255,6 +259,7 @@ func SerializeProof(proof *Proof) (*VerkleProof, StateDiff, error) {
 		case 32:
 			newsd.NewValue = (*[32]byte)(proof.PostValues[i])
 		default:
+			// TODO remove usage of unsafe
 			var aligned [32]byte
 			copy(aligned[:valueLen], proof.PostValues[i])
 			newsd.NewValue = (*[32]byte)(unsafe.Pointer(&aligned[0]))
@@ -456,10 +461,8 @@ func PostStateTreeFromProof(preroot VerkleNode, statediff StateDiff) (VerkleNode
 
 		for _, suffixdiff := range stemstatediff.SuffixDiffs {
 			if len(suffixdiff.NewValue) > 0 {
-				// If the prestate is present, it means that at least one
-				// post value will be non-nil. In this case, make a copy
-				// of the pre tree and update all post values.
-
+				// if this value is non-nil, it means InsertStem should be
+				// called, otherwise, skip updating the tree.
 				overwrites = true
 				values[suffixdiff.Suffix] = suffixdiff.NewValue[:]
 			}

@@ -20,7 +20,6 @@
 // OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 // ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 // OTHER DEALINGS IN THE SOFTWARE.
-//TestProofOfAbsenceStemVerify
 // For more information, please refer to <https://unlicense.org>
 
 package verkle
@@ -787,9 +786,19 @@ func TestProofVerificationWithPostState(t *testing.T) {
 
 			proof, _, _, _, _ := MakeVerkleMultiProof(root, postroot, data.keystoprove, nil)
 
-			cfg := GetConfig()
-			if !VerifyVerkleProofWithPreAndPostTrie(proof, root, postroot, data.keystoprove, nil, cfg) {
-				t.Fatalf("could not verify verkle proof: %s", ToDot(root))
+			p, diff, err := SerializeProof(proof)
+			if err != nil {
+				t.Fatalf("error serializing proof: %v", err)
+			}
+
+			dproof, err := DeserializeProof(p, diff)
+			if err != nil {
+				t.Fatalf("error deserializing proof: %v", err)
+			}
+
+			t.Log(dproof.Keys)
+			if err = VerifyVerkleProofWithPreAndPostTrie(dproof, root, postroot, nil); err != nil {
+				t.Fatalf("could not verify verkle proof: %v, original: %s reconstructed: %s", err, ToDot(root), ToDot(postroot))
 			}
 		})
 	}
