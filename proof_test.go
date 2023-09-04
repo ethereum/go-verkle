@@ -739,7 +739,7 @@ func TestProofVerificationWithPostState(t *testing.T) {
 			name:         "key_in_internal_node",
 			keys:         [][]byte{zeroKeyTest, oneKeyTest, ffx32KeyTest},
 			values:       [][]byte{zeroKeyTest, zeroKeyTest, zeroKeyTest},
-			keystoprove:  [][]byte{ffx32KeyTest},
+			keystoprove:  [][]byte{ffx32KeyTest, zeroKeyTest, fourtyKeyTest}, // all modified values must be proven
 			updatekeys:   [][]byte{zeroKeyTest, fourtyKeyTest},
 			updatevalues: [][]byte{fourtyKeyTest, fourtyKeyTest},
 		},
@@ -748,7 +748,7 @@ func TestProofVerificationWithPostState(t *testing.T) {
 			name:         "absent_key_in_internal_node",
 			keys:         [][]byte{zeroKeyTest, oneKeyTest, ffx32KeyTest},
 			values:       [][]byte{zeroKeyTest, zeroKeyTest, zeroKeyTest},
-			keystoprove:  [][]byte{fourtyKeyTest},
+			keystoprove:  [][]byte{zeroKeyTest, fourtyKeyTest},
 			updatekeys:   [][]byte{zeroKeyTest, fourtyKeyTest},
 			updatevalues: [][]byte{fourtyKeyTest, fourtyKeyTest},
 		},
@@ -757,7 +757,7 @@ func TestProofVerificationWithPostState(t *testing.T) {
 			name:         "absent_key_in_leaf_node",
 			keys:         [][]byte{zeroKeyTest, fourtyKeyTest, ffx32KeyTest},
 			values:       [][]byte{zeroKeyTest, zeroKeyTest, zeroKeyTest},
-			keystoprove:  [][]byte{oneKeyTest},
+			keystoprove:  [][]byte{oneKeyTest, zeroKeyTest, fourtyKeyTest}, // all modified values must be proven
 			updatekeys:   [][]byte{zeroKeyTest, fourtyKeyTest},
 			updatevalues: [][]byte{oneKeyTest, fourtyKeyTest},
 		},
@@ -776,7 +776,7 @@ func TestProofVerificationWithPostState(t *testing.T) {
 			for i := range data.keys {
 				root.Insert(data.keys[1], data.values[i], nil)
 			}
-			root.Commit()
+			rootC := root.Commit()
 
 			postroot := root.Copy()
 			for i := range data.updatekeys {
@@ -799,6 +799,19 @@ func TestProofVerificationWithPostState(t *testing.T) {
 			t.Log(dproof.Keys)
 			if err = VerifyVerkleProofWithPreAndPostTrie(dproof, root, postroot, nil); err != nil {
 				t.Fatalf("could not verify verkle proof: %v, original: %s reconstructed: %s", err, ToDot(root), ToDot(postroot))
+			}
+
+			dpreroot, err := PreStateTreeFromProof(dproof, rootC)
+			if err != nil {
+				t.Fatalf("error recreating pre tree: %v", err)
+			}
+
+			dpostroot, err := PostStateTreeFromProof(dpreroot, diff)
+			if err != nil {
+				t.Fatalf("error recreating post tree: %v", err)
+			}
+			if err = VerifyVerkleProofWithPreAndPostTrie(dproof, dpreroot, dpostroot, nil); err != nil {
+				t.Fatalf("could not verify verkle proof: %v, original: %s reconstructed: %s", err, ToDot(dpreroot), ToDot(dpostroot))
 			}
 		})
 	}

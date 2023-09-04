@@ -460,7 +460,7 @@ func PostStateTreeFromProof(preroot VerkleNode, statediff StateDiff) (VerkleNode
 		)
 
 		for _, suffixdiff := range stemstatediff.SuffixDiffs {
-			if len(suffixdiff.NewValue) > 0 {
+			if /* len(suffixdiff.NewValue) > 0 - this only works for a slice */ suffixdiff.NewValue != nil {
 				// if this value is non-nil, it means InsertStem should be
 				// called, otherwise, skip updating the tree.
 				overwrites = true
