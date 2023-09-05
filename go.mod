@@ -3,7 +3,7 @@ module github.com/gballet/go-verkle
 go 1.19
 
 require (
-	github.com/crate-crypto/go-ipa v0.0.0-20230905171223-15bf2eb8302f
+	github.com/crate-crypto/go-ipa v0.0.0-20230905211650-63ccabc1a949
 	golang.org/x/sync v0.1.0
 )
 
