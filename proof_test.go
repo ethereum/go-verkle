@@ -735,6 +735,15 @@ func TestProofVerificationWithPostState(t *testing.T) {
 		keys, values, keystoprove, updatekeys, updatevalues [][]byte
 	}{
 		{
+			// overwrite a key
+			name:         "update_in_leaf_node",
+			keys:         [][]byte{zeroKeyTest, oneKeyTest, ffx32KeyTest},
+			values:       [][]byte{zeroKeyTest, zeroKeyTest, zeroKeyTest},
+			keystoprove:  [][]byte{zeroKeyTest},
+			updatekeys:   [][]byte{zeroKeyTest},
+			updatevalues: [][]byte{fourtyKeyTest},
+		},
+		{
 			// check for a key present at the root level
 			name:         "new_key_in_internal_node",
 			keys:         [][]byte{zeroKeyTest, oneKeyTest, ffx32KeyTest},
@@ -796,7 +805,6 @@ func TestProofVerificationWithPostState(t *testing.T) {
 				t.Fatalf("error deserializing proof: %v", err)
 			}
 
-			t.Log(dproof.Keys)
 			if err = VerifyVerkleProofWithPreAndPostTrie(dproof, root, postroot, nil); err != nil {
 				t.Fatalf("could not verify verkle proof: %v, original: %s reconstructed: %s", err, ToDot(root), ToDot(postroot))
 			}

@@ -469,7 +469,9 @@ func PostStateTreeFromProof(preroot VerkleNode, statediff StateDiff) (VerkleNode
 		}
 
 		if overwrites {
-			if err := postroot.(*InternalNode).InsertStem(stemstatediff.Stem[:], values, nil); err != nil {
+			var stem [31]byte
+			copy(stem[:31], stemstatediff.Stem[:])
+			if err := postroot.(*InternalNode).InsertStem(stem[:], values, nil); err != nil {
 				return nil, fmt.Errorf("error overwriting value in post state: %w", err)
 			}
 		}
