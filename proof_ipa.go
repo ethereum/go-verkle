@@ -28,6 +28,7 @@ package verkle
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"sort"
 	"unsafe"
 
@@ -91,7 +92,7 @@ func MakeVerkleMultiProof(root VerkleNode, keys [][]byte, resolver NodeResolverF
 
 	pe, es, poas, err := GetCommitmentsForMultiproof(root, keys, resolver)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, fmt.Errorf("get commitments for multiproof: %s", err)
 	}
 
 	// NOTE this is leftover code from the time the proof was
@@ -108,7 +109,10 @@ func MakeVerkleMultiProof(root VerkleNode, keys [][]byte, resolver NodeResolverF
 	// }
 
 	cfg := GetConfig()
-	mpArg := ipa.CreateMultiProof(tr, cfg.conf, pe.Cis, pe.Fis, pe.Zis)
+	mpArg, err := ipa.CreateMultiProof(tr, cfg.conf, pe.Cis, pe.Fis, pe.Zis)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("creating multiproof: %s", err)
+	}
 
 	// It's wheel-reinvention time again 🎉: reimplement a basic
 	// feature that should be part of the stdlib.
@@ -137,7 +141,7 @@ func MakeVerkleMultiProof(root VerkleNode, keys [][]byte, resolver NodeResolverF
 	return proof, pe.Cis, pe.Zis, pe.Yis, nil
 }
 
-func VerifyVerkleProof(proof *Proof, Cs []*Point, indices []uint8, ys []*Fr, tc *Config) bool {
+func VerifyVerkleProof(proof *Proof, Cs []*Point, indices []uint8, ys []*Fr, tc *Config) (bool, error) {
 	tr := common.NewTranscript("vt")
 	return ipa.CheckMultiProof(tr, tc.conf, proof.Multipoint, Cs, ys, indices)
 }
