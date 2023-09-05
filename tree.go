@@ -1520,7 +1520,7 @@ func (n *LeafNode) toDot(parent, path string) string {
 	n.Commitment().MapToScalarField(&hash)
 	ret := fmt.Sprintf("leaf%s [label=\"L: %x\nC: %x\nC₁: %x\nC₂:%x\"]\n%s -> leaf%s\n", path, hash.Bytes(), n.commitment.Bytes(), n.c1.Bytes(), n.c2.Bytes(), parent, path)
 	for i, v := range n.values {
-		if v != nil {
+		if len(v) != 0 {
 			ret = fmt.Sprintf("%sval%s%02x [label=\"%x\"]\nleaf%s -> val%s%02x\n", ret, path, i, v, path, path, i)
 		}
 	}

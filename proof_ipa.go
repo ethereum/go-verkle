@@ -132,7 +132,7 @@ func getProofElementsFromTree(preroot, postroot VerkleNode, keys [][]byte, resol
 		// Set the post values, if they are untouched, leave them `nil`
 		for i, v := range pe.Vals {
 			if !bytes.Equal(v, pe_post.Vals[i]) {
-				postvals[i] = v
+				postvals[i] = pe_post.Vals[i]
 			}
 		}
 	}
