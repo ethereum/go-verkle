@@ -736,7 +736,7 @@ func TestProofVerificationWithPostState(t *testing.T) {
 	}{
 		{
 			// check for a key present at the root level
-			name:         "key_in_internal_node",
+			name:         "new_key_in_internal_node",
 			keys:         [][]byte{zeroKeyTest, oneKeyTest, ffx32KeyTest},
 			values:       [][]byte{zeroKeyTest, zeroKeyTest, zeroKeyTest},
 			keystoprove:  [][]byte{ffx32KeyTest, zeroKeyTest, fourtyKeyTest}, // all modified values must be proven
@@ -745,7 +745,7 @@ func TestProofVerificationWithPostState(t *testing.T) {
 		},
 		{
 			// prove an absent key at the root level
-			name:         "absent_key_in_internal_node",
+			name:         "absent_in_internal_node",
 			keys:         [][]byte{zeroKeyTest, oneKeyTest, ffx32KeyTest},
 			values:       [][]byte{zeroKeyTest, zeroKeyTest, zeroKeyTest},
 			keystoprove:  [][]byte{zeroKeyTest, fourtyKeyTest},
@@ -754,7 +754,7 @@ func TestProofVerificationWithPostState(t *testing.T) {
 		},
 		{
 			// prove an absent key at the leaf level
-			name:         "absent_key_in_leaf_node",
+			name:         "absent_in_leaf_node",
 			keys:         [][]byte{zeroKeyTest, fourtyKeyTest, ffx32KeyTest},
 			values:       [][]byte{zeroKeyTest, zeroKeyTest, zeroKeyTest},
 			keystoprove:  [][]byte{oneKeyTest, zeroKeyTest, fourtyKeyTest}, // all modified values must be proven
@@ -774,13 +774,13 @@ func TestProofVerificationWithPostState(t *testing.T) {
 
 			root := New()
 			for i := range data.keys {
-				root.Insert(data.keys[1], data.values[i], nil)
+				root.Insert(data.keys[i], data.values[i], nil)
 			}
 			rootC := root.Commit()
 
 			postroot := root.Copy()
 			for i := range data.updatekeys {
-				postroot.Insert(data.updatekeys[1], data.updatevalues[i], nil)
+				postroot.Insert(data.updatekeys[i], data.updatevalues[i], nil)
 			}
 			postroot.Commit()
 
