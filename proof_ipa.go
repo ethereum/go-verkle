@@ -151,7 +151,10 @@ func MakeVerkleMultiProof(preroot, postroot VerkleNode, keys [][]byte, resolver 
 
 	cfg := GetConfig()
 	tr := common.NewTranscript("vt")
-	mpArg := ipa.CreateMultiProof(tr, cfg.conf, proof_cis, proof_fs, proof_zs)
+	mpArg, err := ipa.CreateMultiProof(tr, cfg.conf, proof_cis, proof_fs, proof_zs)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("error creating proof: %w", err)
+	}
 
 	// It's wheel-reinvention time again 🎉: reimplement a basic
 	// feature that should be part of the stdlib.
@@ -190,14 +193,14 @@ func VerifyVerkleProofWithPreAndPostTrie(proof *Proof, preroot, postroot VerkleN
 		return fmt.Errorf("error getting proof elements: %w", err)
 	}
 
-	if !VerifyVerkleProof(proof, proof_cis, proof_zs, proof_ys, GetConfig()) {
-		return errors.New("error verifying proof")
+	if ok, err := VerifyVerkleProof(proof, proof_cis, proof_zs, proof_ys, GetConfig()); !ok || err != nil {
+		return fmt.Errorf("error verifying proof: verifies=%v, error=%w", ok, err)
 	}
 
 	return nil
 }
 
-func VerifyVerkleProof(proof *Proof, Cs []*Point, indices []uint8, ys []*Fr, tc *Config) bool {
+func VerifyVerkleProof(proof *Proof, Cs []*Point, indices []uint8, ys []*Fr, tc *Config) (bool, error) {
 	tr := common.NewTranscript("vt")
 	return ipa.CheckMultiProof(tr, tc.conf, proof.Multipoint, Cs, ys, indices)
 }
