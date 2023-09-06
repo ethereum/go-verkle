@@ -65,7 +65,7 @@ type Proof struct {
 type SuffixStateDiff struct {
 	Suffix       byte      `json:"suffix"`
 	CurrentValue *[32]byte `json:"currentValue"`
-	NewValue     *[32]byte `json:"new_value"`
+	NewValue     *[32]byte `json:"newValue"`
 }
 
 type SuffixStateDiffs []SuffixStateDiff
