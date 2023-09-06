@@ -184,8 +184,8 @@ func MakeVerkleMultiProof(preroot, postroot VerkleNode, keys [][]byte, resolver 
 
 // VerifyVerkleProofWithPreAndPostTrie takes a pre-state trie, a post-state trie and a list of keys, and verifies that
 // the provided proof verifies. If the post-state trie is `nil`, the behavior is the same as `VerifyVerkleProof`.
-func VerifyVerkleProofWithPreAndPostTrie(proof *Proof, preroot, postroot VerkleNode, resolver NodeResolverFn) error {
-	_, _, _, _, proof_cis, _, proof_ys, proof_zs, err := getProofElementsFromTree(preroot, postroot, proof.Keys, resolver)
+func VerifyVerkleProofWithPreAndPostTrie(proof *Proof, preroot, postroot VerkleNode) error {
+	_, _, _, _, proof_cis, _, proof_ys, proof_zs, err := getProofElementsFromTree(preroot, postroot, proof.Keys, nil)
 	if err != nil {
 		return fmt.Errorf("error getting proof elements: %w", err)
 	}
