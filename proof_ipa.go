@@ -230,7 +230,7 @@ func DeserializeProof(vp *VerkleProof, statediff StateDiff) (*Proof, error) {
 	commitments = make([]*Point, len(vp.CommitmentsByPath))
 	for i, commitmentBytes := range vp.CommitmentsByPath {
 		var commitment Point
-		if err := commitment.SetBytesUnsafe(commitmentBytes[:]); err != nil {
+		if err := commitment.SetBytes(commitmentBytes[:]); err != nil {
 			return nil, err
 		}
 		commitments[i] = &commitment
