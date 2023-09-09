@@ -1188,7 +1188,7 @@ func TestRustBanderwagonBlock48(t *testing.T) {
 	t.Logf("serialized proof=%v", vp)
 
 	cfg := GetConfig()
-	if !VerifyVerkleProof(proof, cis, zis, yis, cfg) {
+	if ok, err := VerifyVerkleProof(proof, cis, zis, yis, cfg); !ok || err != nil {
 		t.Fatal("proof didn't verify")
 	}
 
@@ -1206,7 +1206,7 @@ func TestRustBanderwagonBlock48(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !VerifyVerkleProof(dproof, pe.Cis, pe.Zis, pe.Yis, cfg) {
+	if ok, err := VerifyVerkleProof(dproof, pe.Cis, pe.Zis, pe.Yis, cfg); !ok || err != nil {
 		t.Fatal("deserialized proof didn't verify")
 	}
 }
