@@ -282,7 +282,7 @@ type stemInfo struct {
 }
 
 // TreeFromProof builds a stateless tree from the proof
-func TreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) {
+func TreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) { // skipcq: GO-R1005
 	stems := make([][]byte, 0, len(proof.Keys))
 	for _, k := range proof.Keys {
 		if len(stems) == 0 || !bytes.Equal(stems[len(stems)-1], k[:31]) {
