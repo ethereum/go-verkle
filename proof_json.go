@@ -147,7 +147,7 @@ func (vp *VerkleProof) UnmarshalJSON(data []byte) error {
 	var aux verkleProofMarshaller
 	err := json.Unmarshal(data, &aux)
 	if err != nil {
-		return err
+		return fmt.Errorf("verkle proof unmarshal error: %w", err)
 	}
 
 	vp.DepthExtensionPresent, err = PrefixedHexStringToBytes(aux.DepthExtensionPresent)
@@ -198,7 +198,7 @@ func (ssd StemStateDiff) MarshalJSON() ([]byte, error) {
 func (ssd *StemStateDiff) UnmarshalJSON(data []byte) error {
 	var aux stemStateDiffMarshaller
 	if err := json.Unmarshal(data, &aux); err != nil {
-		return err
+		return fmt.Errorf("stemdiff unmarshal error: %w", err)
 	}
 
 	stem, err := PrefixedHexStringToBytes(aux.Stem)
@@ -234,7 +234,7 @@ func (ssd *SuffixStateDiff) UnmarshalJSON(data []byte) error {
 	aux := &suffixStateDiffMarshaller{}
 
 	if err := json.Unmarshal(data, &aux); err != nil {
-		return err
+		return fmt.Errorf("suffix diff unmarshal error: %w", err)
 	}
 
 	if aux.CurrentValue != nil && len(*aux.CurrentValue) != 64 && len(*aux.CurrentValue) != 0 && len(*aux.CurrentValue) != 66 {
