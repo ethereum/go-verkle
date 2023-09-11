@@ -473,7 +473,7 @@ func TestSuffixStateDiffJSONMarshalUn(t *testing.T) {
 		},
 	}
 
-	expectedJSON := `{"suffix":65,"currentValue":"0x102030405060708090a0b0c0d0e0f000112233445566778899aabbccddeeff00"}`
+	expectedJSON := `{"suffix":65,"currentValue":"0x102030405060708090a0b0c0d0e0f000112233445566778899aabbccddeeff00","newValue":null}`
 	actualJSON, err := json.Marshal(ssd)
 	if err != nil {
 		t.Errorf("error marshalling SuffixStateDiff to JSON: %v", err)
@@ -514,7 +514,7 @@ func TestStemStateDiffJSONMarshalUn(t *testing.T) {
 		}},
 	}
 
-	expectedJSON := `{"stem":"0x0a000000000000000000000000000000000000000000000000000000000000","suffixDiffs":[{"suffix":65,"currentValue":"0x102030405060708090a0b0c0d0e0f000112233445566778899aabbccddeeff00"}]}`
+	expectedJSON := `{"stem":"0x0a000000000000000000000000000000000000000000000000000000000000","suffixDiffs":[{"suffix":65,"currentValue":"0x102030405060708090a0b0c0d0e0f000112233445566778899aabbccddeeff00","newValue":null}]}`
 	actualJSON, err := json.Marshal(ssd)
 	if err != nil {
 		t.Errorf("error marshalling SuffixStateDiff to JSON: %v", err)
@@ -543,7 +543,7 @@ func TestSuffixStateDiffJSONMarshalUnCurrentValueNil(t *testing.T) {
 		CurrentValue: nil,
 	}
 
-	expectedJSON := `{"suffix":65,"currentValue":null}`
+	expectedJSON := `{"suffix":65,"currentValue":null,"newValue":null}`
 	actualJSON, err := json.Marshal(ssd)
 	if err != nil {
 		t.Errorf("error marshalling SuffixStateDiff to JSON: %v", err)
