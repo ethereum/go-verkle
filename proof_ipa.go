@@ -234,7 +234,7 @@ func DeserializeProof(vp *VerkleProof, statediff StateDiff) (*Proof, error) {
 	commitments = make([]*Point, len(vp.CommitmentsByPath))
 	for i, commitmentBytes := range vp.CommitmentsByPath {
 		var commitment Point
-		if err := commitment.SetBytesUnsafe(commitmentBytes[:]); err != nil {
+		if err := commitment.SetBytes(commitmentBytes[:]); err != nil {
 			return nil, err
 		}
 		commitments[i] = &commitment
@@ -286,7 +286,7 @@ type stemInfo struct {
 }
 
 // TreeFromProof builds a stateless tree from the proof
-func TreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) {
+func TreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) { // skipcq: GO-R1005
 	stems := make([][]byte, 0, len(proof.Keys))
 	for _, k := range proof.Keys {
 		if len(stems) == 0 || !bytes.Equal(stems[len(stems)-1], k[:31]) {
