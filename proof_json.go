@@ -238,7 +238,6 @@ func (ssd SuffixStateDiff) MarshalJSON() ([]byte, error) {
 func (ssd *SuffixStateDiff) UnmarshalJSON(data []byte) error {
 	aux := &suffixStateDiffMarshaller{}
 
-	fmt.Println("about to unmarshall", string(data))
 	if err := json.Unmarshal(data, &aux); err != nil {
 		return fmt.Errorf("suffix diff unmarshal error: %w", err)
 	}
