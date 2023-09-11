@@ -215,6 +215,7 @@ func (ssd *StemStateDiff) UnmarshalJSON(data []byte) error {
 type suffixStateDiffMarshaller struct {
 	Suffix       byte    `json:"suffix"`
 	CurrentValue *string `json:"currentValue"`
+	NewValue     *string `json:"newValue"`
 }
 
 func (ssd SuffixStateDiff) MarshalJSON() ([]byte, error) {
@@ -252,6 +253,16 @@ func (ssd *SuffixStateDiff) UnmarshalJSON(data []byte) error {
 
 		ssd.CurrentValue = &[32]byte{}
 		copy(ssd.CurrentValue[:], currentValueBytes)
+	}
+
+	if aux.NewValue != nil && len(*aux.NewValue) != 0 {
+		newValueBytes, err := PrefixedHexStringToBytes(*aux.NewValue)
+		if err != nil {
+			return fmt.Errorf("error decoding hex string for current value: %v", err)
+		}
+
+		ssd.NewValue = &[32]byte{}
+		copy(ssd.NewValue[:], newValueBytes)
 	}
 
 	return nil
