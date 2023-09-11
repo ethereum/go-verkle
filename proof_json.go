@@ -219,20 +219,26 @@ type suffixStateDiffMarshaller struct {
 }
 
 func (ssd SuffixStateDiff) MarshalJSON() ([]byte, error) {
-	var cvstr *string
+	var cvstr, nvstr *string
 	if ssd.CurrentValue != nil {
 		tempstr := HexToPrefixedString(ssd.CurrentValue[:])
 		cvstr = &tempstr
 	}
+	if ssd.NewValue != nil {
+		tempstr := HexToPrefixedString(ssd.NewValue[:])
+		nvstr = &tempstr
+	}
 	return json.Marshal(&suffixStateDiffMarshaller{
 		Suffix:       ssd.Suffix,
 		CurrentValue: cvstr,
+		NewValue:     nvstr,
 	})
 }
 
 func (ssd *SuffixStateDiff) UnmarshalJSON(data []byte) error {
 	aux := &suffixStateDiffMarshaller{}
 
+	fmt.Println("about to unmarshall", string(data))
 	if err := json.Unmarshal(data, &aux); err != nil {
 		return fmt.Errorf("suffix diff unmarshal error: %w", err)
 	}
