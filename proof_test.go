@@ -857,13 +857,17 @@ func TestProofVerificationWithPostState(t *testing.T) {
 
 			root := New()
 			for i := range data.keys {
-				root.Insert(data.keys[i], data.values[i], nil)
+				if err := root.Insert(data.keys[i], data.values[i], nil); err != nil {
+					t.Fatalf("could not insert key: %v", err)
+				}
 			}
 			rootC := root.Commit()
 
 			postroot := root.Copy()
 			for i := range data.updatekeys {
-				postroot.Insert(data.updatekeys[i], data.updatevalues[i], nil)
+				if err := postroot.Insert(data.updatekeys[i], data.updatevalues[i], nil); err != nil {
+					t.Fatalf("could not insert key: %v", err)
+				}
 			}
 			postroot.Commit()
 
