@@ -196,7 +196,7 @@ func TestProofOfAbsenceInternalVerify(t *testing.T) {
 	if err := root.Insert(zeroKeyTest, zeroKeyTest, nil); err != nil {
 		t.Fatalf("could not insert key: %v", err)
 	}
-	if err := root.Insert(oneKeyTest, zeroKeyTest, nil); err!= nil {
+	if err := root.Insert(oneKeyTest, zeroKeyTest, nil); err != nil {
 		t.Fatalf("could not insert key: %v", err)
 	}
 	root.Commit()
@@ -213,7 +213,7 @@ func TestProofOfAbsenceLeafVerify(t *testing.T) {
 	t.Parallel()
 
 	root := New()
-	if err:=root.Insert(zeroKeyTest, zeroKeyTest, nil); err != nil{
+	if err := root.Insert(zeroKeyTest, zeroKeyTest, nil); err != nil {
 		t.Fatalf("could not insert key: %v", err)
 	}
 	if err := root.Insert(ffx32KeyTest, zeroKeyTest, nil); err != nil {
@@ -293,7 +293,7 @@ func BenchmarkProofCalculation(b *testing.B) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		if _, _, _, err := MakeVerkleMultiProof(root, nil, [][]byte{keys[len(keys)/2]}, nil); err != nil {
+		if _, _, _, _, err := MakeVerkleMultiProof(root, nil, [][]byte{keys[len(keys)/2]}, nil); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -683,7 +683,8 @@ func TestStatelessDeserialize(t *testing.T) {
 	}
 	root.Commit()
 
-	if err := proof, _, _, _, err := MakeVerkleMultiProof(root, nil, keylist{zeroKeyTest, fourtyKeyTest}, nil); err != nil {
+	proof, _, _, _, err := MakeVerkleMultiProof(root, nil, keylist{zeroKeyTest, fourtyKeyTest}, nil)
+	if err != nil {
 		t.Fatalf("could not make proof: %v", err)
 	}
 
