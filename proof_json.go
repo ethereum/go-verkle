@@ -147,7 +147,7 @@ func (vp *VerkleProof) UnmarshalJSON(data []byte) error {
 	var aux verkleProofMarshaller
 	err := json.Unmarshal(data, &aux)
 	if err != nil {
-		return err
+		return fmt.Errorf("verkle proof unmarshal error: %w", err)
 	}
 
 	vp.DepthExtensionPresent, err = PrefixedHexStringToBytes(aux.DepthExtensionPresent)
@@ -198,7 +198,7 @@ func (ssd StemStateDiff) MarshalJSON() ([]byte, error) {
 func (ssd *StemStateDiff) UnmarshalJSON(data []byte) error {
 	var aux stemStateDiffMarshaller
 	if err := json.Unmarshal(data, &aux); err != nil {
-		return err
+		return fmt.Errorf("stemdiff unmarshal error: %w", err)
 	}
 
 	stem, err := PrefixedHexStringToBytes(aux.Stem)
@@ -215,17 +215,23 @@ func (ssd *StemStateDiff) UnmarshalJSON(data []byte) error {
 type suffixStateDiffMarshaller struct {
 	Suffix       byte    `json:"suffix"`
 	CurrentValue *string `json:"currentValue"`
+	NewValue     *string `json:"newValue"`
 }
 
 func (ssd SuffixStateDiff) MarshalJSON() ([]byte, error) {
-	var cvstr *string
+	var cvstr, nvstr *string
 	if ssd.CurrentValue != nil {
 		tempstr := HexToPrefixedString(ssd.CurrentValue[:])
 		cvstr = &tempstr
 	}
+	if ssd.NewValue != nil {
+		tempstr := HexToPrefixedString(ssd.NewValue[:])
+		nvstr = &tempstr
+	}
 	return json.Marshal(&suffixStateDiffMarshaller{
 		Suffix:       ssd.Suffix,
 		CurrentValue: cvstr,
+		NewValue:     nvstr,
 	})
 }
 
@@ -233,7 +239,7 @@ func (ssd *SuffixStateDiff) UnmarshalJSON(data []byte) error {
 	aux := &suffixStateDiffMarshaller{}
 
 	if err := json.Unmarshal(data, &aux); err != nil {
-		return err
+		return fmt.Errorf("suffix diff unmarshal error: %w", err)
 	}
 
 	if aux.CurrentValue != nil && len(*aux.CurrentValue) != 64 && len(*aux.CurrentValue) != 0 && len(*aux.CurrentValue) != 66 {
@@ -252,6 +258,16 @@ func (ssd *SuffixStateDiff) UnmarshalJSON(data []byte) error {
 
 		ssd.CurrentValue = &[32]byte{}
 		copy(ssd.CurrentValue[:], currentValueBytes)
+	}
+
+	if aux.NewValue != nil && len(*aux.NewValue) != 0 {
+		newValueBytes, err := PrefixedHexStringToBytes(*aux.NewValue)
+		if err != nil {
+			return fmt.Errorf("error decoding hex string for current value: %v", err)
+		}
+
+		ssd.NewValue = &[32]byte{}
+		copy(ssd.NewValue[:], newValueBytes)
 	}
 
 	return nil

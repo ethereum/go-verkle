@@ -822,12 +822,15 @@ func (n *InternalNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*Pr
 		if child != nil {
 			var c VerkleNode
 			if _, ok := child.(HashedNode); ok {
+				childpath := make([]byte, n.depth+1)
+				copy(childpath[:n.depth+1], keys[0][:n.depth])
+				childpath[n.depth] = byte(i)
 				if resolver == nil {
-					return nil, nil, nil, fmt.Errorf("no resolver for path %x", keys[0][:n.depth+1])
+					return nil, nil, nil, fmt.Errorf("no resolver for path %x", childpath)
 				}
-				serialized, err := resolver(keys[0][:n.depth+1])
+				serialized, err := resolver(childpath)
 				if err != nil {
-					return nil, nil, nil, err
+					return nil, nil, nil, fmt.Errorf("error resolving for path %x: %w", childpath, err)
 				}
 				c, err = ParseNode(serialized, n.depth+1)
 				if err != nil {
@@ -1321,7 +1324,7 @@ func leafToComms(poly []Fr, val []byte) error {
 	return nil
 }
 
-func (n *LeafNode) GetProofItems(keys keylist, _ NodeResolverFn) (*ProofElements, []byte, [][]byte, error) {
+func (n *LeafNode) GetProofItems(keys keylist, _ NodeResolverFn) (*ProofElements, []byte, [][]byte, error) { // skipcq: GO-R1005
 	var (
 		poly [NodeWidth]Fr // top-level polynomial
 		pe                 = &ProofElements{
@@ -1340,7 +1343,7 @@ func (n *LeafNode) GetProofItems(keys keylist, _ NodeResolverFn) (*ProofElements
 	// Initialize the top-level polynomial with 1 + stem + C1 + C2
 	poly[0].SetUint64(1)
 	if err := StemFromBytes(&poly[1], n.stem); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, fmt.Errorf("error serializing stem '%x': %w", n.stem, err)
 	}
 	banderwagon.BatchMapToScalarField([]*Fr{&poly[2], &poly[3]}, []*Point{n.c1, n.c2})
 
@@ -1517,7 +1520,7 @@ func (n *LeafNode) toDot(parent, path string) string {
 	n.Commitment().MapToScalarField(&hash)
 	ret := fmt.Sprintf("leaf%s [label=\"L: %x\nC: %x\nC₁: %x\nC₂:%x\"]\n%s -> leaf%s\n", path, hash.Bytes(), n.commitment.Bytes(), n.c1.Bytes(), n.c2.Bytes(), parent, path)
 	for i, v := range n.values {
-		if v != nil {
+		if len(v) != 0 {
 			ret = fmt.Sprintf("%sval%s%02x [label=\"%x\"]\nleaf%s -> val%s%02x\n", ret, path, i, v, path, path, i)
 		}
 	}
