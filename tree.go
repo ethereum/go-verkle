@@ -1111,7 +1111,7 @@ func (n *LeafNode) updateLeaf(index byte, value []byte) error {
 	return nil
 }
 
-func (n *LeafNode) updateMultipleLeaves(values [][]byte) error {
+func (n *LeafNode) updateMultipleLeaves(values [][]byte) error { // skipcq: GO-R1005
 	var oldC1, oldC2 *Point
 
 	// We iterate the values, and we update the C1 and/or C2 commitments depending on the index.

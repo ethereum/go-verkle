@@ -282,7 +282,7 @@ func TestCachedCommitment(t *testing.T) {
 	}
 }
 
-func TestDelLeaf(t *testing.T) {
+func TestDelLeaf(t *testing.T) { // skipcq: GO-R1005
 	t.Parallel()
 
 	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
@@ -370,7 +370,7 @@ func TestDeleteNonExistent(t *testing.T) {
 	}
 }
 
-func TestDeletePrune(t *testing.T) {
+func TestDeletePrune(t *testing.T) { // skipcq: GO-R1005
 	t.Parallel()
 
 	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
