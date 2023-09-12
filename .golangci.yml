@@ -12,6 +12,7 @@ run:
 linters:
   disable-all: true
   enable:
+    - errcheck
     - gofmt
     - staticcheck
     - deadcode
