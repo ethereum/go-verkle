@@ -43,7 +43,7 @@ func init() {
 	identity = &id
 }
 
-func extensionAndSuffixOneKey(key, value []byte, ret *Point) {
+func extensionAndSuffixOneKey(t *testing.T, key, value []byte, ret *Point) {
 	var (
 		v                               Fr
 		vs                              [2]Fr
@@ -59,7 +59,9 @@ func extensionAndSuffixOneKey(key, value []byte, ret *Point) {
 	}
 	stemComm1.ScalarMul(&srs[1], &v)
 
-	leafToComms(vs[:], value)
+	if err := leafToComms(vs[:], value); err != nil {
+		t.Fatalf("leafToComms failed: %s", err)
+	}
 	c1.Add(t1.ScalarMul(&srs[2*key[31]], &vs[0]), t2.ScalarMul(&srs[2*key[31]+1], &vs[1]))
 	c1.MapToScalarField(&v)
 	stemComm2.ScalarMul(&srs[2], &v)
@@ -83,10 +85,12 @@ func TestInsertKey0Value0(t *testing.T) {
 		srs       = cfg.conf.SRS
 	)
 
-	root.Insert(zeroKeyTest, zeroKeyTest, nil)
+	if err := root.Insert(zeroKeyTest, zeroKeyTest, nil); err != nil {
+		t.Fatalf("insert failed: %s", err)
+	}
 	comm := root.Commit()
 
-	extensionAndSuffixOneKey(zeroKeyTest, zeroKeyTest, &expectedP)
+	extensionAndSuffixOneKey(t, zeroKeyTest, zeroKeyTest, &expectedP)
 
 	if expectedP.Equal(identity) {
 		t.Fatal("commitment is identity")
@@ -114,10 +118,12 @@ func TestInsertKey1Value1(t *testing.T) {
 		1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
 		25, 26, 27, 28, 29, 30, 31, 32,
 	}
-	root.Insert(key, key, nil)
+	if err := root.Insert(key, key, nil); err != nil {
+		t.Fatalf("insert failed: %s", err)
+	}
 	comm := root.Commit()
 
-	extensionAndSuffixOneKey(key, key, &expectedP)
+	extensionAndSuffixOneKey(t, key, key, &expectedP)
 	expectedP.MapToScalarField(&v)
 	expectedP.ScalarMul(&srs[1], &v)
 
@@ -150,8 +156,12 @@ func TestInsertSameStemTwoLeaves(t *testing.T) {
 		1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
 		25, 26, 27, 28, 29, 30, 31, 128,
 	}
-	root.Insert(key_a, key_a, nil)
-	root.Insert(key_b, key_b, nil)
+	if err := root.Insert(key_a, key_a, nil); err != nil {
+		t.Fatalf("insert failed: %s", err)
+	}
+	if err := root.Insert(key_b, key_b, nil); err != nil {
+		t.Fatalf("insert failed: %s", err)
+	}
 	comm := root.Commit()
 
 	stemComm0 := srs[0]
@@ -161,12 +171,16 @@ func TestInsertSameStemTwoLeaves(t *testing.T) {
 	}
 	stemComm1.ScalarMul(&srs[1], &v)
 
-	leafToComms(vs[:], key_a)
+	if err := leafToComms(vs[:], key_a); err != nil {
+		t.Fatalf("leafToComms failed: %s", err)
+	}
 	c1.Add(t1.ScalarMul(&srs[64], &vs[0]), t2.ScalarMul(&srs[65], &vs[1]))
 	c1.MapToScalarField(&v)
 	stemComm2.ScalarMul(&srs[2], &v)
 
-	leafToComms(vs[:], key_b)
+	if err := leafToComms(vs[:], key_b); err != nil {
+		t.Fatalf("leafToComms failed: %s", err)
+	}
 	c2.Add(t1.ScalarMul(&srs[0], &vs[0]), t2.ScalarMul(&srs[1], &vs[1]))
 	c2.MapToScalarField(&v)
 	stemComm3.ScalarMul(&srs[3], &v)
@@ -197,15 +211,19 @@ func TestInsertKey1Val1Key2Val2(t *testing.T) {
 		srs                 = cfg.conf.SRS
 	)
 	key_b, _ := hex.DecodeString("0101010101010101010101010101010101010101010101010101010101010101")
-	root.Insert(zeroKeyTest, zeroKeyTest, nil)
-	root.Insert(key_b, key_b, nil)
+	if err := root.Insert(zeroKeyTest, zeroKeyTest, nil); err != nil {
+		t.Fatalf("insert failed: %s", err)
+	}
+	if err := root.Insert(key_b, key_b, nil); err != nil {
+		t.Fatalf("insert failed: %s", err)
+	}
 	comm := root.Commit()
 	fmt.Println(root.toDot("", ""))
 
-	extensionAndSuffixOneKey(zeroKeyTest, zeroKeyTest, &t1)
+	extensionAndSuffixOneKey(t, zeroKeyTest, zeroKeyTest, &t1)
 	t1.MapToScalarField(&v1)
 
-	extensionAndSuffixOneKey(key_b, key_b, &t2)
+	extensionAndSuffixOneKey(t, key_b, key_b, &t2)
 	t2.MapToScalarField(&v2)
 
 	expectedP.Add(t1.ScalarMul(&srs[0], &v1), t2.ScalarMul(&srs[1], &v2))
@@ -272,7 +290,9 @@ func BenchmarkGroupToField(b *testing.B) {
 				b.ReportAllocs()
 				b.ResetTimer()
 				for k := 0; k < b.N; k++ {
-					banderwagon.BatchMapToScalarField(ptrs, points)
+					if err := banderwagon.BatchMapToScalarField(ptrs, points); err != nil {
+						b.Fatal(err)
+					}
 				}
 				b.ReportMetric(float64(time.Since(now).Nanoseconds()/int64(i))/float64(b.N), "ns/value")
 				_ = sink
