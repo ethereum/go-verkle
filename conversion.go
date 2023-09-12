@@ -55,7 +55,9 @@ func BatchNewLeafNode(nodesValues []BatchNewLeafNodeData) ([]LeafNode, error) {
 					c1c2frs[2*i], c1c2frs[2*i+1] = new(Fr), new(Fr)
 				}
 
-				banderwagon.BatchMapToScalarField(c1c2frs, c1c2points)
+				if err := banderwagon.BatchMapToScalarField(c1c2frs, c1c2points); err != nil {
+					return fmt.Errorf("mapping to scalar field: %s", err)
+				}
 
 				var poly [NodeWidth]Fr
 				poly[0].SetUint64(1)

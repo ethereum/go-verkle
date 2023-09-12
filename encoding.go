@@ -109,11 +109,17 @@ func parseLeafNode(serialized []byte, depth byte) (VerkleNode, error) {
 		return nil, fmt.Errorf("leaf node commitments are not the correct size, expected at least %d, got %d", 3*banderwagon.UncompressedSize, len(serialized[leafC1CommitmentOffset:]))
 	}
 
-	ln.c1.SetBytesUncompressed(serialized[leafC1CommitmentOffset:leafC1CommitmentOffset+banderwagon.UncompressedSize], true)
+	if err := ln.c1.SetBytesUncompressed(serialized[leafC1CommitmentOffset:leafC1CommitmentOffset+banderwagon.UncompressedSize], true); err != nil {
+		return nil, fmt.Errorf("setting c1 commitment: %w", err)
+	}
 	ln.c2 = new(Point)
-	ln.c2.SetBytesUncompressed(serialized[leafC2CommitmentOffset:leafC2CommitmentOffset+banderwagon.UncompressedSize], true)
+	if err := ln.c2.SetBytesUncompressed(serialized[leafC2CommitmentOffset:leafC2CommitmentOffset+banderwagon.UncompressedSize], true); err != nil {
+		return nil, fmt.Errorf("setting c2 commitment: %w", err)
+	}
 	ln.commitment = new(Point)
-	ln.commitment.SetBytesUncompressed(serialized[leafCommitmentOffset:leafC1CommitmentOffset], true)
+	if err := ln.commitment.SetBytesUncompressed(serialized[leafCommitmentOffset:leafC1CommitmentOffset], true); err != nil {
+		return nil, fmt.Errorf("setting commitment: %w", err)
+	}
 	return ln, nil
 }
 
@@ -145,6 +151,8 @@ func CreateInternalNode(bitlist []byte, raw []byte, depth byte) (*InternalNode, 
 	}
 
 	node.commitment = new(Point)
-	node.commitment.SetBytesUncompressed(raw, true)
+	if err := node.commitment.SetBytesUncompressed(raw, true); err != nil {
+		return nil, fmt.Errorf("setting commitment: %w", err)
+	}
 	return node, nil
 }
