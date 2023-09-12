@@ -453,7 +453,7 @@ func PreStateTreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) { // 
 
 // PostStateTreeFromProof uses the pre-state trie and the list of updated values
 // to produce the stateless post-state trie.
-func PostStateTreeFromProof(preroot VerkleNode, statediff StateDiff) (VerkleNode, error) {
+func PostStateTreeFromStateDiff(preroot VerkleNode, statediff StateDiff) (VerkleNode, error) {
 	postroot := preroot.Copy()
 
 	for _, stemstatediff := range statediff {

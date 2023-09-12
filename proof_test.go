@@ -814,7 +814,7 @@ func TestProofVerificationWithPostState(t *testing.T) {
 				t.Fatalf("error recreating pre tree: %v", err)
 			}
 
-			dpostroot, err := PostStateTreeFromProof(dpreroot, diff)
+			dpostroot, err := PostStateTreeFromStateDiff(dpreroot, diff)
 			if err != nil {
 				t.Fatalf("error recreating post tree: %v", err)
 			}
