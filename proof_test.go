@@ -781,6 +781,10 @@ func TestProofVerificationWithPostState(t *testing.T) {
 				t.Fatalf("incompatible number of keys and values: %d != %d", len(data.keys), len(data.values))
 			}
 
+			if len(data.updatekeys) != len(data.updatevalues) {
+				t.Fatalf("incompatible number of post-state keys and values: %d != %d", len(data.updatekeys), len(data.updatevalues))
+			}
+
 			root := New()
 			for i := range data.keys {
 				root.Insert(data.keys[i], data.values[i], nil)
