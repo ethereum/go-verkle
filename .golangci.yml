@@ -15,7 +15,6 @@ linters:
     - errcheck
     - gofmt
     - staticcheck
-    - deadcode
     - goconst
     - goimports
     - gosimple
@@ -23,7 +22,7 @@ linters:
     - ineffassign
     - misspell
     - unconvert
-    - varcheck
+    - unused
 
 linters-settings:
   gofmt:
