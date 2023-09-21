@@ -55,8 +55,7 @@ func TestInsertIntoRoot(t *testing.T) {
 	t.Parallel()
 
 	root := New()
-	err := root.Insert(zeroKeyTest, testValue, nil)
-	if err != nil {
+	if err := root.Insert(zeroKeyTest, testValue, nil); err != nil {
 		t.Fatalf("error inserting: %v", err)
 	}
 
@@ -74,8 +73,12 @@ func TestInsertTwoLeaves(t *testing.T) {
 	t.Parallel()
 
 	root := New()
-	root.Insert(zeroKeyTest, testValue, nil)
-	root.Insert(ffx32KeyTest, testValue, nil)
+	if err := root.Insert(zeroKeyTest, testValue, nil); err != nil {
+		t.Fatalf("error inserting: %v", err)
+	}
+	if err := root.Insert(ffx32KeyTest, testValue, nil); err != nil {
+		t.Fatalf("error inserting: %v", err)
+	}
 
 	leaf0, ok := root.(*InternalNode).children[0].(*LeafNode)
 	if !ok {
@@ -100,8 +103,12 @@ func TestInsertTwoLeavesLastLevel(t *testing.T) {
 	t.Parallel()
 
 	root := New()
-	root.Insert(zeroKeyTest, testValue, nil)
-	root.Insert(oneKeyTest, testValue, nil)
+	if err := root.Insert(zeroKeyTest, testValue, nil); err != nil {
+		t.Fatalf("error inserting: %v", err)
+	}
+	if err := root.Insert(oneKeyTest, testValue, nil); err != nil {
+		t.Fatalf("error inserting: %v", err)
+	}
 
 	leaf, ok := root.(*InternalNode).children[0].(*LeafNode)
 	if !ok {
@@ -120,8 +127,12 @@ func TestGetTwoLeaves(t *testing.T) {
 	t.Parallel()
 
 	root := New()
-	root.Insert(zeroKeyTest, testValue, nil)
-	root.Insert(ffx32KeyTest, testValue, nil)
+	if err := root.Insert(zeroKeyTest, testValue, nil); err != nil {
+		t.Fatalf("error inserting: %v", err)
+	}
+	if err := root.Insert(ffx32KeyTest, testValue, nil); err != nil {
+		t.Fatalf("error inserting: %v", err)
+	}
 
 	val, err := root.Get(zeroKeyTest, nil)
 	if err != nil {
@@ -161,7 +172,7 @@ func TestFlush1kLeaves(t *testing.T) {
 	t.Parallel()
 
 	n := 1000
-	keys := randomKeysSorted(n)
+	keys := randomKeysSorted(t, n)
 
 	flushCh := make(chan VerkleNode)
 	flush := func(_ []byte, node VerkleNode) {
@@ -170,7 +181,9 @@ func TestFlush1kLeaves(t *testing.T) {
 	go func() {
 		root := New()
 		for _, k := range keys {
-			root.Insert(k, fourtyKeyTest, nil)
+			if err := root.Insert(k, fourtyKeyTest, nil); err != nil {
+				panic(err)
+			}
 		}
 		root.(*InternalNode).Flush(flush)
 		close(flushCh)
@@ -202,19 +215,27 @@ func TestCopy(t *testing.T) {
 	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
 	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
 	tree := New()
-	tree.Insert(key1, fourtyKeyTest, nil)
-	tree.Insert(key2, fourtyKeyTest, nil)
+	if err := tree.Insert(key1, fourtyKeyTest, nil); err != nil {
+		t.Fatalf("inserting into the original failed: %v", err)
+	}
+	if err := tree.Insert(key2, fourtyKeyTest, nil); err != nil {
+		t.Fatalf("inserting into the original failed: %v", err)
+	}
 	tree.Commit()
 
 	copied := tree.Copy()
 
-	tree.Insert(key3, fourtyKeyTest, nil)
+	if err := tree.Insert(key3, fourtyKeyTest, nil); err != nil {
+		t.Fatalf("inserting into the original failed: %v", err)
+	}
 
 	if tree.Commit().Equal(copied.Commit()) {
 		t.Fatal("inserting the copy into the original tree updated the copy's commitment")
 	}
 
-	copied.Insert(key3, fourtyKeyTest, nil)
+	if err := copied.Insert(key3, fourtyKeyTest, nil); err != nil {
+		t.Fatalf("inserting into the copy failed: %v", err)
+	}
 
 	if !tree.Commitment().Equal(copied.Commit()) {
 		t.Fatalf("differing final commitments %x != %x", tree.Commitment().Bytes(), copied.Commitment().Bytes())
@@ -229,9 +250,15 @@ func TestCachedCommitment(t *testing.T) {
 	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
 	key4, _ := hex.DecodeString("0407000000000000000000000000000000000000000000000000000000000000")
 	tree := New()
-	tree.Insert(key1, fourtyKeyTest, nil)
-	tree.Insert(key2, fourtyKeyTest, nil)
-	tree.Insert(key3, fourtyKeyTest, nil)
+	if err := tree.Insert(key1, fourtyKeyTest, nil); err != nil {
+		t.Fatalf("inserting into the original failed: %v", err)
+	}
+	if err := tree.Insert(key2, fourtyKeyTest, nil); err != nil {
+		t.Fatalf("inserting into the original failed: %v", err)
+	}
+	if err := tree.Insert(key3, fourtyKeyTest, nil); err != nil {
+		t.Fatalf("inserting into the original failed: %v", err)
+	}
 	oldRoot := tree.Commit().Bytes()
 	oldInternal := tree.(*InternalNode).children[4].(*LeafNode).commitment.Bytes()
 
@@ -239,7 +266,9 @@ func TestCachedCommitment(t *testing.T) {
 		t.Error("root has not cached commitment")
 	}
 
-	tree.Insert(key4, fourtyKeyTest, nil)
+	if err := tree.Insert(key4, fourtyKeyTest, nil); err != nil {
+		t.Fatalf("inserting into key4 failed: %v", err)
+	}
 	tree.Commit()
 
 	if tree.(*InternalNode).Commitment().Bytes() == oldRoot {
@@ -253,7 +282,7 @@ func TestCachedCommitment(t *testing.T) {
 	}
 }
 
-func TestDelLeaf(t *testing.T) {
+func TestDelLeaf(t *testing.T) { // skipcq: GO-R1005
 	t.Parallel()
 
 	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
@@ -262,14 +291,24 @@ func TestDelLeaf(t *testing.T) {
 	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
 	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
 	tree := New()
-	tree.Insert(key1, fourtyKeyTest, nil)
-	tree.Insert(key1p, fourtyKeyTest, nil)
-	tree.Insert(key1pp, fourtyKeyTest, nil)
-	tree.Insert(key2, fourtyKeyTest, nil)
+	if err := tree.Insert(key1, fourtyKeyTest, nil); err != nil {
+		t.Fatalf("inserting into the original failed: %v", err)
+	}
+	if err := tree.Insert(key1p, fourtyKeyTest, nil); err != nil {
+		t.Fatalf("inserting into the original failed: %v", err)
+	}
+	if err := tree.Insert(key1pp, fourtyKeyTest, nil); err != nil {
+		t.Fatalf("inserting into the original failed: %v", err)
+	}
+	if err := tree.Insert(key2, fourtyKeyTest, nil); err != nil {
+		t.Fatalf("inserting into the original failed: %v", err)
+	}
 	var init Point
 	init.Set(tree.Commit())
 
-	tree.Insert(key3, fourtyKeyTest, nil)
+	if err := tree.Insert(key3, fourtyKeyTest, nil); err != nil {
+		t.Fatalf("inserting into the original failed: %v", err)
+	}
 	if _, err := tree.Delete(key3, nil); err != nil {
 		t.Error(err)
 	}
@@ -320,14 +359,18 @@ func TestDeleteNonExistent(t *testing.T) {
 	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
 	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
 	tree := New()
-	tree.Insert(key1, fourtyKeyTest, nil)
-	tree.Insert(key2, fourtyKeyTest, nil)
+	if err := tree.Insert(key1, fourtyKeyTest, nil); err != nil {
+		t.Fatalf("inserting into key1 failed: %v", err)
+	}
+	if err := tree.Insert(key2, fourtyKeyTest, nil); err != nil {
+		t.Fatalf("inserting into key2 failed: %v", err)
+	}
 	if _, err := tree.Delete(key3, nil); err != nil {
 		t.Error("should not fail when deleting a non-existent key")
 	}
 }
 
-func TestDeletePrune(t *testing.T) {
+func TestDeletePrune(t *testing.T) { // skipcq: GO-R1005
 	t.Parallel()
 
 	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
@@ -336,15 +379,25 @@ func TestDeletePrune(t *testing.T) {
 	key4, _ := hex.DecodeString("0407000000000000000000000000000000000000000000000000000000000000")
 	key5, _ := hex.DecodeString("04070000000000000000000000000000000000000000000000000000000000FF")
 	tree := New()
-	tree.Insert(key1, fourtyKeyTest, nil)
-	tree.Insert(key2, fourtyKeyTest, nil)
+	if err := tree.Insert(key1, fourtyKeyTest, nil); err != nil {
+		t.Fatalf("inserting into key1 failed: %v", err)
+	}
+	if err := tree.Insert(key2, fourtyKeyTest, nil); err != nil {
+		t.Fatalf("inserting into key2 failed: %v", err)
+	}
 
 	var hashPostKey2, hashPostKey4, completeTreeHash Point
 	hashPostKey2.Set(tree.Commit())
-	tree.Insert(key3, fourtyKeyTest, nil)
-	tree.Insert(key4, fourtyKeyTest, nil)
+	if err := tree.Insert(key3, fourtyKeyTest, nil); err != nil {
+		t.Fatalf("inserting into key3 failed: %v", err)
+	}
+	if err := tree.Insert(key4, fourtyKeyTest, nil); err != nil {
+		t.Fatalf("inserting into key4 failed: %v", err)
+	}
 	hashPostKey4.Set(tree.Commit())
-	tree.Insert(key5, fourtyKeyTest, nil)
+	if err := tree.Insert(key5, fourtyKeyTest, nil); err != nil {
+		t.Fatalf("inserting into key5 failed: %v", err)
+	}
 	completeTreeHash.Set(tree.Commit()) // hash when the tree has received all its keys
 
 	// Delete key5.
@@ -401,9 +454,15 @@ func TestDeleteHash(t *testing.T) {
 	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
 	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
 	tree := New()
-	tree.Insert(key1, fourtyKeyTest, nil)
-	tree.Insert(key2, fourtyKeyTest, nil)
-	tree.Insert(key3, fourtyKeyTest, nil)
+	if err := tree.Insert(key1, fourtyKeyTest, nil); err != nil {
+		t.Fatalf("inserting into key1 failed: %v", err)
+	}
+	if err := tree.Insert(key2, fourtyKeyTest, nil); err != nil {
+		t.Fatalf("inserting into key2 failed: %v", err)
+	}
+	if err := tree.Insert(key3, fourtyKeyTest, nil); err != nil {
+		t.Fatalf("inserting into key3 failed: %v", err)
+	}
 	tree.(*InternalNode).FlushAtDepth(0, func(path []byte, vn VerkleNode) {})
 	tree.Commit()
 	if _, err := tree.Delete(key2, nil); err != errDeleteHash {
@@ -418,8 +477,12 @@ func TestDeleteUnequalPath(t *testing.T) {
 	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
 	key3, _ := hex.DecodeString("0405000000000000000000000000000000000000000000000000000000000000")
 	tree := New()
-	tree.Insert(key1, fourtyKeyTest, nil)
-	tree.Insert(key3, fourtyKeyTest, nil)
+	if err := tree.Insert(key1, fourtyKeyTest, nil); err != nil {
+		t.Fatalf("inserting into key1 failed: %v", err)
+	}
+	if err := tree.Insert(key3, fourtyKeyTest, nil); err != nil {
+		t.Fatalf("inserting into key3 failed: %v", err)
+	}
 	tree.Commit()
 
 	if _, err := tree.Delete(key2, nil); err != nil {
@@ -439,9 +502,15 @@ func TestDeleteResolve(t *testing.T) {
 	saveNode := func(path []byte, node VerkleNode) {
 		savedNodes[string(path)] = node
 	}
-	tree.Insert(key1, fourtyKeyTest, nil)
-	tree.Insert(key2, fourtyKeyTest, nil)
-	tree.Insert(key3, fourtyKeyTest, nil)
+	if err := tree.Insert(key1, fourtyKeyTest, nil); err != nil {
+		t.Fatalf("inserting into key1 failed: %v", err)
+	}
+	if err := tree.Insert(key2, fourtyKeyTest, nil); err != nil {
+		t.Fatalf("inserting into key2 failed: %v", err)
+	}
+	if err := tree.Insert(key3, fourtyKeyTest, nil); err != nil {
+		t.Fatalf("inserting into key3 failed: %v", err)
+	}
 	tree.(*InternalNode).FlushAtDepth(0, saveNode)
 	tree.Commit()
 
@@ -478,7 +547,9 @@ func TestConcurrentTrees(t *testing.T) {
 	ch := make(chan *Point)
 	builder := func() {
 		tree := New()
-		tree.Insert(zeroKeyTest, fourtyKeyTest, nil)
+		if err := tree.Insert(zeroKeyTest, fourtyKeyTest, nil); err != nil {
+			panic(err)
+		}
 		ch <- tree.Commit()
 	}
 
@@ -533,8 +604,12 @@ func benchmarkCommitNLeaves(b *testing.B, n int) {
 	for i := 0; i < n; i++ {
 		key := make([]byte, 32)
 		val := make([]byte, 32)
-		rand.Read(key) // skipcq: GSC-G404
-		rand.Read(val) // skipcq: GSC-G404
+		if _, err := rand.Read(key); err != nil {
+			b.Fatalf("failed to generate random key: %v", err)
+		}
+		if _, err := rand.Read(val); err != nil {
+			b.Fatalf("failed to generate random value: %v", err)
+		}
 		kvs[i] = kv{k: key, v: val}
 		sortedKVs[i] = kv{k: key, v: val}
 	}
@@ -571,9 +646,13 @@ func BenchmarkModifyLeaves(b *testing.B) {
 	root := New()
 	for i := 0; i < n; i++ {
 		key := make([]byte, 32)
-		rand.Read(key) // skipcq: GSC-G404
+		if _, err := rand.Read(key); err != nil {
+			b.Fatalf("failed to generate random key: %v", err)
+		}
 		keys[i] = key
-		root.Insert(key, val, nil)
+		if err := root.Insert(key, val, nil); err != nil {
+			b.Fatalf("inserting into key1 failed: %v", err)
+		}
 	}
 	root.Commit()
 
@@ -594,18 +673,20 @@ func BenchmarkModifyLeaves(b *testing.B) {
 	}
 }
 
-func randomKeys(n int) [][]byte {
+func randomKeys(t *testing.T, n int) [][]byte {
 	keys := make([][]byte, n)
 	for i := 0; i < n; i++ {
 		key := make([]byte, 32)
-		rand.Read(key) // skipcq: GSC-G404
+		if _, err := rand.Read(key); err != nil {
+			t.Fatalf("failed to generate random key: %v", err)
+		}
 		keys[i] = key
 	}
 	return keys
 }
 
-func randomKeysSorted(n int) [][]byte {
-	keys := randomKeys(n)
+func randomKeysSorted(t *testing.T, n int) [][]byte {
+	keys := randomKeys(t, n)
 	sort.Slice(keys, func(i, j int) bool { return bytes.Compare(keys[i], keys[j]) < 0 })
 	return keys
 }
@@ -614,8 +695,12 @@ func TestNodeSerde(t *testing.T) {
 	t.Parallel()
 
 	tree := New()
-	tree.Insert(zeroKeyTest, testValue, nil)
-	tree.Insert(fourtyKeyTest, testValue, nil)
+	if err := tree.Insert(zeroKeyTest, testValue, nil); err != nil {
+		t.Fatalf("inserting into key1 failed: %v", err)
+	}
+	if err := tree.Insert(fourtyKeyTest, testValue, nil); err != nil {
+		t.Fatalf("inserting into key2 failed: %v", err)
+	}
 	origComm := tree.Commit().BytesUncompressed()
 	root := tree.(*InternalNode)
 
@@ -739,11 +824,14 @@ func TestGetResolveFromHash(t *testing.T) {
 		serialized = append(serialized, s...)
 	}
 	root := New()
-	root.Insert(zeroKeyTest, zeroKeyTest, nil)
-	root.Insert(fourtyKeyTest, zeroKeyTest, nil)
+	if err := root.Insert(zeroKeyTest, zeroKeyTest, nil); err != nil {
+		t.Fatalf("inserting into the original failed: %v", err)
+	}
+	if err := root.Insert(fourtyKeyTest, zeroKeyTest, nil); err != nil {
+		t.Fatalf("inserting into the original failed: %v", err)
+	}
 	root.(*InternalNode).FlushAtDepth(0, flush)
-	err := root.Insert(oneKeyTest, zeroKeyTest, nil)
-	if err != errInsertIntoHash {
+	if err := root.Insert(oneKeyTest, zeroKeyTest, nil); err != errInsertIntoHash {
 		t.Fatal(err)
 	}
 
@@ -793,9 +881,13 @@ func TestInsertIntoHashedNode(t *testing.T) {
 	t.SkipNow()
 
 	root := New()
-	root.Insert(zeroKeyTest, zeroKeyTest, nil)
+	if err := root.Insert(zeroKeyTest, zeroKeyTest, nil); err != nil {
+		t.Fatalf("inserting into the original failed: %v", err)
+	}
 	root.(*InternalNode).FlushAtDepth(0, func(_ []byte, n VerkleNode) {})
-	root.Insert(fourtyKeyTest, zeroKeyTest, nil)
+	if err := root.Insert(fourtyKeyTest, zeroKeyTest, nil); err != nil {
+		t.Fatalf("inserting into the original failed: %v", err)
+	}
 
 	if err := root.Insert(zeroKeyTest, zeroKeyTest, nil); err != errInsertIntoHash {
 		t.Fatalf("incorrect error type: %v", err)
@@ -840,11 +932,17 @@ func TestToDot(t *testing.T) {
 	//TODO: fix this test when we take a final decision about FlushAtDepth API.
 	t.SkipNow()
 	root := New()
-	root.Insert(zeroKeyTest, zeroKeyTest, nil)
+	if err := root.Insert(zeroKeyTest, zeroKeyTest, nil); err != nil {
+		t.Fatalf("inserting into the original failed: %v", err)
+	}
 	root.(*InternalNode).FlushAtDepth(0, func(_ []byte, n VerkleNode) {}) // Hash the leaf to ensure HashedNodes display correctly
-	root.Insert(fourtyKeyTest, zeroKeyTest, nil)
+	if err := root.Insert(fourtyKeyTest, zeroKeyTest, nil); err != nil {
+		t.Fatalf("inserting into the original failed: %v", err)
+	}
 	fourtytwoKeyTest, _ := hex.DecodeString("4020000000000000000000000000000000000000000000000000000000000000")
-	root.Insert(fourtytwoKeyTest, zeroKeyTest, nil)
+	if err := root.Insert(fourtytwoKeyTest, zeroKeyTest, nil); err != nil {
+		t.Fatalf("inserting into the original failed: %v", err)
+	}
 
 	fmt.Println(ToDot(root))
 
@@ -874,7 +972,9 @@ func TestEmptyCommitment(t *testing.T) {
 	t.Parallel()
 
 	root := New()
-	root.Insert(zeroKeyTest, zeroKeyTest, nil)
+	if err := root.Insert(zeroKeyTest, zeroKeyTest, nil); err != nil {
+		t.Fatalf("inserting into the original failed: %v", err)
+	}
 	root.Commit()
 	pe, _, _, err := root.GetProofItems(keylist{ffx32KeyTest}, nil)
 	if err != nil {
@@ -913,7 +1013,9 @@ func TestLeafToCommsLessThan32(t *testing.T) {
 		value [16]byte
 		p     [2]Fr
 	)
-	leafToComms(p[:], value[:])
+	if err := leafToComms(p[:], value[:]); err != nil {
+		t.Fatalf("error in leafToComms: %v", err)
+	}
 }
 
 func TestLeafToCommsLessThan16(t *testing.T) {
@@ -923,14 +1025,18 @@ func TestLeafToCommsLessThan16(t *testing.T) {
 		value [4]byte
 		p     [2]Fr
 	)
-	leafToComms(p[:], value[:])
+	if err := leafToComms(p[:], value[:]); err != nil {
+		t.Fatalf("error in leafToComms: %v", err)
+	}
 }
 
 func TestGetProofItemsNoPoaIfStemPresent(t *testing.T) {
 	t.Parallel()
 
 	root := New()
-	root.Insert(ffx32KeyTest, zeroKeyTest, nil)
+	if err := root.Insert(ffx32KeyTest, zeroKeyTest, nil); err != nil {
+		t.Fatalf("inserting into the original failed: %v", err)
+	}
 
 	// insert two keys that differ from the inserted stem
 	// by one byte.
@@ -995,7 +1101,9 @@ func TestInsertStem(t *testing.T) {
 	values[5] = zeroKeyTest
 	values[192] = fourtyKeyTest
 
-	root1.(*InternalNode).InsertStem(fourtyKeyTest[:31], values, nil)
+	if err := root1.(*InternalNode).InsertStem(fourtyKeyTest[:31], values, nil); err != nil {
+		t.Fatalf("error inserting: %s", err)
+	}
 	r1c := root1.Commit()
 
 	var key5, key192 [32]byte
@@ -1003,8 +1111,12 @@ func TestInsertStem(t *testing.T) {
 	copy(key192[:], fourtyKeyTest[:31])
 	key5[31] = 5
 	key192[31] = 192
-	root2.Insert(key5[:], zeroKeyTest, nil)
-	root2.Insert(key192[:], fourtyKeyTest, nil)
+	if err := root2.Insert(key5[:], zeroKeyTest, nil); err != nil {
+		t.Fatalf("error inserting: %s", err)
+	}
+	if err := root2.Insert(key192[:], fourtyKeyTest, nil); err != nil {
+		t.Fatalf("error inserting: %s", err)
+	}
 	r2c := root2.Commit()
 
 	if !r1c.Equal(r2c) {
@@ -1054,7 +1166,9 @@ func TestInsertResolveSplitLeaf(t *testing.T) {
 
 	// Insert a unique leaf and flush it
 	root := New()
-	root.Insert(zeroKeyTest, ffx32KeyTest, nil)
+	if err := root.Insert(zeroKeyTest, ffx32KeyTest, nil); err != nil {
+		t.Fatalf("error inserting: %v", err)
+	}
 	root.(*InternalNode).Flush(func(_ []byte, node VerkleNode) {
 		l, ok := node.(*LeafNode)
 		if !ok {
@@ -1168,7 +1282,9 @@ func TestRustBanderwagonBlock48(t *testing.T) {
 		}
 
 		v, _ := hex.DecodeString(s)
-		tree.Insert(keys[i], v, nil)
+		if err := tree.Insert(keys[i], v, nil); err != nil {
+			t.Fatalf("error inserting: %v", err)
+		}
 
 		initialVals[string(keys[i])] = v
 	}
@@ -1176,7 +1292,9 @@ func TestRustBanderwagonBlock48(t *testing.T) {
 	// Insert the code chunk that isn't part of the proof
 	missingKey, _ := hex.DecodeString("744f493648c83c5ede1726a0cfbe36d3830fd5b64a820b79ca77fe159335268a")
 	missingVal, _ := hex.DecodeString("133b991f93d230604b1b8daaef64766264736f6c634300080700330000000000")
-	tree.Insert(missingKey, missingVal, nil)
+	if err := tree.Insert(missingKey, missingVal, nil); err != nil {
+		t.Fatalf("error inserting: %v", err)
+	}
 
 	r := tree.Commit()
 
@@ -1438,7 +1556,9 @@ func TestManipulateChildren(t *testing.T) {
 	t.Parallel()
 
 	root := New()
-	root.Insert(ffx32KeyTest, testValue, nil)
+	if err := root.Insert(ffx32KeyTest, testValue, nil); err != nil {
+		t.Fatalf("failed to insert key: %v", err)
+	}
 
 	// Verify that Children() is returning what's expected.
 	ln, ok := root.(*InternalNode).Children()[NodeWidth-1].(*LeafNode)

@@ -289,7 +289,9 @@ func NewLeafNode(stem []byte, values [][]byte) (*LeafNode, error) {
 	if err := StemFromBytes(&poly[1], stem); err != nil {
 		return nil, err
 	}
-	banderwagon.BatchMapToScalarField([]*Fr{&poly[2], &poly[3]}, []*Point{c1, c2})
+	if err := banderwagon.BatchMapToScalarField([]*Fr{&poly[2], &poly[3]}, []*Point{c1, c2}); err != nil {
+		return nil, fmt.Errorf("batch mapping to scalar fields: %s", err)
+	}
 
 	return &LeafNode{
 		// depth will be 0, but the commitment calculation
@@ -693,7 +695,10 @@ func (n *InternalNode) Commit() *Point {
 
 		minBatchSize := 4
 		if len(nodes) <= minBatchSize {
-			commitNodesAtLevel(nodes)
+			if err := commitNodesAtLevel(nodes); err != nil {
+				// TODO: make Commit() return an error
+				panic(err)
+			}
 		} else {
 			var wg sync.WaitGroup
 			numBatches := runtime.NumCPU()
@@ -710,7 +715,11 @@ func (n *InternalNode) Commit() *Point {
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
-					commitNodesAtLevel(nodes[start:end])
+					if err := commitNodesAtLevel(nodes[start:end]); err != nil {
+						// TODO: make Commit() return an error
+						panic(err)
+					}
+
 				}()
 			}
 			wg.Wait()
@@ -719,7 +728,7 @@ func (n *InternalNode) Commit() *Point {
 	return n.commitment
 }
 
-func commitNodesAtLevel(nodes []*InternalNode) {
+func commitNodesAtLevel(nodes []*InternalNode) error {
 	points := make([]*Point, 0, 1024)
 	cowIndexes := make([]int, 0, 1024)
 
@@ -741,7 +750,9 @@ func commitNodesAtLevel(nodes []*InternalNode) {
 	}
 
 	// Do a single batch calculation for all the points in this level.
-	banderwagon.BatchMapToScalarField(frs, points)
+	if err := banderwagon.BatchMapToScalarField(frs, points); err != nil {
+		return fmt.Errorf("batch mapping to scalar fields: %s", err)
+	}
 
 	// We calculate the difference between each (new commitment - old commitment) pair, and store it
 	// in the same slice to avoid allocations.
@@ -765,6 +776,8 @@ func commitNodesAtLevel(nodes []*InternalNode) {
 		node.cow = nil
 		node.commitment.Add(node.commitment, cfg.CommitToPoly(poly, 0))
 	}
+
+	return nil
 }
 
 // groupKeys groups a set of keys based on their byte at a given depth.
@@ -845,7 +858,9 @@ func (n *InternalNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*Pr
 			points[i] = new(Point)
 		}
 	}
-	banderwagon.BatchMapToScalarField(fiPtrs[:], points[:])
+	if err := banderwagon.BatchMapToScalarField(fiPtrs[:], points[:]); err != nil {
+		return nil, nil, nil, fmt.Errorf("batch mapping to scalar fields: %s", err)
+	}
 
 	for _, group := range groups {
 		childIdx := offset2key(group[0], n.depth)
@@ -1084,7 +1099,9 @@ func (n *LeafNode) updateLeaf(index byte, value []byte) error {
 
 	// Batch the Fr transformation of the new and old CX.
 	var frs [2]Fr
-	banderwagon.BatchMapToScalarField([]*Fr{&frs[0], &frs[1]}, []*Point{c, &oldC})
+	if err := banderwagon.BatchMapToScalarField([]*Fr{&frs[0], &frs[1]}, []*Point{c, &oldC}); err != nil {
+		return fmt.Errorf("batch mapping to scalar fields: %s", err)
+	}
 
 	// If index is in the first NodeWidth/2 elements, we need to update C1. Otherwise, C2.
 	cxIndex := 2 + int(index)/(NodeWidth/2) // [1, stem, -> C1, C2 <-]
@@ -1094,7 +1111,7 @@ func (n *LeafNode) updateLeaf(index byte, value []byte) error {
 	return nil
 }
 
-func (n *LeafNode) updateMultipleLeaves(values [][]byte) error {
+func (n *LeafNode) updateMultipleLeaves(values [][]byte) error { // skipcq: GO-R1005
 	var oldC1, oldC2 *Point
 
 	// We iterate the values, and we update the C1 and/or C2 commitments depending on the index.
@@ -1137,14 +1154,20 @@ func (n *LeafNode) updateMultipleLeaves(values [][]byte) error {
 	const c2Idx = 3 // [1, stem, C1, ->C2<-]
 
 	if oldC1 != nil && oldC2 != nil { // Case 1.
-		banderwagon.BatchMapToScalarField([]*Fr{&frs[0], &frs[1], &frs[2], &frs[3]}, []*Point{n.c1, oldC1, n.c2, oldC2})
+		if err := banderwagon.BatchMapToScalarField([]*Fr{&frs[0], &frs[1], &frs[2], &frs[3]}, []*Point{n.c1, oldC1, n.c2, oldC2}); err != nil {
+			return fmt.Errorf("batch mapping to scalar fields: %s", err)
+		}
 		n.updateC(c1Idx, frs[0], frs[1])
 		n.updateC(c2Idx, frs[2], frs[3])
 	} else if oldC1 != nil { // Case 2. (C1 touched)
-		banderwagon.BatchMapToScalarField([]*Fr{&frs[0], &frs[1]}, []*Point{n.c1, oldC1})
+		if err := banderwagon.BatchMapToScalarField([]*Fr{&frs[0], &frs[1]}, []*Point{n.c1, oldC1}); err != nil {
+			return fmt.Errorf("batch mapping to scalar fields: %s", err)
+		}
 		n.updateC(c1Idx, frs[0], frs[1])
 	} else if oldC2 != nil { // Case 2. (C2 touched)
-		banderwagon.BatchMapToScalarField([]*Fr{&frs[0], &frs[1]}, []*Point{n.c2, oldC2})
+		if err := banderwagon.BatchMapToScalarField([]*Fr{&frs[0], &frs[1]}, []*Point{n.c2, oldC2}); err != nil {
+			return fmt.Errorf("batch mapping to scalar fields: %s", err)
+		}
 		n.updateC(c2Idx, frs[0], frs[1])
 	}
 
@@ -1345,7 +1368,9 @@ func (n *LeafNode) GetProofItems(keys keylist, _ NodeResolverFn) (*ProofElements
 	if err := StemFromBytes(&poly[1], n.stem); err != nil {
 		return nil, nil, nil, fmt.Errorf("error serializing stem '%x': %w", n.stem, err)
 	}
-	banderwagon.BatchMapToScalarField([]*Fr{&poly[2], &poly[3]}, []*Point{n.c1, n.c2})
+	if err := banderwagon.BatchMapToScalarField([]*Fr{&poly[2], &poly[3]}, []*Point{n.c1, n.c2}); err != nil {
+		return nil, nil, nil, fmt.Errorf("batch mapping to scalar fields: %s", err)
+	}
 
 	// First pass: add top-level elements first
 	var hasC1, hasC2 bool

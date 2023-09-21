@@ -350,15 +350,21 @@ func DeserializeProof(vp *VerkleProof, statediff StateDiff) (*Proof, error) {
 		commitments[i] = &commitment
 	}
 
-	multipoint.D.SetBytes(vp.D[:])
+	if err := multipoint.D.SetBytes(vp.D[:]); err != nil {
+		return nil, fmt.Errorf("setting D: %w", err)
+	}
 	multipoint.IPA.A_scalar.SetBytes(vp.IPAProof.FinalEvaluation[:])
 	multipoint.IPA.L = make([]Point, IPA_PROOF_DEPTH)
 	for i, b := range vp.IPAProof.CL {
-		multipoint.IPA.L[i].SetBytes(b[:])
+		if err := multipoint.IPA.L[i].SetBytes(b[:]); err != nil {
+			return nil, fmt.Errorf("setting L[%d]: %w", i, err)
+		}
 	}
 	multipoint.IPA.R = make([]Point, IPA_PROOF_DEPTH)
 	for i, b := range vp.IPAProof.CR {
-		multipoint.IPA.R[i].SetBytes(b[:])
+		if err := multipoint.IPA.R[i].SetBytes(b[:]); err != nil {
+			return nil, fmt.Errorf("setting R[%d]: %w", i, err)
+		}
 	}
 
 	// turn statediff into keys and values

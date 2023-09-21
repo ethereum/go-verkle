@@ -17,9 +17,9 @@ func main() {
 func benchmarkInsertInExisting() {
 	f, _ := os.Create("cpu.prof")
 	g, _ := os.Create("mem.prof")
-	pprof.StartCPUProfile(f)
+	_ = pprof.StartCPUProfile(f)
 	defer pprof.StopCPUProfile()
-	defer pprof.WriteHeapProfile(g)
+	defer func() { _ = pprof.WriteHeapProfile(g) }()
 	// Number of existing leaves in tree
 	n := 1000000
 	// Leaves to be inserted afterwards
@@ -34,7 +34,9 @@ func benchmarkInsertInExisting() {
 		// Generate set of keys once
 		for i := 0; i < total; i++ {
 			key := make([]byte, 32)
-			rand.Read(key)
+			if _, err := rand.Read(key); err != nil {
+				panic(err)
+			}
 			if i < n {
 				keys[i] = key
 			} else {
