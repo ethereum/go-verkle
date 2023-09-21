@@ -52,6 +52,35 @@ type VerkleProof struct {
 	IPAProof              *IPAProof  `json:"ipa_proof"`
 }
 
+func (vp *VerkleProof) Copy() *VerkleProof {
+	ret := &VerkleProof{
+		OtherStems:            make([][31]byte, len(vp.OtherStems)),
+		DepthExtensionPresent: make([]byte, len(vp.DepthExtensionPresent)),
+		CommitmentsByPath:     make([][32]byte, len(vp.CommitmentsByPath)),
+		IPAProof:              &IPAProof{},
+	}
+
+	for i := range vp.OtherStems {
+		copy(ret.OtherStems[i][:], vp.OtherStems[i][:])
+	}
+
+	copy(ret.DepthExtensionPresent, vp.DepthExtensionPresent)
+	for i := range vp.CommitmentsByPath {
+		copy(ret.CommitmentsByPath[i][:], vp.CommitmentsByPath[i][:])
+	}
+	copy(ret.D[:], vp.D[:])
+
+	if vp.IPAProof != nil {
+		for i := range vp.IPAProof.CL {
+			copy(ret.IPAProof.CL[i][:], vp.IPAProof.CL[i][:])
+			copy(ret.IPAProof.CR[i][:], vp.IPAProof.CR[i][:])
+		}
+		copy(ret.IPAProof.FinalEvaluation[:], vp.IPAProof.FinalEvaluation[:])
+	}
+
+	return ret
+}
+
 type Proof struct {
 	Multipoint *ipa.MultiProof // multipoint argument
 	ExtStatus  []byte          // the extension status of each stem
