@@ -77,6 +77,22 @@ type StemStateDiff struct {
 
 type StateDiff []StemStateDiff
 
+func (sd StateDiff) Copy() StateDiff {
+	ret := make(StateDiff, len(sd))
+	for i := range sd {
+		copy(ret[i].Stem[:], sd[i].Stem[:])
+		ret[i].SuffixDiffs = make([]SuffixStateDiff, len(sd[i].SuffixDiffs))
+		for j := range sd[i].SuffixDiffs {
+			ret[i].SuffixDiffs[j].Suffix = sd[i].SuffixDiffs[j].Suffix
+			if sd[i].SuffixDiffs[j].CurrentValue != nil {
+				ret[i].SuffixDiffs[j].CurrentValue = &[32]byte{}
+				copy((*ret[i].SuffixDiffs[j].CurrentValue)[:], (*sd[i].SuffixDiffs[j].CurrentValue)[:])
+			}
+		}
+	}
+	return ret
+}
+
 func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte, resolver NodeResolverFn) (*ProofElements, []byte, [][]byte, error) {
 	sort.Sort(keylist(keys))
 	return root.GetProofItems(keylist(keys), resolver)
