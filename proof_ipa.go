@@ -61,21 +61,17 @@ func (vp *VerkleProof) Copy() *VerkleProof {
 	}
 
 	for i := range vp.OtherStems {
-		copy(ret.OtherStems[i][:], vp.OtherStems[i][:])
+		ret.OtherStems[i] = vp.OtherStems[i]
 	}
 
 	copy(ret.DepthExtensionPresent, vp.DepthExtensionPresent)
 	for i := range vp.CommitmentsByPath {
-		copy(ret.CommitmentsByPath[i][:], vp.CommitmentsByPath[i][:])
+		ret.CommitmentsByPath[i] = vp.CommitmentsByPath[i]
 	}
-	copy(ret.D[:], vp.D[:])
+	ret.D = vp.D
 
 	if vp.IPAProof != nil {
-		for i := range vp.IPAProof.CL {
-			copy(ret.IPAProof.CL[i][:], vp.IPAProof.CL[i][:])
-			copy(ret.IPAProof.CR[i][:], vp.IPAProof.CR[i][:])
-		}
-		copy(ret.IPAProof.FinalEvaluation[:], vp.IPAProof.FinalEvaluation[:])
+		ret.IPAProof = vp.IPAProof
 	}
 
 	return ret
