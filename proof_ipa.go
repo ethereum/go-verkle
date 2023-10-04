@@ -60,14 +60,10 @@ func (vp *VerkleProof) Copy() *VerkleProof {
 		IPAProof:              &IPAProof{},
 	}
 
-	for i := range vp.OtherStems {
-		ret.OtherStems[i] = vp.OtherStems[i]
-	}
-
+	copy(ret.OtherStems, vp.OtherStems)
 	copy(ret.DepthExtensionPresent, vp.DepthExtensionPresent)
-	for i := range vp.CommitmentsByPath {
-		ret.CommitmentsByPath[i] = vp.CommitmentsByPath[i]
-	}
+	copy(ret.CommitmentsByPath, vp.CommitmentsByPath)
+
 	ret.D = vp.D
 
 	if vp.IPAProof != nil {

@@ -909,7 +909,9 @@ func TestProofOfAbsenceBorderCase(t *testing.T) {
 	key2, _ := hex.DecodeString("0001000000000000000000000000000000000000000000000000000000000001")
 
 	// Insert an arbitrary value at key 0000000000000000000000000000000000000000000000000000000000000001
-	root.Insert(key1, fourtyKeyTest, nil)
+	if err := root.Insert(key1, fourtyKeyTest, nil); err != nil {
+		t.Fatalf("could not insert key: %v", err)
+	}
 
 	// Generate a proof for the following keys:
 	// - key1, which is present.
