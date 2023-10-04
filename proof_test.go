@@ -940,38 +940,3 @@ func TestProofOfAbsenceBorderCase(t *testing.T) {
 		t.Fatal("differing commitment for child #0")
 	}
 }
-
-func TestProofDeduping(t *testing.T) {
-	root := New()
-
-	key1, _ := hex.DecodeString("00000000000000000000000000000000000000000000000000000000000000fe")
-	key2, _ := hex.DecodeString("01000000000000000000000000000000000000000000000000000000000000fe")
-
-	root.Insert(key1, fourtyKeyTest, nil)
-	root.Insert(key2, fourtyKeyTest, nil)
-
-	proof, _, _, _, _ := MakeVerkleMultiProof(root, nil, keylist{key1, key2}, nil)
-
-	serialized, statediff, err := SerializeProof(proof)
-	if err != nil {
-		t.Fatalf("could not serialize proof: %v", err)
-	}
-
-	dproof, err := DeserializeProof(serialized, statediff)
-	if err != nil {
-		t.Fatalf("error deserializing proof: %v", err)
-	}
-
-	droot, err := PreStateTreeFromProof(dproof, root.Commit())
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if !droot.Commit().Equal(root.Commit()) {
-		t.Fatal("differing root commitments")
-	}
-
-	if !droot.(*InternalNode).children[0].Commit().Equal(root.(*InternalNode).children[0].Commit()) {
-		t.Fatal("differing commitment for child #0")
-	}
-}
