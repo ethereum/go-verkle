@@ -836,7 +836,7 @@ func groupKeys(keys keylist, depth byte) []keylist {
 }
 
 func (n *InternalNode) GetAndLoadForProof(key []byte, resolver NodeResolverFn) ([]byte, error) {
-	// Each internal node that is part of the proof needs to load all it's
+	// Each internal node that is part of the proof needs to load all its
 	// children since it's needed for proof openings.
 	childrenKey := make([]byte, n.depth+1)
 	copy(childrenKey, key[:n.depth])
