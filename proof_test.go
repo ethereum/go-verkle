@@ -950,7 +950,7 @@ func TestProofDeduping(t *testing.T) {
 	root.Insert(key1, fourtyKeyTest, nil)
 	root.Insert(key2, fourtyKeyTest, nil)
 
-	proof, _, _, _, _ := MakeVerkleMultiProof(root, keylist{key1, key2})
+	proof, _, _, _, _ := MakeVerkleMultiProof(root, nil, keylist{key1, key2}, nil)
 
 	serialized, statediff, err := SerializeProof(proof)
 	if err != nil {
@@ -962,16 +962,16 @@ func TestProofDeduping(t *testing.T) {
 		t.Fatalf("error deserializing proof: %v", err)
 	}
 
-	droot, err := TreeFromProof(dproof, root.Commit())
+	droot, err := PreStateTreeFromProof(dproof, root.Commit())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if !Equal(droot.Commit(), root.Commit()) {
+	if !droot.Commit().Equal(root.Commit()) {
 		t.Fatal("differing root commitments")
 	}
 
-	if !Equal(droot.(*InternalNode).children[0].Commit(), root.(*InternalNode).children[0].Commit()) {
+	if !droot.(*InternalNode).children[0].Commit().Equal(root.(*InternalNode).children[0].Commit()) {
 		t.Fatal("differing commitment for child #0")
 	}
 }
