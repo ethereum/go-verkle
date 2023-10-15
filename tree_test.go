@@ -1649,3 +1649,47 @@ func TestLeafNodeInsert(t *testing.T) {
 		t.Fatalf("hash should not be nil")
 	}
 }
+
+func TestGenerateProofWithOnlyAbsentKeys(t *testing.T) {
+	t.Parallel()
+
+	// Create a tree with only one key.
+	root := New()
+	presentKey, _ := hex.DecodeString("4000000000000000000000000000000000000000000000000000000000000000")
+	if err := root.Insert(presentKey, zeroKeyTest, nil); err != nil {
+		t.Fatalf("inserting into the original failed: %v", err)
+	}
+	root.Commit()
+
+	// Create a proof with a key with the same first byte, but different second byte (i.e: absent).
+	absentKey, _ := hex.DecodeString("4010000000000000000000000000000000000000000000000000000000000000")
+	proof, _, _, _, err := MakeVerkleMultiProof(root, nil, keylist{absentKey}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Serialize + Deserialize + build tree from proof.
+	vp, statediff, err := SerializeProof(proof)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dproof, err := DeserializeProof(vp, statediff)
+	if err != nil {
+		t.Fatal(err)
+	}
+	droot, err := PreStateTreeFromProof(dproof, root.Commit())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// From the rebuilt tree, validate the proof.
+	pe, _, _, err := GetCommitmentsForMultiproof(droot, keylist{absentKey}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// It must pass.
+	if ok, err := VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, cfg); !ok || err != nil {
+		t.Fatal("proof didn't verify")
+	}
+}
