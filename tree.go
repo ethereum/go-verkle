@@ -439,6 +439,16 @@ func (n *InternalNode) CreatePath(path []byte, stemInfo stemInfo, comms []*Point
 			n.children[path[0]] = Empty{}
 		case extStatusAbsentOther:
 			// insert poa stem
+			newchild := &LeafNode{
+				commitment: comms[0],
+				stem:       stemInfo.stem,
+				values:     nil,
+				depth:      n.depth + 1,
+			}
+			n.children[path[0]] = newchild
+			comms = comms[1:]
+			newchild.c1 = new(Point)
+			newchild.c2 = new(Point)
 		case extStatusPresent:
 			// insert stem
 			newchild := &LeafNode{
@@ -1375,10 +1385,15 @@ func (n *LeafNode) GetProofItems(keys keylist, _ NodeResolverFn) (*ProofElements
 	// First pass: add top-level elements first
 	var hasC1, hasC2 bool
 	for _, key := range keys {
-		hasC1 = hasC1 || (key[31] < 128)
-		hasC2 = hasC2 || (key[31] >= 128)
-		if hasC2 {
-			break
+		// Note that keys might contain keys that don't correspond to this leaf node.
+		// We should only analize the inclusion of C1/C2 for keys corresponding to this
+		// leaf node stem.
+		if equalPaths(n.stem, key) {
+			hasC1 = hasC1 || (key[31] < 128)
+			hasC2 = hasC2 || (key[31] >= 128)
+			if hasC2 {
+				break
+			}
 		}
 	}
 	if hasC1 {
