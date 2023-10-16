@@ -467,7 +467,8 @@ func (n *InternalNode) CreatePath(path []byte, stemInfo stemInfo, comms []*Point
 			n.children[path[0]] = Empty{}
 		case extStatusAbsentOther:
 			// insert poa stem
-			n.children[path[0]] = UnknownNode{stem: stemInfo.stem}
+			n.children[path[0]] = UnknownNode{stem: stemInfo.stem, commitment: comms[0]}
+			comms = comms[1:]
 		case extStatusPresent:
 			// insert stem
 			newchild := &LeafNode{
@@ -913,9 +914,23 @@ func (n *InternalNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*Pr
 	for _, group := range groups {
 		childIdx := offset2key(group[0], n.depth)
 
-		if _, isunknown := n.children[childIdx].(UnknownNode); isunknown {
-			// TODO: add a test case to cover this scenario.
-			return nil, nil, nil, errMissingNodeInStateless
+		if unknown, isunknown := n.children[childIdx].(UnknownNode); isunknown {
+			if len(unknown.stem) == 0 || equalPaths(unknown.stem, group[0]) {
+				// TODO: add a test case to cover this scenario.
+				return nil, nil, nil, errMissingNodeInStateless
+			}
+			var y0, y1 Fr
+			y0.SetUint64(1)
+			if err := StemFromBytes(&y1, unknown.stem); err != nil {
+				return nil, nil, nil, fmt.Errorf("error serializing stem '%x': %w", unknown.stem, err)
+			}
+			esses = append(esses, extStatusAbsentOther|((n.depth+1)<<3))
+			poass = append(poass, unknown.stem)
+			pe.Cis = append(pe.Cis, unknown.commitment, unknown.commitment)
+			pe.Zis = append(pe.Zis, 0, 1)
+			pe.Yis = append(pe.Yis, &y0, &y1)
+			pe.ByPath[string(group[0][:n.depth])] = unknown.commitment
+			continue
 		}
 
 		// Special case of a proof of absence: no children
@@ -1407,10 +1422,15 @@ func (n *LeafNode) GetProofItems(keys keylist, _ NodeResolverFn) (*ProofElements
 	// First pass: add top-level elements first
 	var hasC1, hasC2 bool
 	for _, key := range keys {
-		hasC1 = hasC1 || (key[31] < 128)
-		hasC2 = hasC2 || (key[31] >= 128)
-		if hasC2 {
-			break
+		// Note that keys might contain keys that don't correspond to this leaf node.
+		// We should only analize the inclusion of C1/C2 for keys corresponding to this
+		// leaf node stem.
+		if equalPaths(n.stem, key) {
+			hasC1 = hasC1 || (key[31] < 128)
+			hasC2 = hasC2 || (key[31] >= 128)
+			if hasC2 {
+				break
+			}
 		}
 	}
 	if hasC1 {

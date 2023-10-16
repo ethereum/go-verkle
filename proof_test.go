@@ -519,10 +519,10 @@ func TestProofOfAbsenceOtherMultipleLeaves(t *testing.T) {
 	}
 
 	if _, ok := node.children[ret3[4]].(*LeafNode); !ok {
-		t.Fatalf("expected leaf node at depth 5, got %v", node.children[ret3[5]])
+		t.Fatalf("expected leaf node at depth 5, got %v", node.children[ret3[4]])
 	}
 	if _, ok := node.children[key[4]].(UnknownNode); !ok {
-		t.Fatalf("expected unknown node at depth 5, got %v", node.children[key[5]])
+		t.Fatalf("expected unknown node at depth 5, got %v", node.children[key[4]])
 	}
 }
 
@@ -979,5 +979,58 @@ func TestProofOfAbsenceBorderCase(t *testing.T) {
 
 	if !droot.(*InternalNode).children[0].Commit().Equal(root.(*InternalNode).children[0].Commit()) {
 		t.Fatal("differing commitment for child #0")
+	}
+}
+
+func TestGenerateProofWithOnlyAbsentKeys(t *testing.T) {
+	t.Parallel()
+
+	// Create a tree with only one key.
+	root := New()
+	presentKey, _ := hex.DecodeString("4000000000000000000000000000000000000000000000000000000000000000")
+	if err := root.Insert(presentKey, zeroKeyTest, nil); err != nil {
+		t.Fatalf("inserting into the original failed: %v", err)
+	}
+	root.Commit()
+
+	// Create a proof with a key with the same first byte, but different second byte (i.e: absent).
+	absentKey, _ := hex.DecodeString("4010000000000000000000000000000000000000000000000000000000000000")
+	proof, cis, zis, yis, err := MakeVerkleMultiProof(root, nil, keylist{absentKey}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Serialize + Deserialize + build tree from proof.
+	vp, statediff, err := SerializeProof(proof)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dproof, err := DeserializeProof(vp, statediff)
+	if err != nil {
+		t.Fatal(err)
+	}
+	droot, err := PreStateTreeFromProof(dproof, root.Commit())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// From the rebuilt tree, validate the proof.
+	pe, _, _, err := GetCommitmentsForMultiproof(droot, keylist{absentKey}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// It must pass.
+	if ok, err := VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, cfg); !ok || err != nil {
+		for i := range cis {
+			t.Logf("%x %x", pe.Cis[i].Bytes(), cis[i].Bytes())
+		}
+		for i := range yis {
+			t.Logf("%x %x", pe.Yis[i].Bytes(), yis[i].Bytes())
+		}
+		for i := range zis {
+			t.Logf("%d %d", pe.Zis[i], zis[i])
+		}
+		t.Logf("size of yis: %d", len(yis))
+		t.Fatal("proof didn't verify")
 	}
 }

@@ -31,7 +31,8 @@ import (
 )
 
 type UnknownNode struct {
-	stem []byte // optional stem used for storing an "other" stem in case of a proof of absence
+	stem       []byte // optional stem used for storing an "other" stem in case of a proof of absence
+	commitment *Point
 }
 
 func (UnknownNode) Insert([]byte, []byte, NodeResolverFn) error {
@@ -53,7 +54,10 @@ func (n UnknownNode) Commit() *Point {
 	return n.Commitment()
 }
 
-func (UnknownNode) Commitment() *Point {
+func (n UnknownNode) Commitment() *Point {
+	if len(n.stem) != 0 {
+		return n.commitment
+	}
 	var id Point
 	id.SetIdentity()
 	return &id
