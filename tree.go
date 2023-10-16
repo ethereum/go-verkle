@@ -385,14 +385,15 @@ func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeRes
 		// splits.
 		return n.InsertStem(stem, values, resolver)
 	case *LeafNode:
-		if child.isPOAStub {
-			return errIsPOAStub
-		}
-
-		n.cowChild(nChild)
 		if equalPaths(child.stem, stem) {
+			// We can't insert anything into a POA leaf node.
+			if child.isPOAStub {
+				return errIsPOAStub
+			}
+			n.cowChild(nChild)
 			return child.insertMultiple(stem, values)
 		}
+		n.cowChild(nChild)
 
 		// A new branch node has to be inserted. Depending
 		// on the next word in both keys, a recursion into
@@ -535,10 +536,12 @@ func (n *InternalNode) GetStem(stem []byte, resolver NodeResolverFn) ([][]byte, 
 		// splits.
 		return n.GetStem(stem, resolver)
 	case *LeafNode:
-		if child.isPOAStub {
-			return nil, errIsPOAStub
-		}
 		if equalPaths(child.stem, stem) {
+			// We can't return the values since it's a POA leaf node, so we know nothing
+			// about its values.
+			if child.isPOAStub {
+				return nil, errIsPOAStub
+			}
 			return child.values, nil
 		}
 		return nil, nil
