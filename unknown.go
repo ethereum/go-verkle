@@ -25,9 +25,14 @@
 
 package verkle
 
-import "errors"
+import (
+	"bytes"
+	"errors"
+)
 
-type UnknownNode struct{}
+type UnknownNode struct {
+	stem []byte // optional stem used for storing an "other" stem in case of a proof of absence
+}
 
 func (UnknownNode) Insert([]byte, []byte, NodeResolverFn) error {
 	return errMissingNodeInStateless
@@ -37,7 +42,10 @@ func (UnknownNode) Delete([]byte, NodeResolverFn) (bool, error) {
 	return false, errors.New("cant delete in a subtree missing form a stateless view")
 }
 
-func (UnknownNode) Get([]byte, NodeResolverFn) ([]byte, error) {
+func (un UnknownNode) Get(key []byte, _ NodeResolverFn) ([]byte, error) {
+	if bytes.Equal(un.stem, key[:31]) {
+		return nil, errMissingNodeInStateless
+	}
 	return nil, nil
 }
 
@@ -59,8 +67,8 @@ func (UnknownNode) Serialize() ([]byte, error) {
 	return nil, errors.New("trying to serialize a subtree missing from the statless view")
 }
 
-func (UnknownNode) Copy() VerkleNode {
-	return UnknownNode(struct{}{})
+func (un UnknownNode) Copy() VerkleNode {
+	return UnknownNode{stem: un.stem}
 }
 
 func (UnknownNode) toDot(string, string) string {

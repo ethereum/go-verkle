@@ -30,9 +30,6 @@ func TestUnknownFuncs(t *testing.T) {
 	if _, err := un.Serialize(); err == nil {
 		t.Errorf("got nil error when serializing a hashed node")
 	}
-	if un != un.Copy() {
-		t.Errorf("copy returned a different node")
-	}
 	if un.toDot("", "") != "" {
 		t.Errorf("toDot returned a non-empty string")
 	}

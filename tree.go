@@ -243,7 +243,7 @@ func NewStatelessInternal(depth byte, comm *Point) VerkleNode {
 		commitment: comm,
 	}
 	for idx := range node.children {
-		node.children[idx] = UnknownNode(struct{}{})
+		node.children[idx] = UnknownNode{}
 	}
 	return node
 }
@@ -353,7 +353,35 @@ func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeRes
 
 	switch child := n.children[nChild].(type) {
 	case UnknownNode:
-		return errMissingNodeInStateless
+		if len(child.stem) == 0 || equalPaths(stem, child.stem) {
+			return errMissingNodeInStateless
+		}
+		// TODO factor code here
+		// A new branch node has to be inserted. Depending
+		// on the next word in both keys, a recursion into
+		// the moved unknown node can occur.
+		nextWordInExistingKey := offset2key(child.stem, n.depth+1)
+		newBranch := newInternalNode(n.depth + 1).(*InternalNode)
+		n.children[nChild] = newBranch
+		newBranch.children[nextWordInExistingKey] = child
+
+		nextWordInInsertedKey := offset2key(stem, n.depth+1)
+		if nextWordInInsertedKey == nextWordInExistingKey {
+			// stems do not differ here, insert a branch node with
+			// a single value, as the code would if it was a simple
+			// leaf node.
+			return newBranch.InsertStem(stem, values, resolver)
+		}
+
+		// Next word differs, so this was the last level.
+		// Insert it directly into its final slot.
+		leaf, err := NewLeafNode(stem, values)
+		if err != nil {
+			return err
+		}
+		leaf.setDepth(n.depth + 2)
+		newBranch.cowChild(nextWordInInsertedKey)
+		newBranch.children[nextWordInInsertedKey] = leaf
 	case Empty:
 		n.cowChild(nChild)
 		var err error
@@ -439,6 +467,7 @@ func (n *InternalNode) CreatePath(path []byte, stemInfo stemInfo, comms []*Point
 			n.children[path[0]] = Empty{}
 		case extStatusAbsentOther:
 			// insert poa stem
+			n.children[path[0]] = UnknownNode{stem: stemInfo.stem}
 		case extStatusPresent:
 			// insert stem
 			newchild := &LeafNode{
@@ -497,6 +526,9 @@ func (n *InternalNode) GetStem(stem []byte, resolver NodeResolverFn) ([][]byte, 
 	nchild := offset2key(stem, n.depth) // index of the child pointed by the next byte in the key
 	switch child := n.children[nchild].(type) {
 	case UnknownNode:
+		if len(child.stem) != 0 && !equalPaths(child.stem, stem) {
+			return nil, nil
+		}
 		return nil, errMissingNodeInStateless
 	case Empty:
 		return nil, nil

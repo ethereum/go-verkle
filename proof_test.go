@@ -472,7 +472,7 @@ func TestProofOfAbsenceOtherMultipleLeaves(t *testing.T) {
 	if err := root.Insert(key, testValue, nil); err != nil {
 		t.Fatalf("could not insert key: %v", err)
 	}
-	root.Commit()
+	rootC := root.Commit()
 
 	ret1, _ := hex.DecodeString("0303030303030303030303030303030303030303030303030303030303030300")
 	ret2, _ := hex.DecodeString("0303030303030303030303030303030303030303030303030303030303030301")
@@ -484,6 +484,45 @@ func TestProofOfAbsenceOtherMultipleLeaves(t *testing.T) {
 
 	if len(proof.PoaStems) > 1 {
 		t.Fatalf("invalid number of proof-of-absence stems: %d", len(proof.PoaStems))
+	}
+
+	deserialized, err := PreStateTreeFromProof(proof, rootC)
+	if err != nil {
+		t.Fatalf("error deserializing %v", err)
+	}
+
+	got, err := deserialized.Get(ret1, nil)
+	if err != nil {
+		t.Fatalf("error while trying to read missing value: %v", err)
+	}
+	if got != nil {
+		t.Fatalf("should have returned nil, got: %v", got)
+	}
+
+	// simulate the execution of a tx that creates a leaf at an address that isn't the one that is
+	// proven for absence, but needs to be inserted in the proof-of-absence stem.
+	// It differs from the poa stem here: 🠃
+	ret3, _ := hex.DecodeString("0303030304030303030303030303030303030303030303030303030303030300")
+	err = deserialized.Insert(ret3, testValue, nil)
+	if err != nil {
+		t.Fatalf("error inserting value in proof-of-asbsence stem: %v", err)
+	}
+
+	// check that there are splits up to depth 4
+	node := deserialized.(*InternalNode)
+	for node.depth < 4 {
+		child, ok := node.children[ret3[node.depth]].(*InternalNode)
+		if !ok {
+			t.Fatalf("expected Internal node at depth %d, trie = %s", node.depth, ToDot(deserialized))
+		}
+		node = child
+	}
+
+	if _, ok := node.children[ret3[4]].(*LeafNode); !ok {
+		t.Fatalf("expected leaf node at depth 5, got %v", node.children[ret3[5]])
+	}
+	if _, ok := node.children[key[4]].(UnknownNode); !ok {
+		t.Fatalf("expected unknown node at depth 5, got %v", node.children[key[5]])
 	}
 }
 
