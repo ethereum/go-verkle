@@ -43,7 +43,7 @@ func (UnknownNode) Delete([]byte, NodeResolverFn) (bool, error) {
 }
 
 func (un UnknownNode) Get(key []byte, _ NodeResolverFn) ([]byte, error) {
-	if bytes.Equal(un.stem, key[:31]) {
+	if len(un.stem) != 0 && bytes.Equal(un.stem, key[:31]) {
 		return nil, errMissingNodeInStateless
 	}
 	return nil, nil
