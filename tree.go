@@ -1419,13 +1419,12 @@ func (n *LeafNode) GetProofItems(keys keylist, _ NodeResolverFn) (*ProofElements
 		if err := banderwagon.BatchMapToScalarField([]*Fr{&poly[2], &poly[3]}, []*Point{n.c1, n.c2}); err != nil {
 			return nil, nil, nil, fmt.Errorf("batch mapping to scalar fields: %s", err)
 		}
-	} else {
-		if hasC1 {
-			n.c1.MapToScalarField(&poly[2])
-		}
-		if hasC2 {
-			n.c2.MapToScalarField(&poly[3])
-		}
+	} else if hasC1 || hasC2 || n.c1 != nil || n.c2 != nil {
+		// This LeafNode is a proof of absence stub. It must be true that
+		// both c1 and c2 are nil, and that hasC1 and hasC2 are false.
+		// Let's just check that to be sure, since the code below can't use
+		// poly[2] or poly[3].
+		return nil, nil, nil, fmt.Errorf("invalid proof of absence stub")
 	}
 
 	if hasC1 {
