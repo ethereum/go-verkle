@@ -386,7 +386,7 @@ func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeRes
 		return n.InsertStem(stem, values, resolver)
 	case *LeafNode:
 		if equalPaths(child.stem, stem) {
-			// We can't insert anything into a POA leaf node.
+			// We can't insert any values into a POA leaf node.
 			if child.isPOAStub {
 				return errIsPOAStub
 			}
