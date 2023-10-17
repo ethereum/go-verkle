@@ -873,6 +873,7 @@ func (n *InternalNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*Pr
 				if err != nil {
 					return nil, nil, nil, err
 				}
+				n.children[i] = c
 			} else {
 				c = child
 			}
