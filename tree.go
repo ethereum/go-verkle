@@ -183,6 +183,11 @@ type (
 		c1, c2     *Point
 
 		depth byte
+
+		// IsPOAStub indicates if this LeafNode is a proof of absence
+		// for a steam that isn't present in the tree. This flag is only
+		// true in the context of a stateless tree.
+		isPOAStub bool
 	}
 )
 
@@ -380,10 +385,15 @@ func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeRes
 		// splits.
 		return n.InsertStem(stem, values, resolver)
 	case *LeafNode:
-		n.cowChild(nChild)
 		if equalPaths(child.stem, stem) {
+			// We can't insert any values into a POA leaf node.
+			if child.isPOAStub {
+				return errIsPOAStub
+			}
+			n.cowChild(nChild)
 			return child.insertMultiple(stem, values)
 		}
+		n.cowChild(nChild)
 
 		// A new branch node has to be inserted. Depending
 		// on the next word in both keys, a recursion into
@@ -439,6 +449,15 @@ func (n *InternalNode) CreatePath(path []byte, stemInfo stemInfo, comms []*Point
 			n.children[path[0]] = Empty{}
 		case extStatusAbsentOther:
 			// insert poa stem
+			newchild := &LeafNode{
+				commitment: comms[0],
+				stem:       stemInfo.stem,
+				values:     nil,
+				depth:      n.depth + 1,
+				isPOAStub:  true,
+			}
+			n.children[path[0]] = newchild
+			comms = comms[1:]
 		case extStatusPresent:
 			// insert stem
 			newchild := &LeafNode{
@@ -518,6 +537,11 @@ func (n *InternalNode) GetStem(stem []byte, resolver NodeResolverFn) ([][]byte, 
 		return n.GetStem(stem, resolver)
 	case *LeafNode:
 		if equalPaths(child.stem, stem) {
+			// We can't return the values since it's a POA leaf node, so we know nothing
+			// about its values.
+			if child.isPOAStub {
+				return nil, errIsPOAStub
+			}
 			return child.values, nil
 		}
 		return nil, nil
@@ -1014,6 +1038,10 @@ func (n *InternalNode) touchCoW(index byte) {
 }
 
 func (n *LeafNode) Insert(key []byte, value []byte, _ NodeResolverFn) error {
+	if n.isPOAStub {
+		return errIsPOAStub
+	}
+
 	if len(key) != StemSize+1 {
 		return fmt.Errorf("invalid key size: %d", len(key))
 	}
@@ -1268,6 +1296,10 @@ func (n *LeafNode) Delete(k []byte, _ NodeResolverFn) (bool, error) {
 }
 
 func (n *LeafNode) Get(k []byte, _ NodeResolverFn) ([]byte, error) {
+	if n.isPOAStub {
+		return nil, errIsPOAStub
+	}
+
 	if !equalPaths(k, n.stem) {
 		// If keys differ, return nil in order to
 		// signal that the key isn't present in the
@@ -1368,19 +1400,36 @@ func (n *LeafNode) GetProofItems(keys keylist, _ NodeResolverFn) (*ProofElements
 	if err := StemFromBytes(&poly[1], n.stem); err != nil {
 		return nil, nil, nil, fmt.Errorf("error serializing stem '%x': %w", n.stem, err)
 	}
-	if err := banderwagon.BatchMapToScalarField([]*Fr{&poly[2], &poly[3]}, []*Point{n.c1, n.c2}); err != nil {
-		return nil, nil, nil, fmt.Errorf("batch mapping to scalar fields: %s", err)
-	}
 
 	// First pass: add top-level elements first
 	var hasC1, hasC2 bool
 	for _, key := range keys {
-		hasC1 = hasC1 || (key[31] < 128)
-		hasC2 = hasC2 || (key[31] >= 128)
-		if hasC2 {
-			break
+		// Note that keys might contain keys that don't correspond to this leaf node.
+		// We should only analize the inclusion of C1/C2 for keys corresponding to this
+		// leaf node stem.
+		if equalPaths(n.stem, key) {
+			hasC1 = hasC1 || (key[31] < 128)
+			hasC2 = hasC2 || (key[31] >= 128)
+			if hasC2 {
+				break
+			}
 		}
 	}
+
+	// If this tree is a full tree (i.e: not a stateless tree), we know we have c1 and c2 values.
+	// Also, we _need_ them independently of hasC1 or hasC2 since the prover needs `Fis`.
+	if !n.isPOAStub {
+		if err := banderwagon.BatchMapToScalarField([]*Fr{&poly[2], &poly[3]}, []*Point{n.c1, n.c2}); err != nil {
+			return nil, nil, nil, fmt.Errorf("batch mapping to scalar fields: %s", err)
+		}
+	} else if hasC1 || hasC2 || n.c1 != nil || n.c2 != nil {
+		// This LeafNode is a proof of absence stub. It must be true that
+		// both c1 and c2 are nil, and that hasC1 and hasC2 are false.
+		// Let's just check that to be sure, since the code below can't use
+		// poly[2] or poly[3].
+		return nil, nil, nil, fmt.Errorf("invalid proof of absence stub")
+	}
+
 	if hasC1 {
 		pe.Cis = append(pe.Cis, n.commitment)
 		pe.Zis = append(pe.Zis, 2)
