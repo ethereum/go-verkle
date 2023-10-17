@@ -1571,6 +1571,7 @@ func (n *LeafNode) Copy() VerkleNode {
 		l.c2 = new(Point)
 		l.c2.Set(n.c2)
 	}
+	l.isPOAStub = n.isPOAStub
 
 	return l
 }
