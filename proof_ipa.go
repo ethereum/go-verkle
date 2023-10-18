@@ -332,7 +332,8 @@ func DeserializeProof(vp *VerkleProof, statediff StateDiff) (*Proof, error) {
 
 	poaStems = make([][]byte, len(vp.OtherStems))
 	for i, poaStem := range vp.OtherStems {
-		poaStems[i] = poaStem[:]
+		poaStems[i] = make([]byte, len(poaStem))
+		copy(poaStems[i], poaStem[:])
 	}
 
 	extStatus = vp.DepthExtensionPresent
