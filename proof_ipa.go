@@ -109,6 +109,10 @@ func (sd StateDiff) Copy() StateDiff {
 				ret[i].SuffixDiffs[j].CurrentValue = &[32]byte{}
 				copy((*ret[i].SuffixDiffs[j].CurrentValue)[:], (*sd[i].SuffixDiffs[j].CurrentValue)[:])
 			}
+			if sd[i].SuffixDiffs[j].NewValue != nil {
+				ret[i].SuffixDiffs[j].NewValue = &[32]byte{}
+				copy((*ret[i].SuffixDiffs[j].NewValue)[:], (*sd[i].SuffixDiffs[j].NewValue)[:])
+			}
 		}
 	}
 	return ret
