@@ -838,7 +838,7 @@ func TestStatelessDeserializeDepth2(t *testing.T) {
 	}
 }
 
-func TestProofVerificationWithPostState(t *testing.T) {
+func TestProofVerificationWithPostState(t *testing.T) { // skipcq: GO-R1005
 	t.Parallel()
 
 	testlist := []struct {
