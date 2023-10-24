@@ -924,7 +924,7 @@ func TestProofVerificationWithPostState(t *testing.T) {
 				t.Fatalf("error deserializing proof: %v", err)
 			}
 
-			if err = VerifyVerkleProofWithPreAndPostTrie(dproof, root, postroot); err != nil {
+			if err = VerifyVerkleProofWithPreState(dproof, root); err != nil {
 				t.Fatalf("could not verify verkle proof: %v, original: %s reconstructed: %s", err, ToDot(root), ToDot(postroot))
 			}
 
@@ -937,7 +937,7 @@ func TestProofVerificationWithPostState(t *testing.T) {
 			if err != nil {
 				t.Fatalf("error recreating post tree: %v", err)
 			}
-			if err = VerifyVerkleProofWithPreAndPostTrie(dproof, dpreroot, dpostroot); err != nil {
+			if err = VerifyVerkleProofWithPreState(dproof, dpreroot); err != nil {
 				t.Fatalf("could not verify verkle proof: %v, original: %s reconstructed: %s", err, ToDot(dpreroot), ToDot(dpostroot))
 			}
 		})
