@@ -126,73 +126,49 @@ func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte, resolver NodeRe
 // getProofElementsFromTree factors the logic that is used both in the proving and verification methods. It takes a pre-state
 // tree and an optional post-state tree, extracts the proof data from them and returns all the items required to build/verify
 // a proof.
-func getProofElementsFromTree(preroot, postroot VerkleNode, keys [][]byte, resolver NodeResolverFn) (*ProofElements, []byte, [][]byte, [][]byte, []*Point, [][]Fr, []*Fr, []byte, error) {
+func getProofElementsFromTree(preroot, postroot VerkleNode, keys [][]byte, resolver NodeResolverFn) (*ProofElements, []byte, [][]byte, [][]byte, error) {
 	// go-ipa won't accept no key as an input, catch this corner case
 	// and return an empty result.
 	if len(keys) == 0 {
-		return nil, nil, nil, nil, nil, nil, nil, nil, errors.New("no key provided for proof")
+		return nil, nil, nil, nil, errors.New("no key provided for proof")
 	}
 
 	pe, es, poas, err := GetCommitmentsForMultiproof(preroot, keys, resolver)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("error getting pre-state proof data: %w", err)
-	}
-
-	// List of points and vectors and indices used to generate the IPA proof
-	// If only a pre-state root is available, it's a simple copy, but if both
-	// pre- and post-state root are present, it's merging the two lists.
-	var (
-		proof_cis []*Point
-		proof_fs  [][]Fr
-		proof_zs  []uint8
-		proof_ys  []*Fr
-		postvals  = make([][]byte, len(keys))
-	)
-	for i := range pe.Cis {
-		proof_cis = append(proof_cis, pe.Cis[i])
-		proof_fs = append(proof_fs, pe.Fis[i])
-		proof_ys = append(proof_ys, pe.Yis[i])
-		proof_zs = append(proof_zs, pe.Zis[i])
+		return nil, nil, nil, nil, fmt.Errorf("error getting pre-state proof data: %w", err)
 	}
 
 	// if a post-state tree is present, merge its proof elements with
 	// those of the pre-state tree, so that they can be proved together.
+	postvals := make([][]byte, len(keys))
 	if postroot != nil {
-		pe_post, _, _, err := GetCommitmentsForMultiproof(postroot, keys, resolver)
-		if err != nil {
-			return nil, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("error getting post-state proof data: %w", err)
-		}
-
-		for i := range pe_post.Cis {
-			proof_cis = append(proof_cis, pe_post.Cis[i])
-			proof_fs = append(proof_fs, pe_post.Fis[i])
-			proof_ys = append(proof_ys, pe_post.Yis[i])
-			proof_zs = append(proof_zs, pe_post.Zis[i])
-		}
-
+		// keys were sorted already in the above GetcommitmentsForMultiproof.
 		// Set the post values, if they are untouched, leave them `nil`
-		for i, v := range pe.Vals {
-			if !bytes.Equal(v, pe_post.Vals[i]) {
-				postvals[i] = pe_post.Vals[i]
+		for i := range keys {
+			val, err := postroot.Get(keys[i], resolver)
+			if err != nil {
+				return nil, nil, nil, nil, fmt.Errorf("error getting post-state value for key %x: %w", keys[i], err)
+			}
+			if !bytes.Equal(pe.Vals[i], val) {
+				postvals[i] = val
 			}
 		}
 	}
 
 	// [0:3]: proof elements of the pre-state trie for serialization,
 	// 3: values to be inserted in the post-state trie for serialization
-	// [4:8]: aggregated pre+post elements for proving
-	return pe, es, poas, postvals, proof_cis, proof_fs, proof_ys, proof_zs, nil
+	return pe, es, poas, postvals, nil
 }
 
 func MakeVerkleMultiProof(preroot, postroot VerkleNode, keys [][]byte, resolver NodeResolverFn) (*Proof, []*Point, []byte, []*Fr, error) {
-	pe, es, poas, postvals, proof_cis, proof_fs, _, proof_zs, err := getProofElementsFromTree(preroot, postroot, keys, resolver)
+	pe, es, poas, postvals, err := getProofElementsFromTree(preroot, postroot, keys, resolver)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("get commitments for multiproof: %s", err)
 	}
 
 	cfg := GetConfig()
 	tr := common.NewTranscript("vt")
-	mpArg, err := ipa.CreateMultiProof(tr, cfg.conf, proof_cis, proof_fs, proof_zs)
+	mpArg, err := ipa.CreateMultiProof(tr, cfg.conf, pe.Cis, pe.Fis, pe.Zis)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("creating multiproof: %w", err)
 	}
@@ -226,15 +202,14 @@ func MakeVerkleMultiProof(preroot, postroot VerkleNode, keys [][]byte, resolver 
 	return proof, pe.Cis, pe.Zis, pe.Yis, nil
 }
 
-// VerifyVerkleProofWithPreAndPostTrie takes a pre-state trie, a post-state trie and a list of keys, and verifies that
-// the provided proof verifies. If the post-state trie is `nil`, the behavior is the same as `VerifyVerkleProof`.
-func VerifyVerkleProofWithPreAndPostTrie(proof *Proof, preroot, postroot VerkleNode) error {
-	_, _, _, _, proof_cis, _, proof_ys, proof_zs, err := getProofElementsFromTree(preroot, postroot, proof.Keys, nil)
+// VerifyVerkleProofWithPreState takes a proof and a trusted tree root and verifies that the proof is valid.
+func VerifyVerkleProofWithPreState(proof *Proof, preroot VerkleNode) error {
+	pe, _, _, _, err := getProofElementsFromTree(preroot, nil, proof.Keys, nil)
 	if err != nil {
 		return fmt.Errorf("error getting proof elements: %w", err)
 	}
 
-	if ok, err := VerifyVerkleProof(proof, proof_cis, proof_zs, proof_ys, GetConfig()); !ok || err != nil {
+	if ok, err := VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, GetConfig()); !ok || err != nil {
 		return fmt.Errorf("error verifying proof: verifies=%v, error=%w", ok, err)
 	}
 

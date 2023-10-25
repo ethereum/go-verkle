@@ -838,7 +838,7 @@ func TestStatelessDeserializeDepth2(t *testing.T) {
 	}
 }
 
-func TestProofVerificationWithPostState(t *testing.T) {
+func TestProofVerificationWithPostState(t *testing.T) { // skipcq: GO-R1005
 	t.Parallel()
 
 	testlist := []struct {
@@ -914,6 +914,33 @@ func TestProofVerificationWithPostState(t *testing.T) {
 
 			proof, _, _, _, _ := MakeVerkleMultiProof(root, postroot, data.keystoprove, nil)
 
+		keys:
+			for i := range proof.Keys {
+				// Check that the pre-state value is the one that we originally inserted.
+				for j := range data.keys {
+					if bytes.Equal(proof.Keys[i], data.keys[j]) {
+						if !bytes.Equal(proof.PreValues[i], data.values[j]) {
+							t.Fatalf("pre-state value mismatch for key %x: %x != %x", data.keys[j], proof.PreValues[i], data.values[j])
+						}
+						break
+					}
+				}
+
+				for j := range data.updatekeys {
+					// The the key was updated then check that the post-state value is the updated value.
+					if bytes.Equal(proof.Keys[i], data.updatekeys[j]) {
+						if !bytes.Equal(proof.PostValues[i], data.updatevalues[j]) {
+							t.Fatalf("post-state value mismatch for key %x: %x != %x", data.updatekeys[j], proof.PostValues[i], data.updatevalues[j])
+						}
+						continue keys
+					}
+				}
+				// If the key was not updated then check that the post-state value is null.
+				if proof.PostValues[i] != nil {
+					t.Fatalf("post-state value mismatch for key %x: %x != nil", proof.Keys[i], proof.PostValues[i])
+				}
+			}
+
 			p, diff, err := SerializeProof(proof)
 			if err != nil {
 				t.Fatalf("error serializing proof: %v", err)
@@ -924,7 +951,7 @@ func TestProofVerificationWithPostState(t *testing.T) {
 				t.Fatalf("error deserializing proof: %v", err)
 			}
 
-			if err = VerifyVerkleProofWithPreAndPostTrie(dproof, root, postroot); err != nil {
+			if err = VerifyVerkleProofWithPreState(dproof, root); err != nil {
 				t.Fatalf("could not verify verkle proof: %v, original: %s reconstructed: %s", err, ToDot(root), ToDot(postroot))
 			}
 
@@ -937,7 +964,12 @@ func TestProofVerificationWithPostState(t *testing.T) {
 			if err != nil {
 				t.Fatalf("error recreating post tree: %v", err)
 			}
-			if err = VerifyVerkleProofWithPreAndPostTrie(dproof, dpreroot, dpostroot); err != nil {
+			// Check that the reconstructed post-state tree root matches the real tree.
+			if !postroot.Commitment().Equal(dpostroot.Commitment()) {
+				t.Fatalf("differing root commitments %x != %x", dpostroot.Commitment().Bytes(), postroot.Commitment().Bytes())
+			}
+
+			if err = VerifyVerkleProofWithPreState(dproof, dpreroot); err != nil {
 				t.Fatalf("could not verify verkle proof: %v, original: %s reconstructed: %s", err, ToDot(dpreroot), ToDot(dpostroot))
 			}
 		})
