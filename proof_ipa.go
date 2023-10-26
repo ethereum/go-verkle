@@ -30,6 +30,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"time"
 	"unsafe"
 
 	ipa "github.com/crate-crypto/go-ipa"
@@ -133,16 +134,19 @@ func getProofElementsFromTree(preroot, postroot VerkleNode, keys [][]byte, resol
 		return nil, nil, nil, nil, errors.New("no key provided for proof")
 	}
 
+	start := time.Now()
 	pe, es, poas, err := GetCommitmentsForMultiproof(preroot, keys, resolver)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("error getting pre-state proof data: %w", err)
 	}
+	// Analytics
+	PreStateGetElementsForProofDuration = time.Since(start)
+	PreStateNumOpenings = len(pe.Cis)
 
 	// if a post-state tree is present, merge its proof elements with
 	// those of the pre-state tree, so that they can be proved together.
 	postvals := make([][]byte, len(keys))
 	if postroot != nil {
-		// keys were sorted already in the above GetcommitmentsForMultiproof.
 		// Set the post values, if they are untouched, leave them `nil`
 		for i := range keys {
 			val, err := postroot.Get(keys[i], resolver)
@@ -166,12 +170,17 @@ func MakeVerkleMultiProof(preroot, postroot VerkleNode, keys [][]byte, resolver 
 		return nil, nil, nil, nil, fmt.Errorf("get commitments for multiproof: %s", err)
 	}
 
+	start := time.Now()
 	cfg := GetConfig()
 	tr := common.NewTranscript("vt")
 	mpArg, err := ipa.CreateMultiProof(tr, cfg.conf, pe.Cis, pe.Fis, pe.Zis)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("creating multiproof: %w", err)
 	}
+
+	// Analytics
+	NumKeys = len(keys)
+	ProofGenDuration = time.Since(start)
 
 	// It's wheel-reinvention time again 🎉: reimplement a basic
 	// feature that should be part of the stdlib.
@@ -202,16 +211,29 @@ func MakeVerkleMultiProof(preroot, postroot VerkleNode, keys [][]byte, resolver 
 	return proof, pe.Cis, pe.Zis, pe.Yis, nil
 }
 
-// VerifyVerkleProofWithPreState takes a proof and a trusted tree root and verifies that the proof is valid.
+var (
+	NumKeys                             int
+	PreStateNumOpenings                 int
+	PreStateGetElementsForProofDuration time.Duration
+	ProofGenDuration                    time.Duration
+	ProofVerifDuration                  time.Duration
+)
+
+// VerifyVerkleProofWithPreState takes a pre-state trie, a post-state trie and a list of keys, and verifies that
+// the provided proof verifies. If the post-state trie is `nil`, the behavior is the same as `VerifyVerkleProof`.
 func VerifyVerkleProofWithPreState(proof *Proof, preroot VerkleNode) error {
 	pe, _, _, _, err := getProofElementsFromTree(preroot, nil, proof.Keys, nil)
 	if err != nil {
 		return fmt.Errorf("error getting proof elements: %w", err)
 	}
 
+	start := time.Now()
 	if ok, err := VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, GetConfig()); !ok || err != nil {
 		return fmt.Errorf("error verifying proof: verifies=%v, error=%w", ok, err)
 	}
+
+	NumKeys = len(proof.Keys)
+	ProofVerifDuration = time.Since(start)
 
 	return nil
 }
