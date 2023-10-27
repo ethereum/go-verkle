@@ -449,6 +449,10 @@ func PreStateTreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) { // 
 		}
 	}
 
+	if len(poas) != 0 {
+		return nil, fmt.Errorf("not all proof of absence stems were used: %d", len(poas))
+	}
+
 	root := NewStatelessInternal(0, rootC).(*InternalNode)
 	comms := proof.Cs
 	for _, p := range paths {
