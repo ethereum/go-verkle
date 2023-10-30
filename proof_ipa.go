@@ -494,7 +494,7 @@ func PostStateTreeFromStateDiff(preroot VerkleNode, statediff StateDiff) (Verkle
 
 		for _, suffixdiff := range stemstatediff.SuffixDiffs {
 			if /* len(suffixdiff.NewValue) > 0 - this only works for a slice */ suffixdiff.NewValue != nil {
-				// if this value is non-nil, it means InsertStem should be
+				// if this value is non-nil, it means InsertLeafAtStem should be
 				// called, otherwise, skip updating the tree.
 				overwrites = true
 				values[suffixdiff.Suffix] = suffixdiff.NewValue[:]
@@ -504,7 +504,7 @@ func PostStateTreeFromStateDiff(preroot VerkleNode, statediff StateDiff) (Verkle
 		if overwrites {
 			var stem [31]byte
 			copy(stem[:31], stemstatediff.Stem[:])
-			if err := postroot.(*InternalNode).InsertStem(stem[:], values, nil); err != nil {
+			if err := postroot.(*InternalNode).InsertLeafAtStem(stem[:], values, nil); err != nil {
 				return nil, fmt.Errorf("error overwriting value in post state: %w", err)
 			}
 		}
