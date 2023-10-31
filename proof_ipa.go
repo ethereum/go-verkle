@@ -404,6 +404,10 @@ func PreStateTreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) { // 
 		poas  = proof.PoaStems
 	)
 
+	if !sort.IsSorted(bytesSlice(proof.PoaStems)) {
+		return nil, fmt.Errorf("proof of absence stems are not sorted")
+	}
+
 	// assign one or more stem to each stem info
 	for _, es := range proof.ExtStatus {
 		depth := es >> 3
@@ -513,3 +517,9 @@ func PostStateTreeFromStateDiff(preroot VerkleNode, statediff StateDiff) (Verkle
 
 	return postroot, nil
 }
+
+type bytesSlice [][]byte
+
+func (x bytesSlice) Len() int           { return len(x) }
+func (x bytesSlice) Less(i, j int) bool { return bytes.Compare(x[i], x[j]) < 0 }
+func (x bytesSlice) Swap(i, j int)      { x[i], x[j] = x[j], x[i] }
