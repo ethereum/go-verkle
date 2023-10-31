@@ -387,7 +387,10 @@ type stemInfo struct {
 // PreStateTreeFromProof builds a stateless prestate tree from the proof.
 func PreStateTreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) { // skipcq: GO-R1005
 	if len(proof.Keys) != len(proof.PreValues) {
-		return nil, fmt.Errorf("incompatible number of keys and values: %d != %d", len(proof.Keys), len(proof.PreValues))
+		return nil, fmt.Errorf("incompatible number of keys and pre-values: %d != %d", len(proof.Keys), len(proof.PreValues))
+	}
+	if len(proof.Keys) != len(proof.PostValues) {
+		return nil, fmt.Errorf("incompatible number of keys and post-values: %d != %d", len(proof.Keys), len(proof.PostValues))
 	}
 	stems := make([][]byte, 0, len(proof.Keys))
 	for _, k := range proof.Keys {
