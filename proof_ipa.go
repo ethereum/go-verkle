@@ -407,6 +407,7 @@ func PreStateTreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) { // 
 		poas  = proof.PoaStems
 	)
 
+	// The proof of absence stems must be sorted. If that isn't the case, the proof is invalid.
 	if !sort.IsSorted(bytesSlice(proof.PoaStems)) {
 		return nil, fmt.Errorf("proof of absence stems are not sorted")
 	}
@@ -421,24 +422,56 @@ func PreStateTreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) { // 
 		}
 		switch si.stemType {
 		case extStatusAbsentEmpty:
+			// All keys that are part of a proof of absence, must contain empty
+			// pre and post state values. If that isn't the case, the proof is invalid.
+			for i, k := range proof.Keys { // TODO: DoS risk, use map or binary search.
+				if bytes.HasPrefix(k, path) {
+					if proof.PreValues[i] != nil {
+						return nil, fmt.Errorf("proof of absence (empty) stem %x has a value", si.stem)
+					}
+				}
+			}
 		case extStatusAbsentOther:
 			si.stem = poas[0]
 			poas = poas[1:]
+			// All keys that are part of a proof of absence, must contain empty
+			// pre and post state values. If that isn't the case, the proof is invalid.
+			for i, k := range proof.Keys { // TODO: DoS risk, use map or binary search.
+				if bytes.HasPrefix(k, si.stem) {
+					if proof.PreValues[i] != nil {
+						return nil, fmt.Errorf("proof of absence (other) stem %x has a value", si.stem)
+					}
+				}
+			}
 		default:
 			// the first stem could be missing (e.g. the second stem in the
 			// group is the one that is present. Compare each key to the first
 			// stem, along the length of the path only.
 			stemPath := stems[stemIndex][:len(path)]
 			si.values = map[byte][]byte{}
-			for i, k := range proof.Keys {
+			for i, k := range proof.Keys { // TODO: DoS risk, use map or binary search.
 				if bytes.Equal(k[:len(path)], stemPath) && proof.PreValues[i] != nil {
 					si.values[k[31]] = proof.PreValues[i]
 					si.has_c1 = si.has_c1 || (k[31] < 128)
 					si.has_c2 = si.has_c2 || (k[31] >= 128)
 					// This key has values, its stem is the one that
 					// is present.
-					si.stem = k[:31]
+					if si.stem == nil {
+						si.stem = k[:31]
+						continue
+					}
+					// Any other key with values must have the same
+					// same previously detected stem. If that isn't the case,
+					// the proof is invalid.
+					if !bytes.Equal(si.stem, k[:31]) {
+						return nil, fmt.Errorf("multiple keys with values found for stem %x", k[:31])
+					}
 				}
+			}
+			// For a proof of presence, we must always have detected a stem.
+			// If that isn't the case, the proof is invalid.
+			if si.stem == nil {
+				return nil, fmt.Errorf("no stem found for path %x", path)
 			}
 		}
 		info[string(path)] = si
