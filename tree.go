@@ -350,10 +350,10 @@ func (n *InternalNode) cowChild(index byte) {
 func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn) error {
 	values := make([][]byte, NodeWidth)
 	values[key[31]] = value
-	return n.InsertStem(key[:31], values, resolver)
+	return n.InsertValuesAtStem(key[:31], values, resolver)
 }
 
-func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeResolverFn) error {
+func (n *InternalNode) InsertValuesAtStem(stem []byte, values [][]byte, resolver NodeResolverFn) error {
 	nChild := offset2key(stem, n.depth) // index of the child pointed by the next byte in the key
 
 	switch child := n.children[nChild].(type) {
@@ -383,7 +383,7 @@ func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeRes
 		n.cowChild(nChild)
 		// recurse to handle the case of a LeafNode child that
 		// splits.
-		return n.InsertStem(stem, values, resolver)
+		return n.InsertValuesAtStem(stem, values, resolver)
 	case *LeafNode:
 		if equalPaths(child.stem, stem) {
 			// We can't insert any values into a POA leaf node.
@@ -407,7 +407,7 @@ func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeRes
 
 		nextWordInInsertedKey := offset2key(stem, n.depth+1)
 		if nextWordInInsertedKey == nextWordInExistingKey {
-			return newBranch.InsertStem(stem, values, resolver)
+			return newBranch.InsertValuesAtStem(stem, values, resolver)
 		}
 
 		// Next word differs, so this was the last level.
@@ -421,7 +421,7 @@ func (n *InternalNode) InsertStem(stem []byte, values [][]byte, resolver NodeRes
 		newBranch.children[nextWordInInsertedKey] = leaf
 	case *InternalNode:
 		n.cowChild(nChild)
-		return child.InsertStem(stem, values, resolver)
+		return child.InsertValuesAtStem(stem, values, resolver)
 	default: // It should be an UknownNode.
 		return errUnknownNodeType
 	}
@@ -509,10 +509,10 @@ func (n *InternalNode) CreatePath(path []byte, stemInfo stemInfo, comms []*Point
 	return child.CreatePath(path[1:], stemInfo, comms, values)
 }
 
-// GetStem returns the all NodeWidth values of the stem.
+// GetValuesAtStem returns the all NodeWidth values of the stem.
 // The returned slice is internal to the tree, so it *must* be considered readonly
 // for callers.
-func (n *InternalNode) GetStem(stem []byte, resolver NodeResolverFn) ([][]byte, error) {
+func (n *InternalNode) GetValuesAtStem(stem []byte, resolver NodeResolverFn) ([][]byte, error) {
 	nchild := offset2key(stem, n.depth) // index of the child pointed by the next byte in the key
 	switch child := n.children[nchild].(type) {
 	case UnknownNode:
@@ -534,7 +534,7 @@ func (n *InternalNode) GetStem(stem []byte, resolver NodeResolverFn) ([][]byte, 
 		n.children[nchild] = resolved
 		// recurse to handle the case of a LeafNode child that
 		// splits.
-		return n.GetStem(stem, resolver)
+		return n.GetValuesAtStem(stem, resolver)
 	case *LeafNode:
 		if equalPaths(child.stem, stem) {
 			// We can't return the values since it's a POA leaf node, so we know nothing
@@ -546,7 +546,7 @@ func (n *InternalNode) GetStem(stem []byte, resolver NodeResolverFn) ([][]byte, 
 		}
 		return nil, nil
 	case *InternalNode:
-		return child.GetStem(stem, resolver)
+		return child.GetValuesAtStem(stem, resolver)
 	default:
 		return nil, errUnknownNodeType
 	}
@@ -664,7 +664,7 @@ func (n *InternalNode) Get(key []byte, resolver NodeResolverFn) ([]byte, error) 
 	if len(key) != StemSize+1 {
 		return nil, fmt.Errorf("invalid key length, expected %d, got %d", StemSize+1, len(key))
 	}
-	stemValues, err := n.GetStem(key[:StemSize], resolver)
+	stemValues, err := n.GetValuesAtStem(key[:StemSize], resolver)
 	if err != nil {
 		return nil, err
 	}
