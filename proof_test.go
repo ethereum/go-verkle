@@ -1088,3 +1088,40 @@ func TestGenerateProofWithOnlyAbsentKeys(t *testing.T) {
 		}
 	}
 }
+
+func TestProofOfPresenceWithEmptyValue(t *testing.T) {
+	root := New()
+
+	key1, _ := hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000001")
+
+	// Insert an arbitrary value at key 0000000000000000000000000000000000000000000000000000000000000001
+	if err := root.Insert(key1, fourtyKeyTest, nil); err != nil {
+		t.Fatalf("could not insert key: %v", err)
+	}
+
+	key2, _ := hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000002")
+	proof, _, _, _, _ := MakeVerkleMultiProof(root, nil, keylist{key2}, nil)
+
+	serialized, statediff, err := SerializeProof(proof)
+	if err != nil {
+		t.Fatalf("could not serialize proof: %v", err)
+	}
+
+	dproof, err := DeserializeProof(serialized, statediff)
+	if err != nil {
+		t.Fatalf("error deserializing proof: %v", err)
+	}
+
+	droot, err := PreStateTreeFromProof(dproof, root.Commit())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !droot.Commit().Equal(root.Commit()) {
+		t.Fatal("differing root commitments")
+	}
+
+	if !droot.(*InternalNode).children[0].Commit().Equal(root.(*InternalNode).children[0].Commit()) {
+		t.Fatal("differing commitment for child #0")
+	}
+}
