@@ -434,7 +434,7 @@ func (n *InternalNode) InsertValuesAtStem(stem []byte, values [][]byte, resolver
 // commitments that have not been assigned a node. It returns
 // the same list, save the commitments that were consumed
 // during this call.
-func (n *InternalNode) CreatePath(path []byte, stemInfo stemInfo, comms []*Point, values [][]byte) ([]*Point, error) {
+func (n *InternalNode) CreatePath(path []byte, stemInfo stemInfo, comms []*Point, values [][]byte) ([]*Point, error) { // skipcq: GO-R1005
 	if len(path) == 0 {
 		return comms, errors.New("invalid path")
 	}
