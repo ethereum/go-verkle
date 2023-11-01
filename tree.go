@@ -448,6 +448,12 @@ func (n *InternalNode) CreatePath(path []byte, stemInfo stemInfo, comms []*Point
 			// unknown node.
 			n.children[path[0]] = Empty{}
 		case extStatusAbsentOther:
+			if len(comms) == 0 {
+				return comms, fmt.Errorf("missing commitment for stem %x", stemInfo.stem)
+			}
+			if len(stemInfo.stem) != StemSize {
+				return comms, fmt.Errorf("invalid stem size %d", len(stemInfo.stem))
+			}
 			// insert poa stem
 			newchild := &LeafNode{
 				commitment: comms[0],
@@ -459,6 +465,12 @@ func (n *InternalNode) CreatePath(path []byte, stemInfo stemInfo, comms []*Point
 			n.children[path[0]] = newchild
 			comms = comms[1:]
 		case extStatusPresent:
+			if len(comms) == 0 {
+				return comms, fmt.Errorf("missing commitment for stem %x", stemInfo.stem)
+			}
+			if len(stemInfo.stem) != StemSize {
+				return comms, fmt.Errorf("invalid stem size %d", len(stemInfo.stem))
+			}
 			// insert stem
 			newchild := &LeafNode{
 				commitment: comms[0],
@@ -469,12 +481,18 @@ func (n *InternalNode) CreatePath(path []byte, stemInfo stemInfo, comms []*Point
 			n.children[path[0]] = newchild
 			comms = comms[1:]
 			if stemInfo.has_c1 {
+				if len(comms) == 0 {
+					return comms, fmt.Errorf("missing commitment for stem %x", stemInfo.stem)
+				}
 				newchild.c1 = comms[0]
 				comms = comms[1:]
 			} else {
 				newchild.c1 = new(Point)
 			}
 			if stemInfo.has_c2 {
+				if len(comms) == 0 {
+					return comms, fmt.Errorf("missing commitment for stem %x", stemInfo.stem)
+				}
 				newchild.c2 = comms[0]
 				comms = comms[1:]
 			} else {
@@ -483,6 +501,8 @@ func (n *InternalNode) CreatePath(path []byte, stemInfo stemInfo, comms []*Point
 			for b, value := range stemInfo.values {
 				newchild.values[b] = value
 			}
+		default:
+			return comms, fmt.Errorf("invalid stem type %d", stemInfo.stemType)
 		}
 		return comms, nil
 	}
