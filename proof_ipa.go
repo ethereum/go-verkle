@@ -412,6 +412,16 @@ func PreStateTreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) { // 
 		return nil, fmt.Errorf("proof of absence stems are not sorted")
 	}
 
+	// We build a cache of stems that have a presence extension status.
+	stemsWithExtPresent := map[string]struct{}{}
+	i := 0
+	for _, es := range proof.ExtStatus {
+		if es&3 == extStatusPresent {
+			stemsWithExtPresent[string(stems[i])] = struct{}{}
+		}
+		i++
+	}
+
 	// assign one or more stem to each stem info
 	for _, es := range proof.ExtStatus {
 		depth := es >> 3
@@ -432,8 +442,14 @@ func PreStateTreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) { // 
 				}
 			}
 		case extStatusAbsentOther:
-			si.stem = poas[0]
-			poas = poas[1:]
+			// For this absent path, we must first check if this path contains a proof of presence.
+			// If that is the case, we don't have to do anything since the corresponding leaf will be
+			// constructed by that extension status (already processed or to be processed).
+			// In other case, we should get the stem from the list of proof of absence stems.
+			if _, ok := stemsWithExtPresent[string(path)]; !ok {
+				si.stem = poas[0]
+				poas = poas[1:]
+			}
 			// All keys that are part of a proof of absence, must contain empty
 			// prestate values. If that isn't the case, the proof is invalid.
 			for i, k := range proof.Keys { // TODO: DoS risk, use map or binary search.
@@ -444,28 +460,13 @@ func PreStateTreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) { // 
 				}
 			}
 		default:
-			// the first stem could be missing (e.g. the second stem in the
-			// group is the one that is present. Compare each key to the first
-			// stem, along the length of the path only.
-			stemPath := stems[stemIndex][:len(path)]
 			si.values = map[byte][]byte{}
+			si.stem = stems[stemIndex]
 			for i, k := range proof.Keys { // TODO: DoS risk, use map or binary search.
-				if bytes.Equal(k[:len(path)], stemPath) && proof.PreValues[i] != nil {
+				if bytes.Equal(k[:31], si.stem) {
 					si.values[k[31]] = proof.PreValues[i]
 					si.has_c1 = si.has_c1 || (k[31] < 128)
 					si.has_c2 = si.has_c2 || (k[31] >= 128)
-					// This key has values, its stem is the one that
-					// is present.
-					if si.stem == nil {
-						si.stem = k[:31]
-						continue
-					}
-					// Any other key with values must have the same
-					// same previously detected stem. If that isn't the case,
-					// the proof is invalid.
-					if !bytes.Equal(si.stem, k[:31]) {
-						return nil, fmt.Errorf("multiple keys with values found for stem %x", k[:31])
-					}
 				}
 			}
 			// For a proof of presence, we must always have detected a stem.

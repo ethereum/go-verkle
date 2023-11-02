@@ -1050,8 +1050,8 @@ func TestGetProofItemsNoPoaIfStemPresent(t *testing.T) {
 	if len(poas) != 0 {
 		t.Fatalf("returned %d poas instead of 0", len(poas))
 	}
-	if len(esses) != 1 {
-		t.Fatalf("returned %d extension statuses instead of the expected 1", len(esses))
+	if len(esses) != 2 {
+		t.Fatalf("returned %d extension statuses instead of the expected 2", len(esses))
 	}
 }
 
