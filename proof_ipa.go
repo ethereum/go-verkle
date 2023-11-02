@@ -459,7 +459,7 @@ func PreStateTreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) { // 
 					}
 				}
 			}
-		default:
+		case extStatusPresent:
 			si.values = map[byte][]byte{}
 			si.stem = stems[stemIndex]
 			for i, k := range proof.Keys { // TODO: DoS risk, use map or binary search.
@@ -474,6 +474,8 @@ func PreStateTreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) { // 
 			if si.stem == nil {
 				return nil, fmt.Errorf("no stem found for path %x", path)
 			}
+		default:
+			return nil, fmt.Errorf("invalid extension status: %d", si.stemType)
 		}
 		info[string(path)] = si
 		paths = append(paths, path)
@@ -488,6 +490,9 @@ func PreStateTreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) { // 
 				break
 			}
 		}
+	}
+	if stemIndex != len(stems) {
+		return nil, fmt.Errorf("not all stems were used: %d", len(stems))
 	}
 
 	if len(poas) != 0 {

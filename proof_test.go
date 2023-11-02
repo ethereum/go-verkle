@@ -1125,3 +1125,56 @@ func TestProofOfPresenceWithEmptyValue(t *testing.T) {
 		t.Fatal("differing commitment for child #0")
 	}
 }
+
+func TestDoubleProofOfAbsence(t *testing.T) {
+	root := New()
+
+	// Insert some keys.
+	key11, _ := hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000001")
+	key12, _ := hex.DecodeString("0003000000000000000000000000000000000000000000000000000000000001")
+
+	if err := root.Insert(key11, fourtyKeyTest, nil); err != nil {
+		t.Fatalf("could not insert key: %v", err)
+	}
+	if err := root.Insert(key12, fourtyKeyTest, nil); err != nil {
+		t.Fatalf("could not insert key: %v", err)
+	}
+
+	// Try to prove to different stems that end up in the same LeafNode without any other proof of presence
+	// in that leaf node. i.e: two proof of absence in the same leaf node with no proof of absence.
+	key2, _ := hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000100")
+	key3, _ := hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000200")
+	proof, _, _, _, _ := MakeVerkleMultiProof(root, nil, keylist{key2, key3}, nil)
+
+	serialized, statediff, err := SerializeProof(proof)
+	if err != nil {
+		t.Fatalf("could not serialize proof: %v", err)
+	}
+
+	dproof, err := DeserializeProof(serialized, statediff)
+	if err != nil {
+		t.Fatalf("error deserializing proof: %v", err)
+	}
+
+	droot, err := PreStateTreeFromProof(dproof, root.Commit())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !droot.Commit().Equal(root.Commit()) {
+		t.Fatal("differing root commitments")
+	}
+
+	// Depite we have two proof of absences for different steams, we should only have one
+	// stem in `others`. i.e: we only need one for both steams.
+	if len(proof.PoaStems) != 1 {
+		t.Fatalf("invalid number of proof-of-absence stems: %d", len(proof.PoaStems))
+	}
+
+	// Despite we have two steams proved absent, we only need one extension status.
+	// A single extension status can already regenerate this branch, so the second stem
+	// can identify this branch was recreated.
+	if len(proof.ExtStatus) != 1 {
+		t.Fatalf("invalid number of proof-of-absence stems: %d", len(proof.PoaStems))
+	}
+}
