@@ -423,7 +423,7 @@ func PreStateTreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) { // 
 		switch si.stemType {
 		case extStatusAbsentEmpty:
 			// All keys that are part of a proof of absence, must contain empty
-			// pre and post state values. If that isn't the case, the proof is invalid.
+			// prestate values. If that isn't the case, the proof is invalid.
 			for i, k := range proof.Keys { // TODO: DoS risk, use map or binary search.
 				if bytes.HasPrefix(k, path) {
 					if proof.PreValues[i] != nil {
@@ -435,7 +435,7 @@ func PreStateTreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) { // 
 			si.stem = poas[0]
 			poas = poas[1:]
 			// All keys that are part of a proof of absence, must contain empty
-			// pre and post state values. If that isn't the case, the proof is invalid.
+			// prestate values. If that isn't the case, the proof is invalid.
 			for i, k := range proof.Keys { // TODO: DoS risk, use map or binary search.
 				if bytes.HasPrefix(k, si.stem) {
 					if proof.PreValues[i] != nil {
