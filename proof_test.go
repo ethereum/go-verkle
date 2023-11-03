@@ -1212,10 +1212,8 @@ func TestDoubleProofOfAbsence(t *testing.T) {
 		t.Fatalf("invalid number of proof-of-absence stems: %d", len(proof.PoaStems))
 	}
 
-	// Despite we have two steams proved absent, we only need one extension status.
-	// A single extension status can already regenerate this branch, so the second stem
-	// can identify this branch was recreated.
-	if len(proof.ExtStatus) != 1 {
+	// We need one extension status for each stem.
+	if len(proof.ExtStatus) != 2 {
 		t.Fatalf("invalid number of proof-of-absence stems: %d", len(proof.PoaStems))
 	}
 }
