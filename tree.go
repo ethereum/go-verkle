@@ -935,12 +935,16 @@ func (n *InternalNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*Pr
 		// commitment, as the value is 0.
 		_, isempty := n.children[childIdx].(Empty)
 		if isempty {
-			// A question arises here: what if this proof of absence
-			// corresponds to several stems? Should the ext status be
-			// repeated as many times? It would be wasteful, so the
-			// decoding code has to be aware of this corner case.
-			esses = append(esses, extStatusAbsentEmpty|((n.depth+1)<<3))
+			addedStems := map[string]struct{}{}
 			for i := 0; i < len(group); i++ {
+				if _, ok := addedStems[string(group[i][:StemSize])]; !ok {
+					// A question arises here: what if this proof of absence
+					// corresponds to several stems? Should the ext status be
+					// repeated as many times? It's wasteful, so consider if the
+					// decoding code can be aware of this corner case.
+					esses = append(esses, extStatusAbsentEmpty|((n.depth+1)<<3))
+					addedStems[string(group[i][:StemSize])] = struct{}{}
+				}
 				// Append one nil value per key in this missing stem
 				pe.Vals = append(pe.Vals, nil)
 			}
@@ -1517,21 +1521,22 @@ func (n *LeafNode) GetProofItems(keys keylist, _ NodeResolverFn) (*ProofElements
 			}
 		}
 
-		// Proof of absence: case of a missing suffix tree.
-		//
-		// The suffix tree for this value is missing, i.e. all
-		// values in the extension-and-suffix tree are grouped
-		// in the other suffix tree (e.g. C2 if we are looking
-		// at C1).
-		if count == 0 {
-			// TODO(gballet) maintain a count variable at LeafNode level
-			// so that we know not to build the polynomials in this case,
-			// as all the information is available before fillSuffixTreePoly
-			// has to be called, save the count.
-			esses = append(esses, extStatusAbsentEmpty|(n.depth<<3))
-			pe.Vals = append(pe.Vals, nil)
-			continue
-		}
+		_ = count
+		// // Proof of absence: case of a missing suffix tree.
+		// //
+		// // The suffix tree for this value is missing, i.e. all
+		// // values in the extension-and-suffix tree are grouped
+		// // in the other suffix tree (e.g. C2 if we are looking
+		// // at C1).
+		// if count == 0 {
+		// 	// TODO(gballet) maintain a count variable at LeafNode level
+		// 	// so that we know not to build the polynomials in this case,
+		// 	// as all the information is available before fillSuffixTreePoly
+		// 	// has to be called, save the count.
+		// 	esses = append(esses, extStatusAbsentEmpty|(n.depth<<3))
+		// 	pe.Vals = append(pe.Vals, nil)
+		// 	continue
+		// }
 
 		var scomm *Point
 		if suffix < 128 {
