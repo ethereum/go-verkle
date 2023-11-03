@@ -412,12 +412,12 @@ func PreStateTreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) { // 
 		return nil, fmt.Errorf("proof of absence stems are not sorted")
 	}
 
-	// We build a cache of stems that have a presence extension status.
-	stemsWithExtPresent := map[string]struct{}{}
+	// We build a cache of paths that have a presence extension status.
+	pathsWithExtPresent := map[string]struct{}{}
 	i := 0
 	for _, es := range proof.ExtStatus {
 		if es&3 == extStatusPresent {
-			stemsWithExtPresent[string(stems[i])] = struct{}{}
+			pathsWithExtPresent[string(stems[i][:es>>3])] = struct{}{}
 		}
 		i++
 	}
@@ -446,14 +446,14 @@ func PreStateTreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) { // 
 			// If that is the case, we don't have to do anything since the corresponding leaf will be
 			// constructed by that extension status (already processed or to be processed).
 			// In other case, we should get the stem from the list of proof of absence stems.
-			if _, ok := stemsWithExtPresent[string(path)]; !ok {
+			if _, ok := pathsWithExtPresent[string(path)]; !ok {
 				si.stem = poas[0]
 				poas = poas[1:]
 			}
 			// All keys that are part of a proof of absence, must contain empty
 			// prestate values. If that isn't the case, the proof is invalid.
 			for i, k := range proof.Keys { // TODO: DoS risk, use map or binary search.
-				if bytes.HasPrefix(k, si.stem) {
+				if bytes.HasPrefix(k, stems[stemIndex]) {
 					if proof.PreValues[i] != nil {
 						return nil, fmt.Errorf("proof of absence (other) stem %x has a value", si.stem)
 					}
