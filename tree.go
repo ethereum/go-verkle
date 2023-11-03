@@ -1493,7 +1493,7 @@ func (n *LeafNode) GetProofItems(keys keylist, _ NodeResolverFn) (*ProofElements
 		// As mentioned above, if a proof-of-absence stem was found, and
 		// it now turns out the same stem is used as a proof of presence,
 		// clear the proof-of-absence list to avoid redundancy. Note that
-		// we don't delete the extension statuse since that is needed to
+		// we don't delete the extension statuses since that is needed to
 		// figure out which is the correct stem for this path.
 		if len(poass) > 0 {
 			poass = nil
