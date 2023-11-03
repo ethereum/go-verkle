@@ -551,7 +551,7 @@ func TestProofOfAbsenceNoneMultipleStems(t *testing.T) {
 	}
 
 	if len(proof.ExtStatus) != 1 {
-		t.Fatalf("invalid number of none extension statuses: %d ≠ 1", len(proof.ExtStatus))
+		t.Fatalf("invalid number of extension statuses: %d ≠ 1", len(proof.ExtStatus))
 	}
 }
 
@@ -1214,7 +1214,7 @@ func TestDoubleProofOfAbsence(t *testing.T) {
 
 	// We need one extension status for each stem.
 	if len(proof.ExtStatus) != 2 {
-		t.Fatalf("invalid number of proof-of-absence stems: %d", len(proof.PoaStems))
+		t.Fatalf("invalid number of extension status: %d", len(proof.PoaStems))
 	}
 }
 
@@ -1253,14 +1253,11 @@ func TestProveAbsenceInEmptyHalf(t *testing.T) {
 		t.Fatal("differing root commitments")
 	}
 
-	// Depite we have two proof of absences for different steams, we should only have one
-	// stem in `others`. i.e: we only need one for both steams.
 	if len(proof.PoaStems) != 0 {
 		t.Fatalf("invalid number of proof-of-absence stems: %d", len(proof.PoaStems))
 	}
 
-	// We need one extension status for each stem.
-	if len(proof.ExtStatus) != 1 {
-		t.Fatalf("invalid number of proof-of-absence stems: %d", len(proof.PoaStems))
+	if len(proof.ExtStatus) != 2 {
+		t.Fatalf("invalid number of extension status: %d", len(proof.ExtStatus))
 	}
 }

@@ -1464,7 +1464,7 @@ func (n *LeafNode) GetProofItems(keys keylist, _ NodeResolverFn) (*ProofElements
 		pe.Fis = append(pe.Fis, poly[:])
 	}
 
-	addedAbsentStems := map[string]struct{}{}
+	addedStems := map[string]struct{}{}
 
 	// Second pass: add the cn-level elements
 	for _, key := range keys {
@@ -1482,9 +1482,9 @@ func (n *LeafNode) GetProofItems(keys keylist, _ NodeResolverFn) (*ProofElements
 			// Add an extension status absent other for this stem.
 			// Note we keep a cache to avoid adding the same stem twice (or more) if
 			// there're multiple keys with the same stem.
-			if _, ok := addedAbsentStems[string(key[:StemSize])]; !ok {
+			if _, ok := addedStems[string(key[:StemSize])]; !ok {
 				esses = append(esses, extStatusAbsentOther|(n.depth<<3))
-				addedAbsentStems[string(key[:StemSize])] = struct{}{}
+				addedStems[string(key[:StemSize])] = struct{}{}
 			}
 			pe.Vals = append(pe.Vals, nil)
 			continue
@@ -1558,9 +1558,12 @@ func (n *LeafNode) GetProofItems(keys keylist, _ NodeResolverFn) (*ProofElements
 		pe.Yis = append(pe.Yis, &leaves[0], &leaves[1])
 		pe.Fis = append(pe.Fis, suffPoly[:], suffPoly[:])
 		pe.Vals = append(pe.Vals, n.values[key[31]])
-		if len(esses) == 0 || esses[len(esses)-1] != extStatusPresent|(n.depth<<3) {
+
+		if _, ok := addedStems[string(key[:StemSize])]; !ok {
 			esses = append(esses, extStatusPresent|(n.depth<<3))
+			addedStems[string(key[:StemSize])] = struct{}{}
 		}
+
 		slotPath := string(key[:n.depth]) + string([]byte{2 + suffix/128})
 		pe.ByPath[slotPath] = scomm
 	}
