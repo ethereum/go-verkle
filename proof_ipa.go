@@ -401,8 +401,6 @@ func PreStateTreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) { // 
 	if len(stems) != len(proof.ExtStatus) {
 		return nil, fmt.Errorf("invalid number of stems and extension statuses: %d != %d", len(stems), len(proof.ExtStatus))
 	}
-	// stemIndex := 0
-
 	var (
 		info  = map[string]stemInfo{}
 		paths [][]byte
@@ -482,21 +480,7 @@ func PreStateTreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) { // 
 		}
 		info[string(path)] = si
 		paths = append(paths, path)
-
-		// // Skip over all the stems that share the same path
-		// // to the extension tree. This happens e.g. if two
-		// // stems have the same path, but one is a proof of
-		// // absence and the other one is present.
-		// stemIndex++
-		// for ; stemIndex < len(stems); stemIndex++ {
-		// 	if !bytes.Equal(stems[stemIndex][:depth], path) {
-		// 		break
-		// 	}
-		// }
 	}
-	// if stemIndex != len(stems) {
-	// 	return nil, fmt.Errorf("not all stems were used: %d", len(stems))
-	// }
 
 	if len(poas) != 0 {
 		return nil, fmt.Errorf("not all proof of absence stems were used: %d", len(poas))
