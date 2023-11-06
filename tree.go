@@ -1506,44 +1506,21 @@ func (n *LeafNode) GetProofItems(keys keylist, _ NodeResolverFn) (*ProofElements
 		var (
 			suffix   = key[31]
 			suffPoly [NodeWidth]Fr // suffix-level polynomial
-			count    int
 			err      error
+			scomm    *Point
 		)
 		if suffix >= 128 {
-			count, err = fillSuffixTreePoly(suffPoly[:], n.values[128:])
-			if err != nil {
-				return nil, nil, nil, err
+			if _, err = fillSuffixTreePoly(suffPoly[:], n.values[128:]); err != nil {
+				return nil, nil, nil, fmt.Errorf("filling suffix tree poly: %w", err)
 			}
-		} else {
-			count, err = fillSuffixTreePoly(suffPoly[:], n.values[:128])
-			if err != nil {
-				return nil, nil, nil, err
-			}
-		}
-
-		_ = count
-		// // Proof of absence: case of a missing suffix tree.
-		// //
-		// // The suffix tree for this value is missing, i.e. all
-		// // values in the extension-and-suffix tree are grouped
-		// // in the other suffix tree (e.g. C2 if we are looking
-		// // at C1).
-		// if count == 0 {
-		// 	// TODO(gballet) maintain a count variable at LeafNode level
-		// 	// so that we know not to build the polynomials in this case,
-		// 	// as all the information is available before fillSuffixTreePoly
-		// 	// has to be called, save the count.
-		// 	esses = append(esses, extStatusAbsentEmpty|(n.depth<<3))
-		// 	pe.Vals = append(pe.Vals, nil)
-		// 	continue
-		// }
-
-		var scomm *Point
-		if suffix < 128 {
-			scomm = n.c1
-		} else {
 			scomm = n.c2
+		} else {
+			if _, err = fillSuffixTreePoly(suffPoly[:], n.values[:128]); err != nil {
+				return nil, nil, nil, fmt.Errorf("filling suffix tree poly: %w", err)
+			}
+			scomm = n.c1
 		}
+
 		var leaves [2]Fr
 		if n.values[suffix] == nil {
 			// Proof of absence: case of a missing value.
