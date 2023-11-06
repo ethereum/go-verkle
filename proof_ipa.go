@@ -387,7 +387,10 @@ type stemInfo struct {
 // PreStateTreeFromProof builds a stateless prestate tree from the proof.
 func PreStateTreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) { // skipcq: GO-R1005
 	if len(proof.Keys) != len(proof.PreValues) {
-		return nil, fmt.Errorf("incompatible number of keys and values: %d != %d", len(proof.Keys), len(proof.PreValues))
+		return nil, fmt.Errorf("incompatible number of keys and pre-values: %d != %d", len(proof.Keys), len(proof.PreValues))
+	}
+	if len(proof.Keys) != len(proof.PostValues) {
+		return nil, fmt.Errorf("incompatible number of keys and post-values: %d != %d", len(proof.Keys), len(proof.PostValues))
 	}
 	stems := make([][]byte, 0, len(proof.Keys))
 	for _, k := range proof.Keys {
@@ -395,8 +398,9 @@ func PreStateTreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) { // 
 			stems = append(stems, k[:31])
 		}
 	}
-	stemIndex := 0
-
+	if len(stems) != len(proof.ExtStatus) {
+		return nil, fmt.Errorf("invalid number of stems and extension statuses: %d != %d", len(stems), len(proof.ExtStatus))
+	}
 	var (
 		info  = map[string]stemInfo{}
 		paths [][]byte
@@ -404,49 +408,78 @@ func PreStateTreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) { // 
 		poas  = proof.PoaStems
 	)
 
-	// assign one or more stem to each stem info
+	// The proof of absence stems must be sorted. If that isn't the case, the proof is invalid.
+	if !sort.IsSorted(bytesSlice(proof.PoaStems)) {
+		return nil, fmt.Errorf("proof of absence stems are not sorted")
+	}
+
+	// We build a cache of paths that have a presence extension status.
+	pathsWithExtPresent := map[string]struct{}{}
+	i := 0
 	for _, es := range proof.ExtStatus {
-		depth := es >> 3
-		path := stems[stemIndex][:depth]
+		if es&3 == extStatusPresent {
+			pathsWithExtPresent[string(stems[i][:es>>3])] = struct{}{}
+		}
+		i++
+	}
+
+	// assign one or more stem to each stem info
+	for i, es := range proof.ExtStatus {
 		si := stemInfo{
-			depth:    depth,
+			depth:    es >> 3,
 			stemType: es & 3,
 		}
+		path := stems[i][:si.depth]
 		switch si.stemType {
 		case extStatusAbsentEmpty:
-		case extStatusAbsentOther:
-			si.stem = poas[0]
-			poas = poas[1:]
-		default:
-			// the first stem could be missing (e.g. the second stem in the
-			// group is the one that is present. Compare each key to the first
-			// stem, along the length of the path only.
-			stemPath := stems[stemIndex][:len(path)]
-			si.values = map[byte][]byte{}
-			for i, k := range proof.Keys {
-				if bytes.Equal(k[:len(path)], stemPath) && proof.PreValues[i] != nil {
-					si.values[k[31]] = proof.PreValues[i]
-					si.has_c1 = si.has_c1 || (k[31] < 128)
-					si.has_c2 = si.has_c2 || (k[31] >= 128)
-					// This key has values, its stem is the one that
-					// is present.
-					si.stem = k[:31]
+			// All keys that are part of a proof of absence, must contain empty
+			// prestate values. If that isn't the case, the proof is invalid.
+			for j := range proof.Keys { // TODO: DoS risk, use map or binary search.
+				if bytes.HasPrefix(proof.Keys[j], stems[i]) && proof.PreValues[j] != nil {
+					return nil, fmt.Errorf("proof of absence (empty) stem %x has a value", si.stem)
 				}
 			}
+		case extStatusAbsentOther:
+			// All keys that are part of a proof of absence, must contain empty
+			// prestate values. If that isn't the case, the proof is invalid.
+			for j := range proof.Keys { // TODO: DoS risk, use map or binary search.
+				if bytes.HasPrefix(proof.Keys[j], stems[i]) && proof.PreValues[j] != nil {
+					return nil, fmt.Errorf("proof of absence (other) stem %x has a value", si.stem)
+				}
+			}
+
+			// For this absent path, we must first check if this path contains a proof of presence.
+			// If that is the case, we don't have to do anything since the corresponding leaf will be
+			// constructed by that extension status (already processed or to be processed).
+			// In other case, we should get the stem from the list of proof of absence stems.
+			if _, ok := pathsWithExtPresent[string(path)]; ok {
+				continue
+			}
+
+			// Note that this path doesn't have proof of presence (previous if check above), but
+			// it can have multiple proof of absence. If a previous proof of absence had already
+			// created the stemInfo for this path, we don't have to do anything.
+			if _, ok := info[string(path)]; ok {
+				continue
+			}
+
+			si.stem = poas[0]
+			poas = poas[1:]
+		case extStatusPresent:
+			si.values = map[byte][]byte{}
+			si.stem = stems[i]
+			for j, k := range proof.Keys { // TODO: DoS risk, use map or binary search.
+				if bytes.Equal(k[:31], si.stem) {
+					si.values[k[31]] = proof.PreValues[j]
+					si.has_c1 = si.has_c1 || (k[31] < 128)
+					si.has_c2 = si.has_c2 || (k[31] >= 128)
+				}
+			}
+		default:
+			return nil, fmt.Errorf("invalid extension status: %d", si.stemType)
 		}
 		info[string(path)] = si
 		paths = append(paths, path)
-
-		// Skip over all the stems that share the same path
-		// to the extension tree. This happens e.g. if two
-		// stems have the same path, but one is a proof of
-		// absence and the other one is present.
-		stemIndex++
-		for ; stemIndex < len(stems); stemIndex++ {
-			if !bytes.Equal(stems[stemIndex][:depth], path) {
-				break
-			}
-		}
 	}
 
 	if len(poas) != 0 {
@@ -513,3 +546,9 @@ func PostStateTreeFromStateDiff(preroot VerkleNode, statediff StateDiff) (Verkle
 
 	return postroot, nil
 }
+
+type bytesSlice [][]byte
+
+func (x bytesSlice) Len() int           { return len(x) }
+func (x bytesSlice) Less(i, j int) bool { return bytes.Compare(x[i], x[j]) < 0 }
+func (x bytesSlice) Swap(i, j int)      { x[i], x[j] = x[j], x[i] }

@@ -434,7 +434,7 @@ func (n *InternalNode) InsertValuesAtStem(stem []byte, values [][]byte, resolver
 // commitments that have not been assigned a node. It returns
 // the same list, save the commitments that were consumed
 // during this call.
-func (n *InternalNode) CreatePath(path []byte, stemInfo stemInfo, comms []*Point, values [][]byte) ([]*Point, error) {
+func (n *InternalNode) CreatePath(path []byte, stemInfo stemInfo, comms []*Point, values [][]byte) ([]*Point, error) { // skipcq: GO-R1005
 	if len(path) == 0 {
 		return comms, errors.New("invalid path")
 	}
@@ -448,6 +448,12 @@ func (n *InternalNode) CreatePath(path []byte, stemInfo stemInfo, comms []*Point
 			// unknown node.
 			n.children[path[0]] = Empty{}
 		case extStatusAbsentOther:
+			if len(comms) == 0 {
+				return comms, fmt.Errorf("missing commitment for stem %x", stemInfo.stem)
+			}
+			if len(stemInfo.stem) != StemSize {
+				return comms, fmt.Errorf("invalid stem size %d", len(stemInfo.stem))
+			}
 			// insert poa stem
 			newchild := &LeafNode{
 				commitment: comms[0],
@@ -459,6 +465,12 @@ func (n *InternalNode) CreatePath(path []byte, stemInfo stemInfo, comms []*Point
 			n.children[path[0]] = newchild
 			comms = comms[1:]
 		case extStatusPresent:
+			if len(comms) == 0 {
+				return comms, fmt.Errorf("missing commitment for stem %x", stemInfo.stem)
+			}
+			if len(stemInfo.stem) != StemSize {
+				return comms, fmt.Errorf("invalid stem size %d", len(stemInfo.stem))
+			}
 			// insert stem
 			newchild := &LeafNode{
 				commitment: comms[0],
@@ -469,12 +481,18 @@ func (n *InternalNode) CreatePath(path []byte, stemInfo stemInfo, comms []*Point
 			n.children[path[0]] = newchild
 			comms = comms[1:]
 			if stemInfo.has_c1 {
+				if len(comms) == 0 {
+					return comms, fmt.Errorf("missing commitment for stem %x", stemInfo.stem)
+				}
 				newchild.c1 = comms[0]
 				comms = comms[1:]
 			} else {
 				newchild.c1 = new(Point)
 			}
 			if stemInfo.has_c2 {
+				if len(comms) == 0 {
+					return comms, fmt.Errorf("missing commitment for stem %x", stemInfo.stem)
+				}
 				newchild.c2 = comms[0]
 				comms = comms[1:]
 			} else {
@@ -483,6 +501,8 @@ func (n *InternalNode) CreatePath(path []byte, stemInfo stemInfo, comms []*Point
 			for b, value := range stemInfo.values {
 				newchild.values[b] = value
 			}
+		default:
+			return comms, fmt.Errorf("invalid stem type %d", stemInfo.stemType)
 		}
 		return comms, nil
 	}
@@ -915,12 +935,16 @@ func (n *InternalNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*Pr
 		// commitment, as the value is 0.
 		_, isempty := n.children[childIdx].(Empty)
 		if isempty {
-			// A question arises here: what if this proof of absence
-			// corresponds to several stems? Should the ext status be
-			// repeated as many times? It would be wasteful, so the
-			// decoding code has to be aware of this corner case.
-			esses = append(esses, extStatusAbsentEmpty|((n.depth+1)<<3))
+			addedStems := map[string]struct{}{}
 			for i := 0; i < len(group); i++ {
+				if _, ok := addedStems[string(group[i][:StemSize])]; !ok {
+					// A question arises here: what if this proof of absence
+					// corresponds to several stems? Should the ext status be
+					// repeated as many times? It's wasteful, so consider if the
+					// decoding code can be aware of this corner case.
+					esses = append(esses, extStatusAbsentEmpty|((n.depth+1)<<3))
+					addedStems[string(group[i][:StemSize])] = struct{}{}
+				}
 				// Append one nil value per key in this missing stem
 				pe.Vals = append(pe.Vals, nil)
 			}
@@ -1444,76 +1468,59 @@ func (n *LeafNode) GetProofItems(keys keylist, _ NodeResolverFn) (*ProofElements
 		pe.Fis = append(pe.Fis, poly[:])
 	}
 
+	addedStems := map[string]struct{}{}
+
 	// Second pass: add the cn-level elements
 	for _, key := range keys {
 		pe.ByPath[string(key[:n.depth])] = n.commitment
 
 		// Proof of absence: case of a differing stem.
-		// Add an unopened stem-level node.
 		if !equalPaths(n.stem, key) {
-			// Corner case: don't add the poa stem if it's
-			// already present as a proof-of-absence for a
-			// different key, or for the same key (case of
-			// multiple missing keys being absent).
-			// The list of extension statuses has to be of
-			// length 1 at this level, so skip otherwise.
+			// If this is the first extension status added for this path,
+			// add the proof of absence stem (only once). If later we detect a proof of
+			// presence, we'll clear the list since that proof of presence
+			// will be enough to provide the stem.
 			if len(esses) == 0 {
-				esses = append(esses, extStatusAbsentOther|(n.depth<<3))
 				poass = append(poass, n.stem)
+			}
+			// Add an extension status absent other for this stem.
+			// Note we keep a cache to avoid adding the same stem twice (or more) if
+			// there're multiple keys with the same stem.
+			if _, ok := addedStems[string(key[:StemSize])]; !ok {
+				esses = append(esses, extStatusAbsentOther|(n.depth<<3))
+				addedStems[string(key[:StemSize])] = struct{}{}
 			}
 			pe.Vals = append(pe.Vals, nil)
 			continue
 		}
 
-		// corner case (see previous corner case): if a proof-of-absence
-		// stem was found, and it now turns out the same stem is used as
-		// a proof of presence, clear the proof-of-absence list to avoid
-		// redundancy.
+		// As mentioned above, if a proof-of-absence stem was found, and
+		// it now turns out the same stem is used as a proof of presence,
+		// clear the proof-of-absence list to avoid redundancy. Note that
+		// we don't delete the extension statuses since that is needed to
+		// figure out which is the correct stem for this path.
 		if len(poass) > 0 {
 			poass = nil
-			esses = nil
 		}
 
 		var (
 			suffix   = key[31]
 			suffPoly [NodeWidth]Fr // suffix-level polynomial
-			count    int
 			err      error
+			scomm    *Point
 		)
 		if suffix >= 128 {
-			count, err = fillSuffixTreePoly(suffPoly[:], n.values[128:])
-			if err != nil {
-				return nil, nil, nil, err
+			if _, err = fillSuffixTreePoly(suffPoly[:], n.values[128:]); err != nil {
+				return nil, nil, nil, fmt.Errorf("filling suffix tree poly: %w", err)
 			}
-		} else {
-			count, err = fillSuffixTreePoly(suffPoly[:], n.values[:128])
-			if err != nil {
-				return nil, nil, nil, err
-			}
-		}
-
-		// Proof of absence: case of a missing suffix tree.
-		//
-		// The suffix tree for this value is missing, i.e. all
-		// values in the extension-and-suffix tree are grouped
-		// in the other suffix tree (e.g. C2 if we are looking
-		// at C1).
-		if count == 0 {
-			// TODO(gballet) maintain a count variable at LeafNode level
-			// so that we know not to build the polynomials in this case,
-			// as all the information is available before fillSuffixTreePoly
-			// has to be called, save the count.
-			esses = append(esses, extStatusAbsentEmpty|(n.depth<<3))
-			pe.Vals = append(pe.Vals, nil)
-			continue
-		}
-
-		var scomm *Point
-		if suffix < 128 {
-			scomm = n.c1
-		} else {
 			scomm = n.c2
+		} else {
+			if _, err = fillSuffixTreePoly(suffPoly[:], n.values[:128]); err != nil {
+				return nil, nil, nil, fmt.Errorf("filling suffix tree poly: %w", err)
+			}
+			scomm = n.c1
 		}
+
 		var leaves [2]Fr
 		if n.values[suffix] == nil {
 			// Proof of absence: case of a missing value.
@@ -1533,9 +1540,12 @@ func (n *LeafNode) GetProofItems(keys keylist, _ NodeResolverFn) (*ProofElements
 		pe.Yis = append(pe.Yis, &leaves[0], &leaves[1])
 		pe.Fis = append(pe.Fis, suffPoly[:], suffPoly[:])
 		pe.Vals = append(pe.Vals, n.values[key[31]])
-		if len(esses) == 0 || esses[len(esses)-1] != extStatusPresent|(n.depth<<3) {
+
+		if _, ok := addedStems[string(key[:StemSize])]; !ok {
 			esses = append(esses, extStatusPresent|(n.depth<<3))
+			addedStems[string(key[:StemSize])] = struct{}{}
 		}
+
 		slotPath := string(key[:n.depth]) + string([]byte{2 + suffix/128})
 		pe.ByPath[slotPath] = scomm
 	}
