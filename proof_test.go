@@ -550,8 +550,8 @@ func TestProofOfAbsenceNoneMultipleStems(t *testing.T) {
 		t.Fatalf("invalid number of proof-of-absence stems: %d", len(proof.PoaStems))
 	}
 
-	if len(proof.ExtStatus) != 1 {
-		t.Fatalf("invalid number of extension statuses: %d ≠ 1", len(proof.ExtStatus))
+	if len(proof.ExtStatus) != 2 {
+		t.Fatalf("invalid number of extension statuses: %d ≠ 2", len(proof.ExtStatus))
 	}
 }
 
