@@ -32,12 +32,17 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	mRand "math/rand"
+	"reflect"
 	"runtime"
 	"sort"
 	"strings"
 	"testing"
+	"testing/quick"
 	"time"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 // a 32 byte value, as expected in the tree structure
@@ -1647,5 +1652,156 @@ func TestLeafNodeInsert(t *testing.T) {
 	// Test that getting the hash returns an expected value.
 	if h := ln.Hash(); h == nil {
 		t.Fatalf("hash should not be nil")
+	}
+}
+
+type randTest []randTestStep
+
+type randTestStep struct {
+	op    int
+	key   []byte // for opInsert, opDelete, opGet
+	value []byte // for opInsert
+	err   error  // for debugging
+}
+
+const (
+	opInsert = iota
+	opDelete
+	opGet
+	opHash
+	opCommit
+	opProve
+	numOps
+)
+
+// Generate implements the quick.Generator interface from testing/quick
+// to generate random test cases.
+func (randTest) Generate(r *mRand.Rand, size int) reflect.Value {
+	var finishedFn = func() bool {
+		if size == 0 {
+			return true
+		}
+		size--
+		return false
+	}
+	return reflect.ValueOf(generateSteps(finishedFn, r))
+}
+
+func generateSteps(finished func() bool, r io.Reader) randTest {
+	var allKeys [][]byte
+	var tmp = []byte{0}
+	genKey := func() []byte {
+		_, err := r.Read(tmp)
+		if err != nil {
+			panic(err)
+		}
+
+		// first 2 operations always create a new key, then 10% of the time
+		// we create a new key or return an existing key otherwise.
+		if len(allKeys) < 2 || tmp[0]%100 > 90 {
+			// new key
+			key := make([]byte, 32)
+			_, err := r.Read(key)
+			if err != nil {
+				panic(err)
+			}
+
+			allKeys = append(allKeys, key)
+			return key
+		}
+		// use existing key
+		idx := int(tmp[0]) % len(allKeys)
+		return allKeys[idx]
+	}
+	var steps randTest
+	for !finished() {
+		_, err := r.Read(tmp)
+		if err != nil {
+			panic(err)
+		}
+
+		step := randTestStep{op: int(tmp[0]) % numOps}
+		switch step.op {
+		case opInsert:
+			step.key = genKey()
+			step.value = make([]byte, 32)
+			_, err := r.Read(step.value)
+			if err != nil {
+				panic(err)
+			}
+		case opGet, opDelete, opProve:
+			step.key = genKey()
+		}
+		steps = append(steps, step)
+	}
+	return steps
+}
+
+// runRandTestBool coerces error to boolean, for use in quick.Check
+func runRandTestBool(rt randTest) bool {
+	return runRandTest(rt) == nil
+}
+
+func runRandTest(rt randTest) error {
+	var (
+		root   = New()
+		keys   = [][]byte{}
+		values = make(map[string]string)
+		cfg    = GetConfig()
+	)
+	for i, step := range rt {
+		switch step.op {
+		case opInsert:
+			if err := root.Insert(step.key, step.value, nil); err != nil {
+				rt[i].err = err
+			}
+			keys = append(keys, step.key)
+			values[string(step.key)] = string(step.value)
+		case opDelete:
+			if _, err := root.Delete(step.key, nil); err != nil {
+				rt[i].err = err
+			}
+			delete(values, string(step.key))
+		case opGet:
+			v, err := root.Get(step.key, nil)
+			want := values[string(step.key)]
+			if string(v) != want {
+				rt[i].err = fmt.Errorf("mismatch for key %#x, got %#x want %#x, err %v", step.key, v, want, err)
+			}
+		case opProve:
+			if len(keys) == 0 {
+				continue
+			}
+			root.Commit()
+			proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, nil, keys, nil)
+			if ok, err := VerifyVerkleProof(proof, cis, zis, yis, cfg); !ok || err != nil {
+				rt[i].err = fmt.Errorf("could not verify verkle proof: %s, err %v", ToDot(root), err)
+			}
+		// TODO: reconsider if we should avoid returning pointers in Hash() and Commit()
+		case opHash:
+			if hash := root.Hash(); hash == nil {
+				rt[i].err = fmt.Errorf("hash is nil")
+			}
+		case opCommit:
+			if comm := root.Commit(); comm == nil {
+				rt[i].err = fmt.Errorf("commit is nil")
+			}
+		}
+		// Abort the test on error.
+		if rt[i].err != nil {
+			return rt[i].err
+		}
+	}
+	return nil
+}
+
+func TestRandom(t *testing.T) {
+	t.Parallel()
+
+	if err := quick.Check(runRandTestBool, nil); err != nil {
+		if cerr, ok := err.(*quick.CheckError); ok {
+			t.Fatalf("random test iteration %d failed: %s", cerr.Count, spew.Sdump(cerr.In))
+		}
+		t.Fatal(err)
 	}
 }
