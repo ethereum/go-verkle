@@ -929,13 +929,12 @@ func TestInsertIntoHashedNode(t *testing.T) {
 }
 
 func TestToDot(t *testing.T) {
-	//TODO: fix this test when we take a final decision about FlushAtDepth API.
-	t.SkipNow()
 	root := New()
 	if err := root.Insert(zeroKeyTest, zeroKeyTest, nil); err != nil {
 		t.Fatalf("inserting into the original failed: %v", err)
 	}
-	root.(*InternalNode).FlushAtDepth(0, func(_ []byte, n VerkleNode) {}) // Hash the leaf to ensure HashedNodes display correctly
+	// TODO fix the issue with FlushAtDepth so that we can also try to verify the display of hashed nodes
+	// root.(*InternalNode).FlushAtDepth(0, func(_ []byte, n VerkleNode) {}) // Hash the leaf to ensure HashedNodes display correctly
 	if err := root.Insert(fourtyKeyTest, zeroKeyTest, nil); err != nil {
 		t.Fatalf("inserting into the original failed: %v", err)
 	}
@@ -947,9 +946,10 @@ func TestToDot(t *testing.T) {
 	fmt.Println(ToDot(root))
 
 	// ensure the ToDot output contains a single HashedNode
-	if !strings.Contains(ToDot(root), "hash00") {
-		t.Error("ToDot output does not contain a HashedNode")
-	}
+	// TODO see other TODO above
+	// if !strings.Contains(ToDot(root), "hash00") {
+	// 	t.Error("ToDot output does not contain a HashedNode")
+	// }
 
 	// ensure the ToDot output contains two LeafNodes
 	if !strings.Contains(ToDot(root), "leaf4000") {
