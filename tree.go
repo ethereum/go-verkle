@@ -309,7 +309,7 @@ func NewLeafNode(stem []byte, values [][]byte) (*LeafNode, error) {
 	}, nil
 }
 
-// NewLeafNodeWithNoComms create a leaf node but does compute its
+// NewLeafNodeWithNoComms create a leaf node but does not compute its
 // commitments. The created node's commitments are intended to be
 // initialized with `SetTrustedBytes` in a deserialization context.
 func NewLeafNodeWithNoComms(stem []byte, values [][]byte) *LeafNode {
