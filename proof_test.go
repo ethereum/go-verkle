@@ -36,6 +36,19 @@ import (
 	"github.com/crate-crypto/go-ipa/common"
 )
 
+func TestProofEmptyTree(t *testing.T) {
+	t.Parallel()
+
+	root := New()
+	root.Commit()
+
+	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, nil, [][]byte{ffx32KeyTest}, nil)
+	cfg := GetConfig()
+	if ok, err := VerifyVerkleProof(proof, cis, zis, yis, cfg); !ok || err != nil {
+		t.Fatalf("could not verify verkle proof: %s", ToDot(root))
+	}
+}
+
 func TestProofVerifyTwoLeaves(t *testing.T) {
 	t.Parallel()
 
