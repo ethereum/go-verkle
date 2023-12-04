@@ -55,6 +55,15 @@ func (kl keylist) Swap(i, j int) {
 	kl[i], kl[j] = kl[j], kl[i]
 }
 
+type Stem []byte
+
+func KeyToStem(key []byte) Stem {
+	if len(key) < StemSize {
+		panic(fmt.Errorf("key length (%d) is shorter than expected stem size (%d)", len(key), StemSize))
+	}
+	return Stem(key[:StemSize])
+}
+
 type VerkleNode interface {
 	// Insert or Update value into the tree
 	Insert([]byte, []byte, NodeResolverFn) error
@@ -80,7 +89,7 @@ type VerkleNode interface {
 	// returns them breadth-first. On top of that, it returns
 	// one "extension status" per stem, and an alternate stem
 	// if the key is missing but another stem has been found.
-	GetProofItems(keylist, NodeResolverFn) (*ProofElements, []byte, [][]byte, error)
+	GetProofItems(keylist, NodeResolverFn) (*ProofElements, []byte, []Stem, error)
 
 	// Serialize encodes the node to RLP.
 	Serialize() ([]byte, error)
@@ -176,7 +185,7 @@ type (
 	}
 
 	LeafNode struct {
-		stem   []byte
+		stem   Stem
 		values [][]byte
 
 		commitment *Point
@@ -254,7 +263,7 @@ func NewStatelessInternal(depth byte, comm *Point) VerkleNode {
 }
 
 // New creates a new leaf node
-func NewLeafNode(stem []byte, values [][]byte) (*LeafNode, error) {
+func NewLeafNode(stem Stem, values [][]byte) (*LeafNode, error) {
 	cfg := GetConfig()
 
 	// C1.
@@ -312,7 +321,7 @@ func NewLeafNode(stem []byte, values [][]byte) (*LeafNode, error) {
 // NewLeafNodeWithNoComms create a leaf node but does not compute its
 // commitments. The created node's commitments are intended to be
 // initialized with `SetTrustedBytes` in a deserialization context.
-func NewLeafNodeWithNoComms(stem []byte, values [][]byte) *LeafNode {
+func NewLeafNodeWithNoComms(stem Stem, values [][]byte) *LeafNode {
 	return &LeafNode{
 		// depth will be 0, but the commitment calculation
 		// does not need it, and so it won't be free.
@@ -349,11 +358,11 @@ func (n *InternalNode) cowChild(index byte) {
 
 func (n *InternalNode) Insert(key []byte, value []byte, resolver NodeResolverFn) error {
 	values := make([][]byte, NodeWidth)
-	values[key[31]] = value
-	return n.InsertValuesAtStem(key[:31], values, resolver)
+	values[key[StemSize]] = value
+	return n.InsertValuesAtStem(KeyToStem(key), values, resolver)
 }
 
-func (n *InternalNode) InsertValuesAtStem(stem []byte, values [][]byte, resolver NodeResolverFn) error {
+func (n *InternalNode) InsertValuesAtStem(stem Stem, values [][]byte, resolver NodeResolverFn) error {
 	nChild := offset2key(stem, n.depth) // index of the child pointed by the next byte in the key
 
 	switch child := n.children[nChild].(type) {
@@ -532,7 +541,7 @@ func (n *InternalNode) CreatePath(path []byte, stemInfo stemInfo, comms []*Point
 // GetValuesAtStem returns the all NodeWidth values of the stem.
 // The returned slice is internal to the tree, so it *must* be considered readonly
 // for callers.
-func (n *InternalNode) GetValuesAtStem(stem []byte, resolver NodeResolverFn) ([][]byte, error) {
+func (n *InternalNode) GetValuesAtStem(stem Stem, resolver NodeResolverFn) ([][]byte, error) {
 	nchild := offset2key(stem, n.depth) // index of the child pointed by the next byte in the key
 	switch child := n.children[nchild].(type) {
 	case UnknownNode:
@@ -684,7 +693,7 @@ func (n *InternalNode) Get(key []byte, resolver NodeResolverFn) ([]byte, error) 
 	if len(key) != StemSize+1 {
 		return nil, fmt.Errorf("invalid key length, expected %d, got %d", StemSize+1, len(key))
 	}
-	stemValues, err := n.GetValuesAtStem(key[:StemSize], resolver)
+	stemValues, err := n.GetValuesAtStem(KeyToStem(key), resolver)
 	if err != nil {
 		return nil, err
 	}
@@ -855,7 +864,7 @@ func groupKeys(keys keylist, depth byte) []keylist {
 	return groups
 }
 
-func (n *InternalNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*ProofElements, []byte, [][]byte, error) {
+func (n *InternalNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
 	var (
 		groups = groupKeys(keys, n.depth)
 		pe     = &ProofElements{
@@ -866,8 +875,8 @@ func (n *InternalNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*Pr
 			ByPath: map[string]*Point{},
 		}
 
-		esses []byte   = nil // list of extension statuses
-		poass [][]byte       // list of proof-of-absence stems
+		esses []byte = nil // list of extension statuses
+		poass []Stem       // list of proof-of-absence stems
 	)
 
 	// fill in the polynomial for this node
@@ -937,13 +946,14 @@ func (n *InternalNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*Pr
 		if isempty {
 			addedStems := map[string]struct{}{}
 			for i := 0; i < len(group); i++ {
-				if _, ok := addedStems[string(group[i][:StemSize])]; !ok {
+				stemStr := string(KeyToStem(group[i]))
+				if _, ok := addedStems[stemStr]; !ok {
 					// A question arises here: what if this proof of absence
 					// corresponds to several stems? Should the ext status be
 					// repeated as many times? It's wasteful, so consider if the
 					// decoding code can be aware of this corner case.
 					esses = append(esses, extStatusAbsentEmpty|((n.depth+1)<<3))
-					addedStems[string(group[i][:StemSize])] = struct{}{}
+					addedStems[stemStr] = struct{}{}
 				}
 				// Append one nil value per key in this missing stem
 				pe.Vals = append(pe.Vals, nil)
@@ -1070,15 +1080,17 @@ func (n *LeafNode) Insert(key []byte, value []byte, _ NodeResolverFn) error {
 	if len(key) != StemSize+1 {
 		return fmt.Errorf("invalid key size: %d", len(key))
 	}
-	if !bytes.Equal(key[:StemSize], n.stem) {
-		return fmt.Errorf("stems doesn't match: %x != %x", key[:StemSize], n.stem)
+
+	stem := KeyToStem(key)
+	if !bytes.Equal(stem, n.stem) {
+		return fmt.Errorf("stems doesn't match: %x != %x", stem, n.stem)
 	}
 	values := make([][]byte, NodeWidth)
 	values[key[StemSize]] = value
-	return n.insertMultiple(key[:StemSize], values)
+	return n.insertMultiple(stem, values)
 }
 
-func (n *LeafNode) insertMultiple(stem []byte, values [][]byte) error {
+func (n *LeafNode) insertMultiple(stem Stem, values [][]byte) error {
 	// Sanity check: ensure the stems are the same.
 	if !equalPaths(stem, n.stem) {
 		return errInsertIntoOtherStem
@@ -1236,8 +1248,8 @@ func (n *LeafNode) Delete(k []byte, _ NodeResolverFn) (bool, error) {
 	}
 
 	// Erase the value it used to contain
-	original := n.values[k[31]] // save original value
-	n.values[k[31]] = nil
+	original := n.values[k[StemSize]] // save original value
+	n.values[k[StemSize]] = nil
 
 	// Check if a Cn subtree is entirely empty, or if
 	// the entire subtree is empty.
@@ -1247,18 +1259,18 @@ func (n *LeafNode) Delete(k []byte, _ NodeResolverFn) (bool, error) {
 	)
 	for i := 0; i < NodeWidth; i++ {
 		if len(n.values[i]) > 0 {
-			// if i and k[31] are in the same subtree,
+			// if i and k[StemSize] are in the same subtree,
 			// set both values and return.
-			if byte(i/128) == k[31]/128 {
+			if byte(i/128) == k[StemSize]/128 {
 				isCnempty = false
 				isCempty = false
 				break
 			}
 
-			// i and k[31] were in a different subtree,
+			// i and k[StemSize] were in a different subtree,
 			// so all we can say at this stage, is that
 			// the whole tree isn't empty.
-			// TODO if i < 128, then k[31] >= 128 and
+			// TODO if i < 128, then k[StemSize] >= 128 and
 			// we could skip to 128, but that's an
 			// optimization for later.
 			isCempty = false
@@ -1277,10 +1289,10 @@ func (n *LeafNode) Delete(k []byte, _ NodeResolverFn) (bool, error) {
 	if isCnempty {
 		var (
 			cn           *Point
-			subtreeindex = 2 + k[31]/128
+			subtreeindex = 2 + k[StemSize]/128
 		)
 
-		if k[31] < 128 {
+		if k[StemSize] < 128 {
 			cn = n.c1
 		} else {
 			cn = n.c2
@@ -1297,7 +1309,7 @@ func (n *LeafNode) Delete(k []byte, _ NodeResolverFn) (bool, error) {
 		n.commitment.Sub(n.commitment, cfg.CommitToPoly(poly[:], 0))
 
 		// Clear the corresponding commitment
-		if k[31] < 128 {
+		if k[StemSize] < 128 {
 			n.c1 = nil
 		} else {
 			n.c2 = nil
@@ -1316,8 +1328,8 @@ func (n *LeafNode) Delete(k []byte, _ NodeResolverFn) (bool, error) {
 	// Note that the value is set to nil by
 	// the method, as it needs the original
 	// value to compute the commitment diffs.
-	n.values[k[31]] = original
-	return false, n.updateLeaf(k[31], nil)
+	n.values[k[StemSize]] = original
+	return false, n.updateLeaf(k[StemSize], nil)
 }
 
 func (n *LeafNode) Get(k []byte, _ NodeResolverFn) ([]byte, error) {
@@ -1404,7 +1416,7 @@ func leafToComms(poly []Fr, val []byte) error {
 	return nil
 }
 
-func (n *LeafNode) GetProofItems(keys keylist, _ NodeResolverFn) (*ProofElements, []byte, [][]byte, error) { // skipcq: GO-R1005
+func (n *LeafNode) GetProofItems(keys keylist, _ NodeResolverFn) (*ProofElements, []byte, []Stem, error) { // skipcq: GO-R1005
 	var (
 		poly [NodeWidth]Fr // top-level polynomial
 		pe                 = &ProofElements{
@@ -1416,8 +1428,8 @@ func (n *LeafNode) GetProofItems(keys keylist, _ NodeResolverFn) (*ProofElements
 			ByPath: map[string]*Point{},
 		}
 
-		esses []byte   = nil // list of extension statuses
-		poass [][]byte       // list of proof-of-absence stems
+		esses []byte = nil // list of extension statuses
+		poass []Stem       // list of proof-of-absence stems
 	)
 
 	// Initialize the top-level polynomial with 1 + stem + C1 + C2
@@ -1433,8 +1445,8 @@ func (n *LeafNode) GetProofItems(keys keylist, _ NodeResolverFn) (*ProofElements
 		// We should only analize the inclusion of C1/C2 for keys corresponding to this
 		// leaf node stem.
 		if equalPaths(n.stem, key) {
-			hasC1 = hasC1 || (key[31] < 128)
-			hasC2 = hasC2 || (key[31] >= 128)
+			hasC1 = hasC1 || (key[StemSize] < 128)
+			hasC2 = hasC2 || (key[StemSize] >= 128)
 			if hasC2 {
 				break
 			}
@@ -1486,9 +1498,10 @@ func (n *LeafNode) GetProofItems(keys keylist, _ NodeResolverFn) (*ProofElements
 			// Add an extension status absent other for this stem.
 			// Note we keep a cache to avoid adding the same stem twice (or more) if
 			// there're multiple keys with the same stem.
-			if _, ok := addedStems[string(key[:StemSize])]; !ok {
+			stemStr := string(KeyToStem(key))
+			if _, ok := addedStems[stemStr]; !ok {
 				esses = append(esses, extStatusAbsentOther|(n.depth<<3))
-				addedStems[string(key[:StemSize])] = struct{}{}
+				addedStems[stemStr] = struct{}{}
 			}
 			pe.Vals = append(pe.Vals, nil)
 			continue
@@ -1504,7 +1517,7 @@ func (n *LeafNode) GetProofItems(keys keylist, _ NodeResolverFn) (*ProofElements
 		}
 
 		var (
-			suffix   = key[31]
+			suffix   = key[StemSize]
 			suffPoly [NodeWidth]Fr // suffix-level polynomial
 			err      error
 			scomm    *Point
@@ -1539,11 +1552,12 @@ func (n *LeafNode) GetProofItems(keys keylist, _ NodeResolverFn) (*ProofElements
 		pe.Zis = append(pe.Zis, 2*suffix, 2*suffix+1)
 		pe.Yis = append(pe.Yis, &leaves[0], &leaves[1])
 		pe.Fis = append(pe.Fis, suffPoly[:], suffPoly[:])
-		pe.Vals = append(pe.Vals, n.values[key[31]])
+		pe.Vals = append(pe.Vals, n.values[key[StemSize]])
 
-		if _, ok := addedStems[string(key[:StemSize])]; !ok {
+		stemStr := string(KeyToStem(key))
+		if _, ok := addedStems[stemStr]; !ok {
 			esses = append(esses, extStatusPresent|(n.depth<<3))
-			addedStems[string(key[:StemSize])] = struct{}{}
+			addedStems[stemStr] = struct{}{}
 		}
 
 		slotPath := string(key[:n.depth]) + string([]byte{2 + suffix/128})
@@ -1590,7 +1604,7 @@ func (n *LeafNode) Copy() VerkleNode {
 func (n *LeafNode) Key(i int) []byte {
 	var ret [32]byte
 	copy(ret[:], n.stem)
-	ret[31] = byte(i)
+	ret[StemSize] = byte(i)
 	return ret[:]
 }
 

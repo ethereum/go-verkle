@@ -136,7 +136,7 @@ func TestMultiProofVerifyMultipleLeavesWithAbsentStem(t *testing.T) {
 	const leafCount = 10
 
 	var keys [][]byte
-	var absentstem [31]byte
+	var absentstem [StemSize]byte
 	root := New()
 	for i := 0; i < leafCount; i++ {
 		key := make([]byte, 32)
@@ -148,7 +148,7 @@ func TestMultiProofVerifyMultipleLeavesWithAbsentStem(t *testing.T) {
 			keys = append(keys, key)
 		}
 		if i == 3 {
-			copy(absentstem[:], key[:31])
+			copy(absentstem[:], key[:StemSize])
 		}
 	}
 	root.Commit()
@@ -610,7 +610,7 @@ func TestStemStateDiffJSONMarshalUn(t *testing.T) {
 	t.Parallel()
 
 	ssd := StemStateDiff{
-		Stem: [31]byte{10},
+		Stem: [StemSize]byte{10},
 		SuffixDiffs: []SuffixStateDiff{{
 			Suffix: 0x41,
 			CurrentValue: &[32]byte{
@@ -702,7 +702,7 @@ func TestVerkleProofMarshalUnmarshalJSON(t *testing.T) {
 	t.Parallel()
 
 	vp1 := &VerkleProof{
-		OtherStems:            [][31]byte{{1}, {2}, {3}},
+		OtherStems:            [][StemSize]byte{{1}, {2}, {3}},
 		DepthExtensionPresent: []byte{4, 5, 6},
 		CommitmentsByPath:     [][32]byte{{7}, {8}, {9}},
 		D:                     [32]byte{10},
@@ -1125,7 +1125,7 @@ func TestGenerateProofWithOnlyAbsentKeys(t *testing.T) {
 	for i := 0; i < common.VectorLength; i++ {
 		var key [32]byte
 		copy(key[:], presentKey)
-		key[31] = byte(i)
+		key[StemSize] = byte(i)
 		if _, err := droot.Get(key[:], nil); err != errIsPOAStub {
 			t.Fatalf("expected ErrPOALeafValue, got %v", err)
 		}
@@ -1136,7 +1136,7 @@ func TestGenerateProofWithOnlyAbsentKeys(t *testing.T) {
 	for i := 0; i < common.VectorLength; i++ {
 		var key [32]byte
 		copy(key[:], presentKey)
-		key[31] = byte(i)
+		key[StemSize] = byte(i)
 		if err := droot.Insert(key[:], zeroKeyTest, nil); err != errIsPOAStub {
 			t.Fatalf("expected ErrPOALeafValue, got %v", err)
 		}

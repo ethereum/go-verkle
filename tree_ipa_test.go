@@ -53,7 +53,7 @@ func extensionAndSuffixOneKey(t *testing.T, key, value []byte, ret *Point) {
 		t1, t2, c1                      Point
 	)
 	stemComm0 := srs[0]
-	err := StemFromBytes(&v, key[:31])
+	err := StemFromBytes(&v, KeyToStem(key))
 	if err != nil {
 		panic(err)
 	}
@@ -62,7 +62,7 @@ func extensionAndSuffixOneKey(t *testing.T, key, value []byte, ret *Point) {
 	if err := leafToComms(vs[:], value); err != nil {
 		t.Fatalf("leafToComms failed: %s", err)
 	}
-	c1.Add(t1.ScalarMul(&srs[2*key[31]], &vs[0]), t2.ScalarMul(&srs[2*key[31]+1], &vs[1]))
+	c1.Add(t1.ScalarMul(&srs[2*key[StemSize]], &vs[0]), t2.ScalarMul(&srs[2*key[StemSize]+1], &vs[1]))
 	c1.MapToScalarField(&v)
 	stemComm2.ScalarMul(&srs[2], &v)
 
@@ -165,7 +165,7 @@ func TestInsertSameStemTwoLeaves(t *testing.T) {
 	comm := root.Commit()
 
 	stemComm0 := srs[0]
-	err := StemFromBytes(&v, key_a[:31])
+	err := StemFromBytes(&v, KeyToStem(key_a))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -309,7 +309,7 @@ func TestPaddingInFromLEBytes(t *testing.T) {
 		t.Fatal(err)
 	}
 	key, _ := hex.DecodeString("ffffffffffffffffffffffffffffffff00000000000000000000000000000000")
-	err := StemFromBytes(&fr2, key[:StemSize])
+	err := StemFromBytes(&fr2, KeyToStem(key))
 	if err != nil {
 		t.Fatal(err)
 	}

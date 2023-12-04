@@ -36,7 +36,7 @@ type (
 	}
 
 	ExportableLeafNode struct {
-		Stem   []byte   `json:"stem"`
+		Stem   Stem     `json:"stem"`
 		Values [][]byte `json:"values"`
 
 		C  [32]byte `json:"commitment"`
