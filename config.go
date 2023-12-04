@@ -30,6 +30,7 @@ import (
 )
 
 const (
+	KeySize            = 32
 	LeafValueSize      = 32
 	NodeWidth          = 256
 	NodeBitWidth  byte = 8

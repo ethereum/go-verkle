@@ -1392,7 +1392,7 @@ func leafToComms(poly []Fr, val []byte) error {
 	if len(val) == 0 {
 		return nil
 	}
-	if len(val) > 32 {
+	if len(val) > LeafValueSize {
 		return fmt.Errorf("invalid leaf length %d, %v", len(val), val)
 	}
 	var (
@@ -1602,7 +1602,7 @@ func (n *LeafNode) Copy() VerkleNode {
 }
 
 func (n *LeafNode) Key(i int) []byte {
-	var ret [32]byte
+	var ret [KeySize]byte
 	copy(ret[:], n.stem)
 	ret[StemSize] = byte(i)
 	return ret[:]

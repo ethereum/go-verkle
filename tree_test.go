@@ -165,7 +165,7 @@ func TestOffset2key8BitsWide(t *testing.T) {
 	t.Parallel()
 
 	key, _ := hex.DecodeString("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
-	for i := byte(0); i < 32; i++ {
+	for i := byte(0); i < KeySize; i++ {
 		childId := offset2key(key, i)
 		if childId != i {
 			t.Fatalf("error getting child number in key %d != %d", childId, i)
@@ -579,11 +579,10 @@ func BenchmarkCommitFullNode(b *testing.B) {
 	nChildren := 256
 	keys := make([][]byte, nChildren)
 	for i := 0; i < nChildren; i++ {
-		key := make([]byte, 32)
+		key := make([]byte, KeySize)
 		key[0] = uint8(i)
 		keys[i] = key
 	}
-
 	b.ResetTimer()
 	b.ReportAllocs()
 
@@ -607,8 +606,8 @@ func benchmarkCommitNLeaves(b *testing.B, n int) {
 	sortedKVs := make([]kv, n)
 
 	for i := 0; i < n; i++ {
-		key := make([]byte, 32)
-		val := make([]byte, 32)
+		key := make([]byte, KeySize)
+		val := make([]byte, KeySize)
 		if _, err := rand.Read(key); err != nil {
 			b.Fatalf("failed to generate random key: %v", err)
 		}
@@ -650,7 +649,7 @@ func BenchmarkModifyLeaves(b *testing.B) {
 	keys := make([][]byte, n)
 	root := New()
 	for i := 0; i < n; i++ {
-		key := make([]byte, 32)
+		key := make([]byte, KeySize)
 		if _, err := rand.Read(key); err != nil {
 			b.Fatalf("failed to generate random key: %v", err)
 		}
@@ -681,7 +680,7 @@ func BenchmarkModifyLeaves(b *testing.B) {
 func randomKeys(t *testing.T, n int) [][]byte {
 	keys := make([][]byte, n)
 	for i := 0; i < n; i++ {
-		key := make([]byte, 32)
+		key := make([]byte, KeySize)
 		if _, err := rand.Read(key); err != nil {
 			t.Fatalf("failed to generate random key: %v", err)
 		}
@@ -1111,7 +1110,7 @@ func TestInsertStem(t *testing.T) {
 	}
 	r1c := root1.Commit()
 
-	var key5, key192 [32]byte
+	var key5, key192 [KeySize]byte
 	copy(key5[:], KeyToStem(fourtyKeyTest))
 	copy(key192[:], KeyToStem(fourtyKeyTest))
 	key5[StemSize] = 5
@@ -1502,8 +1501,8 @@ func genRandomKeyValues(rand *mRand.Rand, count int) []keyValue {
 	for i := 0; i < count; i++ {
 		keyval := make([]byte, 64)
 		rand.Read(keyval)
-		ret[i].key = keyval[:32]
-		ret[i].value = keyval[32:]
+		ret[i].key = keyval[:KeySize]
+		ret[i].value = keyval[KeySize:]
 	}
 	return ret
 }
@@ -1702,7 +1701,7 @@ func generateSteps(finished func() bool, r io.Reader) randTest {
 		// we create a new key or return an existing key otherwise.
 		if len(allKeys) < 2 || tmp[0]%100 > 90 {
 			// new key
-			key := make([]byte, 32)
+			key := make([]byte, KeySize)
 			_, err := r.Read(key)
 			if err != nil {
 				panic(err)
