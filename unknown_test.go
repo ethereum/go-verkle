@@ -33,8 +33,8 @@ func TestUnknownFuncs(t *testing.T) {
 	if un != un.Copy() {
 		t.Errorf("copy returned a different node")
 	}
-	if un.toDot("", "") != "" {
-		t.Errorf("toDot returned a non-empty string")
+	if un.ToDot("", "") != "" {
+		t.Errorf("ToDot returned a non-empty string")
 	}
 	if !un.Hash().Equal(&FrZero) {
 		t.Errorf("hash returned non-zero")

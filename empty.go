@@ -65,7 +65,7 @@ func (Empty) Copy() VerkleNode {
 	return Empty(struct{}{})
 }
 
-func (Empty) toDot(string, string) string {
+func (Empty) ToDot(string, string) string {
 	return ""
 }
 

@@ -70,7 +70,7 @@ func (HashedNode) Copy() VerkleNode {
 	return HashedNode{}
 }
 
-func (HashedNode) toDot(parent, path string) string {
+func (HashedNode) ToDot(parent, path string) string {
 	return fmt.Sprintf("hash%s [label=\"unresolved\"]\n%s -> hash%s\n", path, parent, path)
 }
 

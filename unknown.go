@@ -63,7 +63,7 @@ func (UnknownNode) Copy() VerkleNode {
 	return UnknownNode(struct{}{})
 }
 
-func (UnknownNode) toDot(string, string) string {
+func (UnknownNode) ToDot(string, string) string {
 	return ""
 }
 

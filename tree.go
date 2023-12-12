@@ -88,8 +88,8 @@ type VerkleNode interface {
 	// Copy a node and its children
 	Copy() VerkleNode
 
-	// toDot returns a string representing this subtree in DOT language
-	toDot(string, string) string
+	// ToDot returns a string representing this subtree in DOT language
+	ToDot(string, string) string
 
 	setDepth(depth byte)
 }
@@ -1013,7 +1013,7 @@ func (n *InternalNode) Copy() VerkleNode {
 	return ret
 }
 
-func (n *InternalNode) toDot(parent, path string) string {
+func (n *InternalNode) ToDot(parent, path string) string {
 	me := fmt.Sprintf("internal%s", path)
 	var hash Fr
 	n.commitment.MapToScalarField(&hash)
@@ -1026,7 +1026,7 @@ func (n *InternalNode) toDot(parent, path string) string {
 		if child == nil {
 			continue
 		}
-		ret = fmt.Sprintf("%s%s", ret, child.toDot(me, fmt.Sprintf("%s%02x", path, i)))
+		ret = fmt.Sprintf("%s%s", ret, child.ToDot(me, fmt.Sprintf("%s%02x", path, i)))
 	}
 
 	return ret
@@ -1601,7 +1601,7 @@ func (n *LeafNode) Value(i int) []byte {
 	return n.values[byte(i)]
 }
 
-func (n *LeafNode) toDot(parent, path string) string {
+func (n *LeafNode) ToDot(parent, path string) string {
 	var hash Fr
 	n.Commitment().MapToScalarField(&hash)
 	ret := fmt.Sprintf("leaf%s [label=\"L: %x\nC: %x\nStem: %x\nC₁: %x\nC₂:%x\"]\n%s -> leaf%s\n", path, hash.Bytes(), n.commitment.Bytes(), n.stem, n.c1.Bytes(), n.c2.Bytes(), parent, path)
@@ -1627,7 +1627,7 @@ func setBit(bitlist []byte, index int) {
 
 func ToDot(root VerkleNode) string {
 	root.Commit()
-	return fmt.Sprintf("digraph D {\n%s}", root.toDot("", ""))
+	return fmt.Sprintf("digraph D {\n%s}", root.ToDot("", ""))
 }
 
 // SerializedNode contains a serialization of a tree node.
