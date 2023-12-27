@@ -54,6 +54,16 @@ func (HashedNode) Commit() *Point {
 	panic("can not commit a hash node")
 }
 
+func (HashedNode) CommitLog() *Point {
+	// TODO: we should reconsider what to do with the VerkleNode interface and how
+	//       HashedNode fits into the picture, since Commit(), Commitment() and Hash()
+	//	     now panics. Despite these calls must not happen at runtime, it is still
+	//	     quite risky. The reason we end up in this place is because PBSS came quite
+	//	     recently compared with the VerkleNode interface design. We should probably
+	//	     reconsider splitting the interface or find some safer workaround.
+	panic("can not commit a hash node")
+}
+
 func (HashedNode) Commitment() *Point {
 	panic("can not get commitment of a hash node")
 }

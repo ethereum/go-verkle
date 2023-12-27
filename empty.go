@@ -47,6 +47,10 @@ func (n Empty) Commit() *Point {
 	return n.Commitment()
 }
 
+func (n Empty) CommitLog() *Point {
+	return n.Commitment()
+}
+
 func (Empty) Commitment() *Point {
 	var id Point
 	id.SetIdentity()

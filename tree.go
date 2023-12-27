@@ -69,6 +69,9 @@ type VerkleNode interface {
 	// result (the curve point) is cached.
 	Commit() *Point
 
+	// Same as Commit but prints logs
+	CommitLog() *Point
+
 	// Commitment is a getter for the cached commitment
 	// to this node.
 	Commitment() *Point
@@ -772,6 +775,55 @@ func (n *InternalNode) Commit() *Point {
 	return n.commitment
 }
 
+func (n *InternalNode) CommitLog() *Point {
+	if len(n.cow) == 0 {
+		return n.commitment
+	}
+
+	internalNodeLevels := make([][]*InternalNode, StemSize)
+	n.fillLevels(internalNodeLevels)
+
+	for level := len(internalNodeLevels) - 1; level >= 0; level-- {
+		nodes := internalNodeLevels[level]
+		if len(nodes) == 0 {
+			continue
+		}
+
+		minBatchSize := 4
+		if len(nodes) <= minBatchSize {
+			if err := commitNodesAtLevelLog(nodes); err != nil {
+				// TODO: make Commit() return an error
+				panic(err)
+			}
+		} else {
+			var wg sync.WaitGroup
+			numBatches := runtime.NumCPU()
+			batchSize := (len(nodes) + numBatches - 1) / numBatches
+			if batchSize < minBatchSize {
+				batchSize = minBatchSize
+			}
+			for i := 0; i < len(nodes); i += batchSize {
+				start := i
+				end := i + batchSize
+				if end > len(nodes) {
+					end = len(nodes)
+				}
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					if err := commitNodesAtLevelLog(nodes[start:end]); err != nil {
+						// TODO: make Commit() return an error
+						panic(err)
+					}
+
+				}()
+			}
+			wg.Wait()
+		}
+	}
+	return n.commitment
+}
+
 func commitNodesAtLevel(nodes []*InternalNode) error {
 	points := make([]*Point, 0, 1024)
 	cowIndexes := make([]int, 0, 1024)
@@ -819,6 +871,62 @@ func commitNodesAtLevel(nodes []*InternalNode) error {
 		}
 		node.cow = nil
 		node.commitment.Add(node.commitment, cfg.CommitToPoly(poly, 0))
+	}
+
+	return nil
+}
+
+func commitNodesAtLevelLog(nodes []*InternalNode) error {
+	points := make([]*Point, 0, 1024)
+	cowIndexes := make([]int, 0, 1024)
+
+	// For each internal node, we collect in `points` all the ones we need to map to a field element.
+	// That is, for each touched children in a node, we collect the old and new commitment to do the diff updating
+	// later.
+	for _, node := range nodes {
+		for idx, nodeChildComm := range node.cow {
+			points = append(points, nodeChildComm)
+			points = append(points, node.children[idx].Commitment())
+			cowIndexes = append(cowIndexes, int(idx))
+		}
+	}
+
+	// We generate `frs` which will contain the result for each element in `points`.
+	frs := make([]*Fr, len(points))
+	for i := range frs {
+		frs[i] = &Fr{}
+	}
+
+	// Do a single batch calculation for all the points in this level.
+	if err := banderwagon.BatchMapToScalarField(frs, points); err != nil {
+		return fmt.Errorf("batch mapping to scalar fields: %s", err)
+	}
+
+	// We calculate the difference between each (new commitment - old commitment) pair, and store it
+	// in the same slice to avoid allocations.
+	for i := 0; i < len(frs); i += 2 {
+		frs[i/2].Sub(frs[i+1], frs[i])
+	}
+	// Now `frs` have half of the elements, and these are the Frs differences to update commitments.
+	frs = frs[:len(frs)/2]
+
+	// Now we iterate on the nodes, and use this calculated differences to update their commitment.
+	var frsIdx int
+	var cowIndex int
+
+	for _, node := range nodes {
+		poly := make([]Fr, NodeWidth)
+		for i := 0; i < len(node.cow); i++ {
+			poly[cowIndexes[cowIndex]] = *frs[frsIdx]
+			frsIdx++
+			cowIndex++
+		}
+		node.cow = nil
+		node.commitment.Add(node.commitment, cfg.CommitToPoly(poly, 0))
+	}
+
+	for i := 0; i < len(frs); i += 1 {
+		fmt.Printf("frs[%d] %d\n", i, frs[i])
 	}
 
 	return nil
@@ -1353,6 +1461,10 @@ func (n *LeafNode) Commitment() *Point {
 }
 
 func (n *LeafNode) Commit() *Point {
+	return n.commitment
+}
+
+func (n *LeafNode) CommitLog() *Point {
 	return n.commitment
 }
 

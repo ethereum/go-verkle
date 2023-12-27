@@ -45,6 +45,10 @@ func (n UnknownNode) Commit() *Point {
 	return n.Commitment()
 }
 
+func (n UnknownNode) CommitLog() *Point {
+	return n.Commitment()
+}
+
 func (UnknownNode) Commitment() *Point {
 	var id Point
 	id.SetIdentity()
