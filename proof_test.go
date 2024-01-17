@@ -32,6 +32,8 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+
+	"github.com/crate-crypto/go-ipa/common"
 )
 
 func TestProofEmptyTree(t *testing.T) {
@@ -808,6 +810,32 @@ func TestProofVerificationTwoLeavesWithDifferentValues(t *testing.T) {
 	testSerializeDeserializeProof(t, insertKVs, proveKeys)
 }
 
+func TestProofOfAbsenceBorderCase(t *testing.T) {
+	t.Parallel()
+
+	key1, _ := hex.DecodeString("0001000000000000000000000000000000000000000000000000000000000001")
+
+	insertKVs := map[string][]byte{
+		string(oneKeyTest): fourtyKeyTest,
+	}
+	proveKeys := keylist{oneKeyTest, key1}
+
+	testSerializeDeserializeProof(t, insertKVs, proveKeys)
+}
+
+func TestProofOfAbsenceBorderCaseReversed(t *testing.T) {
+	t.Parallel()
+
+	key1, _ := hex.DecodeString("0001000000000000000000000000000000000000000000000000000000000001")
+
+	insertKVs := map[string][]byte{
+		string(key1): fourtyKeyTest,
+	}
+	proveKeys := keylist{oneKeyTest, key1}
+
+	testSerializeDeserializeProof(t, insertKVs, proveKeys)
+}
+
 func testSerializeDeserializeProof(t *testing.T, insertKVs map[string][]byte, proveKeys keylist) {
 	t.Helper()
 
@@ -1044,5 +1072,78 @@ func TestProofVerificationWithPostState(t *testing.T) { // skipcq: GO-R1005
 				t.Fatalf("could not verify verkle proof: %v, original: %s reconstructed: %s", err, ToDot(dpreroot), ToDot(dpostroot))
 			}
 		})
+	}
+}
+
+func TestGenerateProofWithOnlyAbsentKeys(t *testing.T) {
+	t.Parallel()
+
+	// Create a tree with only one key.
+	root := New()
+	presentKey, _ := hex.DecodeString("4000000000000000000000000000000000000000000000000000000000000000")
+	if err := root.Insert(presentKey, zeroKeyTest, nil); err != nil {
+		t.Fatalf("inserting into the original failed: %v", err)
+	}
+	root.Commit()
+
+	// Create a proof with a key with the same first byte, but different second byte (i.e: absent).
+	absentKey, _ := hex.DecodeString("4010000000000000000000000000000000000000000000000000000000000000")
+	proof, cis, zis, yis, err := MakeVerkleMultiProof(root, nil, keylist{absentKey}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// It must pass.
+	if ok, err := VerifyVerkleProof(proof, cis, zis, yis, cfg); !ok || err != nil {
+		t.Fatalf("original proof didn't verify: %v", err)
+	}
+
+	// Serialize + Deserialize + build tree from proof.
+	vp, statediff, err := SerializeProof(proof)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dproof, err := DeserializeProof(vp, statediff)
+	if err != nil {
+		t.Fatal(err)
+	}
+	droot, err := PreStateTreeFromProof(dproof, root.Commit())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// From the rebuilt tree, validate the proof.
+	pe, _, _, err := GetCommitmentsForMultiproof(droot, keylist{absentKey}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// It must pass.
+	if ok, err := VerifyVerkleProof(dproof, pe.Cis, pe.Zis, pe.Yis, cfg); !ok || err != nil {
+		t.Fatalf("reconstructed proof didn't verify: %v", err)
+	}
+
+	// Double-check that if we try to access any key in 40000000000000000000000000000000000000000000000000000000000000{XX}
+	// in the reconstructed tree, we get an error. This LeafNode is only supposed to prove
+	// the absence of 40100000000000000000000000000000000000000000000000000000000000{YY}, so
+	// we don't know anything about any value for slots XX.
+	for i := 0; i < common.VectorLength; i++ {
+		var key [32]byte
+		copy(key[:], presentKey)
+		key[StemSize] = byte(i)
+		if _, err := droot.Get(key[:], nil); err != errIsPOAStub {
+			t.Fatalf("expected ErrPOALeafValue, got %v", err)
+		}
+	}
+
+	// The same applies to trying to insert values in this LeafNode, this shouldn't be allowed since we don't know
+	// anything about C1 or C2 to do a proper updating.
+	for i := 0; i < common.VectorLength; i++ {
+		var key [32]byte
+		copy(key[:], presentKey)
+		key[StemSize] = byte(i)
+		if err := droot.Insert(key[:], zeroKeyTest, nil); err != errIsPOAStub {
+			t.Fatalf("expected ErrPOALeafValue, got %v", err)
+		}
 	}
 }
