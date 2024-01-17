@@ -738,7 +738,7 @@ func TestStatelessDeserialize(t *testing.T) {
 	testSerializeDeserializeProof(t, insertKVs, proveKeys)
 }
 
-func TestStatelessDeserializeMissingChildNode(t *testing.T) {
+func TestStatelessDeserializeMissingLeafNode(t *testing.T) {
 	t.Parallel()
 
 	insertKVs := map[string][]byte{
@@ -747,6 +747,18 @@ func TestStatelessDeserializeMissingChildNode(t *testing.T) {
 		string(ffx32KeyTest): fourtyKeyTest,
 	}
 	proveKeys := keylist{zeroKeyTest, fourtyKeyTest}
+
+	testSerializeDeserializeProof(t, insertKVs, proveKeys)
+}
+
+func TestStatelessDeserializeAbsentValueInExistingLeafNode(t *testing.T) {
+	t.Parallel()
+
+	insertKVs := map[string][]byte{
+		string(zeroKeyTest):  fourtyKeyTest,
+		string(ffx32KeyTest): fourtyKeyTest,
+	}
+	proveKeys := keylist{zeroKeyTest, oneKeyTest}
 
 	testSerializeDeserializeProof(t, insertKVs, proveKeys)
 }
@@ -804,10 +816,12 @@ func testSerializeDeserializeProof(t *testing.T, insertKVs map[string][]byte, pr
 	root := New()
 
 	for k, v := range insertKVs {
-		root.Insert([]byte(k), v, nil)
+		if err := root.Insert([]byte(k), v, nil); err != nil {
+			t.Fatalf("could not insert key: %v", err)
+		}
 	}
+	root.Commit()
 
-	// TODO(jsign): MakeVerkleMultiProof has a strange-ish APIs, reconsider this when digging into why that's the case.
 	absentKeys := map[string]struct{}{}
 	proveKVs := map[string][]byte{}
 	for _, key := range proveKeys {
