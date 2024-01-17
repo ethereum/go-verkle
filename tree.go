@@ -1083,7 +1083,7 @@ func (n *LeafNode) Insert(key []byte, value []byte, _ NodeResolverFn) error {
 
 	stem := KeyToStem(key)
 	if !bytes.Equal(stem, n.stem) {
-		return fmt.Errorf("stems doesn't match: %x != %x", stem, n.stem)
+		return fmt.Errorf("stems don't match: %x != %x", stem, n.stem)
 	}
 	values := make([][]byte, NodeWidth)
 	values[key[StemSize]] = value
