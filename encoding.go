@@ -94,7 +94,7 @@ func parseLeafNode(serialized []byte, depth byte) (VerkleNode, error) {
 	for i := 0; i < NodeWidth; i++ {
 		if bit(bitlist, i) {
 			if offset+LeafValueSize > len(serialized) {
-				return nil, fmt.Errorf("verkle payload is too short, need at least %d and only have %d, payload = %x (%w)", offset+32, len(serialized), serialized, errSerializedPayloadTooShort)
+				return nil, fmt.Errorf("verkle payload is too short, need at least %d and only have %d, payload = %x (%w)", offset+LeafValueSize, len(serialized), serialized, errSerializedPayloadTooShort)
 			}
 			values[i] = serialized[offset : offset+LeafValueSize]
 			offset += LeafValueSize

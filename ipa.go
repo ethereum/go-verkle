@@ -39,10 +39,10 @@ type (
 )
 
 func FromLEBytes(fr *Fr, data []byte) error {
-	if len(data) > 32 {
+	if len(data) > LeafValueSize {
 		return errors.New("data is too long")
 	}
-	var aligned [32]byte
+	var aligned [LeafValueSize]byte
 	copy(aligned[:], data)
 	fr.SetBytesLE(aligned[:])
 	return nil

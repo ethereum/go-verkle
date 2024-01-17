@@ -69,8 +69,8 @@ func TestInsertIntoRoot(t *testing.T) {
 		t.Fatalf("invalid leaf node type %v", root.(*InternalNode).children[0])
 	}
 
-	if !bytes.Equal(leaf.values[zeroKeyTest[31]], testValue) {
-		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaf.values[zeroKeyTest[31]])
+	if !bytes.Equal(leaf.values[zeroKeyTest[StemSize]], testValue) {
+		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaf.values[zeroKeyTest[StemSize]])
 	}
 }
 
@@ -95,12 +95,12 @@ func TestInsertTwoLeaves(t *testing.T) {
 		t.Fatalf("invalid leaf node type %v", root.(*InternalNode).children[255])
 	}
 
-	if !bytes.Equal(leaf0.values[zeroKeyTest[31]], testValue) {
-		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaf0.values[zeroKeyTest[31]])
+	if !bytes.Equal(leaf0.values[zeroKeyTest[StemSize]], testValue) {
+		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaf0.values[zeroKeyTest[StemSize]])
 	}
 
 	if !bytes.Equal(leaff.values[255], testValue) {
-		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaff.values[ffx32KeyTest[31]])
+		t.Fatalf("did not find correct value in trie %x != %x", testValue, leaff.values[ffx32KeyTest[StemSize]])
 	}
 }
 
@@ -165,7 +165,7 @@ func TestOffset2key8BitsWide(t *testing.T) {
 	t.Parallel()
 
 	key, _ := hex.DecodeString("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
-	for i := byte(0); i < 32; i++ {
+	for i := byte(0); i < KeySize; i++ {
 		childId := offset2key(key, i)
 		if childId != i {
 			t.Fatalf("error getting child number in key %d != %d", childId, i)
@@ -579,11 +579,10 @@ func BenchmarkCommitFullNode(b *testing.B) {
 	nChildren := 256
 	keys := make([][]byte, nChildren)
 	for i := 0; i < nChildren; i++ {
-		key := make([]byte, 32)
+		key := make([]byte, KeySize)
 		key[0] = uint8(i)
 		keys[i] = key
 	}
-
 	b.ResetTimer()
 	b.ReportAllocs()
 
@@ -607,8 +606,8 @@ func benchmarkCommitNLeaves(b *testing.B, n int) {
 	sortedKVs := make([]kv, n)
 
 	for i := 0; i < n; i++ {
-		key := make([]byte, 32)
-		val := make([]byte, 32)
+		key := make([]byte, KeySize)
+		val := make([]byte, KeySize)
 		if _, err := rand.Read(key); err != nil {
 			b.Fatalf("failed to generate random key: %v", err)
 		}
@@ -650,7 +649,7 @@ func BenchmarkModifyLeaves(b *testing.B) {
 	keys := make([][]byte, n)
 	root := New()
 	for i := 0; i < n; i++ {
-		key := make([]byte, 32)
+		key := make([]byte, KeySize)
 		if _, err := rand.Read(key); err != nil {
 			b.Fatalf("failed to generate random key: %v", err)
 		}
@@ -681,7 +680,7 @@ func BenchmarkModifyLeaves(b *testing.B) {
 func randomKeys(t *testing.T, n int) [][]byte {
 	keys := make([][]byte, n)
 	for i := 0; i < n; i++ {
-		key := make([]byte, 32)
+		key := make([]byte, KeySize)
 		if _, err := rand.Read(key); err != nil {
 			t.Fatalf("failed to generate random key: %v", err)
 		}
@@ -872,10 +871,10 @@ func TestGetKey(t *testing.T) {
 	root := &LeafNode{stem: fourtyKeyTest}
 	for i := 0; i < NodeWidth; i++ {
 		k := root.Key(i)
-		if !bytes.Equal(k[:31], fourtyKeyTest[:31]) {
+		if !bytes.Equal(KeyToStem(k), KeyToStem(fourtyKeyTest)) {
 			t.Fatal("invalid stem")
 		}
-		if int(k[31]) != i {
+		if int(k[StemSize]) != i {
 			t.Fatal("invalid selector")
 		}
 	}
@@ -901,7 +900,7 @@ func TestInsertIntoHashedNode(t *testing.T) {
 	resolver := func(h []byte) ([]byte, error) {
 		values := make([][]byte, NodeWidth)
 		values[0] = zeroKeyTest
-		node, _ := NewLeafNode(zeroKeyTest[:31], values)
+		node, _ := NewLeafNode(KeyToStem(zeroKeyTest), values)
 
 		return node.Serialize()
 	}
@@ -914,7 +913,7 @@ func TestInsertIntoHashedNode(t *testing.T) {
 	invalidRLPResolver := func(h []byte) ([]byte, error) {
 		values := make([][]byte, NodeWidth)
 		values[0] = zeroKeyTest
-		node, _ := NewLeafNode(zeroKeyTest[:31], values)
+		node, _ := NewLeafNode(KeyToStem(zeroKeyTest), values)
 
 		rlp, _ := node.Serialize()
 		return rlp[:len(rlp)-10], nil
@@ -1106,16 +1105,16 @@ func TestInsertStem(t *testing.T) {
 	values[5] = zeroKeyTest
 	values[192] = fourtyKeyTest
 
-	if err := root1.(*InternalNode).InsertValuesAtStem(fourtyKeyTest[:31], values, nil); err != nil {
+	if err := root1.(*InternalNode).InsertValuesAtStem(KeyToStem(fourtyKeyTest), values, nil); err != nil {
 		t.Fatalf("error inserting: %s", err)
 	}
 	r1c := root1.Commit()
 
-	var key5, key192 [32]byte
-	copy(key5[:], fourtyKeyTest[:31])
-	copy(key192[:], fourtyKeyTest[:31])
-	key5[31] = 5
-	key192[31] = 192
+	var key5, key192 [KeySize]byte
+	copy(key5[:], KeyToStem(fourtyKeyTest))
+	copy(key192[:], KeyToStem(fourtyKeyTest))
+	key5[StemSize] = 5
+	key192[StemSize] = 192
 	if err := root2.Insert(key5[:], zeroKeyTest, nil); err != nil {
 		t.Fatalf("error inserting: %s", err)
 	}
@@ -1154,7 +1153,7 @@ func TestInsertStemTouchingBothHalves(t *testing.T) {
 	newValues := make([][]byte, NodeWidth)
 	newValues[1] = testValue
 	newValues[NodeWidth-2] = testValue
-	if err := root.(*InternalNode).InsertValuesAtStem(zeroKeyTest[:StemSize], newValues, nil); err != nil {
+	if err := root.(*InternalNode).InsertValuesAtStem(KeyToStem(zeroKeyTest), newValues, nil); err != nil {
 		t.Fatalf("error inserting stem: %v", err)
 	}
 	root.Commit()
@@ -1217,7 +1216,7 @@ func TestInsertResolveSplitLeaf(t *testing.T) {
 	if !ok {
 		t.Fatal("resolve with resolver didn't produce a leaf node where expected")
 	}
-	if !bytes.Equal(l.stem, zeroKeyTest[:31]) && !bytes.Equal(l.values[0], ffx32KeyTest) {
+	if !bytes.Equal(l.stem, KeyToStem(zeroKeyTest)) && !bytes.Equal(l.values[0], ffx32KeyTest) {
 		t.Fatal("didn't find the resolved leaf where expected")
 	}
 }
@@ -1434,17 +1433,18 @@ func TestBatchMigratedKeyValues(t *testing.T) {
 					// Create LeafNodes in batch mode.
 					nodeValues := make([]BatchNewLeafNodeData, 0, len(randomKeyValues))
 					curr := BatchNewLeafNodeData{
-						Stem:   randomKeyValues[0].key[:StemSize],
+						Stem:   KeyToStem(randomKeyValues[0].key),
 						Values: map[byte][]byte{randomKeyValues[0].key[StemSize]: randomKeyValues[0].value},
 					}
 					for _, kv := range randomKeyValues[1:] {
-						if bytes.Equal(curr.Stem, kv.key[:StemSize]) {
+						stem := KeyToStem(kv.key)
+						if bytes.Equal(curr.Stem, stem) {
 							curr.Values[kv.key[StemSize]] = kv.value
 							continue
 						}
 						nodeValues = append(nodeValues, curr)
 						curr = BatchNewLeafNodeData{
-							Stem:   kv.key[:StemSize],
+							Stem:   stem,
 							Values: map[byte][]byte{kv.key[StemSize]: kv.value},
 						}
 					}
@@ -1501,8 +1501,8 @@ func genRandomKeyValues(rand *mRand.Rand, count int) []keyValue {
 	for i := 0; i < count; i++ {
 		keyval := make([]byte, 64)
 		rand.Read(keyval)
-		ret[i].key = keyval[:32]
-		ret[i].value = keyval[32:]
+		ret[i].key = keyval[:KeySize]
+		ret[i].value = keyval[KeySize:]
 	}
 	return ret
 }
@@ -1525,17 +1525,18 @@ func BenchmarkBatchLeavesInsert(b *testing.B) {
 		// Create LeafNodes in batch mode.
 		nodeValues := make([]BatchNewLeafNodeData, 0, len(randomKeyValues))
 		curr := BatchNewLeafNodeData{
-			Stem:   randomKeyValues[0].key[:StemSize],
+			Stem:   KeyToStem(randomKeyValues[0].key),
 			Values: map[byte][]byte{randomKeyValues[0].key[StemSize]: randomKeyValues[0].value},
 		}
 		for _, kv := range randomKeyValues[1:] {
-			if bytes.Equal(curr.Stem, kv.key[:StemSize]) {
+			stem := KeyToStem(kv.key)
+			if bytes.Equal(curr.Stem, stem) {
 				curr.Values[kv.key[StemSize]] = kv.value
 				continue
 			}
 			nodeValues = append(nodeValues, curr)
 			curr = BatchNewLeafNodeData{
-				Stem:   kv.key[:StemSize],
+				Stem:   stem,
 				Values: map[byte][]byte{kv.key[StemSize]: kv.value},
 			}
 		}
@@ -1570,7 +1571,7 @@ func TestManipulateChildren(t *testing.T) {
 	if !ok {
 		t.Fatalf("failed to get expected leaf node")
 	}
-	if !bytes.Equal(ln.stem, ffx32KeyTest[:StemSize]) || !bytes.Equal(ln.values[NodeWidth-1], testValue) {
+	if !bytes.Equal(ln.stem, KeyToStem(ffx32KeyTest)) || !bytes.Equal(ln.values[NodeWidth-1], testValue) {
 		t.Fatalf("failed to get expected leaf node stem and values")
 	}
 
@@ -1596,13 +1597,13 @@ func TestLeafNodeInsert(t *testing.T) {
 	values := make([][]byte, NodeWidth)
 	valIdx := 42
 	values[valIdx] = testValue
-	ln, err := NewLeafNode(keyTest[:StemSize], values)
+	ln, err := NewLeafNode(KeyToStem(keyTest), values)
 	if err != nil {
 		t.Fatalf("failed to create leaf node: %v", err)
 	}
 
 	// Check we get the value correctly via Get(...).
-	getValue, err := ln.Get(append(keyTest[:StemSize], byte(valIdx)), nil)
+	getValue, err := ln.Get(append(KeyToStem(keyTest), byte(valIdx)), nil)
 	if err != nil {
 		t.Fatalf("failed to get leaf node key/value: %v", err)
 	}
@@ -1637,7 +1638,7 @@ func TestLeafNodeInsert(t *testing.T) {
 	}
 
 	// Check wrong *key* length.
-	if err := ln.Insert(ffx32KeyTest2[:StemSize], newValue, nil); err == nil {
+	if err := ln.Insert(KeyToStem(ffx32KeyTest2), newValue, nil); err == nil {
 		t.Fatalf("key with size 31 should not be accepted, keys must have length StemSize+1")
 	}
 
@@ -1700,7 +1701,7 @@ func generateSteps(finished func() bool, r io.Reader) randTest {
 		// we create a new key or return an existing key otherwise.
 		if len(allKeys) < 2 || tmp[0]%100 > 90 {
 			// new key
-			key := make([]byte, 32)
+			key := make([]byte, KeySize)
 			_, err := r.Read(key)
 			if err != nil {
 				panic(err)

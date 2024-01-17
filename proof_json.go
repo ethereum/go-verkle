@@ -170,7 +170,7 @@ func (vp *VerkleProof) UnmarshalJSON(data []byte) error {
 	}
 	copy(vp.D[:], currentValueBytes)
 
-	vp.OtherStems = make([][31]byte, len(aux.OtherStems))
+	vp.OtherStems = make([][StemSize]byte, len(aux.OtherStems))
 	for i, c := range aux.OtherStems {
 		val, err := PrefixedHexStringToBytes(c)
 		if err != nil {

@@ -45,16 +45,16 @@ type IPAProof struct {
 }
 
 type VerkleProof struct {
-	OtherStems            [][31]byte `json:"otherStems"`
-	DepthExtensionPresent []byte     `json:"depthExtensionPresent"`
-	CommitmentsByPath     [][32]byte `json:"commitmentsByPath"`
-	D                     [32]byte   `json:"d"`
-	IPAProof              *IPAProof  `json:"ipa_proof"`
+	OtherStems            [][StemSize]byte `json:"otherStems"`
+	DepthExtensionPresent []byte           `json:"depthExtensionPresent"`
+	CommitmentsByPath     [][32]byte       `json:"commitmentsByPath"`
+	D                     [32]byte         `json:"d"`
+	IPAProof              *IPAProof        `json:"ipa_proof"`
 }
 
 func (vp *VerkleProof) Copy() *VerkleProof {
 	ret := &VerkleProof{
-		OtherStems:            make([][31]byte, len(vp.OtherStems)),
+		OtherStems:            make([][StemSize]byte, len(vp.OtherStems)),
 		DepthExtensionPresent: make([]byte, len(vp.DepthExtensionPresent)),
 		CommitmentsByPath:     make([][32]byte, len(vp.CommitmentsByPath)),
 		IPAProof:              &IPAProof{},
@@ -77,7 +77,7 @@ type Proof struct {
 	Multipoint *ipa.MultiProof // multipoint argument
 	ExtStatus  []byte          // the extension status of each stem
 	Cs         []*Point        // commitments, sorted by their path in the tree
-	PoaStems   [][]byte        // stems proving another stem is absent
+	PoaStems   []Stem          // stems proving another stem is absent
 	Keys       [][]byte
 	PreValues  [][]byte
 	PostValues [][]byte
@@ -92,7 +92,7 @@ type SuffixStateDiff struct {
 type SuffixStateDiffs []SuffixStateDiff
 
 type StemStateDiff struct {
-	Stem        [31]byte         `json:"stem"`
+	Stem        [StemSize]byte   `json:"stem"`
 	SuffixDiffs SuffixStateDiffs `json:"suffixDiffs"`
 }
 
@@ -118,7 +118,7 @@ func (sd StateDiff) Copy() StateDiff {
 	return ret
 }
 
-func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte, resolver NodeResolverFn) (*ProofElements, []byte, [][]byte, error) {
+func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte, resolver NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
 	sort.Sort(keylist(keys))
 	return root.GetProofItems(keylist(keys), resolver)
 }
@@ -126,7 +126,7 @@ func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte, resolver NodeRe
 // getProofElementsFromTree factors the logic that is used both in the proving and verification methods. It takes a pre-state
 // tree and an optional post-state tree, extracts the proof data from them and returns all the items required to build/verify
 // a proof.
-func getProofElementsFromTree(preroot, postroot VerkleNode, keys [][]byte, resolver NodeResolverFn) (*ProofElements, []byte, [][]byte, [][]byte, error) {
+func getProofElementsFromTree(preroot, postroot VerkleNode, keys [][]byte, resolver NodeResolverFn) (*ProofElements, []byte, []Stem, [][]byte, error) {
 	// go-ipa won't accept no key as an input, catch this corner case
 	// and return an empty result.
 	if len(keys) == 0 {
@@ -228,7 +228,7 @@ func VerifyVerkleProof(proof *Proof, Cs []*Point, indices []uint8, ys []*Fr, tc 
 // * Multipoint proof
 // it also returns the serialized keys and values
 func SerializeProof(proof *Proof) (*VerkleProof, StateDiff, error) {
-	otherstems := make([][31]byte, len(proof.PoaStems))
+	otherstems := make([][StemSize]byte, len(proof.PoaStems))
 	for i, stem := range proof.PoaStems {
 		copy(otherstems[i][:], stem)
 	}
@@ -251,12 +251,13 @@ func SerializeProof(proof *Proof) (*VerkleProof, StateDiff, error) {
 	var stemdiff *StemStateDiff
 	var statediff StateDiff
 	for i, key := range proof.Keys {
-		if stemdiff == nil || !bytes.Equal(stemdiff.Stem[:], key[:31]) {
+		stem := KeyToStem(key)
+		if stemdiff == nil || !bytes.Equal(stemdiff.Stem[:], stem) {
 			statediff = append(statediff, StemStateDiff{})
 			stemdiff = &statediff[len(statediff)-1]
-			copy(stemdiff.Stem[:], key[:31])
+			copy(stemdiff.Stem[:], stem)
 		}
-		stemdiff.SuffixDiffs = append(stemdiff.SuffixDiffs, SuffixStateDiff{Suffix: key[31]})
+		stemdiff.SuffixDiffs = append(stemdiff.SuffixDiffs, SuffixStateDiff{Suffix: key[StemSize]})
 		newsd := &stemdiff.SuffixDiffs[len(stemdiff.SuffixDiffs)-1]
 
 		var valueLen = len(proof.PreValues[i])
@@ -302,14 +303,15 @@ func SerializeProof(proof *Proof) (*VerkleProof, StateDiff, error) {
 // can be used to rebuild a stateless version of the tree.
 func DeserializeProof(vp *VerkleProof, statediff StateDiff) (*Proof, error) {
 	var (
-		poaStems, keys        [][]byte
+		poaStems              []Stem
+		keys                  [][]byte
 		prevalues, postvalues [][]byte
 		extStatus             []byte
 		commitments           []*Point
 		multipoint            ipa.MultiProof
 	)
 
-	poaStems = make([][]byte, len(vp.OtherStems))
+	poaStems = make([]Stem, len(vp.OtherStems))
 	for i, poaStem := range vp.OtherStems {
 		poaStems[i] = make([]byte, len(poaStem))
 		copy(poaStems[i], poaStem[:])
@@ -347,8 +349,8 @@ func DeserializeProof(vp *VerkleProof, statediff StateDiff) (*Proof, error) {
 	for _, stemdiff := range statediff {
 		for _, suffixdiff := range stemdiff.SuffixDiffs {
 			var k [32]byte
-			copy(k[:31], stemdiff.Stem[:])
-			k[31] = suffixdiff.Suffix
+			copy(k[:StemSize], stemdiff.Stem[:])
+			k[StemSize] = suffixdiff.Suffix
 			keys = append(keys, k[:])
 			if suffixdiff.CurrentValue != nil {
 				prevalues = append(prevalues, suffixdiff.CurrentValue[:])
@@ -394,8 +396,9 @@ func PreStateTreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) { // 
 	}
 	stems := make([][]byte, 0, len(proof.Keys))
 	for _, k := range proof.Keys {
-		if len(stems) == 0 || !bytes.Equal(stems[len(stems)-1], k[:31]) {
-			stems = append(stems, k[:31])
+		stem := KeyToStem(k)
+		if len(stems) == 0 || !bytes.Equal(stems[len(stems)-1], stem) {
+			stems = append(stems, stem)
 		}
 	}
 	if len(stems) != len(proof.ExtStatus) {
@@ -469,10 +472,10 @@ func PreStateTreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) { // 
 			si.values = map[byte][]byte{}
 			si.stem = stems[i]
 			for j, k := range proof.Keys { // TODO: DoS risk, use map or binary search.
-				if bytes.Equal(k[:31], si.stem) {
-					si.values[k[31]] = proof.PreValues[j]
-					si.has_c1 = si.has_c1 || (k[31] < 128)
-					si.has_c2 = si.has_c2 || (k[31] >= 128)
+				if bytes.Equal(KeyToStem(k), si.stem) {
+					si.values[k[StemSize]] = proof.PreValues[j]
+					si.has_c1 = si.has_c1 || (k[StemSize] < 128)
+					si.has_c2 = si.has_c2 || (k[StemSize] >= 128)
 				}
 			}
 		default:
@@ -501,8 +504,8 @@ func PreStateTreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) { // 
 				continue
 			}
 
-			if bytes.Equal(k[:31], info[string(p)].stem) {
-				values[k[31]] = proof.PreValues[i]
+			if bytes.Equal(KeyToStem(k), info[string(p)].stem) {
+				values[k[StemSize]] = proof.PreValues[i]
 			}
 		}
 		comms, err = root.CreatePath(p, info[string(p)], comms, values)
@@ -535,8 +538,8 @@ func PostStateTreeFromStateDiff(preroot VerkleNode, statediff StateDiff) (Verkle
 		}
 
 		if overwrites {
-			var stem [31]byte
-			copy(stem[:31], stemstatediff.Stem[:])
+			var stem [StemSize]byte
+			copy(stem[:StemSize], stemstatediff.Stem[:])
 			if err := postroot.(*InternalNode).InsertValuesAtStem(stem[:], values, nil); err != nil {
 				return nil, fmt.Errorf("error overwriting value in post state: %w", err)
 			}
@@ -547,7 +550,7 @@ func PostStateTreeFromStateDiff(preroot VerkleNode, statediff StateDiff) (Verkle
 	return postroot, nil
 }
 
-type bytesSlice [][]byte
+type bytesSlice []Stem
 
 func (x bytesSlice) Len() int           { return len(x) }
 func (x bytesSlice) Less(i, j int) bool { return bytes.Compare(x[i], x[j]) < 0 }
