@@ -780,7 +780,6 @@ func TestStatelessDeserializeDepth2(t *testing.T) {
 func TestProofVerificationThreeStemsInSameExtensionStatus(t *testing.T) {
 	t.Parallel()
 
-	key1_0, _ := hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000000")
 	key2_0, _ := hex.DecodeString("0002000000000000000000000000000000000000000000000000000000000000")
 	key3_0, _ := hex.DecodeString("0003000000000000000000000000000000000000000000000000000000000000")
 	key3_1, _ := hex.DecodeString("0003000000000000000000000000000000000000000000000000000000000001")
@@ -790,7 +789,7 @@ func TestProofVerificationThreeStemsInSameExtensionStatus(t *testing.T) {
 		string(key3_0): fourtyKeyTest,
 		string(key3_1): fourtyKeyTest,
 	}
-	proveKeys := keylist{key1_0, key2_0, key3_0, key3_1, key4_0}
+	proveKeys := keylist{zeroKeyTest, key2_0, key3_0, key3_1, key4_0}
 
 	testSerializeDeserializeProof(t, insertKVs, proveKeys)
 }
@@ -798,14 +797,13 @@ func TestProofVerificationThreeStemsInSameExtensionStatus(t *testing.T) {
 func TestProofVerificationTwoLeavesWithDifferentValues(t *testing.T) {
 	t.Parallel()
 
-	key1, _ := hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000000")
 	key2, _ := hex.DecodeString("0100000000000000000000000000000000000000000000000000000000000000")
 
 	insertKVs := map[string][]byte{
-		string(key1): fourtyKeyTest,
-		string(key2): forkOneKeyTest,
+		string(zeroKeyTest): fourtyKeyTest,
+		string(key2):        forkOneKeyTest,
 	}
-	proveKeys := keylist{key1, key2}
+	proveKeys := keylist{zeroKeyTest, key2}
 
 	testSerializeDeserializeProof(t, insertKVs, proveKeys)
 }
@@ -908,5 +906,143 @@ func getKeyFullPath(node VerkleNode, key []byte) []VerkleNode {
 		return []VerkleNode{node}
 	default:
 		panic(fmt.Sprintf("unknown node type: %T", node))
+	}
+}
+
+func TestProofVerificationWithPostState(t *testing.T) { // skipcq: GO-R1005
+	t.Parallel()
+
+	testlist := []struct {
+		name                                                string
+		keys, values, keystoprove, updatekeys, updatevalues [][]byte
+	}{
+		{
+			// overwrite a key
+			name:         "update_in_leaf_node",
+			keys:         [][]byte{zeroKeyTest, oneKeyTest, ffx32KeyTest},
+			values:       [][]byte{zeroKeyTest, zeroKeyTest, zeroKeyTest},
+			keystoprove:  [][]byte{zeroKeyTest},
+			updatekeys:   [][]byte{zeroKeyTest},
+			updatevalues: [][]byte{fourtyKeyTest},
+		},
+		{
+			// check for a key present at the root level
+			name:         "new_key_in_internal_node",
+			keys:         [][]byte{zeroKeyTest, oneKeyTest, ffx32KeyTest},
+			values:       [][]byte{zeroKeyTest, zeroKeyTest, zeroKeyTest},
+			keystoprove:  [][]byte{ffx32KeyTest, zeroKeyTest, fourtyKeyTest}, // all modified values must be proven
+			updatekeys:   [][]byte{zeroKeyTest, fourtyKeyTest},
+			updatevalues: [][]byte{fourtyKeyTest, fourtyKeyTest},
+		},
+		{
+			// prove an absent key at the root level
+			name:         "absent_in_internal_node",
+			keys:         [][]byte{zeroKeyTest, oneKeyTest, ffx32KeyTest},
+			values:       [][]byte{zeroKeyTest, zeroKeyTest, zeroKeyTest},
+			keystoprove:  [][]byte{zeroKeyTest, fourtyKeyTest},
+			updatekeys:   [][]byte{zeroKeyTest, fourtyKeyTest},
+			updatevalues: [][]byte{fourtyKeyTest, fourtyKeyTest},
+		},
+		{
+			// prove an absent key at the leaf level
+			name:         "absent_in_leaf_node",
+			keys:         [][]byte{zeroKeyTest, fourtyKeyTest, ffx32KeyTest},
+			values:       [][]byte{zeroKeyTest, zeroKeyTest, zeroKeyTest},
+			keystoprove:  [][]byte{oneKeyTest, zeroKeyTest, fourtyKeyTest}, // all modified values must be proven
+			updatekeys:   [][]byte{zeroKeyTest, fourtyKeyTest},
+			updatevalues: [][]byte{oneKeyTest, fourtyKeyTest},
+		},
+	}
+	for _, data := range testlist {
+		data := data // make linter happy by not capturing the loop variable
+
+		t.Run(fmt.Sprintf("verification_with_post_state/%s", data.name), func(t *testing.T) {
+			t.Parallel()
+
+			if len(data.keys) != len(data.values) {
+				t.Fatalf("incompatible number of keys and values: %d != %d", len(data.keys), len(data.values))
+			}
+
+			if len(data.updatekeys) != len(data.updatevalues) {
+				t.Fatalf("incompatible number of post-state keys and values: %d != %d", len(data.updatekeys), len(data.updatevalues))
+			}
+
+			root := New()
+			for i := range data.keys {
+				if err := root.Insert(data.keys[i], data.values[i], nil); err != nil {
+					t.Fatalf("could not insert key: %v", err)
+				}
+			}
+			rootC := root.Commit()
+
+			postroot := root.Copy()
+			for i := range data.updatekeys {
+				if err := postroot.Insert(data.updatekeys[i], data.updatevalues[i], nil); err != nil {
+					t.Fatalf("could not insert key: %v", err)
+				}
+			}
+			postroot.Commit()
+
+			proof, _, _, _, _ := MakeVerkleMultiProof(root, postroot, data.keystoprove, nil)
+
+		keys:
+			for i := range proof.Keys {
+				// Check that the pre-state value is the one that we originally inserted.
+				for j := range data.keys {
+					if bytes.Equal(proof.Keys[i], data.keys[j]) {
+						if !bytes.Equal(proof.PreValues[i], data.values[j]) {
+							t.Fatalf("pre-state value mismatch for key %x: %x != %x", data.keys[j], proof.PreValues[i], data.values[j])
+						}
+						break
+					}
+				}
+
+				for j := range data.updatekeys {
+					// The the key was updated then check that the post-state value is the updated value.
+					if bytes.Equal(proof.Keys[i], data.updatekeys[j]) {
+						if !bytes.Equal(proof.PostValues[i], data.updatevalues[j]) {
+							t.Fatalf("post-state value mismatch for key %x: %x != %x", data.updatekeys[j], proof.PostValues[i], data.updatevalues[j])
+						}
+						continue keys
+					}
+				}
+				// If the key was not updated then check that the post-state value is null.
+				if proof.PostValues[i] != nil {
+					t.Fatalf("post-state value mismatch for key %x: %x != nil", proof.Keys[i], proof.PostValues[i])
+				}
+			}
+
+			p, diff, err := SerializeProof(proof)
+			if err != nil {
+				t.Fatalf("error serializing proof: %v", err)
+			}
+
+			dproof, err := DeserializeProof(p, diff)
+			if err != nil {
+				t.Fatalf("error deserializing proof: %v", err)
+			}
+
+			if err = VerifyVerkleProofWithPreState(dproof, root); err != nil {
+				t.Fatalf("could not verify verkle proof: %v, original: %s reconstructed: %s", err, ToDot(root), ToDot(postroot))
+			}
+
+			dpreroot, err := PreStateTreeFromProof(dproof, rootC)
+			if err != nil {
+				t.Fatalf("error recreating pre tree: %v", err)
+			}
+
+			dpostroot, err := PostStateTreeFromStateDiff(dpreroot, diff)
+			if err != nil {
+				t.Fatalf("error recreating post tree: %v", err)
+			}
+			// Check that the reconstructed post-state tree root matches the real tree.
+			if !postroot.Commitment().Equal(dpostroot.Commitment()) {
+				t.Fatalf("differing root commitments %x != %x", dpostroot.Commitment().Bytes(), postroot.Commitment().Bytes())
+			}
+
+			if err = VerifyVerkleProofWithPreState(dproof, dpreroot); err != nil {
+				t.Fatalf("could not verify verkle proof: %v, original: %s reconstructed: %s", err, ToDot(dpreroot), ToDot(dpostroot))
+			}
+		})
 	}
 }
