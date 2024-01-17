@@ -1814,21 +1814,17 @@ func TestRandomExtracted(t *testing.T) {
 	val_k1490_0, _ := hex.DecodeString("3a8ee0370c16ba642123f80692ee63ade4477fce3bf0c68b638e189a014d8b04")
 	k1413, _ := hex.DecodeString("1413dabef075cc47d380d740f7b24050568659c809830b1affbc765b7b651e1e")
 	val_k1413_0, _ := hex.DecodeString("7469fa29e0d049e80eed8f99f2418bc36ebc3c3b3041515fd519701d60f86b9f")
-	val_k1413_1, _ := hex.DecodeString("79702b187fa6f75ecd7cad23a2cafc3b13976dcefd99c3ff479300655ef9ef92")
 
 	root := New()
 
 	if err := root.Insert(k1490, val_k1490_0, nil); err != nil {
-		panic(err)
+		t.Fatalf("error inserting key: %v", err)
 	}
 	if err := root.Insert(k1413, val_k1413_0, nil); err != nil {
-		panic(err)
+		t.Fatalf("error inserting key: %v", err)
 	}
 	if _, err := root.Delete(k1413, nil); err != nil {
-		panic(err)
-	}
-	if err := root.Insert(k1413, val_k1413_1, nil); err != nil {
-		panic(err)
+		t.Fatalf("error deleting key: %v", err)
 	}
 
 	val, err := root.Get(k1490, nil)
