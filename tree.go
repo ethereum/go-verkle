@@ -59,7 +59,7 @@ type Stem []byte
 
 func KeyToStem(key []byte) Stem {
 	if len(key) < StemSize {
-		panic(fmt.Errorf("key length (%d) is shorter than expected stem size (%d)", len(key), StemSize))
+		panic(fmt.Errorf("key length (%d) is shorter than the expected stem size (%d)", len(key), StemSize))
 	}
 	return Stem(key[:StemSize])
 }
