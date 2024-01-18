@@ -1806,3 +1806,32 @@ func TestRandom(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestRandomExtracted(t *testing.T) {
+	t.Parallel()
+
+	k1490, _ := hex.DecodeString("1490d65886f02ffa1a7dca88187dc8176ada23221c83e9f7da9e15c27d0b813d")
+	val_k1490_0, _ := hex.DecodeString("3a8ee0370c16ba642123f80692ee63ade4477fce3bf0c68b638e189a014d8b04")
+	k1413, _ := hex.DecodeString("1413dabef075cc47d380d740f7b24050568659c809830b1affbc765b7b651e1e")
+	val_k1413_0, _ := hex.DecodeString("7469fa29e0d049e80eed8f99f2418bc36ebc3c3b3041515fd519701d60f86b9f")
+
+	root := New()
+
+	if err := root.Insert(k1490, val_k1490_0, nil); err != nil {
+		t.Fatalf("error inserting key: %v", err)
+	}
+	if err := root.Insert(k1413, val_k1413_0, nil); err != nil {
+		t.Fatalf("error inserting key: %v", err)
+	}
+	if _, err := root.Delete(k1413, nil); err != nil {
+		t.Fatalf("error deleting key: %v", err)
+	}
+
+	val, err := root.Get(k1490, nil)
+	if err != nil {
+		t.Fatalf("error getting key: %v", err)
+	}
+	if !bytes.Equal(val, val_k1490_0) {
+		t.Fatalf("got %x, expected %x", val, val_k1490_0)
+	}
+}

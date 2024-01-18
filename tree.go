@@ -618,7 +618,7 @@ func (n *InternalNode) Delete(key []byte, resolver NodeResolverFn) (bool, error)
 			// as well.
 			for _, c := range n.children {
 				if _, ok := c.(Empty); !ok {
-					break
+					return false, nil
 				}
 			}
 
