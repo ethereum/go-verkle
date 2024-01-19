@@ -1,4 +1,4 @@
-module github.com/gballet/go-verkle
+module github.com/ethereum/go-verkle
 
 go 1.19
 
