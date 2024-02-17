@@ -53,7 +53,7 @@ func extensionAndSuffixOneKey(t *testing.T, key, value []byte, ret *Point) {
 		t1, t2, c1                      Point
 	)
 	stemComm0 := srs[0]
-	err := StemFromBytes(&v, KeyToStem(key))
+	err := StemFromLEBytes(&v, KeyToStem(key))
 	if err != nil {
 		panic(err)
 	}
@@ -165,7 +165,7 @@ func TestInsertSameStemTwoLeaves(t *testing.T) {
 	comm := root.Commit()
 
 	stemComm0 := srs[0]
-	err := StemFromBytes(&v, KeyToStem(key_a))
+	err := StemFromLEBytes(&v, KeyToStem(key_a))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -309,7 +309,7 @@ func TestPaddingInFromLEBytes(t *testing.T) {
 		t.Fatal(err)
 	}
 	key, _ := hex.DecodeString("ffffffffffffffffffffffffffffffff00000000000000000000000000000000")
-	err := StemFromBytes(&fr2, KeyToStem(key))
+	err := StemFromLEBytes(&fr2, KeyToStem(key))
 	if err != nil {
 		t.Fatal(err)
 	}
