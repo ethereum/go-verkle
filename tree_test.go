@@ -1835,3 +1835,33 @@ func TestRandomExtracted(t *testing.T) {
 		t.Fatalf("got %x, expected %x", val, val_k1490_0)
 	}
 }
+
+func BenchmarkRootUpdatePerDepth(b *testing.B) {
+	root := New()
+
+	// We insert a single key 0x00..00 (31 bytes of 0x00) with some random value.
+	var key [32]byte // 0x00...00 is used as key.
+	if err := root.Insert(key[:], testValue, nil); err != nil {
+		b.Fatalf("error inserting key: %v", err)
+	}
+	_ = root.Commit()
+
+	for depth := 2; depth <= 31; depth++ {
+		b.Run(fmt.Sprintf("depth=%d", depth), func(b *testing.B) {
+			// We'll insert a key to produce a fork at the given depth.
+			var key2 [32]byte
+			key2[depth-1] = 1
+
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				b.StopTimer()
+				root := root.Copy()
+				if err := root.Insert(key2[:], testValue, nil); err != nil {
+					b.Fatalf("error inserting key: %v", err)
+				}
+				b.StartTimer()
+				_ = root.Commit()
+			}
+		})
+	}
+}
