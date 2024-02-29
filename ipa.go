@@ -48,7 +48,7 @@ func FromLEBytes(fr *Fr, data []byte) error {
 	return nil
 }
 
-func StemFromBytes(fr *Fr, data []byte) error {
+func StemFromLEBytes(fr *Fr, data []byte) error {
 	if len(data) != StemSize {
 		return errors.New("data length must be StemSize")
 	}

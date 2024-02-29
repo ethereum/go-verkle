@@ -300,7 +300,7 @@ func NewLeafNode(stem Stem, values [][]byte) (*LeafNode, error) {
 	stem = stem[:StemSize] // enforce a 31-byte length
 	var poly [NodeWidth]Fr
 	poly[0].SetUint64(1)
-	if err := StemFromBytes(&poly[1], stem); err != nil {
+	if err := StemFromLEBytes(&poly[1], stem); err != nil {
 		return nil, err
 	}
 	if err := banderwagon.BatchMapToScalarField([]*Fr{&poly[2], &poly[3]}, []*Point{c1, c2}); err != nil {
@@ -1434,7 +1434,7 @@ func (n *LeafNode) GetProofItems(keys keylist, _ NodeResolverFn) (*ProofElements
 
 	// Initialize the top-level polynomial with 1 + stem + C1 + C2
 	poly[0].SetUint64(1)
-	if err := StemFromBytes(&poly[1], n.stem); err != nil {
+	if err := StemFromLEBytes(&poly[1], n.stem); err != nil {
 		return nil, nil, nil, fmt.Errorf("error serializing stem '%x': %w", n.stem, err)
 	}
 
