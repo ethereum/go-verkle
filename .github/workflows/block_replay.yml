@@ -27,7 +27,7 @@ jobs:
       run: |
         cd geth
         cp /home/devops/verkle-test-dependencies/fork.txt .
-        go mod edit -replace=github.com/gballet/go-verkle=$PWD/..
+        go mod edit -replace=github.com/ethereum/go-verkle=$PWD/..
         go mod edit -replace=github.com/crate-crypto/go-ipa=github.com/crate-crypto/go-ipa@`grep go-ipa ../go.mod | cut -d'-' -f 5`
         go mod download github.com/crate-crypto/go-ipa
         go mod tidy
