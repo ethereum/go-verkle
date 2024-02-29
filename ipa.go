@@ -61,7 +61,7 @@ func FromBytes(fr *Fr, data []byte) {
 	fr.SetBytes(aligned[:])
 }
 
-func MapToScalarFieldBytes(point *Point) [32]byte {
+func HashPointToBytes(point *Point) [32]byte {
 	var hashedPoint Fr
 	point.MapToScalarField(&hashedPoint)
 	return hashedPoint.BytesLE()
