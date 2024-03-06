@@ -991,7 +991,7 @@ func (n *InternalNode) Serialize() ([]byte, error) {
 	ret[nodeTypeOffset] = internalRLPType
 
 	// Write the <commitment>
-	comm := n.commitment.BytesUncompressed()
+	comm := n.commitment.BytesUncompressedTrusted()
 	copy(ret[internalCommitmentOffset:], comm[:])
 
 	return ret, nil
