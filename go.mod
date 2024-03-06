@@ -3,7 +3,7 @@ module github.com/ethereum/go-verkle
 go 1.19
 
 require (
-	github.com/crate-crypto/go-ipa v0.0.0-20231025140028-3c0104f4b233
+	github.com/crate-crypto/go-ipa v0.0.0-20240223125850-b1e8a79f509c
 	github.com/davecgh/go-spew v1.1.1
 	golang.org/x/sync v0.1.0
 )
