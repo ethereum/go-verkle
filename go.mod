@@ -1,4 +1,4 @@
-module github.com/ethereum/go-verkle
+module github.com/thrylos-labs/go-verkle
 
 go 1.19
 
