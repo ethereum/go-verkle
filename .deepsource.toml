@@ -5,4 +5,4 @@ name = "go"
 enabled = true
 
   [analyzers.meta]
-  import_root = "github.com/ethereum/go-verkle"
+  import_root = "github.com/thrylos-labs/go-verkle"
