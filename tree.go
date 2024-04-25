@@ -27,6 +27,7 @@ package verkle
 
 import (
 	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -151,8 +152,9 @@ func (pe *ProofElements) Merge(other *ProofElements) {
 const (
 	// These types will distinguish internal
 	// and leaf nodes when decoding from RLP.
-	internalRLPType byte = 1
-	leafRLPType     byte = 2
+	internalType  byte = 1
+	leafType      byte = 2
+	eoAccountType byte = 3
 )
 
 type (
@@ -856,7 +858,7 @@ func (n *InternalNode) Serialize() ([]byte, error) {
 	}
 
 	// Store in ret the serialized result
-	ret[nodeTypeOffset] = internalRLPType
+	ret[nodeTypeOffset] = internalType
 	copy(ret[internalBitlistOffset:], bitlist[:])
 	// Note that children were already appended in ret through the children slice.
 
@@ -1490,13 +1492,19 @@ func (n *InternalNode) serializeWithCompressedChildren(compressedPointsIdxs map[
 	}
 
 	// Store in ret the serialized result
-	ret[nodeTypeOffset] = internalRLPType
+	ret[nodeTypeOffset] = internalType
 	// Note that:
 	// - Children were already appended in ret through the children slice.
 	// - Bitlist was embedded in ret.
 
 	return ret
 }
+
+var (
+	zero24           [24]byte
+	zero32           [32]byte
+	emptyCodeHash, _ = hex.DecodeString("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
+)
 
 func (n *LeafNode) serializeWithCompressedCommitments(c1Bytes [32]byte, c2Bytes [32]byte) []byte {
 	// Empty value in LeafNode used for padding.
@@ -1505,6 +1513,7 @@ func (n *LeafNode) serializeWithCompressedCommitments(c1Bytes [32]byte, c2Bytes 
 	// Create bitlist and store in children LeafValueSize (padded) values.
 	children := make([]byte, 0, NodeWidth*LeafValueSize)
 	var bitlist [bitlistSize]byte
+	var isEoA bool = true
 	for i, v := range n.values {
 		if v != nil {
 			setBit(bitlist[:], i)
@@ -1513,17 +1522,54 @@ func (n *LeafNode) serializeWithCompressedCommitments(c1Bytes [32]byte, c2Bytes 
 				children = append(children, padding...)
 			}
 		}
+
+		if isEoA {
+			switch i {
+			case 0:
+				isEoA = v != nil && bytes.Equal(v, zero32[:])
+			case 1:
+				// Balance should not be nil
+				isEoA = v != nil
+			case 2:
+				// last 24 bytes should be 0
+				isEoA = v != nil && bytes.Equal(v[8:32], zero24[:])
+			case 3:
+				// code hash should be the empty code hash, but let's be tolerant
+				// and accept 0 as well.
+				isEoA = v != nil && (bytes.Equal(v, emptyCodeHash[:]) || bytes.Equal(v, zero32[:]))
+			case 4:
+				// code size must be 0
+				isEoA = v != nil && bytes.Equal(v, zero32[:])
+			default:
+				// all other values must be nil
+				isEoA = v == nil
+			}
+		}
 	}
 
-	// Create the serialization.
-	baseSize := nodeTypeSize + StemSize + bitlistSize + 2*SerializedPointCompressedSize
-	result := make([]byte, baseSize, baseSize+4*32) // Extra pre-allocated capacity for 4 values.
-	result[0] = leafRLPType
-	copy(result[leafSteamOffset:], n.stem[:StemSize])
-	copy(result[leafBitlistOffset:], bitlist[:])
-	copy(result[leafC1CommitmentOffset:], c1Bytes[:])
-	copy(result[leafC2CommitmentOffset:], c2Bytes[:])
-	result = append(result, children...)
+	var result []byte
+	switch {
+	// TODO case for a group containing a single slot
+	// case count == 1:
+	case isEoA:
+		baseSize := nodeTypeSize + StemSize + SerializedPointCompressedSize + 32 /* balance */ + 8 /* Nonce */
+		result = make([]byte, baseSize)
+		result[0] = eoAccountType
+		copy(result[leafStemOffset:], n.stem[:StemSize])
+		copy(result[leafStemOffset+StemSize:], c1Bytes[:])
+		copy(result[leafStemOffset+StemSize+SerializedPointCompressedSize:], n.values[1])         // copy balance
+		copy(result[leafStemOffset+StemSize+SerializedPointCompressedSize+32:], n.values[2][0:8]) // copy nonce
+	default:
+		// Create the serialization.
+		baseSize := nodeTypeSize + StemSize + bitlistSize + 2*SerializedPointCompressedSize
+		result = make([]byte, baseSize, baseSize+4*32) // Extra pre-allocated capacity for 4 values.
+		result[0] = leafType
+		copy(result[leafStemOffset:], n.stem[:StemSize])
+		copy(result[leafBitlistOffset:], bitlist[:])
+		copy(result[leafC1CommitmentOffset:], c1Bytes[:])
+		copy(result[leafC2CommitmentOffset:], c2Bytes[:])
+		result = append(result, children...)
+	}
 
 	return result
 }

@@ -28,6 +28,8 @@ package verkle
 import (
 	"errors"
 	"fmt"
+
+	"github.com/crate-crypto/go-ipa/banderwagon"
 )
 
 var (
@@ -48,11 +50,12 @@ const (
 	internalNodeChildrenOffset = internalBitlistOffset + bitlistSize
 
 	// Leaf node offsets.
-	leafSteamOffset        = nodeTypeOffset + nodeTypeSize
-	leafBitlistOffset      = leafSteamOffset + StemSize
+	leafStemOffset         = nodeTypeOffset + nodeTypeSize
+	leafBitlistOffset      = leafStemOffset + StemSize
 	leafC1CommitmentOffset = leafBitlistOffset + bitlistSize
 	leafC2CommitmentOffset = leafC1CommitmentOffset + SerializedPointCompressedSize
 	leafChildrenOffset     = leafC2CommitmentOffset + SerializedPointCompressedSize
+	balanceSize            = 32
 )
 
 func bit(bitlist []byte, nr int) bool {
@@ -75,12 +78,15 @@ func ParseNode(serializedNode []byte, depth byte, comm SerializedPointCompressed
 	}
 
 	switch serializedNode[0] {
-	case leafRLPType:
+	case leafType:
 		return parseLeafNode(serializedNode, depth, comm)
-	case internalRLPType:
+	case internalType:
 		bitlist := serializedNode[internalBitlistOffset : internalBitlistOffset+bitlistSize]
 		children := serializedNode[internalNodeChildrenOffset:]
 		return CreateInternalNode(bitlist, children, depth, comm)
+	case eoAccountType:
+		// Special case of an EoA account
+		return parseEoAccountNode(serializedNode, depth, comm)
 	default:
 		return nil, ErrInvalidNodeEncoding
 	}
@@ -99,12 +105,33 @@ func parseLeafNode(serialized []byte, depth byte, comm SerializedPointCompressed
 			offset += LeafValueSize
 		}
 	}
-	ln := NewLeafNodeWithNoComms(serialized[leafSteamOffset:leafSteamOffset+StemSize], values[:])
+	ln := NewLeafNodeWithNoComms(serialized[leafStemOffset:leafStemOffset+StemSize], values[:])
 	ln.setDepth(depth)
 	ln.c1 = new(Point)
 	ln.c1.SetBytesTrusted(serialized[leafC1CommitmentOffset : leafC1CommitmentOffset+SerializedPointCompressedSize])
 	ln.c2 = new(Point)
 	ln.c2.SetBytesTrusted(serialized[leafC2CommitmentOffset : leafC2CommitmentOffset+SerializedPointCompressedSize])
+	ln.commitment = new(Point)
+	ln.commitment.SetBytesTrusted(comm)
+	return ln, nil
+}
+
+func parseEoAccountNode(serialized []byte, depth byte, comm SerializedPointCompressed) (VerkleNode, error) {
+	var values [NodeWidth][]byte
+	offset := leafStemOffset + StemSize + SerializedPointCompressedSize
+	values[0] = zero32[:]                               // 0 version
+	values[1] = serialized[offset : offset+balanceSize] // balance
+	var nonce [32]byte
+	offset += balanceSize
+	copy(nonce[:8], serialized[offset:offset+8])
+	values[2] = nonce[:] // nonce
+	values[3] = emptyCodeHash[:]
+	values[4] = zero32[:] // 0 code size
+	ln := NewLeafNodeWithNoComms(serialized[leafStemOffset:leafStemOffset+StemSize], values[:])
+	ln.setDepth(depth)
+	ln.c1 = new(Point)
+	ln.c1.SetBytesTrusted(serialized[leafStemOffset+StemSize : leafStemOffset+StemSize+SerializedPointCompressedSize])
+	ln.c2 = &banderwagon.Identity
 	ln.commitment = new(Point)
 	ln.commitment.SetBytesTrusted(comm)
 	return ln, nil
