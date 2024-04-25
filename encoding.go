@@ -50,12 +50,14 @@ const (
 	internalCommitmentOffset = internalBitlistOffset + bitlistSize
 
 	// Leaf node offsets.
-	leafSteamOffset        = nodeTypeOffset + nodeTypeSize
-	leafBitlistOffset      = leafSteamOffset + StemSize
+	leafStemOffset         = nodeTypeOffset + nodeTypeSize
+	leafBitlistOffset      = leafStemOffset + StemSize
 	leafCommitmentOffset   = leafBitlistOffset + bitlistSize
 	leafC1CommitmentOffset = leafCommitmentOffset + banderwagon.UncompressedSize
 	leafC2CommitmentOffset = leafC1CommitmentOffset + banderwagon.UncompressedSize
 	leafChildrenOffset     = leafC2CommitmentOffset + banderwagon.UncompressedSize
+	leafBalanceSize        = 32
+	leafNonceSize          = 8
 )
 
 func bit(bitlist []byte, nr int) bool {
@@ -78,10 +80,12 @@ func ParseNode(serializedNode []byte, depth byte) (VerkleNode, error) {
 	}
 
 	switch serializedNode[0] {
-	case leafRLPType:
+	case leafType:
 		return parseLeafNode(serializedNode, depth)
-	case internalRLPType:
+	case internalType:
 		return CreateInternalNode(serializedNode[internalBitlistOffset:internalCommitmentOffset], serializedNode[internalCommitmentOffset:], depth)
+	case eoAccountType:
+		return parseEoAccountNode(serializedNode, depth)
 	default:
 		return nil, ErrInvalidNodeEncoding
 	}
@@ -100,7 +104,7 @@ func parseLeafNode(serialized []byte, depth byte) (VerkleNode, error) {
 			offset += LeafValueSize
 		}
 	}
-	ln := NewLeafNodeWithNoComms(serialized[leafSteamOffset:leafSteamOffset+StemSize], values[:])
+	ln := NewLeafNodeWithNoComms(serialized[leafStemOffset:leafStemOffset+StemSize], values[:])
 	ln.setDepth(depth)
 	ln.c1 = new(Point)
 
@@ -120,6 +124,27 @@ func parseLeafNode(serialized []byte, depth byte) (VerkleNode, error) {
 	if err := ln.commitment.SetBytesUncompressed(serialized[leafCommitmentOffset:leafC1CommitmentOffset], true); err != nil {
 		return nil, fmt.Errorf("setting commitment: %w", err)
 	}
+	return ln, nil
+}
+
+func parseEoAccountNode(serialized []byte, depth byte) (VerkleNode, error) {
+	var values [NodeWidth][]byte
+	offset := leafStemOffset + StemSize + 2*banderwagon.UncompressedSize
+	values[0] = zero32[:]                                   // 0 version
+	values[1] = serialized[offset : offset+leafBalanceSize] // balance
+	var nonce [32]byte
+	offset += leafBalanceSize
+	copy(nonce[:8], serialized[offset:offset+8])
+	values[2] = nonce[:] // nonce
+	values[3] = emptyCodeHash[:]
+	values[4] = zero32[:] // 0 code size
+	ln := NewLeafNodeWithNoComms(serialized[leafStemOffset:leafStemOffset+StemSize], values[:])
+	ln.setDepth(depth)
+	ln.c1 = new(Point)
+	ln.c1.SetBytesUncompressed(serialized[leafStemOffset+StemSize:leafStemOffset+StemSize+banderwagon.UncompressedSize], true)
+	ln.c2 = &banderwagon.Identity
+	ln.commitment = new(Point)
+	ln.commitment.SetBytesUncompressed(serialized[leafStemOffset+StemSize+banderwagon.UncompressedSize:leafStemOffset+StemSize+banderwagon.UncompressedSize*2], true)
 	return ln, nil
 }
 
