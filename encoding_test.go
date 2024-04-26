@@ -54,7 +54,7 @@ func TestInvalidNodeEncoding(t *testing.T) {
 	if err != nil {
 		t.Fatalf("serializing leaf node: %v", err)
 	}
-	lnbytes[0] = leafType + internalType // Change the type of the node to something invalid.
+	lnbytes[0] = 0xc0 // Change the type of the node to something invalid.
 	if _, err := ParseNode(lnbytes, 0); err != ErrInvalidNodeEncoding {
 		t.Fatalf("invalid error, got %v, expected %v", err, ErrInvalidNodeEncoding)
 	}
