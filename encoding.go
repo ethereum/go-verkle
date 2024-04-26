@@ -145,17 +145,13 @@ func parseEoAccountNode(serialized []byte, depth byte) (VerkleNode, error) {
 	ln := NewLeafNodeWithNoComms(serialized[leafStemOffset:leafStemOffset+StemSize], values[:])
 	ln.setDepth(depth)
 	ln.c1 = new(Point)
-	err := ln.c1.SetBytesUncompressed(serialized[leafStemOffset+StemSize:leafStemOffset+StemSize+banderwagon.UncompressedSize], true)
-	if err != nil {
-		panic(err)
-		// return nil, err
+	if err := ln.c1.SetBytesUncompressed(serialized[leafStemOffset+StemSize:leafStemOffset+StemSize+banderwagon.UncompressedSize], true); err != nil {
+		return nil, fmt.Errorf("error setting leaf C1 commitment: %w", err)
 	}
 	ln.c2 = &banderwagon.Identity
 	ln.commitment = new(Point)
-	err = ln.commitment.SetBytesUncompressed(serialized[leafStemOffset+StemSize+banderwagon.UncompressedSize:leafStemOffset+StemSize+banderwagon.UncompressedSize*2], true)
-	if err != nil {
-		panic(err)
-		// return nil, err
+	if err := ln.commitment.SetBytesUncompressed(serialized[leafStemOffset+StemSize+banderwagon.UncompressedSize:leafStemOffset+StemSize+banderwagon.UncompressedSize*2], true); err != nil {
+		return nil, fmt.Errorf("error setting leaf root commitment: %w", err)
 	}
 	return ln, nil
 }
@@ -175,16 +171,21 @@ func parseSingleSlotNode(serialized []byte, depth byte) (VerkleNode, error) {
 	ln.setDepth(depth)
 	if idx < 128 {
 		ln.c1 = new(Point)
-		ln.c1.SetBytesUncompressed(cnCommBytes, true)
+		if err := ln.c1.SetBytesUncompressed(cnCommBytes, true); err != nil {
+			return nil, fmt.Errorf("error setting leaf C1 commitment: %w", err)
+		}
 		ln.c2 = &banderwagon.Identity
 	} else {
 		ln.c2 = new(Point)
-		ln.c2.SetBytesUncompressed(cnCommBytes, true)
+		if err := ln.c2.SetBytesUncompressed(cnCommBytes, true); err != nil {
+			return nil, fmt.Errorf("error setting leaf C2 commitment: %w", err)
+		}
 		ln.c1 = &banderwagon.Identity
 	}
-	offset += banderwagon.UncompressedSize
 	ln.commitment = new(Point)
-	ln.commitment.SetBytesUncompressed(rootCommBytes, true)
+	if err := ln.commitment.SetBytesUncompressed(rootCommBytes, true); err != nil {
+		return nil, fmt.Errorf("error setting leaf root commitment: %w", err)
+	}
 	return ln, nil
 }
 
