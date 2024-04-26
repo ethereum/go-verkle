@@ -166,9 +166,10 @@ func (pe *ProofElements) Merge(other *ProofElements) {
 const (
 	// These types will distinguish internal
 	// and leaf nodes when decoding from RLP.
-	internalType  byte = 1
-	leafType      byte = 2
-	eoAccountType byte = 3
+	internalType   byte = 1
+	leafType       byte = 2
+	eoAccountType  byte = 3
+	singleSlotType byte = 4
 )
 
 type (
@@ -1772,11 +1773,14 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 	// Create bitlist and store in children LeafValueSize (padded) values.
 	children := make([]byte, 0, NodeWidth*LeafValueSize)
 	var (
-		bitlist [bitlistSize]byte
-		isEoA   = true
+		bitlist        [bitlistSize]byte
+		isEoA          = true
+		count, lastIdx int
 	)
 	for i, v := range n.values {
 		if v != nil {
+			count++
+			lastIdx = i
 			setBit(bitlist[:], i)
 			children = append(children, v...)
 			if padding := emptyValue[:LeafValueSize-len(v)]; len(padding) != 0 {
@@ -1809,8 +1813,15 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 	// Create the serialization.
 	var result []byte
 	switch {
-	// TODO case for a group containing a single slot
-	// case count == 1:
+	case count == 1:
+		baseSize := nodeTypeSize + StemSize + 2*banderwagon.UncompressedSize + leafValueIndexSize + leafSlotSize
+		result = make([]byte, baseSize)
+		result[0] = singleSlotType
+		copy(result[leafStemOffset:], n.stem[:StemSize])
+		copy(result[leafStemOffset+StemSize:], c1Bytes[:])
+		copy(result[leafStemOffset+StemSize+banderwagon.UncompressedSize:], cBytes[:])
+		result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize] = byte(lastIdx)
+		copy(result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize+leafValueIndexSize:], n.values[lastIdx][:])
 	case isEoA:
 		baseSize := nodeTypeSize + StemSize + 2*banderwagon.UncompressedSize + leafBalanceSize + leafNonceSize
 		result = make([]byte, baseSize)

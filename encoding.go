@@ -58,6 +58,8 @@ const (
 	leafChildrenOffset     = leafC2CommitmentOffset + banderwagon.UncompressedSize
 	leafBalanceSize        = 32
 	leafNonceSize          = 8
+	leafSlotSize           = 32
+	leafValueIndexSize     = 1
 )
 
 func bit(bitlist []byte, nr int) bool {
@@ -86,6 +88,8 @@ func ParseNode(serializedNode []byte, depth byte) (VerkleNode, error) {
 		return CreateInternalNode(serializedNode[internalBitlistOffset:internalCommitmentOffset], serializedNode[internalCommitmentOffset:], depth)
 	case eoAccountType:
 		return parseEoAccountNode(serializedNode, depth)
+	case singleSlotType:
+		return parseSingleSlotNode(serializedNode, depth)
 	default:
 		return nil, ErrInvalidNodeEncoding
 	}
@@ -153,6 +157,34 @@ func parseEoAccountNode(serialized []byte, depth byte) (VerkleNode, error) {
 		panic(err)
 		// return nil, err
 	}
+	return ln, nil
+}
+
+func parseSingleSlotNode(serialized []byte, depth byte) (VerkleNode, error) {
+	var values [NodeWidth][]byte
+	offset := leafStemOffset
+	ln := NewLeafNodeWithNoComms(serialized[offset:offset+StemSize], values[:])
+	offset += StemSize
+	cnCommBytes := serialized[offset : offset+banderwagon.UncompressedSize]
+	offset += banderwagon.UncompressedSize
+	rootCommBytes := serialized[offset : offset+banderwagon.UncompressedSize]
+	offset += banderwagon.UncompressedSize
+	idx := serialized[offset]
+	offset += leafValueIndexSize
+	values[idx] = serialized[offset : offset+leafSlotSize] // copy slot
+	ln.setDepth(depth)
+	if idx < 128 {
+		ln.c1 = new(Point)
+		ln.c1.SetBytesUncompressed(cnCommBytes, true)
+		ln.c2 = &banderwagon.Identity
+	} else {
+		ln.c2 = new(Point)
+		ln.c2.SetBytesUncompressed(cnCommBytes, true)
+		ln.c1 = &banderwagon.Identity
+	}
+	offset += banderwagon.UncompressedSize
+	ln.commitment = new(Point)
+	ln.commitment.SetBytesUncompressed(rootCommBytes, true)
 	return ln, nil
 }
 
