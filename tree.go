@@ -1657,7 +1657,7 @@ type SerializedNode struct {
 
 // BatchSerialize is an optimized serialization API when multiple VerkleNodes serializations are required, and all are
 // available in memory.
-func (n *InternalNode) BatchSerialize() ([]SerializedNode, error) {
+func (n *InternalNode) BatchSerialize() []SerializedNode {
 	// Commit to the node to update all the nodes commitments.
 	n.Commit()
 
@@ -1690,10 +1690,7 @@ func (n *InternalNode) BatchSerialize() ([]SerializedNode, error) {
 	for i := range nodes {
 		switch n := nodes[i].(type) {
 		case *InternalNode:
-			serialized, err := n.serializeInternalWithUncompressedCommitment(serializedPointsIdxs, serializedPoints)
-			if err != nil {
-				return nil, err
-			}
+			serialized := n.serializeInternalWithUncompressedCommitment(serializedPointsIdxs, serializedPoints)
 			sn := SerializedNode{
 				Node:            n,
 				Path:            paths[i],
@@ -1717,7 +1714,7 @@ func (n *InternalNode) BatchSerialize() ([]SerializedNode, error) {
 		}
 	}
 
-	return ret, nil
+	return ret
 }
 
 func (n *InternalNode) collectNonHashedNodes(list []VerkleNode, paths [][]byte, path []byte) ([]VerkleNode, [][]byte) {
@@ -1739,7 +1736,7 @@ func (n *InternalNode) collectNonHashedNodes(list []VerkleNode, paths [][]byte, 
 }
 
 // unpack one compressed commitment from the list of batch-compressed commitments
-func (n *InternalNode) serializeInternalWithUncompressedCommitment(pointsIdx map[VerkleNode]int, serializedPoints [][banderwagon.UncompressedSize]byte) ([]byte, error) {
+func (n *InternalNode) serializeInternalWithUncompressedCommitment(pointsIdx map[VerkleNode]int, serializedPoints [][banderwagon.UncompressedSize]byte) []byte {
 	serialized := make([]byte, nodeTypeSize+bitlistSize+banderwagon.UncompressedSize)
 	bitlist := serialized[internalBitlistOffset:internalCommitmentOffset]
 	for i, c := range n.children {
@@ -1748,13 +1745,10 @@ func (n *InternalNode) serializeInternalWithUncompressedCommitment(pointsIdx map
 		}
 	}
 	serialized[nodeTypeOffset] = internalRLPType
-	pointidx, ok := pointsIdx[n]
-	if !ok {
-		return nil, fmt.Errorf("child node not found in cache")
-	}
+	pointidx := pointsIdx[n]
 	copy(serialized[internalCommitmentOffset:], serializedPoints[pointidx][:])
 
-	return serialized, nil
+	return serialized
 }
 
 func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2Bytes [banderwagon.UncompressedSize]byte) []byte {
