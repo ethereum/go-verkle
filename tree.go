@@ -273,8 +273,7 @@ func NewLeafNode(stem Stem, values [][]byte) (*LeafNode, error) {
 	if err != nil {
 		return nil, err
 	}
-	containsEmptyCodeHash := len(c1poly) >= EmptyCodeHashSecondHalfIdx &&
-		c1poly[EmptyCodeHashFirstHalfIdx].Equal(&EmptyCodeHashFirstHalfValue) &&
+	containsEmptyCodeHash := c1poly[EmptyCodeHashFirstHalfIdx].Equal(&EmptyCodeHashFirstHalfValue) &&
 		c1poly[EmptyCodeHashSecondHalfIdx].Equal(&EmptyCodeHashSecondHalfValue)
 	if containsEmptyCodeHash {
 		// Clear out values of the cached point.
