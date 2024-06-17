@@ -2,18 +2,17 @@
 [![Lint and Test](https://github.com/ethereum/go-verkle/actions/workflows/go.yml/badge.svg)](https://github.com/ethereum/go-verkle/actions/workflows/go.yml)
 [![DeepSource](https://deepsource.io/gh/ethereum/go-verkle.svg/?label=active+issues&show_trend=true&token=OjuF5Q2HbKzpWY8LgWuffNZp)](https://deepsource.io/gh/ethereum/go-verkle/?ref=repository-badge)
 [![goreports](https://goreportcard.com/badge/github.com/ethereum/go-verkle)](https://goreportcard.com/report/github.com/ethereum/go-verkle)
-[![API Reference](https://camo.githubusercontent.com/915b7be44ada53c290eb157634330494ebe3e30a/68747470733a2f2f676f646f632e6f72672f6769746875622e636f6d2f676f6c616e672f6764646f3f7374617475732e737667)](https://pkg.go.dev/github.com/ethereum/go-verkle)
+[![API Reference](https://camo.githubusercontent.com/915b7be44ada53c290eb157634330494ebe3e30a/68747470733a2f2f676f646f632e6f72672f676f6c616e672f6764646f3f7374617475732e737667)](https://pkg.go.dev/github.com/ethereum/go-verkle)
 [![Block replay](https://github.com/ethereum/go-verkle/actions/workflows/block_replay.yml/badge.svg)](https://github.com/ethereum/go-verkle/actions/workflows/block_replay.yml)
-
 
 # go-verkle
 
-> A Go implementation of Verkle Tree datastructure defined in the [spec](https://github.com/crate-crypto/verkle-trie-ref/tree/master/verkle). 
+> A Go implementation of the Verkle Tree data structure defined in the [spec](https://github.com/crate-crypto/verkle-trie-ref/tree/master/verkle). 
 
 
 ## Test & Benchmarks
 
-To run the tests and benchmarks, run the following commands:
+To run the tests and benchmarks, execute the following commands:
 ```bash
 $ go test ./...
 ```
