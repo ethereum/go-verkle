@@ -1795,9 +1795,7 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 				// last 24 bytes should be 0
 				isEoA = v != nil && bytes.Equal(v[8:32], zero24[:])
 			case 3:
-				// code hash should be the empty code hash, but let's be tolerant
-				// and accept 0 as well.
-				isEoA = v != nil && (bytes.Equal(v, emptyCodeHash[:]) || bytes.Equal(v, zero32[:]))
+				isEoA = v != nil && bytes.Equal(v, emptyCodeHash[:])
 			case 4:
 				// code size must be 0
 				isEoA = v != nil && bytes.Equal(v, zero32[:])

@@ -141,10 +141,18 @@ func parseEoAccountNode(serialized []byte, depth byte) (VerkleNode, error) {
 	ln := NewLeafNodeWithNoComms(serialized[leafStemOffset:leafStemOffset+StemSize], values[:])
 	ln.setDepth(depth)
 	ln.c1 = new(Point)
-	ln.c1.SetBytesUncompressed(serialized[leafStemOffset+StemSize:leafStemOffset+StemSize+banderwagon.UncompressedSize], true)
+	err := ln.c1.SetBytesUncompressed(serialized[leafStemOffset+StemSize:leafStemOffset+StemSize+banderwagon.UncompressedSize], true)
+	if err != nil {
+		panic(err)
+		// return nil, err
+	}
 	ln.c2 = &banderwagon.Identity
 	ln.commitment = new(Point)
-	ln.commitment.SetBytesUncompressed(serialized[leafStemOffset+StemSize+banderwagon.UncompressedSize:leafStemOffset+StemSize+banderwagon.UncompressedSize*2], true)
+	err = ln.commitment.SetBytesUncompressed(serialized[leafStemOffset+StemSize+banderwagon.UncompressedSize:leafStemOffset+StemSize+banderwagon.UncompressedSize*2], true)
+	if err != nil {
+		panic(err)
+		// return nil, err
+	}
 	return ln, nil
 }
 
