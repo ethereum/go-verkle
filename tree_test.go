@@ -1419,9 +1419,7 @@ func TestBatchMigratedKeyValues(t *testing.T) {
 						}
 					}
 					unbatchedRoot := tree.Commit().Bytes()
-					if _, err := tree.(*InternalNode).BatchSerialize(); err != nil {
-						t.Fatalf("failed to serialize unbatched tree: %v", err)
-					}
+					tree.(*InternalNode).BatchSerialize()
 					unbatchedDuration += time.Since(now)
 
 					// ***Insert the key pairs with optimized strategy & methods***
@@ -1465,9 +1463,7 @@ func TestBatchMigratedKeyValues(t *testing.T) {
 						t.Fatalf("failed to insert key: %v", err)
 					}
 					batchedRoot := tree.Commit().Bytes()
-					if _, err := tree.(*InternalNode).BatchSerialize(); err != nil {
-						t.Fatalf("failed to serialize batched tree: %v", err)
-					}
+					tree.(*InternalNode).BatchSerialize()
 					batchedDuration += time.Since(now)
 
 					if unbatchedRoot != batchedRoot {
@@ -1551,10 +1547,7 @@ func BenchmarkBatchLeavesInsert(b *testing.B) {
 		if err := tree.(*InternalNode).InsertMigratedLeaves(newLeaves, nil); err != nil {
 			b.Fatalf("failed to insert key: %v", err)
 		}
-
-		if _, err := tree.(*InternalNode).BatchSerialize(); err != nil {
-			b.Fatalf("failed to serialize batched tree: %v", err)
-		}
+		tree.(*InternalNode).BatchSerialize()
 	}
 }
 
