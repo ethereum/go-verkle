@@ -60,6 +60,8 @@ const (
 	leafNonceSize          = 8
 	leafSlotSize           = 32
 	leafValueIndexSize     = 1
+	singleSlotLeafSize     = nodeTypeSize + StemSize + 2*banderwagon.UncompressedSize + leafValueIndexSize + leafSlotSize
+	eoaLeafSize            = nodeTypeSize + StemSize + 2*banderwagon.UncompressedSize + leafBalanceSize + leafNonceSize
 )
 
 func bit(bitlist []byte, nr int) bool {
@@ -73,8 +75,10 @@ var errSerializedPayloadTooShort = errors.New("verkle payload is too short")
 
 // ParseNode deserializes a node into its proper VerkleNode instance.
 // The serialized bytes have the format:
-// - Internal nodes: <nodeType><bitlist><commitment>
-// - Leaf nodes:     <nodeType><stem><bitlist><comm><c1comm><c2comm><children...>
+// - Internal nodes:   <nodeType><bitlist><commitment>
+// - Leaf nodes:       <nodeType><stem><bitlist><comm><c1comm><c2comm><children...>
+// - EoA nodes:        <nodeType><stem><comm><c1comm><balance><nonce>
+// - single slot node: <nodeType><stem><comm><cncomm><leaf index><slot>
 func ParseNode(serializedNode []byte, depth byte) (VerkleNode, error) {
 	// Check that the length of the serialized node is at least the smallest possible serialized node.
 	if len(serializedNode) < nodeTypeSize+banderwagon.UncompressedSize {

@@ -1814,8 +1814,8 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 	var result []byte
 	switch {
 	case count == 1:
-		baseSize := nodeTypeSize + StemSize + 2*banderwagon.UncompressedSize + leafValueIndexSize + leafSlotSize
-		result = make([]byte, baseSize)
+		var buf [singleSlotLeafSize]byte
+		result = buf[:]
 		result[0] = singleSlotType
 		copy(result[leafStemOffset:], n.stem[:StemSize])
 		copy(result[leafStemOffset+StemSize:], c1Bytes[:])
@@ -1823,8 +1823,8 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 		result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize] = byte(lastIdx)
 		copy(result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize+leafValueIndexSize:], n.values[lastIdx][:])
 	case isEoA:
-		baseSize := nodeTypeSize + StemSize + 2*banderwagon.UncompressedSize + leafBalanceSize + leafNonceSize
-		result = make([]byte, baseSize)
+		var buf [eoaLeafSize]byte
+		result = buf[:]
 		result[0] = eoAccountType
 		copy(result[leafStemOffset:], n.stem[:StemSize])
 		copy(result[leafStemOffset+StemSize:], c1Bytes[:])
