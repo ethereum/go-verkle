@@ -58,6 +58,10 @@ const (
 	leafChildrenOffset     = leafC2CommitmentOffset + banderwagon.UncompressedSize
 	leafBalanceSize        = 32
 	leafNonceSize          = 8
+	leafSlotSize           = 32
+	leafValueIndexSize     = 1
+	singleSlotLeafSize     = nodeTypeSize + StemSize + 2*banderwagon.UncompressedSize + leafValueIndexSize + leafSlotSize
+	eoaLeafSize            = nodeTypeSize + StemSize + 2*banderwagon.UncompressedSize + leafBalanceSize + leafNonceSize
 )
 
 func bit(bitlist []byte, nr int) bool {
@@ -71,8 +75,10 @@ var errSerializedPayloadTooShort = errors.New("verkle payload is too short")
 
 // ParseNode deserializes a node into its proper VerkleNode instance.
 // The serialized bytes have the format:
-// - Internal nodes: <nodeType><bitlist><commitment>
-// - Leaf nodes:     <nodeType><stem><bitlist><comm><c1comm><c2comm><children...>
+// - Internal nodes:   <nodeType><bitlist><commitment>
+// - Leaf nodes:       <nodeType><stem><bitlist><comm><c1comm><c2comm><children...>
+// - EoA nodes:        <nodeType><stem><comm><c1comm><balance><nonce>
+// - single slot node: <nodeType><stem><comm><cncomm><leaf index><slot>
 func ParseNode(serializedNode []byte, depth byte) (VerkleNode, error) {
 	// Check that the length of the serialized node is at least the smallest possible serialized node.
 	if len(serializedNode) < nodeTypeSize+banderwagon.UncompressedSize {
@@ -86,6 +92,8 @@ func ParseNode(serializedNode []byte, depth byte) (VerkleNode, error) {
 		return CreateInternalNode(serializedNode[internalBitlistOffset:internalCommitmentOffset], serializedNode[internalCommitmentOffset:], depth)
 	case eoAccountType:
 		return parseEoAccountNode(serializedNode, depth)
+	case singleSlotType:
+		return parseSingleSlotNode(serializedNode, depth)
 	default:
 		return nil, ErrInvalidNodeEncoding
 	}
@@ -141,17 +149,46 @@ func parseEoAccountNode(serialized []byte, depth byte) (VerkleNode, error) {
 	ln := NewLeafNodeWithNoComms(serialized[leafStemOffset:leafStemOffset+StemSize], values[:])
 	ln.setDepth(depth)
 	ln.c1 = new(Point)
-	err := ln.c1.SetBytesUncompressed(serialized[leafStemOffset+StemSize:leafStemOffset+StemSize+banderwagon.UncompressedSize], true)
-	if err != nil {
-		panic(err)
-		// return nil, err
+	if err := ln.c1.SetBytesUncompressed(serialized[leafStemOffset+StemSize:leafStemOffset+StemSize+banderwagon.UncompressedSize], true); err != nil {
+		return nil, fmt.Errorf("error setting leaf C1 commitment: %w", err)
 	}
 	ln.c2 = &banderwagon.Identity
 	ln.commitment = new(Point)
-	err = ln.commitment.SetBytesUncompressed(serialized[leafStemOffset+StemSize+banderwagon.UncompressedSize:leafStemOffset+StemSize+banderwagon.UncompressedSize*2], true)
-	if err != nil {
-		panic(err)
-		// return nil, err
+	if err := ln.commitment.SetBytesUncompressed(serialized[leafStemOffset+StemSize+banderwagon.UncompressedSize:leafStemOffset+StemSize+banderwagon.UncompressedSize*2], true); err != nil {
+		return nil, fmt.Errorf("error setting leaf root commitment: %w", err)
+	}
+	return ln, nil
+}
+
+func parseSingleSlotNode(serialized []byte, depth byte) (VerkleNode, error) {
+	var values [NodeWidth][]byte
+	offset := leafStemOffset
+	ln := NewLeafNodeWithNoComms(serialized[offset:offset+StemSize], values[:])
+	offset += StemSize
+	cnCommBytes := serialized[offset : offset+banderwagon.UncompressedSize]
+	offset += banderwagon.UncompressedSize
+	rootCommBytes := serialized[offset : offset+banderwagon.UncompressedSize]
+	offset += banderwagon.UncompressedSize
+	idx := serialized[offset]
+	offset += leafValueIndexSize
+	values[idx] = serialized[offset : offset+leafSlotSize] // copy slot
+	ln.setDepth(depth)
+	if idx < 128 {
+		ln.c1 = new(Point)
+		if err := ln.c1.SetBytesUncompressed(cnCommBytes, true); err != nil {
+			return nil, fmt.Errorf("error setting leaf C1 commitment: %w", err)
+		}
+		ln.c2 = &banderwagon.Identity
+	} else {
+		ln.c2 = new(Point)
+		if err := ln.c2.SetBytesUncompressed(cnCommBytes, true); err != nil {
+			return nil, fmt.Errorf("error setting leaf C2 commitment: %w", err)
+		}
+		ln.c1 = &banderwagon.Identity
+	}
+	ln.commitment = new(Point)
+	if err := ln.commitment.SetBytesUncompressed(rootCommBytes, true); err != nil {
+		return nil, fmt.Errorf("error setting leaf root commitment: %w", err)
 	}
 	return ln, nil
 }
