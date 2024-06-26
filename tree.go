@@ -1798,7 +1798,7 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 				isEoA = v != nil
 			case 2:
 				// Nonce should have its last 24 bytes set to 0
-				isEoA = v != nil && bytes.Equal(v[8:32], zero24[:])
+				isEoA = v != nil && bytes.Equal(v[leafNonceSize:], zero24[:])
 			case 3:
 				// Code hash should be the empty code hash
 				isEoA = v != nil && bytes.Equal(v, EmptyCodeHash[:])
@@ -1832,7 +1832,7 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 		copy(result[leafStemOffset+StemSize:], c1Bytes[:])
 		copy(result[leafStemOffset+StemSize+banderwagon.UncompressedSize:], cBytes[:])
 		copy(result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize:], n.values[1])                      // copy balance
-		copy(result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize+leafBalanceSize:], n.values[2][0:8]) // copy nonce
+		copy(result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize+leafBalanceSize:], n.values[2][:leafNonceSize]) // copy nonce
 	default:
 		result = make([]byte, nodeTypeSize+StemSize+bitlistSize+3*banderwagon.UncompressedSize+len(children))
 		result[0] = leafType
