@@ -1831,7 +1831,7 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 		copy(result[leafStemOffset:], n.stem[:StemSize])
 		copy(result[leafStemOffset+StemSize:], c1Bytes[:])
 		copy(result[leafStemOffset+StemSize+banderwagon.UncompressedSize:], cBytes[:])
-		copy(result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize:], n.values[1])                      // copy balance
+		copy(result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize:], n.values[1])                                 // copy balance
 		copy(result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize+leafBalanceSize:], n.values[2][:leafNonceSize]) // copy nonce
 	default:
 		result = make([]byte, nodeTypeSize+StemSize+bitlistSize+3*banderwagon.UncompressedSize+len(children))
