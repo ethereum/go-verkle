@@ -142,9 +142,9 @@ func parseEoAccountNode(serialized []byte, depth byte) (VerkleNode, error) {
 	values[1] = serialized[offset : offset+leafBalanceSize] // balance
 	var nonce [32]byte
 	offset += leafBalanceSize
-	copy(nonce[:8], serialized[offset:offset+8])
+	copy(nonce[:leafNonceSize], serialized[offset:offset+leafNonceSize])
 	values[2] = nonce[:] // nonce
-	values[3] = emptyCodeHash[:]
+	values[3] = EmptyCodeHash[:]
 	values[4] = zero32[:] // 0 code size
 	ln := NewLeafNodeWithNoComms(serialized[leafStemOffset:leafStemOffset+StemSize], values[:])
 	ln.setDepth(depth)

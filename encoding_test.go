@@ -63,9 +63,9 @@ func TestInvalidNodeEncoding(t *testing.T) {
 func TestParseNodeEoA(t *testing.T) {
 	values := make([][]byte, 256)
 	values[0] = zero32[:]
-	values[1] = emptyCodeHash[:] // set empty code hash as balance, because why not
+	values[1] = EmptyCodeHash[:] // set empty code hash as balance, because why not
 	values[2] = fourtyKeyTest[:] // set nonce to 64
-	values[3] = emptyCodeHash[:] // set empty code hash
+	values[3] = EmptyCodeHash[:] // set empty code hash
 	values[4] = zero32[:]        // zero-size
 	ln, err := NewLeafNode(ffx32KeyTest[:31], values)
 	if err != nil {
@@ -103,16 +103,16 @@ func TestParseNodeEoA(t *testing.T) {
 		t.Fatalf("invalid version, got %x, expected %x", lnd.values[0], zero32[:])
 	}
 
-	if !bytes.Equal(lnd.values[1], emptyCodeHash[:]) {
-		t.Fatalf("invalid balance, got %x, expected %x", lnd.values[1], emptyCodeHash[:])
+	if !bytes.Equal(lnd.values[1], EmptyCodeHash[:]) {
+		t.Fatalf("invalid balance, got %x, expected %x", lnd.values[1], EmptyCodeHash[:])
 	}
 
 	if !bytes.Equal(lnd.values[2], fourtyKeyTest[:]) {
 		t.Fatalf("invalid nonce, got %x, expected %x", lnd.values[2], fourtyKeyTest[:])
 	}
 
-	if !bytes.Equal(lnd.values[3], emptyCodeHash[:]) {
-		t.Fatalf("invalid code hash, got %x, expected %x", lnd.values[3], emptyCodeHash[:])
+	if !bytes.Equal(lnd.values[3], EmptyCodeHash[:]) {
+		t.Fatalf("invalid code hash, got %x, expected %x", lnd.values[3], EmptyCodeHash[:])
 	}
 
 	if !bytes.Equal(lnd.values[4], zero32[:]) {
@@ -133,7 +133,7 @@ func TestParseNodeEoA(t *testing.T) {
 }
 func TestParseNodeSingleSlot(t *testing.T) {
 	values := make([][]byte, 256)
-	values[153] = emptyCodeHash
+	values[153] = EmptyCodeHash
 	ln, err := NewLeafNode(ffx32KeyTest[:31], values)
 	if err != nil {
 		t.Fatalf("error creating leaf node: %v", err)
@@ -172,7 +172,7 @@ func TestParseNodeSingleSlot(t *testing.T) {
 				t.Fatalf("value %d, got %x, expected empty slot", i, lnd.values[i])
 			}
 		} else {
-			if !bytes.Equal(lnd.values[i], emptyCodeHash[:]) {
+			if !bytes.Equal(lnd.values[i], EmptyCodeHash[:]) {
 				t.Fatalf("got %x, expected empty slot", lnd.values[i])
 			}
 		}

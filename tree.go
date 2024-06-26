@@ -1763,7 +1763,7 @@ func (n *InternalNode) serializeInternalWithUncompressedCommitment(pointsIdx map
 var (
 	zero24           [24]byte
 	zero32           [32]byte
-	emptyCodeHash, _ = hex.DecodeString("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
+	EmptyCodeHash, _ = hex.DecodeString("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
 )
 
 func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2Bytes [banderwagon.UncompressedSize]byte) []byte {
@@ -1791,20 +1791,22 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 		if isEoA {
 			switch i {
 			case 0:
+				// Version should be 0
 				isEoA = v != nil && bytes.Equal(v, zero32[:])
 			case 1:
 				// Balance should not be nil
 				isEoA = v != nil
 			case 2:
-				// last 24 bytes should be 0
+				// Nonce should have its last 24 bytes set to 0
 				isEoA = v != nil && bytes.Equal(v[8:32], zero24[:])
 			case 3:
-				isEoA = v != nil && bytes.Equal(v, emptyCodeHash[:])
+				// Code hash should be the empty code hash
+				isEoA = v != nil && bytes.Equal(v, EmptyCodeHash[:])
 			case 4:
-				// code size must be 0
+				// Code size must be 0
 				isEoA = v != nil && bytes.Equal(v, zero32[:])
 			default:
-				// all other values must be nil
+				// All other values must be nil
 				isEoA = v == nil
 			}
 		}
