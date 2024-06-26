@@ -26,7 +26,6 @@
 package verkle
 
 import (
-	"encoding/hex"
 	"sync"
 
 	"github.com/crate-crypto/go-ipa/ipa"
@@ -74,9 +73,8 @@ func GetConfig() *Config {
 		cfg = &IPAConfig{conf: conf}
 
 		// Initialize the empty code cached values.
-		emptyHashCode, _ := hex.DecodeString("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
 		values := make([][]byte, NodeWidth)
-		values[CodeHashVectorPosition] = emptyHashCode
+		values[CodeHashVectorPosition] = EmptyCodeHash
 		var c1poly [NodeWidth]Fr
 		if _, err := fillSuffixTreePoly(c1poly[:], values[:NodeWidth/2]); err != nil {
 			panic(err)
