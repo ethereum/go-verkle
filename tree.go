@@ -1728,8 +1728,9 @@ func (n *InternalNode) collectNonHashedNodes(list []VerkleNode, paths [][]byte, 
 	for i, child := range n.children {
 		switch childNode := child.(type) {
 		case *LeafNode:
+			curDepth := childNode.depth
 			list = append(list, childNode)
-			paths = append(paths, childNode.stem[:len(path)+1])
+			paths = append(paths, append(path, childNode.stem[curDepth-1:curDepth]...))
 		case *InternalNode:
 			childpath := make([]byte, len(path)+1)
 			copy(childpath, path)
