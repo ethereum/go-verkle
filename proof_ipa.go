@@ -604,9 +604,6 @@ func Verify(vp *VerkleProof, preStateRoot []byte, postStateRoot []byte, statedif
 	if err != nil {
 		return fmt.Errorf("error rebuilding the post-tree from proof: %w", err)
 	}
-	// en fait il crée le blockhash contract, mais il met pas les trucs dans le witness
-	// pourquoi est-ce que c'est triggered maintenant et pourquoi on l'avait pas avant?
-	// hypothèse: en fait ça marchait pas avant non plus mais on teste que le 2ème bloc
 	regeneratedPostTreeRoot := posttree.Commitment().Bytes()
 	if !bytes.Equal(regeneratedPostTreeRoot[:], postStateRoot) {
 		return fmt.Errorf("post tree root mismatch: %x != %x", regeneratedPostTreeRoot, postStateRoot)
