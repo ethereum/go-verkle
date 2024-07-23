@@ -34,6 +34,7 @@ import (
 	"testing"
 
 	"github.com/crate-crypto/go-ipa/common"
+	"github.com/karalabe/ssz"
 )
 
 func TestProofEmptyTree(t *testing.T) {
@@ -1244,5 +1245,44 @@ func TestProveAbsenceInEmptyHalf(t *testing.T) {
 
 	if len(proof.ExtStatus) != 2 {
 		t.Fatalf("invalid number of extension status: %d", len(proof.ExtStatus))
+	}
+}
+
+func TestProofSSZEncoding(t *testing.T) {
+	t.Parallel()
+
+	root := New()
+
+	key1, _ := hex.DecodeString("00000000000000000000000000000000000000000000000000000000000000FF")
+
+	if err := root.Insert(key1, fourtyKeyTest, nil); err != nil {
+		t.Fatalf("could not insert key: %v", err)
+	}
+	if err := root.Insert(key1, fourtyKeyTest, nil); err != nil {
+		t.Fatalf("could not insert key: %v", err)
+	}
+
+	key2, _ := hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000100")
+	key3, _ := hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000000")
+	proof, _, _, _, err := MakeVerkleMultiProof(root, nil, keylist{key2, key3}, nil)
+	if err != nil {
+		t.Fatalf("error computing proof: %v", err)
+	}
+	vp, _, err := SerializeProof(proof)
+	if err != nil {
+		t.Fatalf("error serializing proof: %v", err)
+	}
+	bin := make([]byte, ssz.Size(vp))
+	if err := ssz.EncodeToBytes(bin, vp); err != nil {
+		t.Fatalf("error encoding: %v", err)
+	}
+
+	var vpdec VerkleProof
+	if err := ssz.DecodeFromBytes(bin, &vpdec); err != nil {
+		t.Fatalf("error decoding: %v", err)
+	}
+
+	if vpdec.D != vp.D {
+		t.Fatalf("incorrect decoded evaluation point: %x != %x", vpdec.D, vp.D)
 	}
 }

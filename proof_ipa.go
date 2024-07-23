@@ -36,7 +36,11 @@ import (
 	"github.com/crate-crypto/go-ipa/common"
 )
 
-const IPA_PROOF_DEPTH = 8
+const (
+	MAX_STEMS                = uint64(1 << 16)
+	MAX_COMMITMENTS_PER_STEM = uint64(1 << 33)
+	IPA_PROOF_DEPTH          = 8
+)
 
 type IPAProof struct {
 	CL              [IPA_PROOF_DEPTH][32]byte `json:"cl"`
@@ -45,9 +49,9 @@ type IPAProof struct {
 }
 
 type VerkleProof struct {
-	OtherStems            [][StemSize]byte `json:"otherStems"`
-	DepthExtensionPresent []byte           `json:"depthExtensionPresent"`
-	CommitmentsByPath     [][32]byte       `json:"commitmentsByPath"`
+	OtherStems            [][StemSize]byte `json:"otherStems" ssz-max:"65536"`
+	DepthExtensionPresent []byte           `json:"depthExtensionPresent" ssz-max:"65536"`
+	CommitmentsByPath     [][32]byte       `json:"commitmentsByPath" ssz-max:"2162688"`
 	D                     [32]byte         `json:"d"`
 	IPAProof              *IPAProof        `json:"ipa_proof"`
 }
