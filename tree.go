@@ -631,6 +631,75 @@ func (n *InternalNode) Delete(key []byte, resolver NodeResolverFn) (bool, error)
 	}
 }
 
+func (n *InternalNode) DeleteAtStem(key []byte, resolver NodeResolverFn) (bool, error) {
+	nChild := offset2key(key, n.depth)
+	switch child := n.children[nChild].(type) {
+	case Empty:
+		return false, nil
+	case HashedNode:
+		if resolver == nil {
+			return false, errDeleteHash
+		}
+		payload, err := resolver(key[:n.depth+1])
+		if err != nil {
+			return false, err
+		}
+		// deserialize the payload and set it as the child
+		c, err := ParseNode(payload, n.depth+1)
+		if err != nil {
+			return false, err
+		}
+		n.children[nChild] = c
+		return n.DeleteAtStem(key, resolver)
+	case *LeafNode:
+		if !bytes.Equal(child.stem, key[:31]) {
+			return false, errDeleteMissing
+		}
+
+		n.cowChild(nChild)
+		n.children[nChild] = Empty{}
+
+		// Check if all children are gone, if so
+		// signal that this node should be deleted
+		// as well.
+		for _, c := range n.children {
+			if _, ok := c.(Empty); !ok {
+				return false, nil
+			}
+		}
+
+		return true, nil
+	case *InternalNode:
+		n.cowChild(nChild)
+		del, err := child.DeleteAtStem(key, resolver)
+		if err != nil {
+			return false, err
+		}
+
+		// delete the entire child if instructed to by
+		// the recursive algorigthm.
+		if del {
+			n.children[nChild] = Empty{}
+
+			// Check if all children are gone, if so
+			// signal that this node should be deleted
+			// as well.
+			for _, c := range n.children {
+				if _, ok := c.(Empty); !ok {
+					return false, nil
+				}
+			}
+
+			return true, nil
+		}
+
+		return false, nil
+	default:
+		// only unknown nodes are left
+		return false, errDeleteUnknown
+	}
+}
+
 // Flush hashes the children of an internal node and replaces them
 // with HashedNode. It also sends the current node on the flush channel.
 func (n *InternalNode) Flush(flush NodeFlushFn) {
