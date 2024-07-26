@@ -641,8 +641,6 @@ func benchmarkCommitNLeaves(b *testing.B, n int) {
 }
 
 func BenchmarkModifyLeaves(b *testing.B) {
-	mRand.Seed(time.Now().UnixNano()) // skipcq: GO-S1033
-
 	n := 200000
 	toEdit := 10000
 	val := []byte{0}
