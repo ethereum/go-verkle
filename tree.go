@@ -631,11 +631,14 @@ func (n *InternalNode) Delete(key []byte, resolver NodeResolverFn) (bool, error)
 	}
 }
 
+// DeleteAtStem delete a full stem. Unlike Delete, it will error out if the stem that is to
+// be deleted does not exist in the tree, because it's meant to be used by rollback code,
+// that should only delete things that exist.
 func (n *InternalNode) DeleteAtStem(key []byte, resolver NodeResolverFn) (bool, error) {
 	nChild := offset2key(key, n.depth)
 	switch child := n.children[nChild].(type) {
 	case Empty:
-		return false, nil
+		return false, errDeleteMissing
 	case HashedNode:
 		if resolver == nil {
 			return false, errDeleteHash
