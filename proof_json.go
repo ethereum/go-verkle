@@ -29,6 +29,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"sort"
 )
 
 // HexToPrefixedString turns a byte slice into its hex representation
@@ -192,10 +193,14 @@ type stemStateDiffMarshaller struct {
 }
 
 func (ssd StemStateDiff) MarshalJSON() ([]byte, error) {
-	suffixes := make([]byte, len(ssd.Updates))
+	suffixes := make([]byte, 0, len(ssd.Updates)+len(ssd.Inserts))
 	for i := range ssd.Updates {
-		suffixes[i] = ssd.Updates[i].Suffix
+		suffixes = append(suffixes, ssd.Updates[i].Suffix)
 	}
+	for i := range ssd.Inserts {
+		suffixes = append(suffixes, ssd.Inserts[i].Suffix)
+	}
+	sort.Slice(suffixes, func(i, j int) bool { return suffixes[i] < suffixes[j] })
 	return json.Marshal(&stemStateDiffMarshaller{
 		Stem:     HexToPrefixedString(ssd.Stem[:]),
 		Suffixes: HexToPrefixedString(suffixes),
