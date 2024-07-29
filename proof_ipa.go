@@ -558,7 +558,6 @@ func (x bytesSlice) Swap(i, j int)      { x[i], x[j] = x[j], x[i] }
 
 // Verify is the API function that verifies a verkle proofs as found in a block/execution payload.
 func Verify(vp *VerkleProof, preStateRoot []byte, postStateRoot []byte, statediff StateDiff) error {
-	// TODO: check that `OtherStems` have expected length and values.
 
 	proof, err := DeserializeProof(vp, statediff)
 	if err != nil {
