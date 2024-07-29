@@ -44,7 +44,7 @@ func TestProofEmptyTree(t *testing.T) {
 
 	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, nil, [][]byte{ffx32KeyTest}, nil)
 	cfg := GetConfig()
-	if ok, err := VerifyVerkleProof(proof, cis, zis, yis, cfg); !ok || err != nil {
+	if ok, err := verifyVerkleProof(proof, cis, zis, yis, cfg); !ok || err != nil {
 		t.Fatalf("could not verify verkle proof: %s", ToDot(root))
 	}
 }
@@ -67,7 +67,7 @@ func TestProofVerifyTwoLeaves(t *testing.T) {
 	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, nil, [][]byte{ffx32KeyTest}, nil)
 
 	cfg := GetConfig()
-	if ok, err := VerifyVerkleProof(proof, cis, zis, yis, cfg); !ok || err != nil {
+	if ok, err := verifyVerkleProof(proof, cis, zis, yis, cfg); !ok || err != nil {
 		t.Fatalf("could not verify verkle proof: %s", ToDot(root))
 	}
 }
@@ -94,7 +94,7 @@ func TestProofVerifyMultipleLeaves(t *testing.T) {
 	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, nil, [][]byte{keys[0]}, nil)
 
 	cfg := GetConfig()
-	if ok, err := VerifyVerkleProof(proof, cis, zis, yis, cfg); !ok || err != nil {
+	if ok, err := verifyVerkleProof(proof, cis, zis, yis, cfg); !ok || err != nil {
 		t.Fatal("could not verify verkle proof")
 	}
 }
@@ -125,7 +125,7 @@ func TestMultiProofVerifyMultipleLeaves(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfg := GetConfig()
-	if ok, err := VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, cfg); !ok || err != nil {
+	if ok, err := verifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, cfg); !ok || err != nil {
 		t.Fatal("could not verify verkle proof")
 	}
 }
@@ -172,7 +172,7 @@ func TestMultiProofVerifyMultipleLeavesWithAbsentStem(t *testing.T) {
 	}
 
 	cfg := GetConfig()
-	if ok, err := VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, cfg); !ok || err != nil {
+	if ok, err := verifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, cfg); !ok || err != nil {
 		t.Fatal("could not verify verkle proof")
 	}
 }
@@ -199,7 +199,7 @@ func TestMultiProofVerifyMultipleLeavesCommitmentRedundancy(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfg := GetConfig()
-	if ok, err := VerifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, cfg); !ok || err != nil {
+	if ok, err := verifyVerkleProof(proof, pe.Cis, pe.Zis, pe.Yis, cfg); !ok || err != nil {
 		t.Fatal("could not verify verkle proof")
 	}
 }
@@ -219,7 +219,7 @@ func TestProofOfAbsenceInternalVerify(t *testing.T) {
 	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, nil, [][]byte{ffx32KeyTest}, nil)
 
 	cfg := GetConfig()
-	if ok, err := VerifyVerkleProof(proof, cis, zis, yis, cfg); !ok || err != nil {
+	if ok, err := verifyVerkleProof(proof, cis, zis, yis, cfg); !ok || err != nil {
 		t.Fatal("could not verify verkle proof")
 	}
 }
@@ -239,7 +239,7 @@ func TestProofOfAbsenceLeafVerify(t *testing.T) {
 	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, nil, [][]byte{oneKeyTest}, nil)
 
 	cfg := GetConfig()
-	if ok, err := VerifyVerkleProof(proof, cis, zis, yis, cfg); !ok || err != nil {
+	if ok, err := verifyVerkleProof(proof, cis, zis, yis, cfg); !ok || err != nil {
 		t.Fatal("could not verify verkle proof")
 	}
 }
@@ -263,7 +263,7 @@ func TestProofOfAbsenceLeafVerifyOtherSuffix(t *testing.T) {
 	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, nil, [][]byte{key}, nil)
 
 	cfg := GetConfig()
-	if ok, err := VerifyVerkleProof(proof, cis, zis, yis, cfg); !ok || err != nil {
+	if ok, err := verifyVerkleProof(proof, cis, zis, yis, cfg); !ok || err != nil {
 		t.Fatal("could not verify verkle proof")
 	}
 }
@@ -285,7 +285,7 @@ func TestProofOfAbsenceStemVerify(t *testing.T) {
 	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, nil, [][]byte{key}, nil)
 
 	cfg := GetConfig()
-	if ok, err := VerifyVerkleProof(proof, cis, zis, yis, cfg); !ok || err != nil {
+	if ok, err := verifyVerkleProof(proof, cis, zis, yis, cfg); !ok || err != nil {
 		t.Fatal("could not verify verkle proof")
 	}
 }
@@ -336,7 +336,7 @@ func BenchmarkProofVerification(b *testing.B) {
 
 	cfg := GetConfig()
 	for i := 0; i < b.N; i++ {
-		if ok, err := VerifyVerkleProof(proof, cis, zis, yis, cfg); err != nil || !ok {
+		if ok, err := verifyVerkleProof(proof, cis, zis, yis, cfg); err != nil || !ok {
 			b.Fatal(err)
 		}
 	}
@@ -458,7 +458,7 @@ func TestProofDeserialize(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfg := GetConfig()
-	if ok, err := VerifyVerkleProof(deserialized, pe.Cis, pe.Zis, pe.Yis, cfg); !ok || err != nil {
+	if ok, err := verifyVerkleProof(deserialized, pe.Cis, pe.Zis, pe.Yis, cfg); !ok || err != nil {
 		t.Fatal("could not verify verkle proof")
 	}
 }
@@ -472,7 +472,7 @@ func TestProofOfAbsenceEdgeCase(t *testing.T) {
 	ret, _ := hex.DecodeString("0303030303030303030303030303030303030303030303030303030303030303")
 	proof, cs, zis, yis, _ := MakeVerkleMultiProof(root, nil, [][]byte{ret}, nil)
 	cfg := GetConfig()
-	if ok, err := VerifyVerkleProof(proof, cs, zis, yis, cfg); !ok || err != nil {
+	if ok, err := verifyVerkleProof(proof, cs, zis, yis, cfg); !ok || err != nil {
 		t.Fatal("could not verify proof")
 	}
 }
@@ -493,7 +493,7 @@ func TestProofOfAbsenceOtherMultipleLeaves(t *testing.T) {
 	ret2, _ := hex.DecodeString("0303030303030303030303030303030303030303030303030303030303030301")
 	proof, cs, zis, yis, _ := MakeVerkleMultiProof(root, nil, [][]byte{ret1, ret2}, nil)
 	cfg := GetConfig()
-	if ok, err := VerifyVerkleProof(proof, cs, zis, yis, cfg); !ok || err != nil {
+	if ok, err := verifyVerkleProof(proof, cs, zis, yis, cfg); !ok || err != nil {
 		t.Fatal("could not verify proof")
 	}
 
@@ -555,7 +555,7 @@ func TestProofOfAbsenceNoneMultipleStems(t *testing.T) {
 	ret2, _ := hex.DecodeString("0303030303030303030303030303030303030303030303030303030303030200")
 	proof, cs, zis, yis, _ := MakeVerkleMultiProof(root, nil, [][]byte{ret1, ret2}, nil)
 	cfg := GetConfig()
-	if ok, err := VerifyVerkleProof(proof, cs, zis, yis, cfg); !ok || err != nil {
+	if ok, err := verifyVerkleProof(proof, cs, zis, yis, cfg); !ok || err != nil {
 		t.Fatal("could not verify proof")
 	}
 
@@ -1050,7 +1050,7 @@ func TestProofVerificationWithPostState(t *testing.T) { // skipcq: GO-R1005
 				t.Fatalf("error deserializing proof: %v", err)
 			}
 
-			if err = VerifyVerkleProofWithPreState(dproof, root); err != nil {
+			if err = verifyVerkleProofWithPreState(dproof, root); err != nil {
 				t.Fatalf("could not verify verkle proof: %v, original: %s reconstructed: %s", err, ToDot(root), ToDot(postroot))
 			}
 
@@ -1068,7 +1068,7 @@ func TestProofVerificationWithPostState(t *testing.T) { // skipcq: GO-R1005
 				t.Fatalf("differing root commitments %x != %x", dpostroot.Commitment().Bytes(), postroot.Commitment().Bytes())
 			}
 
-			if err = VerifyVerkleProofWithPreState(dproof, dpreroot); err != nil {
+			if err = verifyVerkleProofWithPreState(dproof, dpreroot); err != nil {
 				t.Fatalf("could not verify verkle proof: %v, original: %s reconstructed: %s", err, ToDot(dpreroot), ToDot(dpostroot))
 			}
 		})
@@ -1094,7 +1094,7 @@ func TestGenerateProofWithOnlyAbsentKeys(t *testing.T) {
 	}
 
 	// It must pass.
-	if ok, err := VerifyVerkleProof(proof, cis, zis, yis, cfg); !ok || err != nil {
+	if ok, err := verifyVerkleProof(proof, cis, zis, yis, cfg); !ok || err != nil {
 		t.Fatalf("original proof didn't verify: %v", err)
 	}
 
@@ -1119,7 +1119,7 @@ func TestGenerateProofWithOnlyAbsentKeys(t *testing.T) {
 	}
 
 	// It must pass.
-	if ok, err := VerifyVerkleProof(dproof, pe.Cis, pe.Zis, pe.Yis, cfg); !ok || err != nil {
+	if ok, err := verifyVerkleProof(dproof, pe.Cis, pe.Zis, pe.Yis, cfg); !ok || err != nil {
 		t.Fatalf("reconstructed proof didn't verify: %v", err)
 	}
 
