@@ -357,6 +357,53 @@ func TestDelLeaf(t *testing.T) { // skipcq: GO-R1005
 	}
 }
 
+func TestDeleteAtStem(t *testing.T) {
+	t.Parallel()
+
+	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
+	key1p, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000001")  // same Cn group as key1
+	key1pp, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000081") // Other Cn group as key1
+	key2, _ := hex.DecodeString("0107000000000000000000000000000000000000000000000000000000000000")
+	tree := New()
+	if err := tree.Insert(key1, fourtyKeyTest, nil); err != nil {
+		t.Fatalf("inserting into the original failed: %v", err)
+	}
+	if err := tree.Insert(key1p, fourtyKeyTest, nil); err != nil {
+		t.Fatalf("inserting into the original failed: %v", err)
+	}
+	if err := tree.Insert(key1pp, fourtyKeyTest, nil); err != nil {
+		t.Fatalf("inserting into the original failed: %v", err)
+	}
+	if err := tree.Insert(key2, fourtyKeyTest, nil); err != nil {
+		t.Fatalf("inserting into the original failed: %v", err)
+	}
+	var init Point
+	init.Set(tree.Commit())
+
+	if _, err := tree.(*InternalNode).DeleteAtStem(key1[:31], nil); err != err {
+		t.Error(err)
+	}
+
+	res, err := tree.Get(key1, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	if len(res) > 0 {
+		t.Error("leaf hasnt been deleted")
+	}
+	res, err = tree.Get(key1pp, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	if len(res) > 0 {
+		t.Error("leaf hasnt been deleted")
+	}
+
+	if _, err := tree.(*InternalNode).DeleteAtStem(zeroKeyTest[:31], nil); err != errDeleteMissing {
+		t.Fatal(err)
+	}
+}
+
 func TestDeleteNonExistent(t *testing.T) {
 	t.Parallel()
 

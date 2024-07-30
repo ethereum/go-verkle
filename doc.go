@@ -30,6 +30,8 @@ import "errors"
 var (
 	errInsertIntoHash         = errors.New("trying to insert into hashed node")
 	errDeleteHash             = errors.New("trying to delete from a hashed subtree")
+	errDeleteMissing          = errors.New("trying to delete a missing group")
+	errDeleteUnknown          = errors.New("trying to delete an out-of-view node")
 	errReadFromInvalid        = errors.New("trying to read from an invalid child")
 	errSerializeHashedNode    = errors.New("trying to serialize a hashed internal node")
 	errInsertIntoOtherStem    = errors.New("insert splits a stem where it should not happen")
