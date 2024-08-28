@@ -565,7 +565,9 @@ func Verify(vp *VerkleProof, preStateRoot []byte, postStateRoot []byte, statedif
 	}
 
 	rootC := new(Point)
-	rootC.SetBytes(preStateRoot)
+	if err := rootC.SetBytes(preStateRoot); err != nil {
+		return fmt.Errorf("error setting prestate root: %w", err)
+	}
 	pretree, err := PreStateTreeFromProof(proof, rootC)
 	if err != nil {
 		return fmt.Errorf("error rebuilding the pre-tree from proof: %w", err)

@@ -33,7 +33,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	mRand "math/rand"
+	mRandV1 "math/rand"
+	mRand "math/rand/v2"
 	"reflect"
 	"runtime"
 	"sort"
@@ -688,8 +689,6 @@ func benchmarkCommitNLeaves(b *testing.B, n int) {
 }
 
 func BenchmarkModifyLeaves(b *testing.B) {
-	mRand.Seed(time.Now().UnixNano()) // skipcq: GO-S1033
-
 	n := 200000
 	toEdit := 10000
 	val := []byte{0}
@@ -714,8 +713,7 @@ func BenchmarkModifyLeaves(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		binary.BigEndian.PutUint32(val, uint32(i))
 		for j := 0; j < toEdit; j++ {
-			// skipcq: GSC-G404
-			k := keys[mRand.Intn(n)]
+			k := keys[mRand.IntN(n)]
 			if err := root.Insert(k, val, nil); err != nil {
 				b.Error(err)
 			}
@@ -1454,8 +1452,8 @@ func TestBatchMigratedKeyValues(t *testing.T) {
 				for i := 0; i < iterations; i++ {
 					runtime.GC()
 
-					// ***Insert the key pairs 'naively' ***
-					rand := mRand.New(mRand.NewSource(42)) //skipcq: GSC-G404
+					// Insert the key pairs 'naively'
+					rand := mRandV1.New(mRandV1.NewSource(42))
 					tree := genRandomTree(rand, treeInitialKeyValCount)
 					randomKeyValues := genRandomKeyValues(rand, migrationKeyValueCount)
 
@@ -1471,8 +1469,8 @@ func TestBatchMigratedKeyValues(t *testing.T) {
 					}
 					unbatchedDuration += time.Since(now)
 
-					// ***Insert the key pairs with optimized strategy & methods***
-					rand = mRand.New(mRand.NewSource(42)) //skipcq: GSC-G404
+					// Insert the key pairs with optimized strategy & methods
+					rand = mRandV1.New(mRandV1.NewSource(42))
 					tree = genRandomTree(rand, treeInitialKeyValCount)
 					randomKeyValues = genRandomKeyValues(rand, migrationKeyValueCount)
 
@@ -1528,7 +1526,7 @@ func TestBatchMigratedKeyValues(t *testing.T) {
 	}
 }
 
-func genRandomTree(rand *mRand.Rand, keyValueCount int) VerkleNode {
+func genRandomTree(rand *mRandV1.Rand, keyValueCount int) VerkleNode {
 	tree := New()
 	for _, kv := range genRandomKeyValues(rand, keyValueCount) {
 		if err := tree.Insert(kv.key, kv.value, nil); err != nil {
@@ -1543,7 +1541,7 @@ type keyValue struct {
 	value []byte
 }
 
-func genRandomKeyValues(rand *mRand.Rand, count int) []keyValue {
+func genRandomKeyValues(rand *mRandV1.Rand, count int) []keyValue {
 	ret := make([]keyValue, count)
 	for i := 0; i < count; i++ {
 		keyval := make([]byte, 64)
@@ -1564,7 +1562,7 @@ func BenchmarkBatchLeavesInsert(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
-		rand := mRand.New(mRand.NewSource(42)) //skipcq: GSC-G404
+		rand := mRandV1.New(mRandV1.NewSource(42)) //skipcq: GSC-G404
 		tree := genRandomTree(rand, treeInitialKeyValCount)
 		randomKeyValues := genRandomKeyValues(rand, migrationKeyValueCount)
 		b.StartTimer()
@@ -1724,7 +1722,7 @@ const (
 
 // Generate implements the quick.Generator interface from testing/quick
 // to generate random test cases.
-func (randTest) Generate(r *mRand.Rand, size int) reflect.Value {
+func (randTest) Generate(r *mRandV1.Rand, size int) reflect.Value {
 	var finishedFn = func() bool {
 		if size == 0 {
 			return true
