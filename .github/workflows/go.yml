@@ -1,46 +1,52 @@
-name: Go lint and test
+name: Lint & test
 
 on:
   push:
-    branches: [ master ]
+    branches: [master]
   pull_request:
-    branches: [ master ]
-  workflow_dispatch:   
+    branches: [master]
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: self-hosted
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v3
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: 1.18
-    - name: Build
-      run: go build -v ./...
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.22
+      - name: Build
+        run: go build -v ./...
 
-  lint:
-    runs-on: self-hosted
+  golangci:
+    name: lint
+    runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up Go
-      uses: actions/setup-go@v2
-      with:
-        go-version: 1.18
-    - name: Download golangci-lint
-      run: wget -O- -nv https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s latest
-    - name: Lint
-      run: ./bin/golangci-lint run
-    - name: Vet
-      run: go vet
-  
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.22
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.60
+      - name: Vet
+        run: go vet
+
   test:
-    runs-on: self-hosted
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up Go
-      uses: actions/setup-go@v2
-      with:
-        go-version: 1.18
-    - name: Test
-      run: go test -v -race ./...
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.22
+      - name: Test
+        run: go test -v -race ./... -timeout=15m

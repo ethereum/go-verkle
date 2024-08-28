@@ -1,6 +1,6 @@
 module github.com/ethereum/go-verkle
 
-go 1.19
+go 1.22
 
 require (
 	github.com/crate-crypto/go-ipa v0.0.0-20240223125850-b1e8a79f509c
