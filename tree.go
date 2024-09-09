@@ -1853,10 +1853,11 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 			count++
 			lastIdx = i
 			setBit(bitlist[:], i)
-			children = append(children, v...)
+			// left-pad values if this isn't 32-byte aligned
 			if padding := emptyValue[:LeafValueSize-len(v)]; len(padding) != 0 {
 				children = append(children, padding...)
 			}
+			children = append(children, v...)
 		}
 
 		if isEoA {
