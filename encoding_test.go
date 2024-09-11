@@ -2,6 +2,7 @@ package verkle
 
 import (
 	"bytes"
+	"encoding/binary"
 	"testing"
 
 	"github.com/crate-crypto/go-ipa/banderwagon"
@@ -22,7 +23,9 @@ func TestLeafStemLength(t *testing.T) {
 	// Serialize a leaf with no values, but whose stem is 32 bytes. The
 	// serialization should trim the extra byte.
 	toolong := make([]byte, 32)
-	leaf, err := NewLeafNode(toolong, make([][]byte, NodeWidth))
+	values := make([][]byte, NodeWidth)
+	values[42] = zero32[:]
+	leaf, err := NewLeafNode(toolong, values)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,8 +33,8 @@ func TestLeafStemLength(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(ser) != nodeTypeSize+StemSize+bitlistSize+3*banderwagon.UncompressedSize {
-		t.Fatalf("invalid serialization when the stem is longer than 31 bytes: %x (%d bytes != %d)", ser, len(ser), nodeTypeSize+StemSize+bitlistSize+2*banderwagon.UncompressedSize)
+	if len(ser) != singleSlotLeafSize {
+		t.Fatalf("invalid serialization when the stem is longer than 31 bytes: %x (%d bytes != %d)", ser, len(ser), singleSlotLeafSize)
 	}
 }
 
@@ -61,12 +64,11 @@ func TestInvalidNodeEncoding(t *testing.T) {
 }
 
 func TestParseNodeEoA(t *testing.T) {
+	var basicdata [32]byte
 	values := make([][]byte, 256)
-	values[0] = zero32[:]
+	values[0] = basicdata[:]
+	binary.BigEndian.PutUint64(values[0][8:], 0xde)
 	values[1] = EmptyCodeHash[:] // set empty code hash as balance, because why not
-	values[2] = fourtyKeyTest[:] // set nonce to 64
-	values[3] = EmptyCodeHash[:] // set empty code hash
-	values[4] = zero32[:]        // zero-size
 	ln, err := NewLeafNode(ffx32KeyTest[:31], values)
 	if err != nil {
 		t.Fatalf("error creating leaf node: %v", err)
@@ -99,24 +101,13 @@ func TestParseNodeEoA(t *testing.T) {
 		t.Fatalf("invalid stem, got %x, expected %x", lnd.stem, ffx32KeyTest[:31])
 	}
 
-	if !bytes.Equal(lnd.values[0], zero32[:]) {
-		t.Fatalf("invalid version, got %x, expected %x", lnd.values[0], zero32[:])
+	nonce := binary.BigEndian.Uint64(lnd.values[0][8:])
+	if nonce != 0xde {
+		t.Fatalf("invalid version, got %x, expected %x", nonce, 0xde)
 	}
 
 	if !bytes.Equal(lnd.values[1], EmptyCodeHash[:]) {
 		t.Fatalf("invalid balance, got %x, expected %x", lnd.values[1], EmptyCodeHash[:])
-	}
-
-	if !bytes.Equal(lnd.values[2], fourtyKeyTest[:]) {
-		t.Fatalf("invalid nonce, got %x, expected %x", lnd.values[2], fourtyKeyTest[:])
-	}
-
-	if !bytes.Equal(lnd.values[3], EmptyCodeHash[:]) {
-		t.Fatalf("invalid code hash, got %x, expected %x", lnd.values[3], EmptyCodeHash[:])
-	}
-
-	if !bytes.Equal(lnd.values[4], zero32[:]) {
-		t.Fatalf("invalid code size, got %x, expected %x", lnd.values[4], zero32[:])
 	}
 
 	if !lnd.c2.Equal(&banderwagon.Identity) {
@@ -188,5 +179,81 @@ func TestParseNodeSingleSlot(t *testing.T) {
 
 	if !lnd.commitment.Equal(ln.commitment) {
 		t.Fatalf("invalid commitment, got %x, expected %x", lnd.commitment, ln.commitment)
+	}
+}
+
+func TestSerializeWithSkipLists(t *testing.T) {
+	t.Parallel()
+
+	values := make([][]byte, NodeWidth)
+	values[42] = zero32[:]
+	values[57] = fourtyKeyTest[:]
+	leaf, err := NewLeafNode(ffx32KeyTest, values)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ser, err := leaf.Serialize()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ser) == 0 {
+		t.Fatal("empty serialization buffer")
+	}
+	if ser[0] != skipListType {
+		t.Fatalf("invalid serialization type, got %d, expected %d", ser[0], skipListType)
+	}
+	if !bytes.Equal(ser[1:32], ffx32KeyTest[:31]) {
+		t.Fatalf("stem didn't serialize properly, got %x, want %x", ser[1:32], ffx32KeyTest[:31])
+	}
+	expectedSize := nodeTypeSize + StemSize + 3*banderwagon.UncompressedSize + 4 + 2*leafSlotSize
+	if len(ser) != expectedSize {
+		t.Fatalf("invalid skiplist serialization: %x (%d bytes != %d)", ser, len(ser), expectedSize)
+	}
+	if ser[nodeTypeSize+StemSize+3*banderwagon.UncompressedSize] != 42 {
+		t.Fatalf("invalid amount of leaves skipped, got %d, want %d", ser[nodeTypeSize+StemSize+3*banderwagon.UncompressedSize], 42)
+	}
+	if ser[nodeTypeSize+StemSize+3*banderwagon.UncompressedSize+1] != 1 {
+		t.Fatalf("invalid amount of leaves skipped, got %d, want %d", ser[nodeTypeSize+StemSize+3*banderwagon.UncompressedSize+1], 42)
+	}
+	if ser[nodeTypeSize+StemSize+3*banderwagon.UncompressedSize+2+leafSlotSize] != 14 {
+		t.Fatalf("invalid amount of leaves skipped, got %d, want %d", ser[nodeTypeSize+StemSize+3*banderwagon.UncompressedSize+2+leafSlotSize], 14)
+	}
+
+	// add a last value to check that the final gap is properly handled
+	values[255] = ffx32KeyTest
+	ser, err = leaf.Serialize()
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedSize = nodeTypeSize + StemSize + 3*banderwagon.UncompressedSize + 6 + 3*leafSlotSize
+	if len(ser) != expectedSize {
+		t.Fatalf("invalid skiplist serialization: %x (%d bytes != %d)", ser, len(ser), expectedSize)
+	}
+
+	deser, err := ParseNode(ser, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	vals := deser.(*LeafNode).values
+	for i, val := range vals {
+
+		switch i {
+		case 42:
+			if !bytes.Equal(val, zero32[:]) {
+				t.Fatalf("invalid deserialized skiplist value at %d: got %x, want %x", i, val, zero32)
+			}
+		case 57:
+			if !bytes.Equal(val, fourtyKeyTest[:]) {
+				t.Fatalf("invalid deserialized skiplist value at %d: got %x, want %x", i, val, fourtyKeyTest)
+			}
+		case 255:
+			if !bytes.Equal(val, ffx32KeyTest[:]) {
+				t.Fatalf("invalid deserialized skiplist value at %d: got %x, want %x", i, val, ffx32KeyTest)
+			}
+		default:
+			if val != nil {
+				t.Fatalf("invalid deserialized skiplist value at %d: got %x, want nil", i, val)
+			}
+		}
 	}
 }
