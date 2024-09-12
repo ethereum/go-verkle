@@ -140,7 +140,7 @@ func parseSkipList(serialized []byte, depth byte) (VerkleNode, error) {
 	var values [NodeWidth][]byte
 	offset := leafStemOffset + StemSize + 3*banderwagon.UncompressedSize // offset in the serialized payload
 	valueIdx := 0                                                        // Index of the value being deserialized
-	for valueIdx < NodeWidth {
+	for valueIdx < NodeWidth && offset < len(serialized) {
 		rangecount := serialized[offset+1]
 		gapsize := serialized[offset]
 		valueIdx += int(gapsize)

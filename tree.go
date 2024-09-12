@@ -1856,6 +1856,9 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 			leafIdx += int(gap.Skip)
 			result = append(result, gap.Count)
 			for i := 0; i < int(gap.Count); i++ {
+				if len(n.values[leafIdx]) != 32 {
+					panic(fmt.Sprintf("%x", n.values[leafIdx]))
+				}
 				result = append(result, n.values[leafIdx]...)
 				leafIdx++
 			}
