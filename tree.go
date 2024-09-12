@@ -1779,7 +1779,7 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 		gapcount       int
 		gaps           [32]struct {
 			Skip  byte // How many slots to skip before the next range
-			Count int  // Size of the next range
+			Count int  // Size of the next range. `int` because a full leaf has 256 entries
 		}
 	)
 	for i, v := range n.values {
