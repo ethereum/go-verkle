@@ -56,6 +56,9 @@ const (
 	leafC1CommitmentOffset = leafCommitmentOffset + banderwagon.UncompressedSize
 	leafC2CommitmentOffset = leafC1CommitmentOffset + banderwagon.UncompressedSize
 	leafChildrenOffset     = leafC2CommitmentOffset + banderwagon.UncompressedSize
+	leafSkipListCOffset    = nodeTypeSize + StemSize
+	leafSkipListC1Offset   = leafSkipListCOffset + banderwagon.UncompressedSize
+	leafSkipListC2Offset   = leafSkipListC1Offset + banderwagon.UncompressedSize
 	leafBasicDataSize      = 32
 	leafSlotSize           = 32
 	leafValueIndexSize     = 1
@@ -140,15 +143,24 @@ func parseSkipList(serialized []byte, depth byte) (VerkleNode, error) {
 	var values [NodeWidth][]byte
 	offset := leafStemOffset + StemSize + 3*banderwagon.UncompressedSize // offset in the serialized payload
 	valueIdx := 0                                                        // Index of the value being deserialized
-	for valueIdx < NodeWidth && offset < len(serialized) {
-		rangecount := serialized[offset+1]
-		gapsize := serialized[offset]
-		valueIdx += int(gapsize)
-		offset += 2
-		for i := 0; i < int(rangecount); i++ {
-			values[valueIdx] = serialized[offset : offset+leafSlotSize]
+
+	// shortcut: the leaf is full and so both values are 0.
+	if serialized[offset] == 0 && serialized[offset+1] == 0 {
+		for i := 0; i < 256; i++ {
+			values[i] = serialized[offset : offset+leafSlotSize]
 			offset += leafSlotSize
-			valueIdx++
+		}
+	} else {
+		for valueIdx < NodeWidth && offset < len(serialized) {
+			rangecount := serialized[offset+1]
+			gapsize := serialized[offset]
+			valueIdx += int(gapsize)
+			offset += 2
+			for i := 0; i < int(rangecount); i++ {
+				values[valueIdx] = serialized[offset : offset+leafSlotSize]
+				offset += leafSlotSize
+				valueIdx++
+			}
 		}
 	}
 	ln := NewLeafNodeWithNoComms(serialized[leafStemOffset:leafStemOffset+StemSize], values[:])
@@ -156,19 +168,19 @@ func parseSkipList(serialized []byte, depth byte) (VerkleNode, error) {
 	ln.c1 = new(Point)
 
 	// Sanity check that we have at least 3*banderwagon.UncompressedSize bytes left in the serialized payload.
-	if len(serialized[leafCommitmentOffset:]) < 3*banderwagon.UncompressedSize {
-		return nil, fmt.Errorf("leaf node commitments are not the correct size, expected at least %d, got %d", 3*banderwagon.UncompressedSize, len(serialized[leafC1CommitmentOffset:]))
+	if len(serialized[leafSkipListCOffset:]) < 3*banderwagon.UncompressedSize {
+		return nil, fmt.Errorf("leaf node commitments are not the correct size, expected at least %d, got %d", 3*banderwagon.UncompressedSize, len(serialized[leafSkipListCOffset:]))
 	}
 
-	if err := ln.c1.SetBytesUncompressed(serialized[leafC1CommitmentOffset:leafC1CommitmentOffset+banderwagon.UncompressedSize], true); err != nil {
+	if err := ln.c1.SetBytesUncompressed(serialized[leafC1CommitmentOffset:leafSkipListC2Offset], true); err != nil {
 		return nil, fmt.Errorf("setting c1 commitment: %w", err)
 	}
 	ln.c2 = new(Point)
-	if err := ln.c2.SetBytesUncompressed(serialized[leafC2CommitmentOffset:leafC2CommitmentOffset+banderwagon.UncompressedSize], true); err != nil {
+	if err := ln.c2.SetBytesUncompressed(serialized[leafSkipListC2Offset:leafSkipListC2Offset+banderwagon.UncompressedSize], true); err != nil {
 		return nil, fmt.Errorf("setting c2 commitment: %w", err)
 	}
 	ln.commitment = new(Point)
-	if err := ln.commitment.SetBytesUncompressed(serialized[leafCommitmentOffset:leafC1CommitmentOffset], true); err != nil {
+	if err := ln.commitment.SetBytesUncompressed(serialized[leafSkipListCOffset:leafSkipListC1Offset], true); err != nil {
 		return nil, fmt.Errorf("setting commitment: %w", err)
 	}
 	return ln, nil

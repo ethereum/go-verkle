@@ -1779,7 +1779,7 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 		gapcount       int
 		gaps           [32]struct {
 			Skip  byte // How many slots to skip before the next range
-			Count byte // Size of the next range
+			Count int  // Size of the next range
 		}
 	)
 	for i, v := range n.values {
@@ -1854,8 +1854,8 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 			}
 			result = append(result, gap.Skip)
 			leafIdx += int(gap.Skip)
-			result = append(result, gap.Count)
-			for i := 0; i < int(gap.Count); i++ {
+			result = append(result, byte(gap.Count))
+			for i := 0; i < gap.Count; i++ {
 				if len(n.values[leafIdx]) != 32 {
 					panic(fmt.Sprintf("%x", n.values[leafIdx]))
 				}
