@@ -1805,10 +1805,14 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 			if gaps[gapcount].Skip == 255 {
 				panic("empty leaf node")
 			}
+			// If the previous value wasn't nil, a new
+			// gap is starting.
 			if i > 0 && n.values[i-1] != nil {
 				gapcount++
 			}
-			gaps[gapcount].Skip++
+			if gapcount < skipListMaxGapCount {
+				gaps[gapcount].Skip++
+			}
 		}
 
 		// Check for an EOA
