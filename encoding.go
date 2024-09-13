@@ -172,7 +172,7 @@ func parseSkipList(serialized []byte, depth byte) (VerkleNode, error) {
 		return nil, fmt.Errorf("leaf node commitments are not the correct size, expected at least %d, got %d", 3*banderwagon.UncompressedSize, len(serialized[leafSkipListCOffset:]))
 	}
 
-	if err := ln.c1.SetBytesUncompressed(serialized[leafC1CommitmentOffset:leafSkipListC2Offset], true); err != nil {
+	if err := ln.c1.SetBytesUncompressed(serialized[leafSkipListC1Offset:leafSkipListC2Offset], true); err != nil {
 		return nil, fmt.Errorf("setting c1 commitment: %w", err)
 	}
 	ln.c2 = new(Point)

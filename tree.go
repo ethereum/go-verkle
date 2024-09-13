@@ -1766,6 +1766,10 @@ var (
 	EmptyCodeHash, _ = hex.DecodeString("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
 )
 
+// skipListMaxGapCount is the maximum allowed number of
+// gaps before one has to fall back to the bitmap.
+const skipListMaxGapCount = 16
+
 func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2Bytes [banderwagon.UncompressedSize]byte) []byte {
 	// Empty value in LeafNode used for padding.
 	var emptyValue [LeafValueSize]byte
@@ -1777,7 +1781,7 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 		isEoA          = true
 		count, lastIdx int
 		gapcount       int
-		gaps           [32]struct {
+		gaps           [skipListMaxGapCount]struct {
 			Skip  byte // How many slots to skip before the next range
 			Count int  // Size of the next range. `int` because a full leaf has 256 entries
 		}
@@ -1786,14 +1790,18 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 		if v != nil {
 			count++
 			lastIdx = i
-			gaps[gapcount].Count++
+			if gapcount < skipListMaxGapCount {
+				gaps[gapcount].Count++
+			}
 
 			setBit(bitlist[:], i)
 			children = append(children, v...)
 			if padding := emptyValue[:LeafValueSize-len(v)]; len(padding) != 0 {
 				children = append(children, padding...)
 			}
-		} else {
+		} else if gapcount < skipListMaxGapCount {
+			// If we reach the 256th empty leaf in the node, this means
+			// that the whole node is empty, which should not happen.
 			if gaps[gapcount].Skip == 255 {
 				panic("empty leaf node")
 			}
@@ -1839,7 +1847,7 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 		copy(result[leafStemOffset+StemSize:], c1Bytes[:])
 		copy(result[leafStemOffset+StemSize+banderwagon.UncompressedSize:], cBytes[:])
 		copy(result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize:], n.values[0]) // copy basic data
-	case gapcount < 16:
+	case gapcount < skipListMaxGapCount:
 		// If there are less than 16 gaps, it's worth using skiplists
 		result = make([]byte, 1, nodeTypeSize+StemSize+bitlistSize+3*banderwagon.UncompressedSize+len(children))
 		result[0] = skipListType
