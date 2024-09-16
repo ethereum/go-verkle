@@ -29,6 +29,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 
 	ipa "github.com/crate-crypto/go-ipa"
@@ -399,14 +400,14 @@ func DeserializeProof(vp *VerkleProof, statediff StateDiff) (*Proof, error) {
 			k[StemSize] = ins.Suffix
 			keys = append(keys, k[:])
 			prevalues = append(prevalues, nil)
-			postvalues = append(postvalues, ins.New[:])
+			postvalues = append(postvalues, slices.Clone(ins.New[:]))
 		}
 		for _, rd := range stemdiff.Reads {
 			var k [32]byte
 			copy(k[:StemSize], stemdiff.Stem[:])
 			k[StemSize] = rd.Suffix
 			keys = append(keys, k[:])
-			prevalues = append(prevalues, rd.Current[:])
+			prevalues = append(prevalues, slices.Clone(rd.Current[:]))
 			postvalues = append(postvalues, nil)
 		}
 		for _, mi := range stemdiff.Missing {

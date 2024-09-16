@@ -170,6 +170,7 @@ const (
 	leafType       byte = 2
 	eoAccountType  byte = 3
 	singleSlotType byte = 4
+	skipListType   byte = 8
 )
 
 type (
@@ -1765,6 +1766,10 @@ var (
 	EmptyCodeHash, _ = hex.DecodeString("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
 )
 
+// skipListMaxGapCount is the maximum allowed number of
+// gaps before one has to fall back to the bitmap.
+const skipListMaxGapCount = 16
+
 func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2Bytes [banderwagon.UncompressedSize]byte) []byte {
 	// Empty value in LeafNode used for padding.
 	var emptyValue [LeafValueSize]byte
@@ -1775,35 +1780,50 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 		bitlist        [bitlistSize]byte
 		isEoA          = true
 		count, lastIdx int
+		gapcount       int
+		gaps           [skipListMaxGapCount]struct {
+			Skip  byte // How many slots to skip before the next range
+			Count int  // Size of the next range. `int` because a full leaf has 256 entries
+		}
 	)
 	for i, v := range n.values {
 		if v != nil {
 			count++
 			lastIdx = i
+			if gapcount < skipListMaxGapCount {
+				gaps[gapcount].Count++
+			}
+
 			setBit(bitlist[:], i)
 			children = append(children, v...)
 			if padding := emptyValue[:LeafValueSize-len(v)]; len(padding) != 0 {
 				children = append(children, padding...)
 			}
+		} else if gapcount < skipListMaxGapCount {
+			// If we reach the 256th empty leaf in the node, this means
+			// that the whole node is empty, which should not happen.
+			if gaps[gapcount].Skip == 255 {
+				panic("empty leaf node")
+			}
+			// If the previous value wasn't nil, a new
+			// gap is starting.
+			if i > 0 && n.values[i-1] != nil {
+				gapcount++
+			}
+			if gapcount < skipListMaxGapCount {
+				gaps[gapcount].Skip++
+			}
 		}
 
+		// Check for an EOA
 		if isEoA {
 			switch i {
 			case 0:
-				// Version should be 0
-				isEoA = v != nil && bytes.Equal(v, zero32[:])
-			case 1:
-				// Balance should not be nil
+				// Basic data should not be nil
 				isEoA = v != nil
-			case 2:
-				// Nonce should have its last 24 bytes set to 0
-				isEoA = v != nil && bytes.Equal(v[leafNonceSize:], zero24[:])
-			case 3:
+			case 1:
 				// Code hash should be the empty code hash
 				isEoA = v != nil && bytes.Equal(v, EmptyCodeHash[:])
-			case 4:
-				// Code size must be 0
-				isEoA = v != nil && bytes.Equal(v, zero32[:])
 			default:
 				// All other values must be nil
 				isEoA = v == nil
@@ -1830,8 +1850,31 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 		copy(result[leafStemOffset:], n.stem[:StemSize])
 		copy(result[leafStemOffset+StemSize:], c1Bytes[:])
 		copy(result[leafStemOffset+StemSize+banderwagon.UncompressedSize:], cBytes[:])
-		copy(result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize:], n.values[1])                                 // copy balance
-		copy(result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize+leafBalanceSize:], n.values[2][:leafNonceSize]) // copy nonce
+		copy(result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize:], n.values[0]) // copy basic data
+	case gapcount < skipListMaxGapCount:
+		// If there are less than 16 gaps, it's worth using skiplists
+		result = make([]byte, 1, nodeTypeSize+StemSize+bitlistSize+3*banderwagon.UncompressedSize+len(children))
+		result[0] = skipListType
+		result = append(result, n.stem[:StemSize]...)
+		result = append(result, cBytes[:]...)
+		result = append(result, c1Bytes[:]...)
+		result = append(result, c2Bytes[:]...)
+		var leafIdx int
+		for _, gap := range gaps {
+			if gap.Count == 0 {
+				break // skip the last gap as nothing follows
+			}
+			result = append(result, gap.Skip)
+			leafIdx += int(gap.Skip)
+			result = append(result, byte(gap.Count))
+			for i := 0; i < gap.Count; i++ {
+				if len(n.values[leafIdx]) != 32 {
+					panic(fmt.Sprintf("%x", n.values[leafIdx]))
+				}
+				result = append(result, n.values[leafIdx]...)
+				leafIdx++
+			}
+		}
 	default:
 		result = make([]byte, nodeTypeSize+StemSize+bitlistSize+3*banderwagon.UncompressedSize+len(children))
 		result[0] = leafType
