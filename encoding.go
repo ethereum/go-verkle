@@ -146,6 +146,7 @@ func parseSkipList(serialized []byte, depth byte) (VerkleNode, error) {
 
 	// shortcut: the leaf is full and so both values are 0.
 	if serialized[offset] == 0 && serialized[offset+1] == 0 {
+		offset += 2 // skip single header
 		for i := 0; i < 256; i++ {
 			values[i] = serialized[offset : offset+leafSlotSize]
 			offset += leafSlotSize
