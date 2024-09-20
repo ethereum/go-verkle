@@ -204,7 +204,6 @@ func CreateInternalNode(bitlist []byte, raw []byte, depth byte) (*InternalNode, 
 
 	// Create a HashNode placeholder for all values
 	// corresponding to a set bit.
-	node.children = make([]VerkleNode, NodeWidth)
 	for i, b := range bitlist {
 		for j := 0; j < 8; j++ {
 			if b&mask[j] != 0 {
