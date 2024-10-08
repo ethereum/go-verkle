@@ -29,11 +29,11 @@ import "errors"
 
 type UnknownNode struct{}
 
-func (UnknownNode) Insert([]byte, []byte, NodeResolverFn) error {
+func (UnknownNode) Insert([]byte, []byte, StateEpoch, NodeResolverFn) error {
 	return errMissingNodeInStateless
 }
 
-func (UnknownNode) Delete([]byte, NodeResolverFn) (bool, error) {
+func (UnknownNode) Delete([]byte, StateEpoch, NodeResolverFn) (bool, error) {
 	return false, errors.New("cant delete in a subtree missing form a stateless view")
 }
 

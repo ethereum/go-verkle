@@ -32,11 +32,11 @@ import (
 
 type HashedNode struct{}
 
-func (HashedNode) Insert([]byte, []byte, NodeResolverFn) error {
+func (HashedNode) Insert([]byte, []byte, StateEpoch, NodeResolverFn) error {
 	return errInsertIntoHash
 }
 
-func (HashedNode) Delete([]byte, NodeResolverFn) (bool, error) {
+func (HashedNode) Delete([]byte, StateEpoch, NodeResolverFn) (bool, error) {
 	return false, errors.New("cant delete a hashed node in-place")
 }
 

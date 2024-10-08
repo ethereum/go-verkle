@@ -326,7 +326,7 @@ func SerializeProof(proof *Proof) (*VerkleProof, StateDiff, error) {
 		stemdiff.SuffixDiffs = append(stemdiff.SuffixDiffs, SuffixStateDiff{Suffix: key[StemSize]})
 		newsd := &stemdiff.SuffixDiffs[len(stemdiff.SuffixDiffs)-1]
 
-		var valueLen = len(proof.PreValues[i])
+		valueLen := len(proof.PreValues[i])
 		switch valueLen {
 		case 0:
 			// null value
@@ -606,7 +606,8 @@ func PostStateTreeFromStateDiff(preroot VerkleNode, statediff StateDiff) (Verkle
 		if overwrites {
 			var stem [StemSize]byte
 			copy(stem[:StemSize], stemstatediff.Stem[:])
-			if err := postroot.(*InternalNode).InsertValuesAtStem(stem[:], values, nil); err != nil {
+			// TODO(weiihann): double check the epoch
+			if err := postroot.(*InternalNode).InsertValuesAtStem(stem[:], values, 0, nil); err != nil {
 				return nil, fmt.Errorf("error overwriting value in post state: %w", err)
 			}
 		}
@@ -624,7 +625,6 @@ func (x bytesSlice) Swap(i, j int)      { x[i], x[j] = x[j], x[i] }
 
 // Verify is the API function that verifies a verkle proofs as found in a block/execution payload.
 func Verify(vp *VerkleProof, preStateRoot []byte, postStateRoot []byte, statediff StateDiff) error {
-
 	proof, err := DeserializeProof(vp, statediff)
 	if err != nil {
 		return fmt.Errorf("verkle proof deserialization error: %w", err)

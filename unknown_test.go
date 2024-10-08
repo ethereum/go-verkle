@@ -7,10 +7,10 @@ func TestUnknownFuncs(t *testing.T) {
 
 	un := UnknownNode{}
 
-	if err := un.Insert(nil, nil, nil); err != errMissingNodeInStateless {
+	if err := un.Insert(nil, nil, 0, nil); err != errMissingNodeInStateless {
 		t.Errorf("got %v, want %v", err, errMissingNodeInStateless)
 	}
-	if _, err := un.Delete(nil, nil); err == nil {
+	if _, err := un.Delete(nil, 0, nil); err == nil {
 		t.Errorf("got nil error when deleting from a hashed node")
 	}
 	if _, err := un.Get(nil, nil); err != nil {

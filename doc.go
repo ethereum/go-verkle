@@ -38,6 +38,8 @@ var (
 	errUnknownNodeType        = errors.New("unknown node type detected")
 	errMissingNodeInStateless = errors.New("trying to access a node that is missing from the stateless view")
 	errIsPOAStub              = errors.New("trying to read/write a proof of absence leaf node")
+	errExpiredLeafNode        = errors.New("trying to access an expired leaf node")
+	errExpiredNodeNotFound    = errors.New("cannot find expired node when reviving")
 )
 
 const (

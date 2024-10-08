@@ -13,13 +13,14 @@ import (
 
 // BatchNewLeafNodeData is a struct that contains the data needed to create a new leaf node.
 type BatchNewLeafNodeData struct {
-	Stem   Stem
-	Values map[byte][]byte
+	Stem      Stem
+	Values    map[byte][]byte
+	LastEpoch StateEpoch
 }
 
 // BatchNewLeafNode creates a new leaf node from the given data. It optimizes LeafNode creation
 // by batching expensive cryptography operations. It returns the LeafNodes sorted by stem.
-func BatchNewLeafNode(nodesValues []BatchNewLeafNodeData) ([]LeafNode, error) {
+func BatchNewLeafNode(nodesValues []BatchNewLeafNodeData, curEpoch StateEpoch) ([]LeafNode, error) {
 	cfg := GetConfig()
 	ret := make([]LeafNode, len(nodesValues))
 
@@ -45,7 +46,7 @@ func BatchNewLeafNode(nodesValues []BatchNewLeafNodeData) ([]LeafNode, error) {
 					}
 
 					var leaf *LeafNode
-					leaf, err := NewLeafNode(nv.Stem, valsslice)
+					leaf, err := NewLeafNode(nv.Stem, valsslice, nv.LastEpoch)
 					if err != nil {
 						return err
 					}
@@ -97,14 +98,14 @@ func firstDiffByteIdx(stem1 []byte, stem2 []byte) int {
 	panic("stems are equal")
 }
 
-func (n *InternalNode) InsertMigratedLeaves(leaves []LeafNode, resolver NodeResolverFn) error {
+func (n *InternalNode) InsertMigratedLeaves(leaves []LeafNode, curEpoch StateEpoch, resolver NodeResolverFn) error {
 	sort.Slice(leaves, func(i, j int) bool {
 		return bytes.Compare(leaves[i].stem, leaves[j].stem) < 0
 	})
 
 	// We first mark all children of the subtreess that we'll update in parallel,
 	// so the subtree updating doesn't produce a concurrent access to n.cowChild(...).
-	var lastChildrenIdx = -1
+	lastChildrenIdx := -1
 	for i := range leaves {
 		if int(leaves[i].stem[0]) != lastChildrenIdx {
 			lastChildrenIdx = int(leaves[i].stem[0])
@@ -132,13 +133,13 @@ func (n *InternalNode) InsertMigratedLeaves(leaves []LeafNode, resolver NodeReso
 			start := currStemFirstByte
 			end := i
 			group.Go(func() error {
-				return n.insertMigratedLeavesSubtree(leaves[start:end], resolver)
+				return n.insertMigratedLeavesSubtree(leaves[start:end], curEpoch, resolver)
 			})
 			currStemFirstByte = i
 		}
 	}
 	group.Go(func() error {
-		return n.insertMigratedLeavesSubtree(leaves[currStemFirstByte:], resolver)
+		return n.insertMigratedLeavesSubtree(leaves[currStemFirstByte:], curEpoch, resolver)
 	})
 	if err := group.Wait(); err != nil {
 		return fmt.Errorf("inserting migrated leaves: %w", err)
@@ -147,7 +148,7 @@ func (n *InternalNode) InsertMigratedLeaves(leaves []LeafNode, resolver NodeReso
 	return nil
 }
 
-func (n *InternalNode) insertMigratedLeavesSubtree(leaves []LeafNode, resolver NodeResolverFn) error { // skipcq: GO-R1005
+func (n *InternalNode) insertMigratedLeavesSubtree(leaves []LeafNode, curEpoch StateEpoch, resolver NodeResolverFn) error { // skipcq: GO-R1005
 	for i := range leaves {
 		ln := leaves[i]
 		parent := n
@@ -192,7 +193,7 @@ func (n *InternalNode) insertMigratedLeavesSubtree(leaves []LeafNode, resolver N
 					}
 				}
 
-				if err := node.updateMultipleLeaves(nonPresentValues); err != nil {
+				if err := node.updateMultipleLeaves(nonPresentValues, curEpoch); err != nil {
 					return fmt.Errorf("updating leaves: %s", err)
 				}
 				continue

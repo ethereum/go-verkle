@@ -53,13 +53,13 @@ func TestProofVerifyTwoLeaves(t *testing.T) {
 	t.Parallel()
 
 	root := New()
-	if err := root.Insert(zeroKeyTest, zeroKeyTest, nil); err != nil {
+	if err := root.Insert(zeroKeyTest, zeroKeyTest, 0, nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := root.Insert(oneKeyTest, zeroKeyTest, nil); err != nil {
+	if err := root.Insert(oneKeyTest, zeroKeyTest, 0, nil); err != nil {
 		t.Fatalf("could not insert key: %v", err)
 	}
-	if err := root.Insert(ffx32KeyTest, zeroKeyTest, nil); err != nil {
+	if err := root.Insert(ffx32KeyTest, zeroKeyTest, 0, nil); err != nil {
 		t.Fatalf("could not insert key: %v", err)
 	}
 	root.Commit()
@@ -85,7 +85,7 @@ func TestProofVerifyMultipleLeaves(t *testing.T) {
 			t.Fatalf("could not read random bytes: %v", err)
 		}
 		keys[i] = key
-		if err := root.Insert(key, fourtyKeyTest, nil); err != nil {
+		if err := root.Insert(key, fourtyKeyTest, 0, nil); err != nil {
 			t.Fatalf("could not insert key: %v", err)
 		}
 	}
@@ -112,7 +112,7 @@ func TestMultiProofVerifyMultipleLeaves(t *testing.T) {
 			t.Fatalf("could not read random bytes: %v", err)
 		}
 		keys[i] = key
-		if err := root.Insert(key, fourtyKeyTest, nil); err != nil {
+		if err := root.Insert(key, fourtyKeyTest, 0, nil); err != nil {
 			t.Fatalf("could not insert key: %v", err)
 		}
 	}
@@ -141,7 +141,7 @@ func TestMultiProofVerifyMultipleLeavesWithAbsentStem(t *testing.T) {
 	for i := 0; i < leafCount; i++ {
 		key := make([]byte, 32)
 		key[2] = byte(i)
-		if err := root.Insert(key, fourtyKeyTest, nil); err != nil {
+		if err := root.Insert(key, fourtyKeyTest, 0, nil); err != nil {
 			t.Fatalf("could not insert key: %v", err)
 		}
 		if i%2 == 0 {
@@ -183,11 +183,11 @@ func TestMultiProofVerifyMultipleLeavesCommitmentRedundancy(t *testing.T) {
 	keys := make([][]byte, 2)
 	root := New()
 	keys[0] = zeroKeyTest
-	if err := root.Insert(keys[0], fourtyKeyTest, nil); err != nil {
+	if err := root.Insert(keys[0], fourtyKeyTest, 0, nil); err != nil {
 		t.Fatalf("could not insert key: %v", err)
 	}
 	keys[1] = oneKeyTest
-	if err := root.Insert(keys[1], fourtyKeyTest, nil); err != nil {
+	if err := root.Insert(keys[1], fourtyKeyTest, 0, nil); err != nil {
 		t.Fatalf("could not insert key: %v", err)
 	}
 	root.Commit()
@@ -208,10 +208,10 @@ func TestProofOfAbsenceInternalVerify(t *testing.T) {
 	t.Parallel()
 
 	root := New()
-	if err := root.Insert(zeroKeyTest, zeroKeyTest, nil); err != nil {
+	if err := root.Insert(zeroKeyTest, zeroKeyTest, 0, nil); err != nil {
 		t.Fatalf("could not insert key: %v", err)
 	}
-	if err := root.Insert(oneKeyTest, zeroKeyTest, nil); err != nil {
+	if err := root.Insert(oneKeyTest, zeroKeyTest, 0, nil); err != nil {
 		t.Fatalf("could not insert key: %v", err)
 	}
 	root.Commit()
@@ -228,10 +228,10 @@ func TestProofOfAbsenceLeafVerify(t *testing.T) {
 	t.Parallel()
 
 	root := New()
-	if err := root.Insert(zeroKeyTest, zeroKeyTest, nil); err != nil {
+	if err := root.Insert(zeroKeyTest, zeroKeyTest, 0, nil); err != nil {
 		t.Fatalf("could not insert key: %v", err)
 	}
-	if err := root.Insert(ffx32KeyTest, zeroKeyTest, nil); err != nil {
+	if err := root.Insert(ffx32KeyTest, zeroKeyTest, 0, nil); err != nil {
 		t.Fatalf("could not insert key: %v", err)
 	}
 	root.Commit()
@@ -243,14 +243,15 @@ func TestProofOfAbsenceLeafVerify(t *testing.T) {
 		t.Fatal("could not verify verkle proof")
 	}
 }
+
 func TestProofOfAbsenceLeafVerifyOtherSuffix(t *testing.T) {
 	t.Parallel()
 
 	root := New()
-	if err := root.Insert(zeroKeyTest, zeroKeyTest, nil); err != nil {
+	if err := root.Insert(zeroKeyTest, zeroKeyTest, 0, nil); err != nil {
 		t.Fatalf("could not insert key: %v", err)
 	}
-	if err := root.Insert(ffx32KeyTest, zeroKeyTest, nil); err != nil {
+	if err := root.Insert(ffx32KeyTest, zeroKeyTest, 0, nil); err != nil {
 		t.Fatalf("could not insert key: %v", err)
 	}
 	root.Commit()
@@ -272,7 +273,7 @@ func TestProofOfAbsenceStemVerify(t *testing.T) {
 	t.Parallel()
 
 	root := New()
-	if err := root.Insert(zeroKeyTest, zeroKeyTest, nil); err != nil {
+	if err := root.Insert(zeroKeyTest, zeroKeyTest, 0, nil); err != nil {
 		t.Fatalf("could not insert key: %v", err)
 	}
 
@@ -299,7 +300,7 @@ func BenchmarkProofCalculation(b *testing.B) {
 			b.Fatal(err)
 		}
 		keys[i] = key
-		if err := root.Insert(key, zeroKeyTest, nil); err != nil {
+		if err := root.Insert(key, zeroKeyTest, 0, nil); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -323,7 +324,7 @@ func BenchmarkProofVerification(b *testing.B) {
 			b.Fatal(err)
 		}
 		keys[i] = key
-		if err := root.Insert(key, zeroKeyTest, nil); err != nil {
+		if err := root.Insert(key, zeroKeyTest, 0, nil); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -355,7 +356,7 @@ func TestProofSerializationNoAbsentStem(t *testing.T) {
 			t.Fatalf("could not read random bytes: %v", err)
 		}
 		keys[i] = key
-		if err := root.Insert(key, fourtyKeyTest, nil); err != nil {
+		if err := root.Insert(key, fourtyKeyTest, 0, nil); err != nil {
 			t.Fatalf("could not insert key: %v", err)
 		}
 	}
@@ -386,7 +387,7 @@ func TestProofSerializationWithAbsentStem(t *testing.T) {
 		key := make([]byte, 32)
 		key[2] = byte(i)
 		keys[i] = key
-		if err := root.Insert(key, fourtyKeyTest, nil); err != nil {
+		if err := root.Insert(key, fourtyKeyTest, 0, nil); err != nil {
 			t.Fatalf("could not insert key: %v", err)
 		}
 	}
@@ -427,7 +428,7 @@ func TestProofDeserialize(t *testing.T) {
 		key := make([]byte, 32)
 		key[2] = byte(i)
 		keys[i] = key
-		if err := root.Insert(key, fourtyKeyTest, nil); err != nil {
+		if err := root.Insert(key, fourtyKeyTest, 0, nil); err != nil {
 			t.Fatalf("could not insert key: %v", err)
 		}
 	}
@@ -484,7 +485,7 @@ func TestProofOfAbsenceOtherMultipleLeaves(t *testing.T) {
 	// but does look the same for most of its length.
 	root := New()
 	key, _ := hex.DecodeString("0303030303030303030303030303030303030303030303030303030303030000")
-	if err := root.Insert(key, testValue, nil); err != nil {
+	if err := root.Insert(key, testValue, 0, nil); err != nil {
 		t.Fatalf("could not insert key: %v", err)
 	}
 	rootC := root.Commit()
@@ -518,7 +519,7 @@ func TestProofOfAbsenceOtherMultipleLeaves(t *testing.T) {
 	// proven for absence, but needs to be inserted in the proof-of-absence stem.
 	// It differs from the poa stem here: 🠃
 	ret3, _ := hex.DecodeString("0303030304030303030303030303030303030303030303030303030303030300")
-	err = deserialized.Insert(ret3, testValue, nil)
+	err = deserialized.Insert(ret3, testValue, 0, nil)
 	if err != nil {
 		t.Fatalf("error inserting value in proof-of-asbsence stem: %v", err)
 	}
@@ -546,7 +547,7 @@ func TestProofOfAbsenceNoneMultipleStems(t *testing.T) {
 
 	root := New()
 	key, _ := hex.DecodeString("0403030303030303030303030303030303030303030303030303030303030000")
-	if err := root.Insert(key, testValue, nil); err != nil {
+	if err := root.Insert(key, testValue, 0, nil); err != nil {
 		t.Fatalf("could not insert key: %v", err)
 	}
 	root.Commit()
@@ -842,7 +843,7 @@ func testSerializeDeserializeProof(t *testing.T, insertKVs map[string][]byte, pr
 	root := New()
 
 	for k, v := range insertKVs {
-		if err := root.Insert([]byte(k), v, nil); err != nil {
+		if err := root.Insert([]byte(k), v, 0, nil); err != nil {
 			t.Fatalf("could not insert key: %v", err)
 		}
 	}
@@ -997,7 +998,7 @@ func TestProofVerificationWithPostState(t *testing.T) { // skipcq: GO-R1005
 
 			root := New()
 			for i := range data.keys {
-				if err := root.Insert(data.keys[i], data.values[i], nil); err != nil {
+				if err := root.Insert(data.keys[i], data.values[i], 0, nil); err != nil {
 					t.Fatalf("could not insert key: %v", err)
 				}
 			}
@@ -1005,7 +1006,7 @@ func TestProofVerificationWithPostState(t *testing.T) { // skipcq: GO-R1005
 
 			postroot := root.Copy()
 			for i := range data.updatekeys {
-				if err := postroot.Insert(data.updatekeys[i], data.updatevalues[i], nil); err != nil {
+				if err := postroot.Insert(data.updatekeys[i], data.updatevalues[i], 0, nil); err != nil {
 					t.Fatalf("could not insert key: %v", err)
 				}
 			}
@@ -1081,7 +1082,7 @@ func TestGenerateProofWithOnlyAbsentKeys(t *testing.T) {
 	// Create a tree with only one key.
 	root := New()
 	presentKey, _ := hex.DecodeString("4000000000000000000000000000000000000000000000000000000000000000")
-	if err := root.Insert(presentKey, zeroKeyTest, nil); err != nil {
+	if err := root.Insert(presentKey, zeroKeyTest, 0, nil); err != nil {
 		t.Fatalf("inserting into the original failed: %v", err)
 	}
 	root.Commit()
@@ -1142,7 +1143,7 @@ func TestGenerateProofWithOnlyAbsentKeys(t *testing.T) {
 		var key [32]byte
 		copy(key[:], presentKey)
 		key[StemSize] = byte(i)
-		if err := droot.Insert(key[:], zeroKeyTest, nil); err != errIsPOAStub {
+		if err := droot.Insert(key[:], zeroKeyTest, 0, nil); err != errIsPOAStub {
 			t.Fatalf("expected ErrPOALeafValue, got %v", err)
 		}
 	}
@@ -1157,10 +1158,10 @@ func TestDoubleProofOfAbsence(t *testing.T) {
 	key11, _ := hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000001")
 	key12, _ := hex.DecodeString("0003000000000000000000000000000000000000000000000000000000000001")
 
-	if err := root.Insert(key11, fourtyKeyTest, nil); err != nil {
+	if err := root.Insert(key11, fourtyKeyTest, 0, nil); err != nil {
 		t.Fatalf("could not insert key: %v", err)
 	}
-	if err := root.Insert(key12, fourtyKeyTest, nil); err != nil {
+	if err := root.Insert(key12, fourtyKeyTest, 0, nil); err != nil {
 		t.Fatalf("could not insert key: %v", err)
 	}
 
@@ -1208,10 +1209,10 @@ func TestProveAbsenceInEmptyHalf(t *testing.T) {
 
 	key1, _ := hex.DecodeString("00000000000000000000000000000000000000000000000000000000000000FF")
 
-	if err := root.Insert(key1, fourtyKeyTest, nil); err != nil {
+	if err := root.Insert(key1, fourtyKeyTest, 0, nil); err != nil {
 		t.Fatalf("could not insert key: %v", err)
 	}
-	if err := root.Insert(key1, fourtyKeyTest, nil); err != nil {
+	if err := root.Insert(key1, fourtyKeyTest, 0, nil); err != nil {
 		t.Fatalf("could not insert key: %v", err)
 	}
 

@@ -31,11 +31,11 @@ type Empty struct{}
 
 var errDirectInsertIntoEmptyNode = errors.New("an empty node should not be inserted directly into")
 
-func (Empty) Insert([]byte, []byte, NodeResolverFn) error {
+func (Empty) Insert([]byte, []byte, StateEpoch, NodeResolverFn) error {
 	return errDirectInsertIntoEmptyNode
 }
 
-func (Empty) Delete([]byte, NodeResolverFn) (bool, error) {
+func (Empty) Delete([]byte, StateEpoch, NodeResolverFn) (bool, error) {
 	return false, errors.New("cant delete an empty node")
 }
 

@@ -22,7 +22,7 @@ func TestLeafStemLength(t *testing.T) {
 	// Serialize a leaf with no values, but whose stem is 32 bytes. The
 	// serialization should trim the extra byte.
 	toolong := make([]byte, 32)
-	leaf, err := NewLeafNode(toolong, make([][]byte, NodeWidth))
+	leaf, err := NewLeafNode(toolong, make([][]byte, NodeWidth), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,7 +30,7 @@ func TestLeafStemLength(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(ser) != nodeTypeSize+StemSize+bitlistSize+3*banderwagon.UncompressedSize {
+	if len(ser) != nodeTypeSize+StemSize+bitlistSize+3*banderwagon.UncompressedSize+EpochSize {
 		t.Fatalf("invalid serialization when the stem is longer than 31 bytes: %x (%d bytes != %d)", ser, len(ser), nodeTypeSize+StemSize+bitlistSize+2*banderwagon.UncompressedSize)
 	}
 }
@@ -46,7 +46,7 @@ func TestInvalidNodeEncoding(t *testing.T) {
 	// Test an invalid node type.
 	values := make([][]byte, NodeWidth)
 	values[42] = testValue
-	ln, err := NewLeafNode(ffx32KeyTest, values)
+	ln, err := NewLeafNode(ffx32KeyTest, values, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestParseNodeEoA(t *testing.T) {
 	values[2] = fourtyKeyTest[:] // set nonce to 64
 	values[3] = EmptyCodeHash[:] // set empty code hash
 	values[4] = zero32[:]        // zero-size
-	ln, err := NewLeafNode(ffx32KeyTest[:31], values)
+	ln, err := NewLeafNode(ffx32KeyTest[:31], values, 0)
 	if err != nil {
 		t.Fatalf("error creating leaf node: %v", err)
 	}
@@ -131,10 +131,11 @@ func TestParseNodeEoA(t *testing.T) {
 		t.Fatalf("invalid commitment, got %x, expected %x", lnd.commitment, ln.commitment)
 	}
 }
+
 func TestParseNodeSingleSlot(t *testing.T) {
 	values := make([][]byte, 256)
 	values[153] = EmptyCodeHash
-	ln, err := NewLeafNode(ffx32KeyTest[:31], values)
+	ln, err := NewLeafNode(ffx32KeyTest[:31], values, 0)
 	if err != nil {
 		t.Fatalf("error creating leaf node: %v", err)
 	}

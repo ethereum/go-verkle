@@ -31,11 +31,11 @@ func TestHashedNodeFuncs(t *testing.T) {
 	t.Parallel()
 
 	e := HashedNode{}
-	err := e.Insert(zeroKeyTest, zeroKeyTest, nil)
+	err := e.Insert(zeroKeyTest, zeroKeyTest, 0, nil)
 	if err != errInsertIntoHash {
 		t.Fatal("got nil error when inserting into a hashed node")
 	}
-	_, err = e.Delete(zeroKeyTest, nil)
+	_, err = e.Delete(zeroKeyTest, 0, nil)
 	if err == nil {
 		t.Fatal("got nil error when deleting from a hashed node")
 	}

@@ -31,11 +31,11 @@ func TestEmptyFuncs(t *testing.T) {
 	t.Parallel()
 
 	var e Empty
-	err := e.Insert(zeroKeyTest, zeroKeyTest, nil)
+	err := e.Insert(zeroKeyTest, zeroKeyTest, 0, nil)
 	if err == nil {
 		t.Fatal("got nil error when inserting into empty")
 	}
-	_, err = e.Delete(zeroKeyTest, nil)
+	_, err = e.Delete(zeroKeyTest, 0, nil)
 	if err == nil {
 		t.Fatal("got nil error when deleting from empty")
 	}
