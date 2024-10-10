@@ -1161,6 +1161,10 @@ func (n *LeafNode) Insert(key []byte, value []byte, curEpoch StateEpoch, _ NodeR
 		return fmt.Errorf("invalid key size: %d", len(key))
 	}
 
+	if EpochExpired(n.lastEpoch, curEpoch) {
+		return errEpochExpired
+	}
+
 	stem := KeyToStem(key)
 	if !bytes.Equal(stem, n.stem) {
 		return fmt.Errorf("stems don't match: %x != %x", stem, n.stem)
@@ -1337,6 +1341,10 @@ func (n *LeafNode) Delete(k []byte, curEpoch StateEpoch, _ NodeResolverFn) (bool
 	// Sanity check: ensure the key header is the same:
 	if !equalPaths(k, n.stem) {
 		return false, nil
+	}
+
+	if EpochExpired(n.lastEpoch, curEpoch) {
+		return false, errEpochExpired
 	}
 
 	// Erase the value it used to contain

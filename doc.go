@@ -40,6 +40,7 @@ var (
 	errIsPOAStub              = errors.New("trying to read/write a proof of absence leaf node")
 	errExpiredLeafNode        = errors.New("trying to access an expired leaf node")
 	errExpiredNodeNotFound    = errors.New("cannot find expired node when reviving")
+	errEpochExpired           = errors.New("trying to access an expired node")
 )
 
 const (
