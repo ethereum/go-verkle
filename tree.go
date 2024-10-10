@@ -1183,7 +1183,7 @@ func (n *LeafNode) insertMultiple(stem Stem, values [][]byte, curEpoch StateEpoc
 	return nil
 }
 
-func (n *LeafNode) updateC(cxIndex int, newC Fr, oldC Fr) {
+func (n *LeafNode) updateC(cxIndex int, newC Fr, oldC Fr, curEpoch StateEpoch) {
 	// Calculate the Fr-delta.
 	var deltaC Fr
 	deltaC.Sub(&newC, &oldC)
@@ -1191,6 +1191,10 @@ func (n *LeafNode) updateC(cxIndex int, newC Fr, oldC Fr) {
 	// Calculate the Point-delta.
 	var poly [NodeWidth]Fr
 	poly[cxIndex] = deltaC
+
+	if n.lastEpoch != curEpoch {
+		poly[4].SetUint64(uint64(curEpoch))
+	}
 
 	// Add delta to the current commitment.
 	n.commitment.Add(n.commitment, cfg.CommitToPoly(poly[:], 0))
@@ -1231,7 +1235,7 @@ func (n *LeafNode) updateCn(index byte, value []byte, c *Point) error {
 	return nil
 }
 
-func (n *LeafNode) updateLeaf(index byte, value []byte) error {
+func (n *LeafNode) updateLeaf(index byte, value []byte, curEpoch StateEpoch) error {
 	// Update the corresponding C1 or C2 commitment.
 	var c *Point
 	var oldC Point
@@ -1254,7 +1258,8 @@ func (n *LeafNode) updateLeaf(index byte, value []byte) error {
 
 	// If index is in the first NodeWidth/2 elements, we need to update C1. Otherwise, C2.
 	cxIndex := 2 + int(index)/(NodeWidth/2) // [1, stem, -> C1, C2 <-]
-	n.updateC(cxIndex, frs[0], frs[1])
+	n.updateC(cxIndex, frs[0], frs[1], curEpoch)
+	n.updateLastEpoch(curEpoch)
 
 	n.values[index] = value
 	return nil
@@ -1306,21 +1311,21 @@ func (n *LeafNode) updateMultipleLeaves(values [][]byte, curEpoch StateEpoch) er
 		if err := banderwagon.BatchMapToScalarField([]*Fr{&frs[0], &frs[1], &frs[2], &frs[3]}, []*Point{n.c1, oldC1, n.c2, oldC2}); err != nil {
 			return fmt.Errorf("batch mapping to scalar fields: %s", err)
 		}
-		n.updateC(c1Idx, frs[0], frs[1])
-		n.updateC(c2Idx, frs[2], frs[3])
-		n.lastEpoch = curEpoch
+		n.updateC(c1Idx, frs[0], frs[1], curEpoch)
+		n.updateC(c2Idx, frs[2], frs[3], curEpoch)
+		n.updateLastEpoch(curEpoch)
 	} else if oldC1 != nil { // Case 2. (C1 touched)
 		if err := banderwagon.BatchMapToScalarField([]*Fr{&frs[0], &frs[1]}, []*Point{n.c1, oldC1}); err != nil {
 			return fmt.Errorf("batch mapping to scalar fields: %s", err)
 		}
-		n.updateC(c1Idx, frs[0], frs[1])
-		n.lastEpoch = curEpoch
+		n.updateC(c1Idx, frs[0], frs[1], curEpoch)
+		n.updateLastEpoch(curEpoch)
 	} else if oldC2 != nil { // Case 2. (C2 touched)
 		if err := banderwagon.BatchMapToScalarField([]*Fr{&frs[0], &frs[1]}, []*Point{n.c2, oldC2}); err != nil {
 			return fmt.Errorf("batch mapping to scalar fields: %s", err)
 		}
-		n.updateC(c2Idx, frs[0], frs[1])
-		n.lastEpoch = curEpoch
+		n.updateC(c2Idx, frs[0], frs[1], curEpoch)
+		n.updateLastEpoch(curEpoch)
 	}
 
 	return nil
@@ -1393,7 +1398,16 @@ func (n *LeafNode) Delete(k []byte, curEpoch StateEpoch, _ NodeResolverFn) (bool
 		// is more important than
 		var poly [4]Fr
 		cn.MapToScalarField(&poly[subtreeindex])
+
 		n.commitment.Sub(n.commitment, cfg.CommitToPoly(poly[:], 0))
+
+		// TODO(weiihann): can this be done together with the previous?
+		if n.lastEpoch != curEpoch {
+			var poly [5]Fr
+			poly[4].SetUint64(uint64(curEpoch))
+			n.commitment.Add(n.commitment, cfg.CommitToPoly(poly[:], 0))
+			n.updateLastEpoch(curEpoch)
+		}
 
 		// Clear the corresponding commitment
 		if k[StemSize] < 128 {
@@ -1416,7 +1430,7 @@ func (n *LeafNode) Delete(k []byte, curEpoch StateEpoch, _ NodeResolverFn) (bool
 	// the method, as it needs the original
 	// value to compute the commitment diffs.
 	n.values[k[StemSize]] = original
-	return false, n.updateLeaf(k[StemSize], nil)
+	return false, n.updateLeaf(k[StemSize], nil, curEpoch)
 }
 
 func (n *LeafNode) Get(k []byte, _ NodeResolverFn) ([]byte, error) {
@@ -1453,6 +1467,10 @@ func (n *LeafNode) Commitment() *Point {
 
 func (n *LeafNode) Commit() *Point {
 	return n.commitment
+}
+
+func (n *LeafNode) updateLastEpoch(curEpoch StateEpoch) {
+	n.lastEpoch = curEpoch
 }
 
 // fillSuffixTreePoly takes one of the two suffix tree and
