@@ -44,7 +44,7 @@ func (ExpiredLeafNode) Delete([]byte, StateEpoch, NodeResolverFn) (bool, error) 
 	return false, errExpiredLeafNode
 }
 
-func (ExpiredLeafNode) Get([]byte, NodeResolverFn) ([]byte, error) {
+func (ExpiredLeafNode) Get([]byte, StateEpoch, NodeResolverFn) ([]byte, error) {
 	return nil, errExpiredLeafNode
 }
 

@@ -507,7 +507,7 @@ func TestProofOfAbsenceOtherMultipleLeaves(t *testing.T) {
 		t.Fatalf("error deserializing %v", err)
 	}
 
-	got, err := deserialized.Get(ret1, nil)
+	got, err := deserialized.Get(ret1, 0, nil)
 	if err != nil {
 		t.Fatalf("error while trying to read missing value: %v", err)
 	}
@@ -1132,7 +1132,7 @@ func TestGenerateProofWithOnlyAbsentKeys(t *testing.T) {
 		var key [32]byte
 		copy(key[:], presentKey)
 		key[StemSize] = byte(i)
-		if _, err := droot.Get(key[:], nil); err != errIsPOAStub {
+		if _, err := droot.Get(key[:], 0, nil); err != errIsPOAStub {
 			t.Fatalf("expected ErrPOALeafValue, got %v", err)
 		}
 	}

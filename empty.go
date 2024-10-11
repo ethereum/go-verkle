@@ -39,7 +39,7 @@ func (Empty) Delete([]byte, StateEpoch, NodeResolverFn) (bool, error) {
 	return false, errors.New("cant delete an empty node")
 }
 
-func (Empty) Get([]byte, NodeResolverFn) ([]byte, error) {
+func (Empty) Get([]byte, StateEpoch, NodeResolverFn) ([]byte, error) {
 	return nil, nil
 }
 

@@ -13,7 +13,7 @@ func TestUnknownFuncs(t *testing.T) {
 	if _, err := un.Delete(nil, 0, nil); err == nil {
 		t.Errorf("got nil error when deleting from a hashed node")
 	}
-	if _, err := un.Get(nil, nil); err != nil {
+	if _, err := un.Get(nil, 0, nil); err != nil {
 		t.Errorf("got %v, want nil", err)
 	}
 	var identity Point

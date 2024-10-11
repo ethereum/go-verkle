@@ -73,7 +73,7 @@ type VerkleNode interface {
 	Delete([]byte, StateEpoch, NodeResolverFn) (bool, error)
 
 	// Get value at a given key
-	Get([]byte, NodeResolverFn) ([]byte, error)
+	Get([]byte, StateEpoch, NodeResolverFn) ([]byte, error)
 
 	// Commit computes the commitment of the node. The
 	// result (the curve point) is cached.
@@ -558,7 +558,7 @@ func (n *InternalNode) CreatePath(path []byte, stemInfo stemInfo, comms []*Point
 // GetValuesAtStem returns the all NodeWidth values of the stem.
 // The returned slice is internal to the tree, so it *must* be considered readonly
 // for callers.
-func (n *InternalNode) GetValuesAtStem(stem Stem, resolver NodeResolverFn) ([][]byte, error) {
+func (n *InternalNode) GetValuesAtStem(stem Stem, curEpoch StateEpoch, resolver NodeResolverFn) ([][]byte, error) {
 	nchild := offset2key(stem, n.depth) // index of the child pointed by the next byte in the key
 	switch child := n.children[nchild].(type) {
 	case UnknownNode:
@@ -580,10 +580,14 @@ func (n *InternalNode) GetValuesAtStem(stem Stem, resolver NodeResolverFn) ([][]
 		n.children[nchild] = resolved
 		// recurse to handle the case of a LeafNode child that
 		// splits.
-		return n.GetValuesAtStem(stem, resolver)
+		return n.GetValuesAtStem(stem, curEpoch, resolver)
 	case *ExpiredLeafNode:
 		return nil, errEpochExpired
 	case *LeafNode:
+		if EpochExpired(child.lastEpoch, curEpoch) {
+			return nil, errEpochExpired
+		}
+
 		if equalPaths(child.stem, stem) {
 			// We can't return the values since it's a POA leaf node, so we know nothing
 			// about its values.
@@ -594,7 +598,7 @@ func (n *InternalNode) GetValuesAtStem(stem Stem, resolver NodeResolverFn) ([][]
 		}
 		return nil, nil
 	case *InternalNode:
-		return child.GetValuesAtStem(stem, resolver)
+		return child.GetValuesAtStem(stem, curEpoch, resolver)
 	default:
 		return nil, errUnknownNodeType
 	}
@@ -784,11 +788,11 @@ func (n *InternalNode) FlushAtDepth(depth uint8, flush NodeFlushFn) {
 	}
 }
 
-func (n *InternalNode) Get(key []byte, resolver NodeResolverFn) ([]byte, error) {
+func (n *InternalNode) Get(key []byte, curEpoch StateEpoch, resolver NodeResolverFn) ([]byte, error) {
 	if len(key) != StemSize+1 {
 		return nil, fmt.Errorf("invalid key length, expected %d, got %d", StemSize+1, len(key))
 	}
-	stemValues, err := n.GetValuesAtStem(KeyToStem(key), resolver)
+	stemValues, err := n.GetValuesAtStem(KeyToStem(key), curEpoch, resolver)
 	if err != nil {
 		return nil, err
 	}
@@ -1455,7 +1459,7 @@ func (n *LeafNode) Delete(k []byte, curEpoch StateEpoch, _ NodeResolverFn) (bool
 	return false, n.updateLeaf(k[StemSize], nil, curEpoch)
 }
 
-func (n *LeafNode) Get(k []byte, _ NodeResolverFn) ([]byte, error) {
+func (n *LeafNode) Get(k []byte, curEpoch StateEpoch, _ NodeResolverFn) ([]byte, error) {
 	if n.isPOAStub {
 		return nil, errIsPOAStub
 	}

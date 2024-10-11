@@ -37,7 +37,7 @@ func (UnknownNode) Delete([]byte, StateEpoch, NodeResolverFn) (bool, error) {
 	return false, errors.New("cant delete in a subtree missing form a stateless view")
 }
 
-func (UnknownNode) Get([]byte, NodeResolverFn) ([]byte, error) {
+func (UnknownNode) Get([]byte, StateEpoch, NodeResolverFn) ([]byte, error) {
 	return nil, nil
 }
 

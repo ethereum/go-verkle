@@ -211,7 +211,7 @@ func getProofElementsFromTree(preroot, postroot VerkleNode, keys [][]byte, resol
 		// keys were sorted already in the above GetcommitmentsForMultiproof.
 		// Set the post values, if they are untouched, leave them `nil`
 		for i := range keys {
-			val, err := postroot.Get(keys[i], resolver)
+			val, err := postroot.Get(keys[i], 0, resolver)
 			if err != nil {
 				return nil, nil, nil, nil, fmt.Errorf("error getting post-state value for key %x: %w", keys[i], err)
 			}
@@ -646,7 +646,7 @@ func Verify(vp *VerkleProof, preStateRoot []byte, postStateRoot []byte, statedif
 			copy(key[:31], stemdiff.Stem[:])
 			key[31] = suffixdiff.Suffix
 
-			val, err := pretree.Get(key[:], nil)
+			val, err := pretree.Get(key[:], 0, nil)
 			if err != nil {
 				return fmt.Errorf("could not find key %x in tree rebuilt from proof: %w", key, err)
 			}

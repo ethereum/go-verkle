@@ -140,7 +140,7 @@ func TestGetTwoLeaves(t *testing.T) {
 		t.Fatalf("error inserting: %v", err)
 	}
 
-	val, err := root.Get(zeroKeyTest, nil)
+	val, err := root.Get(zeroKeyTest, 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +149,7 @@ func TestGetTwoLeaves(t *testing.T) {
 		t.Fatalf("got a different value from the tree than expected %x != %x", val, testValue)
 	}
 
-	val, err = root.Get(oneKeyTest, nil)
+	val, err = root.Get(oneKeyTest, 0, nil)
 	if err != nil {
 		t.Fatalf("wrong error type, expected %v, got %v", nil, err)
 	}
@@ -327,7 +327,7 @@ func TestDelLeaf(t *testing.T) { // skipcq: GO-R1005
 		t.Errorf("deleting leaf resulted in unexpected tree %x %x", init.Bytes(), postHash.Bytes())
 	}
 
-	res, err := tree.Get(key3, nil)
+	res, err := tree.Get(key3, 0, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -338,7 +338,7 @@ func TestDelLeaf(t *testing.T) { // skipcq: GO-R1005
 	if _, err := tree.Delete(key1pp, 0, nil); err != nil {
 		t.Fatal(err)
 	}
-	res, err = tree.Get(key1pp, nil)
+	res, err = tree.Get(key1pp, 0, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -349,7 +349,7 @@ func TestDelLeaf(t *testing.T) { // skipcq: GO-R1005
 	if _, err := tree.Delete(key1p, 0, nil); err != nil {
 		t.Fatal(err)
 	}
-	res, err = tree.Get(key1p, nil)
+	res, err = tree.Get(key1p, 0, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -385,14 +385,14 @@ func TestDeleteAtStem(t *testing.T) {
 		t.Error(err)
 	}
 
-	res, err := tree.Get(key1, nil)
+	res, err := tree.Get(key1, 0, nil)
 	if err != nil {
 		t.Error(err)
 	}
 	if len(res) > 0 {
 		t.Error("leaf hasnt been deleted")
 	}
-	res, err = tree.Get(key1pp, nil)
+	res, err = tree.Get(key1pp, 0, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -467,7 +467,7 @@ func TestDeletePrune(t *testing.T) { // skipcq: GO-R1005
 	if !hashPostKey4.Equal(postHash) {
 		t.Error("deleting leaf #5 resulted in unexpected tree")
 	}
-	res, err := tree.Get(key5, nil)
+	res, err := tree.Get(key5, 0, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -487,7 +487,7 @@ func TestDeletePrune(t *testing.T) { // skipcq: GO-R1005
 	if !hashPostKey2.Equal(postHash) {
 		t.Error("deleting leaf #3 resulted in unexpected tree")
 	}
-	res, err = tree.Get(key3, nil)
+	res, err = tree.Get(key3, 0, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -884,17 +884,17 @@ func TestGetResolveFromHash(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	data, err := root.Get(zeroKeyTest, nil)
+	data, err := root.Get(zeroKeyTest, 0, nil)
 	if !errors.Is(err, errReadFromInvalid) || len(data) != 0 {
 		t.Fatal(err)
 	}
 
-	data, err = root.Get(zeroKeyTest, failingGetter)
+	data, err = root.Get(zeroKeyTest, 0, failingGetter)
 	if !errors.Is(err, dummyError) || len(data) != 0 {
 		t.Fatal(err)
 	}
 
-	data, err = root.Get(zeroKeyTest, getter)
+	data, err = root.Get(zeroKeyTest, 0, getter)
 	if err != nil {
 		t.Fatalf("error resolving hash: %v", err)
 	}
@@ -1648,7 +1648,7 @@ func TestLeafNodeInsert(t *testing.T) {
 	}
 
 	// Check we get the value correctly via Get(...).
-	getValue, err := ln.Get(append(KeyToStem(keyTest), byte(valIdx)), nil)
+	getValue, err := ln.Get(append(KeyToStem(keyTest), byte(valIdx)), 0, nil)
 	if err != nil {
 		t.Fatalf("failed to get leaf node key/value: %v", err)
 	}
@@ -1809,7 +1809,7 @@ func runRandTest(rt randTest) error {
 			}
 			delete(values, string(step.key))
 		case opGet:
-			v, err := root.Get(step.key, nil)
+			v, err := root.Get(step.key, 0, nil)
 			want := values[string(step.key)]
 			if string(v) != want {
 				rt[i].err = fmt.Errorf("mismatch for key %#x, got %#x want %#x, err %v", step.key, v, want, err)
@@ -1872,7 +1872,7 @@ func TestRandomExtracted(t *testing.T) {
 		t.Fatalf("error deleting key: %v", err)
 	}
 
-	val, err := root.Get(k1490, nil)
+	val, err := root.Get(k1490, 0, nil)
 	if err != nil {
 		t.Fatalf("error getting key: %v", err)
 	}

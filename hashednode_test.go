@@ -39,7 +39,7 @@ func TestHashedNodeFuncs(t *testing.T) {
 	if err == nil {
 		t.Fatal("got nil error when deleting from a hashed node")
 	}
-	v, err := e.Get(zeroKeyTest, nil)
+	v, err := e.Get(zeroKeyTest, 0, nil)
 	if err == nil {
 		t.Fatal("got nil error when getting from a hashed node")
 	}

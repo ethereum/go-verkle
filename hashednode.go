@@ -40,7 +40,7 @@ func (HashedNode) Delete([]byte, StateEpoch, NodeResolverFn) (bool, error) {
 	return false, errors.New("cant delete a hashed node in-place")
 }
 
-func (HashedNode) Get([]byte, NodeResolverFn) ([]byte, error) {
+func (HashedNode) Get([]byte, StateEpoch, NodeResolverFn) ([]byte, error) {
 	return nil, errors.New("can not read from a hash node")
 }
 
