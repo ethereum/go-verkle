@@ -44,4 +44,9 @@ type (
 		C2        [32]byte   `json:"c2"`
 		LastEpoch StateEpoch `json:"last_epoch"`
 	}
+
+	ExportableExpiredLeafNode struct {
+		Stem       Stem     `json:"stem"`
+		Commitment [32]byte `json:"commitment"`
+	}
 )

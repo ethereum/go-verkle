@@ -166,10 +166,11 @@ func (pe *ProofElements) Merge(other *ProofElements) {
 const (
 	// These types will distinguish internal
 	// and leaf nodes when decoding from RLP.
-	internalType   byte = 1
-	leafType       byte = 2
-	eoAccountType  byte = 3
-	singleSlotType byte = 4
+	internalType    byte = 1
+	leafType        byte = 2
+	eoAccountType   byte = 3
+	singleSlotType  byte = 4
+	expiredLeafType byte = 5
 )
 
 type (
@@ -226,6 +227,11 @@ func (n *InternalNode) toExportable() *ExportableInternalNode {
 				Values: child.values,
 				C:      child.commitment.Bytes(),
 				C1:     child.c1.Bytes(),
+			}
+		case *ExpiredLeafNode:
+			exportable.Children[i] = &ExportableExpiredLeafNode{
+				Stem:       child.stem,
+				Commitment: child.commitment.Bytes(),
 			}
 		default:
 			panic("unexportable type")
@@ -402,6 +408,8 @@ func (n *InternalNode) InsertValuesAtStem(stem Stem, values [][]byte, curEpoch S
 		// recurse to handle the case of a LeafNode child that
 		// splits.
 		return n.InsertValuesAtStem(stem, values, curEpoch, resolver)
+	case *ExpiredLeafNode:
+		return errEpochExpired
 	case *LeafNode:
 		if equalPaths(child.stem, stem) {
 			// We can't insert any values into a POA leaf node.
@@ -532,7 +540,7 @@ func (n *InternalNode) CreatePath(path []byte, stemInfo stemInfo, comms []*Point
 		comms = comms[1:]
 	case *InternalNode:
 	// nothing else to do
-	case *LeafNode:
+	case *LeafNode, *ExpiredLeafNode:
 		return comms, fmt.Errorf("error rebuilding the tree from a proof: stem %x leads to an already-existing leaf node at depth %x", stemInfo.stem, n.depth)
 	default:
 		return comms, fmt.Errorf("error rebuilding the tree from a proof: stem %x leads to an unsupported node type %v", stemInfo.stem, child)
@@ -573,6 +581,8 @@ func (n *InternalNode) GetValuesAtStem(stem Stem, resolver NodeResolverFn) ([][]
 		// recurse to handle the case of a LeafNode child that
 		// splits.
 		return n.GetValuesAtStem(stem, resolver)
+	case *ExpiredLeafNode:
+		return nil, errEpochExpired
 	case *LeafNode:
 		if equalPaths(child.stem, stem) {
 			// We can't return the values since it's a POA leaf node, so we know nothing
@@ -610,6 +620,8 @@ func (n *InternalNode) Delete(key []byte, curEpoch StateEpoch, resolver NodeReso
 		}
 		n.children[nChild] = c
 		return n.Delete(key, curEpoch, resolver)
+	case *ExpiredLeafNode:
+		return false, errEpochExpired
 	default:
 		n.cowChild(nChild)
 		del, err := child.Delete(key, curEpoch, resolver)
@@ -661,6 +673,8 @@ func (n *InternalNode) DeleteAtStem(key []byte, resolver NodeResolverFn) (bool, 
 		}
 		n.children[nChild] = c
 		return n.DeleteAtStem(key, resolver)
+	case *ExpiredLeafNode:
+		return false, errEpochExpired
 	case *LeafNode:
 		if !bytes.Equal(child.stem, key[:31]) {
 			return false, errDeleteMissing
@@ -1790,6 +1804,8 @@ func (n *InternalNode) BatchSerialize() ([]SerializedNode, error) {
 			serializedPointsIdxs[n] = len(pointsToCompress) - 1
 		case *LeafNode:
 			pointsToCompress = append(pointsToCompress, n.commitment, n.c1, n.c2)
+		case *ExpiredLeafNode:
+			pointsToCompress = append(pointsToCompress, n.commitment)
 		}
 	}
 
@@ -1804,6 +1820,19 @@ func (n *InternalNode) BatchSerialize() ([]SerializedNode, error) {
 		switch n := nodes[i].(type) {
 		case *InternalNode:
 			serialized, err := n.serializeInternalWithUncompressedCommitment(serializedPointsIdxs, serializedPoints)
+			if err != nil {
+				return nil, err
+			}
+			sn := SerializedNode{
+				Node:            n,
+				Path:            paths[i],
+				CommitmentBytes: serializedPoints[idx],
+				SerializedBytes: serialized,
+			}
+			ret = append(ret, sn)
+			idx++
+		case *ExpiredLeafNode:
+			serialized, err := n.Serialize()
 			if err != nil {
 				return nil, err
 			}
@@ -1839,6 +1868,9 @@ func (n *InternalNode) collectNonHashedNodes(list []VerkleNode, paths [][]byte, 
 	for i, child := range n.children {
 		switch childNode := child.(type) {
 		case *LeafNode:
+			list = append(list, childNode)
+			paths = append(paths, childNode.stem[:len(path)+1])
+		case *ExpiredLeafNode:
 			list = append(list, childNode)
 			paths = append(paths, childNode.stem[:len(path)+1])
 		case *InternalNode:

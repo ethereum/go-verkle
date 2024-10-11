@@ -63,6 +63,7 @@ const (
 	leafValueIndexSize     = 1
 	singleSlotLeafSize     = nodeTypeSize + StemSize + 2*banderwagon.UncompressedSize + leafValueIndexSize + leafSlotSize + EpochSize
 	eoaLeafSize            = nodeTypeSize + StemSize + 2*banderwagon.UncompressedSize + leafBalanceSize + leafNonceSize + EpochSize
+	expiredLeafSize        = nodeTypeSize + StemSize + banderwagon.UncompressedSize
 )
 
 func bit(bitlist []byte, nr int) bool {
@@ -80,6 +81,7 @@ var errSerializedPayloadTooShort = errors.New("verkle payload is too short")
 // - Leaf nodes:       <nodeType><stem><bitlist><comm><c1comm><c2comm><lastEpoch><children...>
 // - EoA nodes:        <nodeType><stem><comm><c1comm><lastEpoch><balance><nonce>
 // - single slot node: <nodeType><stem><comm><cncomm><lastEpoch><leaf index><slot>
+// - Expired leaf nodes:       <nodeType><stem><commitment>
 func ParseNode(serializedNode []byte, depth byte) (VerkleNode, error) {
 	// Check that the length of the serialized node is at least the smallest possible serialized node.
 	if len(serializedNode) < nodeTypeSize+banderwagon.UncompressedSize {
@@ -95,6 +97,8 @@ func ParseNode(serializedNode []byte, depth byte) (VerkleNode, error) {
 		return parseEoAccountNode(serializedNode, depth)
 	case singleSlotType:
 		return parseSingleSlotNode(serializedNode, depth)
+	case expiredLeafType: // TODO(weiihann)
+		return parseExpiredLeafNode(serializedNode)
 	default:
 		return nil, ErrInvalidNodeEncoding
 	}
@@ -197,6 +201,16 @@ func parseSingleSlotNode(serialized []byte, depth byte) (VerkleNode, error) {
 		return nil, fmt.Errorf("error setting leaf root commitment: %w", err)
 	}
 	return ln, nil
+}
+
+func parseExpiredLeafNode(serialized []byte) (VerkleNode, error) {
+	l := &ExpiredLeafNode{}
+	l.stem = serialized[leafStemOffset : leafStemOffset+StemSize]
+	l.commitment = new(Point)
+	if err := l.commitment.SetBytesUncompressed(serialized[leafStemOffset+StemSize:], true); err != nil {
+		return nil, fmt.Errorf("setting commitment: %w", err)
+	}
+	return l, nil
 }
 
 func CreateInternalNode(bitlist []byte, raw []byte, depth byte) (*InternalNode, error) {
