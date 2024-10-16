@@ -39,10 +39,10 @@ type (
 		Stem   Stem     `json:"stem"`
 		Values [][]byte `json:"values"`
 
-		C         [32]byte   `json:"commitment"`
-		C1        [32]byte   `json:"c1"`
-		C2        [32]byte   `json:"c2"`
-		LastEpoch StateEpoch `json:"last_epoch"`
+		C      [32]byte        `json:"commitment"`
+		C1     [32]byte        `json:"c1"`
+		C2     [32]byte        `json:"c2"`
+		LastTs AccessTimestamp `json:"last_epoch"`
 	}
 
 	ExportableExpiredLeafNode struct {

@@ -1347,7 +1347,7 @@ func TestRustBanderwagonBlock48(t *testing.T) {
 
 	r := tree.Commit()
 
-	proof, cis, zis, yis, _ := MakeVerkleMultiProof(tree, nil, keys, nil)
+	proof, cis, zis, yis, _ := MakeVerkleMultiProof(tree, nil, keys, 0, nil)
 	vp, statediff, err := SerializeProof(proof)
 	if err != nil {
 		t.Fatal(err)
@@ -1497,7 +1497,7 @@ func TestBatchMigratedKeyValues(t *testing.T) {
 					nodeValues = append(nodeValues, curr)
 
 					// Create all leaves in batch mode so we can optimize cryptography operations.
-					newLeaves, err := BatchNewLeafNode(nodeValues, 0)
+					newLeaves, err := BatchNewLeafNode(nodeValues)
 					if err != nil {
 						t.Fatalf("failed to create leaves: %v", err)
 					}
@@ -1589,7 +1589,7 @@ func BenchmarkBatchLeavesInsert(b *testing.B) {
 		nodeValues = append(nodeValues, curr)
 
 		// Create all leaves in batch mode so we can optimize cryptography operations.
-		newLeaves, err := BatchNewLeafNode(nodeValues, 0)
+		newLeaves, err := BatchNewLeafNode(nodeValues)
 		if err != nil {
 			b.Fatalf("failed to batch-create leaf node: %v", err)
 		}
@@ -1819,7 +1819,7 @@ func runRandTest(rt randTest) error {
 				continue
 			}
 			root.Commit()
-			proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, nil, keys, nil)
+			proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, nil, keys, 0, nil)
 			if ok, err := verifyVerkleProof(proof, cis, zis, yis, cfg); !ok || err != nil {
 				rt[i].err = fmt.Errorf("could not verify verkle proof: %s, err %v", ToDot(root), err)
 			}

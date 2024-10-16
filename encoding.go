@@ -56,7 +56,7 @@ const (
 	leafC1CommitmentOffset = leafCommitmentOffset + banderwagon.UncompressedSize
 	leafC2CommitmentOffset = leafC1CommitmentOffset + banderwagon.UncompressedSize
 	leafChildrenOffset     = leafC2CommitmentOffset + banderwagon.UncompressedSize
-	leafLastEpochOffset    = leafChildrenOffset + EpochSize
+	leafLastTsOffset       = leafChildrenOffset + EpochSize
 	leafBalanceSize        = 32
 	leafNonceSize          = 8
 	leafSlotSize           = 32
@@ -78,9 +78,9 @@ var errSerializedPayloadTooShort = errors.New("verkle payload is too short")
 // ParseNode deserializes a node into its proper VerkleNode instance.
 // The serialized bytes have the format:
 // - Internal nodes:   <nodeType><bitlist><commitment>
-// - Leaf nodes:       <nodeType><stem><bitlist><comm><c1comm><c2comm><lastEpoch><children...>
-// - EoA nodes:        <nodeType><stem><comm><c1comm><lastEpoch><balance><nonce>
-// - single slot node: <nodeType><stem><comm><cncomm><lastEpoch><leaf index><slot>
+// - Leaf nodes:       <nodeType><stem><bitlist><comm><c1comm><c2comm><lastTs><children...>
+// - EoA nodes:        <nodeType><stem><comm><c1comm><lastTs><balance><nonce>
+// - single slot node: <nodeType><stem><comm><cncomm><lastTs><leaf index><slot>
 // - Expired leaf nodes:       <nodeType><stem><commitment>
 func ParseNode(serializedNode []byte, depth byte) (VerkleNode, error) {
 	// Check that the length of the serialized node is at least the smallest possible serialized node.
@@ -120,7 +120,7 @@ func parseLeafNode(serialized []byte, depth byte) (VerkleNode, error) {
 	ln := NewLeafNodeWithNoComms(
 		serialized[leafStemOffset:leafStemOffset+StemSize],
 		values[:],
-		StateEpochFromBytes(serialized[leafLastEpochOffset:leafLastEpochOffset+EpochSize]))
+		AccessTimestampFromBytes(serialized[leafLastTsOffset:leafLastTsOffset+EpochSize]))
 	ln.setDepth(depth)
 	ln.c1 = new(Point)
 
@@ -155,7 +155,7 @@ func parseEoAccountNode(serialized []byte, depth byte) (VerkleNode, error) {
 	values[2] = nonce[:] // nonce
 	values[3] = EmptyCodeHash[:]
 	values[4] = zero32[:] // 0 code size
-	ln := NewLeafNodeWithNoComms(serialized[leafStemOffset:leafStemOffset+StemSize], values[:], StateEpochFromBytes(serialized[epochOffset:epochOffset+EpochSize]))
+	ln := NewLeafNodeWithNoComms(serialized[leafStemOffset:leafStemOffset+StemSize], values[:], AccessTimestampFromBytes(serialized[epochOffset:epochOffset+EpochSize]))
 	ln.setDepth(depth)
 	ln.c1 = new(Point)
 	if err := ln.c1.SetBytesUncompressed(serialized[leafStemOffset+StemSize:leafStemOffset+StemSize+banderwagon.UncompressedSize], true); err != nil {
@@ -173,7 +173,7 @@ func parseSingleSlotNode(serialized []byte, depth byte) (VerkleNode, error) {
 	var values [NodeWidth][]byte
 	offset := leafStemOffset
 	epochOffset := leafStemOffset + StemSize + 2*banderwagon.UncompressedSize
-	ln := NewLeafNodeWithNoComms(serialized[offset:offset+StemSize], values[:], StateEpochFromBytes(serialized[epochOffset:epochOffset+EpochSize]))
+	ln := NewLeafNodeWithNoComms(serialized[offset:offset+StemSize], values[:], AccessTimestampFromBytes(serialized[epochOffset:epochOffset+EpochSize]))
 	offset += StemSize
 	cnCommBytes := serialized[offset : offset+banderwagon.UncompressedSize]
 	offset += banderwagon.UncompressedSize

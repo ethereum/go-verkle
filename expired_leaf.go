@@ -25,27 +25,25 @@
 
 package verkle
 
-import (
-	"errors"
-)
-
 type ExpiredLeafNode struct {
 	stem       Stem
 	commitment *Point
 }
 
-var errExpiredLeafNode = errors.New("trying to access an expired leaf node")
-
-func (ExpiredLeafNode) Insert([]byte, []byte, StateEpoch, NodeResolverFn) error {
-	return errExpiredLeafNode
+func NewExpiredLeafNode(stem Stem, commitment *Point) *ExpiredLeafNode {
+	return &ExpiredLeafNode{stem: stem, commitment: commitment}
 }
 
-func (ExpiredLeafNode) Delete([]byte, StateEpoch, NodeResolverFn) (bool, error) {
-	return false, errExpiredLeafNode
+func (ExpiredLeafNode) Insert([]byte, []byte, AccessTimestamp, NodeResolverFn) error {
+	return errEpochExpired
 }
 
-func (ExpiredLeafNode) Get([]byte, StateEpoch, NodeResolverFn) ([]byte, error) {
-	return nil, errExpiredLeafNode
+func (ExpiredLeafNode) Delete([]byte, AccessTimestamp, NodeResolverFn) (bool, error) {
+	return false, errEpochExpired
+}
+
+func (ExpiredLeafNode) Get([]byte, AccessTimestamp, NodeResolverFn) ([]byte, error) {
+	return nil, errEpochExpired
 }
 
 func (n ExpiredLeafNode) Commit() *Point {
@@ -59,12 +57,13 @@ func (n ExpiredLeafNode) Commitment() *Point {
 	return n.commitment
 }
 
+// TODO(weiihann): prove that something was expired, for the block to be able to execute statelessly.
 func (n ExpiredLeafNode) GetProofItems(keylist, NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
-	return nil, nil, nil, errExpiredLeafNode
+	return nil, nil, nil, errEpochExpired
 }
 
 func (n ExpiredLeafNode) Serialize() ([]byte, error) {
-	cBytes := n.commitment.Bytes()
+	cBytes := n.commitment.BytesUncompressedTrusted()
 
 	var buf [expiredLeafSize]byte
 	result := buf[:]

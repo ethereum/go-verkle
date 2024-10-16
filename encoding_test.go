@@ -191,3 +191,35 @@ func TestParseNodeSingleSlot(t *testing.T) {
 		t.Fatalf("invalid commitment, got %x, expected %x", lnd.commitment, ln.commitment)
 	}
 }
+
+func TestParseExpiredLeaf(t *testing.T) {
+	cfg := GetConfig()
+	srs := cfg.conf.SRS
+
+	comm := srs[0]
+	stem := ffx32KeyTest[:31]
+	el := NewExpiredLeafNode(stem, &comm)
+
+	serialized, err := el.Serialize()
+	if err != nil {
+		t.Fatalf("error serializing expired leaf node: %v", err)
+	}
+
+	deserialized, err := ParseNode(serialized, 0)
+	if err != nil {
+		t.Fatalf("error deserializing expired leaf node: %v", err)
+	}
+
+	el2, ok := deserialized.(*ExpiredLeafNode)
+	if !ok {
+		t.Fatalf("expected expired leaf node, got %T", deserialized)
+	}
+
+	if !bytes.Equal(el2.stem, stem) {
+		t.Fatalf("invalid stem, got %x, expected %x", el2.stem, stem)
+	}
+
+	if !el2.commitment.Equal(&comm) {
+		t.Fatalf("invalid commitment, got %x, expected %x", el2.commitment, comm)
+	}
+}

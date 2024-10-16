@@ -13,14 +13,13 @@ import (
 
 // BatchNewLeafNodeData is a struct that contains the data needed to create a new leaf node.
 type BatchNewLeafNodeData struct {
-	Stem      Stem
-	Values    map[byte][]byte
-	LastEpoch StateEpoch
+	Stem   Stem
+	Values map[byte][]byte
 }
 
 // BatchNewLeafNode creates a new leaf node from the given data. It optimizes LeafNode creation
 // by batching expensive cryptography operations. It returns the LeafNodes sorted by stem.
-func BatchNewLeafNode(nodesValues []BatchNewLeafNodeData, curEpoch StateEpoch) ([]LeafNode, error) {
+func BatchNewLeafNode(nodesValues []BatchNewLeafNodeData) ([]LeafNode, error) {
 	cfg := GetConfig()
 	ret := make([]LeafNode, len(nodesValues))
 
@@ -46,7 +45,7 @@ func BatchNewLeafNode(nodesValues []BatchNewLeafNodeData, curEpoch StateEpoch) (
 					}
 
 					var leaf *LeafNode
-					leaf, err := NewLeafNode(nv.Stem, valsslice, nv.LastEpoch)
+					leaf, err := NewLeafNode(nv.Stem, valsslice, 0)
 					if err != nil {
 						return err
 					}
@@ -98,7 +97,7 @@ func firstDiffByteIdx(stem1 []byte, stem2 []byte) int {
 	panic("stems are equal")
 }
 
-func (n *InternalNode) InsertMigratedLeaves(leaves []LeafNode, curEpoch StateEpoch, resolver NodeResolverFn) error {
+func (n *InternalNode) InsertMigratedLeaves(leaves []LeafNode, curTs AccessTimestamp, resolver NodeResolverFn) error {
 	sort.Slice(leaves, func(i, j int) bool {
 		return bytes.Compare(leaves[i].stem, leaves[j].stem) < 0
 	})
@@ -133,13 +132,13 @@ func (n *InternalNode) InsertMigratedLeaves(leaves []LeafNode, curEpoch StateEpo
 			start := currStemFirstByte
 			end := i
 			group.Go(func() error {
-				return n.insertMigratedLeavesSubtree(leaves[start:end], curEpoch, resolver)
+				return n.insertMigratedLeavesSubtree(leaves[start:end], curTs, resolver)
 			})
 			currStemFirstByte = i
 		}
 	}
 	group.Go(func() error {
-		return n.insertMigratedLeavesSubtree(leaves[currStemFirstByte:], curEpoch, resolver)
+		return n.insertMigratedLeavesSubtree(leaves[currStemFirstByte:], curTs, resolver)
 	})
 	if err := group.Wait(); err != nil {
 		return fmt.Errorf("inserting migrated leaves: %w", err)
@@ -148,7 +147,7 @@ func (n *InternalNode) InsertMigratedLeaves(leaves []LeafNode, curEpoch StateEpo
 	return nil
 }
 
-func (n *InternalNode) insertMigratedLeavesSubtree(leaves []LeafNode, curEpoch StateEpoch, resolver NodeResolverFn) error { // skipcq: GO-R1005
+func (n *InternalNode) insertMigratedLeavesSubtree(leaves []LeafNode, curTs AccessTimestamp, resolver NodeResolverFn) error { // skipcq: GO-R1005
 	for i := range leaves {
 		ln := leaves[i]
 		parent := n
@@ -193,7 +192,7 @@ func (n *InternalNode) insertMigratedLeavesSubtree(leaves []LeafNode, curEpoch S
 					}
 				}
 
-				if err := node.updateMultipleLeaves(nonPresentValues, curEpoch); err != nil {
+				if err := node.updateMultipleLeaves(nonPresentValues, curTs); err != nil {
 					return fmt.Errorf("updating leaves: %s", err)
 				}
 				continue
