@@ -53,6 +53,9 @@ type VerkleProof struct {
 }
 
 func (vp *VerkleProof) Copy() *VerkleProof {
+	if vp == nil {
+		return nil
+	}
 	ret := &VerkleProof{
 		OtherStems:            make([][StemSize]byte, len(vp.OtherStems)),
 		DepthExtensionPresent: make([]byte, len(vp.DepthExtensionPresent)),
