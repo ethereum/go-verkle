@@ -197,7 +197,7 @@ func TestParseExpiredLeaf(t *testing.T) {
 	srs := cfg.conf.SRS
 
 	comm := srs[0]
-	stem := ffx32KeyTest[:31]
+	stem := ffx32KeyTest[:StemSize]
 	el := NewExpiredLeafNode(stem, &comm)
 
 	serialized, err := el.Serialize()
