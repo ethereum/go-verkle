@@ -97,7 +97,7 @@ func ParseNode(serializedNode []byte, depth byte) (VerkleNode, error) {
 		return parseEoAccountNode(serializedNode, depth)
 	case singleSlotType:
 		return parseSingleSlotNode(serializedNode, depth)
-	case expiredLeafType: // TODO(weiihann)
+	case expiredLeafType:
 		return parseExpiredLeafNode(serializedNode)
 	default:
 		return nil, ErrInvalidNodeEncoding

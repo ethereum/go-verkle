@@ -657,6 +657,7 @@ func (n *InternalNode) Delete(key []byte, curTs AccessTimestamp, resolver NodeRe
 // DeleteAtStem delete a full stem. Unlike Delete, it will error out if the stem that is to
 // be deleted does not exist in the tree, because it's meant to be used by rollback code,
 // that should only delete things that exist.
+// TODO(weiihann): check if need to compare access timestamp
 func (n *InternalNode) DeleteAtStem(key []byte, resolver NodeResolverFn) (bool, error) {
 	nChild := offset2key(key, n.depth)
 	switch child := n.children[nChild].(type) {
@@ -1196,6 +1197,10 @@ func (n *LeafNode) insertMultiple(stem Stem, values [][]byte, curTs AccessTimest
 	// Sanity check: ensure the stems are the same.
 	if !equalPaths(stem, n.stem) {
 		return errInsertIntoOtherStem
+	}
+
+	if IsExpired(n.lastTs, curTs) {
+		return errEpochExpired
 	}
 
 	if err := n.updateMultipleLeaves(values, curTs); err != nil {
