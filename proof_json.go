@@ -42,6 +42,10 @@ func PrefixedHexStringToBytes(input string) ([]byte, error) {
 	if input[0:2] == "0x" {
 		input = input[2:]
 	}
+	// TODO(jsign): workaround for execution-spec-tests bug. Remove as soon as it's fixed.
+	if len(input)%2 != 0 {
+		input = "0" + input
+	}
 	return hex.DecodeString(input)
 }
 
