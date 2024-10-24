@@ -45,7 +45,7 @@ func TestInsertSameLeafExpired(t *testing.T) {
 	}
 
 	err := root.Insert(oneKeyTest, testValue, 2, nil)
-	if !errors.Is(err, errEpochExpired) {
+	if !errors.Is(err, errExpired) {
 		t.Fatalf("expected epoch expired error when inserting, got %v", err)
 	}
 
@@ -138,7 +138,7 @@ func TestGetExpired(t *testing.T) {
 	}
 
 	val, err := root.Get(zeroKeyTest, 2, nil)
-	if !errors.Is(err, errEpochExpired) {
+	if !errors.Is(err, errExpired) {
 		t.Fatalf("expected epoch expired error when getting, got %v", err)
 	}
 
@@ -156,7 +156,7 @@ func TestGetExpired(t *testing.T) {
 	}
 }
 
-func TestDelLeafNoExpired(t *testing.T) { // skipcq: GO-R1005
+func TestDelLeafNoExpired(t *testing.T) {
 	t.Parallel()
 
 	root := New()
@@ -174,7 +174,7 @@ func TestDelLeafNoExpired(t *testing.T) { // skipcq: GO-R1005
 	}
 }
 
-func TestDelLeafExpired(t *testing.T) { // skipcq: GO-R1005
+func TestDelLeafExpired(t *testing.T) {
 	t.Parallel()
 
 	root := New()
@@ -183,7 +183,7 @@ func TestDelLeafExpired(t *testing.T) { // skipcq: GO-R1005
 	}
 
 	_, err := root.Delete(zeroKeyTest, 2, nil)
-	if !errors.Is(err, errEpochExpired) {
+	if !errors.Is(err, errExpired) {
 		t.Fatalf("expected epoch expired error when deleting, got %v", err)
 	}
 
@@ -219,5 +219,25 @@ func TestRootCommitExpired(t *testing.T) {
 	comm := root.Commit()
 	if !comm.Equal(&init) {
 		t.Fatalf("expected commitment to be %x, got %x", &init, comm)
+	}
+}
+
+func TestRootCommitDiffTimestamp(t *testing.T) {
+	t.Parallel()
+
+	root1 := New()
+	if err := root1.Insert(zeroKeyTest, testValue, 0, nil); err != nil {
+		t.Fatalf("error inserting: %v", err)
+	}
+	comm1 := root1.Commit()
+
+	root2 := New()
+	if err := root2.Insert(zeroKeyTest, testValue, 2, nil); err != nil {
+		t.Fatalf("error inserting: %v", err)
+	}
+	comm2 := root2.Commit()
+
+	if comm1.Equal(comm2) {
+		t.Fatalf("expected different commitments, got %x", comm1)
 	}
 }

@@ -91,7 +91,7 @@ type VerkleNode interface {
 	// returns them breadth-first. On top of that, it returns
 	// one "extension status" per stem, and an alternate stem
 	// if the key is missing but another stem has been found.
-	GetProofItems(keylist, NodeResolverFn) (*ProofElements, []byte, []Stem, error)
+	GetProofItems(keylist, AccessTimestamp, NodeResolverFn) (*ProofElements, []byte, []Stem, error)
 
 	// Serialize encodes the node to RLP.
 	Serialize() ([]byte, error)
@@ -374,10 +374,10 @@ func (n *InternalNode) cowChild(index byte) {
 func (n *InternalNode) Insert(key []byte, value []byte, curTs AccessTimestamp, resolver NodeResolverFn) error {
 	values := make([][]byte, NodeWidth)
 	values[key[StemSize]] = value
-	return n.InsertValuesAtStem(KeyToStem(key), values, curTs, resolver)
+	return n.InsertValuesAtStem(KeyToStem(key), values, curTs, false, resolver)
 }
 
-func (n *InternalNode) InsertValuesAtStem(stem Stem, values [][]byte, curTs AccessTimestamp, resolver NodeResolverFn) error {
+func (n *InternalNode) InsertValuesAtStem(stem Stem, values [][]byte, curTs AccessTimestamp, isResurrect bool, resolver NodeResolverFn) error {
 	nChild := offset2key(stem, n.depth) // index of the child pointed by the next byte in the key
 
 	switch child := n.children[nChild].(type) {
@@ -407,9 +407,21 @@ func (n *InternalNode) InsertValuesAtStem(stem Stem, values [][]byte, curTs Acce
 		n.cowChild(nChild)
 		// recurse to handle the case of a LeafNode child that
 		// splits.
-		return n.InsertValuesAtStem(stem, values, curTs, resolver)
+		return n.InsertValuesAtStem(stem, values, curTs, isResurrect, resolver)
 	case *ExpiredLeafNode:
-		return errEpochExpired
+		if !isResurrect {
+			return errExpired
+		}
+
+		// create a new leaf node with the given values
+		leaf, err := NewLeafNode(stem, values, curTs)
+		if err != nil {
+			return err
+		}
+		leaf.setDepth(n.depth + 1)
+		n.children[nChild] = leaf
+
+		return nil
 	case *LeafNode:
 		if equalPaths(child.stem, stem) {
 			// We can't insert any values into a POA leaf node.
@@ -433,7 +445,7 @@ func (n *InternalNode) InsertValuesAtStem(stem Stem, values [][]byte, curTs Acce
 
 		nextWordInInsertedKey := offset2key(stem, n.depth+1)
 		if nextWordInInsertedKey == nextWordInExistingKey {
-			return newBranch.InsertValuesAtStem(stem, values, curTs, resolver)
+			return newBranch.InsertValuesAtStem(stem, values, curTs, isResurrect, resolver)
 		}
 
 		// Next word differs, so this was the last level.
@@ -447,7 +459,7 @@ func (n *InternalNode) InsertValuesAtStem(stem Stem, values [][]byte, curTs Acce
 		newBranch.children[nextWordInInsertedKey] = leaf
 	case *InternalNode:
 		n.cowChild(nChild)
-		return child.InsertValuesAtStem(stem, values, curTs, resolver)
+		return child.InsertValuesAtStem(stem, values, curTs, isResurrect, resolver)
 	default: // It should be an UknownNode.
 		return errUnknownNodeType
 	}
@@ -527,6 +539,20 @@ func (n *InternalNode) CreatePath(path []byte, stemInfo stemInfo, comms []*Point
 			for b, value := range stemInfo.values {
 				newchild.values[b] = value
 			}
+		case extStatusExpired:
+			if len(comms) == 0 {
+				return comms, fmt.Errorf("missing commitment for stem %x", stemInfo.stem)
+			}
+			if len(stemInfo.stem) != StemSize {
+				return comms, fmt.Errorf("invalid stem size %d", len(stemInfo.stem))
+			}
+			newchild := &ExpiredLeafNode{
+				commitment: comms[0],
+				stem:       stemInfo.stem,
+				depth:      n.depth + 1,
+			}
+			n.children[path[0]] = newchild
+			comms = comms[1:]
 		default:
 			return comms, fmt.Errorf("invalid stem type %d", stemInfo.stemType)
 		}
@@ -582,10 +608,10 @@ func (n *InternalNode) GetValuesAtStem(stem Stem, curTs AccessTimestamp, resolve
 		// splits.
 		return n.GetValuesAtStem(stem, curTs, resolver)
 	case *ExpiredLeafNode:
-		return nil, errEpochExpired
+		return nil, errExpired
 	case *LeafNode:
 		if IsExpired(child.lastTs, curTs) {
-			return nil, errEpochExpired
+			return nil, errExpired
 		}
 
 		if equalPaths(child.stem, stem) {
@@ -625,7 +651,7 @@ func (n *InternalNode) Delete(key []byte, curTs AccessTimestamp, resolver NodeRe
 		n.children[nChild] = c
 		return n.Delete(key, curTs, resolver)
 	case *ExpiredLeafNode:
-		return false, errEpochExpired
+		return false, errExpired
 	default:
 		n.cowChild(nChild)
 		del, err := child.Delete(key, curTs, resolver)
@@ -679,7 +705,7 @@ func (n *InternalNode) DeleteAtStem(key []byte, resolver NodeResolverFn) (bool, 
 		n.children[nChild] = c
 		return n.DeleteAtStem(key, resolver)
 	case *ExpiredLeafNode:
-		return false, errEpochExpired
+		return false, errExpired
 	case *LeafNode:
 		if !bytes.Equal(child.stem, key[:31]) {
 			return false, errDeleteMissing
@@ -963,7 +989,7 @@ func groupKeys(keys keylist, depth byte) []keylist {
 	return groups
 }
 
-func (n *InternalNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
+func (n *InternalNode) GetProofItems(keys keylist, curTs AccessTimestamp, resolver NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
 	var (
 		groups = groupKeys(keys, n.depth)
 		pe     = &ProofElements{
@@ -1034,15 +1060,13 @@ func (n *InternalNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*Pr
 	for _, group := range groups {
 		childIdx := offset2key(group[0], n.depth)
 
-		if _, isunknown := n.children[childIdx].(UnknownNode); isunknown {
+		switch n.children[childIdx].(type) {
+		case UnknownNode:
 			// TODO: add a test case to cover this scenario.
 			return nil, nil, nil, errMissingNodeInStateless
-		}
-
-		// Special case of a proof of absence: no children
-		// commitment, as the value is 0.
-		_, isempty := n.children[childIdx].(Empty)
-		if isempty {
+		case Empty:
+			// Special case of a proof of absence: no children
+			// commitment, as the value is 0.
 			addedStems := map[string]struct{}{}
 			for i := 0; i < len(group); i++ {
 				stemStr := string(KeyToStem(group[i]))
@@ -1060,7 +1084,7 @@ func (n *InternalNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*Pr
 			continue
 		}
 
-		pec, es, other, err := n.children[childIdx].GetProofItems(group, resolver)
+		pec, es, other, err := n.children[childIdx].GetProofItems(group, curTs, resolver)
 		if err != nil {
 			// TODO: add a test case to cover this scenario.
 			return nil, nil, nil, err
@@ -1181,7 +1205,7 @@ func (n *LeafNode) Insert(key []byte, value []byte, curTs AccessTimestamp, _ Nod
 	}
 
 	if IsExpired(n.lastTs, curTs) {
-		return errEpochExpired
+		return errExpired
 	}
 
 	stem := KeyToStem(key)
@@ -1200,7 +1224,7 @@ func (n *LeafNode) insertMultiple(stem Stem, values [][]byte, curTs AccessTimest
 	}
 
 	if IsExpired(n.lastTs, curTs) {
-		return errEpochExpired
+		return errExpired
 	}
 
 	if err := n.updateMultipleLeaves(values, curTs); err != nil {
@@ -1367,7 +1391,7 @@ func (n *LeafNode) Delete(k []byte, curTs AccessTimestamp, _ NodeResolverFn) (bo
 	}
 
 	if IsExpired(n.lastTs, curTs) {
-		return false, errEpochExpired
+		return false, errExpired
 	}
 
 	// Erase the value it used to contain
@@ -1552,7 +1576,7 @@ func leafToComms(poly []Fr, val []byte) error {
 	return nil
 }
 
-func (n *LeafNode) GetProofItems(keys keylist, _ NodeResolverFn) (*ProofElements, []byte, []Stem, error) { // skipcq: GO-R1005
+func (n *LeafNode) GetProofItems(keys keylist, curTs AccessTimestamp, resolver NodeResolverFn) (*ProofElements, []byte, []Stem, error) { // skipcq: GO-R1005
 	var (
 		poly [NodeWidth]Fr // top-level polynomial
 		pe                 = &ProofElements{
@@ -1565,10 +1589,23 @@ func (n *LeafNode) GetProofItems(keys keylist, _ NodeResolverFn) (*ProofElements
 		}
 
 		esses []byte = nil // list of extension statuses
-		poass []Stem       // list of proof-of-absence stems
+		poass []Stem       // list of proof-of-absence and proof-of-expiry stems
 	)
 
-	// Initialize the top-level polynomial with 1 + stem + C1 + C2
+	// If the leaf node is expired, generate the proof of expiry.
+	if IsExpired(n.lastTs, curTs) {
+		for i := range keys {
+			pe.ByPath[string(keys[i][:n.depth])] = n.commitment
+			pe.Vals[i] = nil
+
+			esses = append(esses, extStatusExpired|(n.depth<<3))
+			poass = append(poass, n.stem)
+		}
+
+		return &ProofElements{}, esses, poass, nil
+	}
+
+	// Initialize the top-level polynomial with 1 + stem + C1 + C2 + lastTs
 	poly[0].SetUint64(1)
 	if err := StemFromLEBytes(&poly[1], n.stem); err != nil {
 		return nil, nil, nil, fmt.Errorf("error serializing stem '%x': %w", n.stem, err)
@@ -1616,11 +1653,20 @@ func (n *LeafNode) GetProofItems(keys keylist, _ NodeResolverFn) (*ProofElements
 		pe.Fis = append(pe.Fis, poly[:])
 	}
 
+	// add last accessed timestamp
+	poly[4].SetUint64(uint64(n.lastTs))
+	pe.Cis = append(pe.Cis, n.commitment)
+	pe.Zis = append(pe.Zis, 4)
+	pe.Yis = append(pe.Yis, &poly[4])
+	pe.Fis = append(pe.Fis, poly[:])
+
 	addedStems := map[string]struct{}{}
 
 	// Second pass: add the cn-level elements
 	for _, key := range keys {
 		pe.ByPath[string(key[:n.depth])] = n.commitment
+
+		stemStr := string(KeyToStem(key))
 
 		// Proof of absence: case of a differing stem.
 		if !equalPaths(n.stem, key) {
@@ -1634,7 +1680,6 @@ func (n *LeafNode) GetProofItems(keys keylist, _ NodeResolverFn) (*ProofElements
 			// Add an extension status absent other for this stem.
 			// Note we keep a cache to avoid adding the same stem twice (or more) if
 			// there're multiple keys with the same stem.
-			stemStr := string(KeyToStem(key))
 			if _, ok := addedStems[stemStr]; !ok {
 				esses = append(esses, extStatusAbsentOther|(n.depth<<3))
 				addedStems[stemStr] = struct{}{}
@@ -1690,7 +1735,6 @@ func (n *LeafNode) GetProofItems(keys keylist, _ NodeResolverFn) (*ProofElements
 		pe.Fis = append(pe.Fis, suffPoly[:], suffPoly[:])
 		pe.Vals = append(pe.Vals, n.values[key[StemSize]])
 
-		stemStr := string(KeyToStem(key))
 		if _, ok := addedStems[stemStr]; !ok {
 			esses = append(esses, extStatusPresent|(n.depth<<3))
 			addedStems[stemStr] = struct{}{}

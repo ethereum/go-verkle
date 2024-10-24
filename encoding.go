@@ -98,7 +98,7 @@ func ParseNode(serializedNode []byte, depth byte) (VerkleNode, error) {
 	case singleSlotType:
 		return parseSingleSlotNode(serializedNode, depth)
 	case expiredLeafType:
-		return parseExpiredLeafNode(serializedNode)
+		return parseExpiredLeafNode(serializedNode, depth)
 	default:
 		return nil, ErrInvalidNodeEncoding
 	}
@@ -203,9 +203,10 @@ func parseSingleSlotNode(serialized []byte, depth byte) (VerkleNode, error) {
 	return ln, nil
 }
 
-func parseExpiredLeafNode(serialized []byte) (VerkleNode, error) {
+func parseExpiredLeafNode(serialized []byte, depth byte) (VerkleNode, error) {
 	l := &ExpiredLeafNode{}
 	l.stem = serialized[leafStemOffset : leafStemOffset+StemSize]
+	l.setDepth(depth)
 	l.commitment = new(Point)
 	if err := l.commitment.SetBytesUncompressed(serialized[leafStemOffset+StemSize:], true); err != nil {
 		return nil, fmt.Errorf("setting commitment: %w", err)

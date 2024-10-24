@@ -126,6 +126,7 @@ type SuffixStateDiffs []SuffixStateDiff
 type StemStateDiff struct {
 	Stem        [StemSize]byte   `json:"stem"`
 	SuffixDiffs SuffixStateDiffs `json:"suffixDiffs"`
+	Resurrected bool             `json:"resurrected"`
 }
 
 type StateDiff []StemStateDiff
@@ -135,6 +136,7 @@ func (sd StateDiff) Copy() StateDiff {
 	for i := range sd {
 		copy(ret[i].Stem[:], sd[i].Stem[:])
 		ret[i].SuffixDiffs = make([]SuffixStateDiff, len(sd[i].SuffixDiffs))
+		ret[i].Resurrected = sd[i].Resurrected
 		for j := range sd[i].SuffixDiffs {
 			ret[i].SuffixDiffs[j].Suffix = sd[i].SuffixDiffs[j].Suffix
 			if sd[i].SuffixDiffs[j].CurrentValue != nil {
@@ -186,20 +188,20 @@ func (sd StateDiff) Equal(other StateDiff) error {
 
 func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte, resolver NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
 	sort.Sort(keylist(keys))
-	return root.GetProofItems(keylist(keys), resolver)
+	return root.GetProofItems(keylist(keys), curTs, resolver)
 }
 
 // getProofElementsFromTree factors the logic that is used both in the proving and verification methods. It takes a pre-state
 // tree and an optional post-state tree, extracts the proof data from them and returns all the items required to build/verify
 // a proof.
-func getProofElementsFromTree(preroot, postroot VerkleNode, keys [][]byte, curTs AccessTimestamp, resolver NodeResolverFn) (*ProofElements, []byte, []Stem, [][]byte, error) {
+func getProofElementsFromTree(preroot, postroot VerkleNode, keys [][]byte, preTs, postTs AccessTimestamp, resolver NodeResolverFn) (*ProofElements, []byte, []Stem, [][]byte, error) {
 	// go-ipa won't accept no key as an input, catch this corner case
 	// and return an empty result.
 	if len(keys) == 0 {
 		return nil, nil, nil, nil, errors.New("no key provided for proof")
 	}
 
-	pe, es, poas, err := GetCommitmentsForMultiproof(preroot, keys, resolver)
+	pe, es, poas, err := GetCommitmentsForMultiproof(preroot, keys, preTs, resolver)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("error getting pre-state proof data: %w", err)
 	}
@@ -211,7 +213,7 @@ func getProofElementsFromTree(preroot, postroot VerkleNode, keys [][]byte, curTs
 		// keys were sorted already in the above GetcommitmentsForMultiproof.
 		// Set the post values, if they are untouched, leave them `nil`
 		for i := range keys {
-			val, err := postroot.Get(keys[i], curTs, resolver)
+			val, err := postroot.Get(keys[i], postTs, resolver)
 			if err != nil {
 				return nil, nil, nil, nil, fmt.Errorf("error getting post-state value for key %x: %w", keys[i], err)
 			}
@@ -226,8 +228,8 @@ func getProofElementsFromTree(preroot, postroot VerkleNode, keys [][]byte, curTs
 	return pe, es, poas, postvals, nil
 }
 
-func MakeVerkleMultiProof(preroot, postroot VerkleNode, keys [][]byte, curTs AccessTimestamp, resolver NodeResolverFn) (*Proof, []*Point, []byte, []*Fr, error) {
-	pe, es, poas, postvals, err := getProofElementsFromTree(preroot, postroot, keys, curTs, resolver)
+func MakeVerkleMultiProof(preroot, postroot VerkleNode, keys [][]byte, preTs, postTs AccessTimestamp, resolver NodeResolverFn) (*Proof, []*Point, []byte, []*Fr, error) {
+	pe, es, poas, postvals, err := getProofElementsFromTree(preroot, postroot, keys, preTs, postTs, resolver)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("get commitments for multiproof: %s", err)
 	}
@@ -269,8 +271,8 @@ func MakeVerkleMultiProof(preroot, postroot VerkleNode, keys [][]byte, curTs Acc
 }
 
 // verifyVerkleProofWithPreState takes a proof and a trusted tree root and verifies that the proof is valid.
-func verifyVerkleProofWithPreState(proof *Proof, preroot VerkleNode, curTs AccessTimestamp) error {
-	pe, _, _, _, err := getProofElementsFromTree(preroot, nil, proof.Keys, curTs, nil)
+func verifyVerkleProofWithPreState(proof *Proof, preroot VerkleNode, preTs AccessTimestamp) error {
+	pe, _, _, _, err := getProofElementsFromTree(preroot, nil, proof.Keys, preTs, 0, nil)
 	if err != nil {
 		return fmt.Errorf("error getting proof elements: %w", err)
 	}
@@ -316,13 +318,21 @@ func SerializeProof(proof *Proof) (*VerkleProof, StateDiff, error) {
 
 	var stemdiff *StemStateDiff
 	var statediff StateDiff
+	var checkResurrect bool
+	var curExtStatus byte
+
+	curEsInd := -1 // index of the current extension status
 	for i, key := range proof.Keys {
 		stem := KeyToStem(key)
 		if stemdiff == nil || !bytes.Equal(stemdiff.Stem[:], stem) {
 			statediff = append(statediff, StemStateDiff{})
 			stemdiff = &statediff[len(statediff)-1]
 			copy(stemdiff.Stem[:], stem)
+			checkResurrect = true
+			curEsInd += 1
+			curExtStatus = proof.ExtStatus[curEsInd]
 		}
+
 		stemdiff.SuffixDiffs = append(stemdiff.SuffixDiffs, SuffixStateDiff{Suffix: key[StemSize]})
 		newsd := &stemdiff.SuffixDiffs[len(stemdiff.SuffixDiffs)-1]
 
@@ -349,6 +359,13 @@ func SerializeProof(proof *Proof) (*VerkleProof, StateDiff, error) {
 			var aligned [32]byte
 			copy(aligned[:valueLen], proof.PostValues[i])
 			newsd.NewValue = (*[32]byte)(unsafe.Pointer(&aligned[0]))
+		}
+
+		// if the current extension status is expired and the post value is not nil,
+		// then it means that the leaf has been resurrected.
+		if checkResurrect && (curExtStatus&3 == extStatusExpired) && (proof.PostValues[i] != nil) {
+			stemdiff.Resurrected = true
+			checkResurrect = false
 		}
 	}
 
@@ -544,6 +561,16 @@ func PreStateTreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) { // 
 					si.has_c2 = si.has_c2 || (k[StemSize] >= 128)
 				}
 			}
+		case extStatusExpired:
+			// All keys that are part of a proof of expiry, must contain empty
+			// prestate values. If that isn't the case, the proof is invalid.
+			for j := range proof.Keys { // TODO: DoS risk, use map or binary search.
+				if bytes.HasPrefix(proof.Keys[j], stems[i]) && proof.PreValues[j] != nil {
+					return nil, fmt.Errorf("proof of absence (empty) stem %x has a value", si.stem)
+				}
+			}
+			si.stem = poas[0]
+			poas = poas[1:]
 		default:
 			return nil, fmt.Errorf("invalid extension status: %d", si.stemType)
 		}
@@ -585,7 +612,7 @@ func PreStateTreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) { // 
 
 // PostStateTreeFromProof uses the pre-state trie and the list of updated values
 // to produce the stateless post-state trie.
-func PostStateTreeFromStateDiff(preroot VerkleNode, statediff StateDiff) (VerkleNode, error) {
+func PostStateTreeFromStateDiff(preroot VerkleNode, statediff StateDiff, postTs AccessTimestamp) (VerkleNode, error) {
 	postroot := preroot.Copy()
 
 	for _, stemstatediff := range statediff {
@@ -606,8 +633,7 @@ func PostStateTreeFromStateDiff(preroot VerkleNode, statediff StateDiff) (Verkle
 		if overwrites {
 			var stem [StemSize]byte
 			copy(stem[:StemSize], stemstatediff.Stem[:])
-			// TODO(weiihann): double check the epoch
-			if err := postroot.(*InternalNode).InsertValuesAtStem(stem[:], values, 0, nil); err != nil {
+			if err := postroot.(*InternalNode).InsertValuesAtStem(stem[:], values, postTs, stemstatediff.Resurrected, nil); err != nil {
 				return nil, fmt.Errorf("error overwriting value in post state: %w", err)
 			}
 		}
@@ -666,7 +692,7 @@ func Verify(vp *VerkleProof, preStateRoot []byte, postStateRoot []byte, statedif
 	// But all this can be avoided with a even faster way. The EVM block execution can
 	// keep track of the written keys, and compare that list with this post-values list.
 	// This can avoid regenerating the post-tree which is somewhat expensive.
-	posttree, err := PostStateTreeFromStateDiff(pretree, statediff)
+	posttree, err := PostStateTreeFromStateDiff(pretree, statediff, curTs)
 	if err != nil {
 		return fmt.Errorf("error rebuilding the post-tree from proof: %w", err)
 	}

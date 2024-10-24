@@ -24,7 +24,7 @@ func TestUnknownFuncs(t *testing.T) {
 	if comm := un.Commitment(); !comm.Equal(&identity) {
 		t.Errorf("got %v, want identity", comm)
 	}
-	if _, _, _, err := un.GetProofItems(nil, nil); err == nil {
+	if _, _, _, err := un.GetProofItems(nil, 0, nil); err == nil {
 		t.Errorf("got nil error when getting proof items from a hashed node")
 	}
 	if _, err := un.Serialize(); err == nil {

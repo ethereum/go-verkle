@@ -38,7 +38,7 @@ var (
 	errUnknownNodeType        = errors.New("unknown node type detected")
 	errMissingNodeInStateless = errors.New("trying to access a node that is missing from the stateless view")
 	errIsPOAStub              = errors.New("trying to read/write a proof of absence leaf node")
-	errEpochExpired           = errors.New("trying to access an expired leaf node")
+	errExpired                = errors.New("trying to access an expired leaf node")
 )
 
 const (
@@ -46,4 +46,5 @@ const (
 	extStatusAbsentEmpty = byte(iota) // missing child node along the path
 	extStatusAbsentOther              // path led to a node with a different stem
 	extStatusPresent                  // stem was present
+	extStatusExpired                  // stem was present but expired
 )

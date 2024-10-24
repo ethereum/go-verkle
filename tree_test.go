@@ -500,7 +500,7 @@ func TestDeletePrune(t *testing.T) { // skipcq: GO-R1005
 // their hashed values. It then tries to delete the hashed values, which should
 // fail.
 func TestDeleteHash(t *testing.T) {
-	// TODO: fix this test when we take a final decision about FlushAtDepth API.
+	//TODO: fix this test when we take a final decision about FlushAtDepth API.
 	t.SkipNow()
 
 	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
@@ -544,7 +544,7 @@ func TestDeleteUnequalPath(t *testing.T) {
 }
 
 func TestDeleteResolve(t *testing.T) {
-	// TODO: fix this test when we take a final decision about FlushAtDepth API.
+	//TODO: fix this test when we take a final decision about FlushAtDepth API.
 	t.SkipNow()
 
 	key1, _ := hex.DecodeString("0105000000000000000000000000000000000000000000000000000000000000")
@@ -851,7 +851,7 @@ func isLeafEqual(a, b *LeafNode) bool {
 }
 
 func TestGetResolveFromHash(t *testing.T) {
-	// TODO: fix this test when we take a final decision about FlushAtDepth API.
+	//TODO: fix this test when we take a final decision about FlushAtDepth API.
 	t.SkipNow()
 
 	var count uint
@@ -926,7 +926,7 @@ func TestGetKey(t *testing.T) {
 }
 
 func TestInsertIntoHashedNode(t *testing.T) {
-	// TODO: fix this test when we take a final decision about FlushAtDepth API.
+	//TODO: fix this test when we take a final decision about FlushAtDepth API.
 	t.SkipNow()
 
 	root := New()
@@ -1025,7 +1025,7 @@ func TestEmptyCommitment(t *testing.T) {
 		t.Fatalf("inserting into the original failed: %v", err)
 	}
 	root.Commit()
-	pe, _, _, err := root.GetProofItems(keylist{ffx32KeyTest}, nil)
+	pe, _, _, err := root.GetProofItems(keylist{ffx32KeyTest}, 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1092,7 +1092,7 @@ func TestGetProofItemsNoPoaIfStemPresent(t *testing.T) {
 	key1, _ := hex.DecodeString("ffff00ffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
 	key2, _ := hex.DecodeString("ffffff00ffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
 
-	_, esses, poas, err := root.GetProofItems(keylist{key1, key2, ffx32KeyTest}, nil)
+	_, esses, poas, err := root.GetProofItems(keylist{key1, key2, ffx32KeyTest}, 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1150,7 +1150,7 @@ func TestInsertStem(t *testing.T) {
 	values[5] = zeroKeyTest
 	values[192] = fourtyKeyTest
 
-	if err := root1.(*InternalNode).InsertValuesAtStem(KeyToStem(fourtyKeyTest), values, 0, nil); err != nil {
+	if err := root1.(*InternalNode).InsertValuesAtStem(KeyToStem(fourtyKeyTest), values, 0, false, nil); err != nil {
 		t.Fatalf("error inserting: %s", err)
 	}
 	r1c := root1.Commit()
@@ -1198,7 +1198,7 @@ func TestInsertStemTouchingBothHalves(t *testing.T) {
 	newValues := make([][]byte, NodeWidth)
 	newValues[1] = testValue
 	newValues[NodeWidth-2] = testValue
-	if err := root.(*InternalNode).InsertValuesAtStem(KeyToStem(zeroKeyTest), newValues, 0, nil); err != nil {
+	if err := root.(*InternalNode).InsertValuesAtStem(KeyToStem(zeroKeyTest), newValues, 0, false, nil); err != nil {
 		t.Fatalf("error inserting stem: %v", err)
 	}
 	root.Commit()
@@ -1347,7 +1347,7 @@ func TestRustBanderwagonBlock48(t *testing.T) {
 
 	r := tree.Commit()
 
-	proof, cis, zis, yis, _ := MakeVerkleMultiProof(tree, nil, keys, 0, nil)
+	proof, cis, zis, yis, _ := MakeVerkleMultiProof(tree, nil, keys, 0, 0, nil)
 	vp, statediff, err := SerializeProof(proof)
 	if err != nil {
 		t.Fatal(err)
@@ -1368,7 +1368,7 @@ func TestRustBanderwagonBlock48(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pe, _, _, err := droot.GetProofItems(keys, nil)
+	pe, _, _, err := droot.GetProofItems(keylist(keys), 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1723,7 +1723,7 @@ const (
 // Generate implements the quick.Generator interface from testing/quick
 // to generate random test cases.
 func (randTest) Generate(r *mRandV1.Rand, size int) reflect.Value {
-	finishedFn := func() bool {
+	var finishedFn = func() bool {
 		if size == 0 {
 			return true
 		}
@@ -1735,7 +1735,7 @@ func (randTest) Generate(r *mRandV1.Rand, size int) reflect.Value {
 
 func generateSteps(finished func() bool, r io.Reader) randTest {
 	var allKeys [][]byte
-	tmp := []byte{0}
+	var tmp = []byte{0}
 	genKey := func() []byte {
 		_, err := r.Read(tmp)
 		if err != nil {
@@ -1819,7 +1819,7 @@ func runRandTest(rt randTest) error {
 				continue
 			}
 			root.Commit()
-			proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, nil, keys, 0, nil)
+			proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, nil, keys, 0, 0, nil)
 			if ok, err := verifyVerkleProof(proof, cis, zis, yis, cfg); !ok || err != nil {
 				rt[i].err = fmt.Errorf("could not verify verkle proof: %s, err %v", ToDot(root), err)
 			}

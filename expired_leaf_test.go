@@ -14,17 +14,17 @@ func TestExpiredLeafBasic(t *testing.T) {
 	leaf := NewExpiredLeafNode(zeroKeyTest[:StemSize], &comm)
 
 	err := leaf.Insert(zeroKeyTest, zeroKeyTest, 0, nil)
-	if !errors.Is(err, errEpochExpired) {
+	if !errors.Is(err, errExpired) {
 		t.Fatalf("expected epoch expired error when inserting, got %v", err)
 	}
 
 	_, err = leaf.Delete(zeroKeyTest, 0, nil)
-	if !errors.Is(err, errEpochExpired) {
+	if !errors.Is(err, errExpired) {
 		t.Fatalf("expected epoch expired error when deleting, got %v", err)
 	}
 
 	v, err := leaf.Get(zeroKeyTest, 0, nil)
-	if !errors.Is(err, errEpochExpired) {
+	if !errors.Is(err, errExpired) {
 		t.Fatalf("expected epoch expired error when getting, got %v", err)
 	}
 	if v != nil {

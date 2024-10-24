@@ -28,41 +28,58 @@ package verkle
 type ExpiredLeafNode struct {
 	stem       Stem
 	commitment *Point
+	depth      byte // used for proof only, not commitment calculation
 }
 
 func NewExpiredLeafNode(stem Stem, commitment *Point) *ExpiredLeafNode {
 	return &ExpiredLeafNode{stem: stem, commitment: commitment}
 }
 
-func (ExpiredLeafNode) Insert([]byte, []byte, AccessTimestamp, NodeResolverFn) error {
-	return errEpochExpired
+func (n *ExpiredLeafNode) Insert([]byte, []byte, AccessTimestamp, NodeResolverFn) error {
+	return errExpired
 }
 
-func (ExpiredLeafNode) Delete([]byte, AccessTimestamp, NodeResolverFn) (bool, error) {
-	return false, errEpochExpired
+func (n *ExpiredLeafNode) Delete([]byte, AccessTimestamp, NodeResolverFn) (bool, error) {
+	return false, errExpired
 }
 
-func (ExpiredLeafNode) Get([]byte, AccessTimestamp, NodeResolverFn) ([]byte, error) {
-	return nil, errEpochExpired
+func (n *ExpiredLeafNode) Get([]byte, AccessTimestamp, NodeResolverFn) ([]byte, error) {
+	return nil, errExpired
 }
 
-func (n ExpiredLeafNode) Commit() *Point {
+func (n *ExpiredLeafNode) Commit() *Point {
 	if n.commitment == nil {
 		panic("nil commitment")
 	}
 	return n.commitment
 }
 
-func (n ExpiredLeafNode) Commitment() *Point {
+func (n *ExpiredLeafNode) Commitment() *Point {
 	return n.commitment
 }
 
-// TODO(weiihann): prove that something was expired, for the block to be able to execute statelessly.
-func (n ExpiredLeafNode) GetProofItems(keylist, NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
-	return nil, nil, nil, errEpochExpired
+func (n *ExpiredLeafNode) GetProofItems(keys keylist, curTs AccessTimestamp, resolver NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
+	var (
+		pe = &ProofElements{
+			Vals:   make([][]byte, len(keys)),
+			ByPath: map[string]*Point{},
+		}
+		esses []byte = nil
+		poass []Stem
+	)
+
+	for i := range keys {
+		pe.ByPath[string(keys[i][:n.depth])] = n.commitment
+		pe.Vals[i] = nil
+
+		esses = append(esses, extStatusExpired|(n.depth<<3))
+		poass = append(poass, n.stem)
+	}
+
+	return pe, esses, poass, nil
 }
 
-func (n ExpiredLeafNode) Serialize() ([]byte, error) {
+func (n *ExpiredLeafNode) Serialize() ([]byte, error) {
 	cBytes := n.commitment.BytesUncompressedTrusted()
 
 	var buf [expiredLeafSize]byte
@@ -74,10 +91,11 @@ func (n ExpiredLeafNode) Serialize() ([]byte, error) {
 	return result, nil
 }
 
-func (n ExpiredLeafNode) Copy() VerkleNode {
+func (n *ExpiredLeafNode) Copy() VerkleNode {
 	l := &ExpiredLeafNode{}
 	l.stem = make(Stem, len(n.stem))
-
+	l.depth = n.depth
+	copy(l.stem, n.stem)
 	if n.commitment != nil {
 		l.commitment = new(Point)
 		l.commitment.Set(n.commitment)
@@ -86,15 +104,15 @@ func (n ExpiredLeafNode) Copy() VerkleNode {
 	return l
 }
 
-func (n ExpiredLeafNode) toDot(string, string) string {
+func (n *ExpiredLeafNode) toDot(string, string) string {
 	return ""
 }
 
-func (n ExpiredLeafNode) setDepth(_ byte) {
-	panic("should not be try to set the depth of an ExpiredLeafNode node")
+func (n *ExpiredLeafNode) setDepth(d byte) {
+	n.depth = d
 }
 
-func (n ExpiredLeafNode) Hash() *Fr {
+func (n *ExpiredLeafNode) Hash() *Fr {
 	var hash Fr
 	n.commitment.MapToScalarField(&hash)
 	return &hash

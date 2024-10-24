@@ -104,7 +104,7 @@ func (n *InternalNode) InsertMigratedLeaves(leaves []LeafNode, curTs AccessTimes
 
 	// We first mark all children of the subtreess that we'll update in parallel,
 	// so the subtree updating doesn't produce a concurrent access to n.cowChild(...).
-	lastChildrenIdx := -1
+	var lastChildrenIdx = -1
 	for i := range leaves {
 		if int(leaves[i].stem[0]) != lastChildrenIdx {
 			lastChildrenIdx = int(leaves[i].stem[0])
