@@ -29,15 +29,15 @@ import "errors"
 
 type UnknownNode struct{}
 
-func (UnknownNode) Insert([]byte, []byte, NodeResolverFn) error {
+func (UnknownNode) Insert([]byte, []byte, AccessTimestamp, NodeResolverFn) error {
 	return errMissingNodeInStateless
 }
 
-func (UnknownNode) Delete([]byte, NodeResolverFn) (bool, error) {
+func (UnknownNode) Delete([]byte, AccessTimestamp, NodeResolverFn) (bool, error) {
 	return false, errors.New("cant delete in a subtree missing form a stateless view")
 }
 
-func (UnknownNode) Get([]byte, NodeResolverFn) ([]byte, error) {
+func (UnknownNode) Get([]byte, AccessTimestamp, NodeResolverFn) ([]byte, error) {
 	return nil, nil
 }
 
@@ -51,7 +51,7 @@ func (UnknownNode) Commitment() *Point {
 	return &id
 }
 
-func (UnknownNode) GetProofItems(keylist, NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
+func (UnknownNode) GetProofItems(keylist, AccessTimestamp, NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
 	return nil, nil, nil, errors.New("can't generate proof items for unknown node")
 }
 
