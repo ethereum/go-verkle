@@ -1845,7 +1845,7 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 	children := make([]byte, 0, NodeWidth*LeafValueSize)
 	var (
 		bitlist        [bitlistSize]byte
-		isEoA          = true
+		isEoA          = false // TODO: EoA serialization optimization is broken -- re-enable when fixed.
 		count, lastIdx int
 	)
 	for i, v := range n.values {
@@ -1882,6 +1882,9 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 			}
 		}
 	}
+
+	// TODO: single slot serialization optimization is apparently broken -- force disabling it until is fixed.
+	count = 256
 
 	// Create the serialization.
 	var result []byte
