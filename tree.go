@@ -1654,8 +1654,8 @@ func (n *LeafNode) GetProofItems(keys keylist, curEpoch StateEpoch, resolver Nod
 		pe.Fis = append(pe.Fis, poly[:])
 	}
 
-	// add last accessed epoch
 	poly[4].SetUint64(uint64(n.lastEpoch))
+	
 	pe.Cis = append(pe.Cis, n.commitment)
 	pe.Zis = append(pe.Zis, 4)
 	pe.Yis = append(pe.Yis, &poly[4])
