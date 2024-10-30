@@ -25,6 +25,10 @@
 
 package verkle
 
+import (
+	"fmt"
+)
+
 type ExpiredLeafNode struct {
 	stem       Stem
 	commitment *Point
@@ -104,8 +108,10 @@ func (n *ExpiredLeafNode) Copy() VerkleNode {
 	return l
 }
 
-func (n *ExpiredLeafNode) toDot(string, string) string {
-	return ""
+func (n *ExpiredLeafNode) toDot(parent, path string) string {
+	var hash Fr
+	n.Commitment().MapToScalarField(&hash)
+	return fmt.Sprintf("expired%s [label=\"EL: %x\nC: %x\nStem: %x\"]\n%s -> leaf%s\n", path, hash.Bytes(), n.commitment.Bytes(), n.stem, parent, path)
 }
 
 func (n *ExpiredLeafNode) setDepth(d byte) {
