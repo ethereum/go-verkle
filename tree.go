@@ -2013,7 +2013,7 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 
 	// Create the serialization.
 	var result []byte
-	lastEpoch := make([]byte, EpochSize)
+	lastEpoch := make([]byte, epochSize)
 	binary.BigEndian.PutUint64(lastEpoch, uint64(n.lastEpoch))
 	switch {
 	case count == 1:
@@ -2024,8 +2024,8 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 		copy(result[leafStemOffset+StemSize:], c1Bytes[:])
 		copy(result[leafStemOffset+StemSize+banderwagon.UncompressedSize:], cBytes[:])
 		copy(result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize:], lastEpoch)
-		result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize+EpochSize] = byte(lastIdx)
-		copy(result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize+EpochSize+leafValueIndexSize:], n.values[lastIdx][:])
+		result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize+epochSize] = byte(lastIdx)
+		copy(result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize+epochSize+leafValueIndexSize:], n.values[lastIdx][:])
 	case isEoA:
 		var buf [eoaLeafSize]byte
 		result = buf[:]
@@ -2034,10 +2034,10 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 		copy(result[leafStemOffset+StemSize:], c1Bytes[:])
 		copy(result[leafStemOffset+StemSize+banderwagon.UncompressedSize:], cBytes[:])
 		copy(result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize:], lastEpoch)
-		copy(result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize+EpochSize:], n.values[1])                                 // copy balance
-		copy(result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize+EpochSize+leafBalanceSize:], n.values[2][:leafNonceSize]) // copy nonce
+		copy(result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize+epochSize:], n.values[1])                                 // copy balance
+		copy(result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize+epochSize+leafBalanceSize:], n.values[2][:leafNonceSize]) // copy nonce
 	default:
-		result = make([]byte, nodeTypeSize+StemSize+bitlistSize+3*banderwagon.UncompressedSize+EpochSize+len(children))
+		result = make([]byte, nodeTypeSize+StemSize+bitlistSize+3*banderwagon.UncompressedSize+epochSize+len(children))
 		result[0] = leafType
 		copy(result[leafStemOffset:], n.stem[:StemSize])
 		copy(result[leafBitlistOffset:], bitlist[:])
