@@ -58,7 +58,7 @@ func (HashedNode) Commitment() *Point {
 	panic("can not get commitment of a hash node")
 }
 
-func (HashedNode) GetProofItems(keylist, StateEpoch, NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
+func (HashedNode) GetProofItems(keylist, NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
 	return nil, nil, nil, errors.New("can not get the full path, and there is no proof of absence")
 }
 

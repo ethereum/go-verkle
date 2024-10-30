@@ -188,20 +188,20 @@ func (sd StateDiff) Equal(other StateDiff) error {
 
 func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte, resolver NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
 	sort.Sort(keylist(keys))
-	return root.GetProofItems(keylist(keys), curEpoch, resolver)
+	return root.GetProofItems(keylist(keys), resolver)
 }
 
 // getProofElementsFromTree factors the logic that is used both in the proving and verification methods. It takes a pre-state
 // tree and an optional post-state tree, extracts the proof data from them and returns all the items required to build/verify
 // a proof.
-func getProofElementsFromTree(preroot, postroot VerkleNode, keys [][]byte, preEpoch, postEpoch StateEpoch, resolver NodeResolverFn) (*ProofElements, []byte, []Stem, [][]byte, error) {
+func getProofElementsFromTree(preroot, postroot VerkleNode, keys [][]byte, postEpoch StateEpoch, resolver NodeResolverFn) (*ProofElements, []byte, []Stem, [][]byte, error) {
 	// go-ipa won't accept no key as an input, catch this corner case
 	// and return an empty result.
 	if len(keys) == 0 {
 		return nil, nil, nil, nil, errors.New("no key provided for proof")
 	}
 
-	pe, es, poas, err := GetCommitmentsForMultiproof(preroot, keys, preEpoch, resolver)
+	pe, es, poas, err := GetCommitmentsForMultiproof(preroot, keys, resolver)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("error getting pre-state proof data: %w", err)
 	}
@@ -228,8 +228,8 @@ func getProofElementsFromTree(preroot, postroot VerkleNode, keys [][]byte, preEp
 	return pe, es, poas, postvals, nil
 }
 
-func MakeVerkleMultiProof(preroot, postroot VerkleNode, keys [][]byte, preEpoch, postEpoch StateEpoch, resolver NodeResolverFn) (*Proof, []*Point, []byte, []*Fr, error) {
-	pe, es, poas, postvals, err := getProofElementsFromTree(preroot, postroot, keys, preEpoch, postEpoch, resolver)
+func MakeVerkleMultiProof(preroot, postroot VerkleNode, keys [][]byte, postEpoch StateEpoch, resolver NodeResolverFn) (*Proof, []*Point, []byte, []*Fr, error) {
+	pe, es, poas, postvals, err := getProofElementsFromTree(preroot, postroot, keys, postEpoch, resolver)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("get commitments for multiproof: %s", err)
 	}
@@ -272,7 +272,7 @@ func MakeVerkleMultiProof(preroot, postroot VerkleNode, keys [][]byte, preEpoch,
 
 // verifyVerkleProofWithPreState takes a proof and a trusted tree root and verifies that the proof is valid.
 func verifyVerkleProofWithPreState(proof *Proof, preroot VerkleNode, preEpoch StateEpoch) error {
-	pe, _, _, _, err := getProofElementsFromTree(preroot, nil, proof.Keys, preEpoch, 0, nil)
+	pe, _, _, _, err := getProofElementsFromTree(preroot, nil, proof.Keys, 0, nil)
 	if err != nil {
 		return fmt.Errorf("error getting proof elements: %w", err)
 	}

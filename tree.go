@@ -91,7 +91,7 @@ type VerkleNode interface {
 	// returns them breadth-first. On top of that, it returns
 	// one "extension status" per stem, and an alternate stem
 	// if the key is missing but another stem has been found.
-	GetProofItems(keylist, StateEpoch, NodeResolverFn) (*ProofElements, []byte, []Stem, error)
+	GetProofItems(keylist, NodeResolverFn) (*ProofElements, []byte, []Stem, error)
 
 	// Serialize encodes the node to RLP.
 	Serialize() ([]byte, error)
@@ -990,7 +990,7 @@ func groupKeys(keys keylist, depth byte) []keylist {
 	return groups
 }
 
-func (n *InternalNode) GetProofItems(keys keylist, curEpoch StateEpoch, resolver NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
+func (n *InternalNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
 	var (
 		groups = groupKeys(keys, n.depth)
 		pe     = &ProofElements{
@@ -1085,7 +1085,7 @@ func (n *InternalNode) GetProofItems(keys keylist, curEpoch StateEpoch, resolver
 			continue
 		}
 
-		pec, es, other, err := n.children[childIdx].GetProofItems(group, curEpoch, resolver)
+		pec, es, other, err := n.children[childIdx].GetProofItems(group, resolver)
 		if err != nil {
 			// TODO: add a test case to cover this scenario.
 			return nil, nil, nil, err
@@ -1577,7 +1577,7 @@ func leafToComms(poly []Fr, val []byte) error {
 	return nil
 }
 
-func (n *LeafNode) GetProofItems(keys keylist, curEpoch StateEpoch, resolver NodeResolverFn) (*ProofElements, []byte, []Stem, error) { // skipcq: GO-R1005
+func (n *LeafNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*ProofElements, []byte, []Stem, error) { // skipcq: GO-R1005
 	var (
 		poly [NodeWidth]Fr // top-level polynomial
 		pe                 = &ProofElements{
@@ -1592,19 +1592,6 @@ func (n *LeafNode) GetProofItems(keys keylist, curEpoch StateEpoch, resolver Nod
 		esses []byte = nil // list of extension statuses
 		poass []Stem       // list of proof-of-absence and proof-of-expiry stems
 	)
-
-	// If the leaf node is expired, generate the proof of expiry.
-	if IsExpired(n.lastEpoch, curEpoch) {
-		for i := range keys {
-			pe.ByPath[string(keys[i][:n.depth])] = n.commitment
-			pe.Vals[i] = nil
-
-			esses = append(esses, extStatusExpired|(n.depth<<3))
-			poass = append(poass, n.stem)
-		}
-
-		return &ProofElements{}, esses, poass, nil
-	}
 
 	// Initialize the top-level polynomial with 1 + stem + C1 + C2 + lastEpoch
 	poly[0].SetUint64(1)
@@ -1654,8 +1641,10 @@ func (n *LeafNode) GetProofItems(keys keylist, curEpoch StateEpoch, resolver Nod
 		pe.Fis = append(pe.Fis, poly[:])
 	}
 
+	// We do not check for expiry, as we assume that the expiry detection is done before
+	// proof creation.
 	poly[4].SetUint64(uint64(n.lastEpoch))
-	
+
 	pe.Cis = append(pe.Cis, n.commitment)
 	pe.Zis = append(pe.Zis, 4)
 	pe.Yis = append(pe.Yis, &poly[4])

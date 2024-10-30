@@ -62,7 +62,7 @@ func (n *ExpiredLeafNode) Commitment() *Point {
 	return n.commitment
 }
 
-func (n *ExpiredLeafNode) GetProofItems(keys keylist, curEpoch StateEpoch, resolver NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
+func (n *ExpiredLeafNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
 	var (
 		pe = &ProofElements{
 			Vals:   make([][]byte, len(keys)),
