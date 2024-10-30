@@ -1882,7 +1882,11 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 		result = buf[:]
 		result[0] = singleSlotType
 		copy(result[leafStemOffset:], n.stem[:StemSize])
-		copy(result[leafStemOffset+StemSize:], c1Bytes[:])
+		if lastIdx < 128 {
+			copy(result[leafStemOffset+StemSize:], c1Bytes[:])
+		} else {
+			copy(result[leafStemOffset+StemSize:], c2Bytes[:])
+		}
 		copy(result[leafStemOffset+StemSize+banderwagon.UncompressedSize:], cBytes[:])
 		result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize] = byte(lastIdx)
 		copy(result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize+leafValueIndexSize:], n.values[lastIdx][:])
