@@ -4,7 +4,7 @@ import (
 	"encoding/binary"
 )
 
-type StateEpoch uint64
+type StateEpoch uint16
 
 const (
 	NumActiveEpochs = 2
@@ -15,5 +15,5 @@ func IsExpired(prev StateEpoch, cur StateEpoch) bool {
 }
 
 func StateEpochFromBytes(b []byte) StateEpoch {
-	return StateEpoch(binary.BigEndian.Uint64(b))
+	return StateEpoch(binary.BigEndian.Uint16(b))
 }
