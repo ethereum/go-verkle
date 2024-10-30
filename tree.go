@@ -1832,7 +1832,6 @@ func (n *InternalNode) serializeInternalWithUncompressedCommitment(pointsIdx map
 }
 
 var (
-	zero24           [24]byte
 	zero32           [32]byte
 	EmptyCodeHash, _ = hex.DecodeString("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
 )
