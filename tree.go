@@ -1310,8 +1310,8 @@ func (n *LeafNode) updateLeaf(index byte, value []byte, curEpoch StateEpoch) err
 
 	// If index is in the first NodeWidth/2 elements, we need to update C1. Otherwise, C2.
 	cxIndex := 2 + int(index)/(NodeWidth/2) // [1, stem, -> C1, C2 <-]
+	n.updateLastEpoch(curEpoch)
 	n.updateC(cxIndex, frs[0], frs[1], curEpoch)
-	n.updateLastTs(curEpoch)
 
 	n.values[index] = value
 	return nil
@@ -1365,19 +1365,19 @@ func (n *LeafNode) updateMultipleLeaves(values [][]byte, curEpoch StateEpoch) er
 		}
 		n.updateC(c1Idx, frs[0], frs[1], curEpoch)
 		n.updateC(c2Idx, frs[2], frs[3], curEpoch)
-		n.updateLastTs(curEpoch)
+		n.updateLastEpoch(curEpoch)
 	} else if oldC1 != nil { // Case 2. (C1 touched)
 		if err := banderwagon.BatchMapToScalarField([]*Fr{&frs[0], &frs[1]}, []*Point{n.c1, oldC1}); err != nil {
 			return fmt.Errorf("batch mapping to scalar fields: %s", err)
 		}
 		n.updateC(c1Idx, frs[0], frs[1], curEpoch)
-		n.updateLastTs(curEpoch)
+		n.updateLastEpoch(curEpoch)
 	} else if oldC2 != nil { // Case 2. (C2 touched)
 		if err := banderwagon.BatchMapToScalarField([]*Fr{&frs[0], &frs[1]}, []*Point{n.c2, oldC2}); err != nil {
 			return fmt.Errorf("batch mapping to scalar fields: %s", err)
 		}
 		n.updateC(c2Idx, frs[0], frs[1], curEpoch)
-		n.updateLastTs(curEpoch)
+		n.updateLastEpoch(curEpoch)
 	}
 
 	return nil
@@ -1462,7 +1462,7 @@ func (n *LeafNode) Delete(k []byte, curEpoch StateEpoch, _ NodeResolverFn) (bool
 			var poly [5]Fr
 			poly[4].SetUint64(uint64(curEpoch))
 			n.commitment.Add(n.commitment, cfg.CommitToPoly(poly[:], 0))
-			n.updateLastTs(curEpoch)
+			n.updateLastEpoch(curEpoch)
 		}
 
 		// Clear the corresponding commitment
@@ -1525,7 +1525,7 @@ func (n *LeafNode) Commit() *Point {
 	return n.commitment
 }
 
-func (n *LeafNode) updateLastTs(curEpoch StateEpoch) {
+func (n *LeafNode) updateLastEpoch(curEpoch StateEpoch) {
 	n.lastEpoch = curEpoch
 }
 
@@ -2044,7 +2044,7 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 		copy(result[leafCommitmentOffset:], cBytes[:])
 		copy(result[leafC1CommitmentOffset:], c1Bytes[:])
 		copy(result[leafC2CommitmentOffset:], c2Bytes[:])
-		copy(result[leafLastTsOffset:], lastEpoch)
+		copy(result[leafLastEpochOffset:], lastEpoch)
 		copy(result[leafChildrenOffset:], children)
 	}
 

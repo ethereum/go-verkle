@@ -56,7 +56,7 @@ const (
 	leafC1CommitmentOffset = leafCommitmentOffset + banderwagon.UncompressedSize
 	leafC2CommitmentOffset = leafC1CommitmentOffset + banderwagon.UncompressedSize
 	leafChildrenOffset     = leafC2CommitmentOffset + banderwagon.UncompressedSize
-	leafLastTsOffset       = leafChildrenOffset + epochSize
+	leafLastEpochOffset    = leafChildrenOffset + epochSize
 	leafBalanceSize        = 32
 	leafNonceSize          = 8
 	leafSlotSize           = 32
@@ -120,7 +120,7 @@ func parseLeafNode(serialized []byte, depth byte) (VerkleNode, error) {
 	ln := NewLeafNodeWithNoComms(
 		serialized[leafStemOffset:leafStemOffset+StemSize],
 		values[:],
-		StateEpochFromBytes(serialized[leafLastTsOffset:leafLastTsOffset+epochSize]))
+		StateEpochFromBytes(serialized[leafLastEpochOffset:leafLastEpochOffset+epochSize]))
 	ln.setDepth(depth)
 	ln.c1 = new(Point)
 
