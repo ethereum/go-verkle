@@ -32,15 +32,15 @@ import (
 
 type HashedNode struct{}
 
-func (HashedNode) Insert([]byte, []byte, AccessTimestamp, NodeResolverFn) error {
+func (HashedNode) Insert([]byte, []byte, StateEpoch, NodeResolverFn) error {
 	return errInsertIntoHash
 }
 
-func (HashedNode) Delete([]byte, AccessTimestamp, NodeResolverFn) (bool, error) {
+func (HashedNode) Delete([]byte, StateEpoch, NodeResolverFn) (bool, error) {
 	return false, errors.New("cant delete a hashed node in-place")
 }
 
-func (HashedNode) Get([]byte, AccessTimestamp, NodeResolverFn) ([]byte, error) {
+func (HashedNode) Get([]byte, StateEpoch, NodeResolverFn) ([]byte, error) {
 	return nil, errors.New("can not read from a hash node")
 }
 
@@ -58,7 +58,7 @@ func (HashedNode) Commitment() *Point {
 	panic("can not get commitment of a hash node")
 }
 
-func (HashedNode) GetProofItems(keylist, AccessTimestamp, NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
+func (HashedNode) GetProofItems(keylist, StateEpoch, NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
 	return nil, nil, nil, errors.New("can not get the full path, and there is no proof of absence")
 }
 

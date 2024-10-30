@@ -1187,11 +1187,11 @@ func TestProofVerificationWithPostState(t *testing.T) { // skipcq: GO-R1005
 func TestProofVerificationPreStateExpiredPostStateResurrected(t *testing.T) {
 	t.Parallel()
 
-	preTs := AccessTimestamp(0)
-	postTs := AccessTimestamp(2)
+	preEpoch := StateEpoch(0)
+	postEpoch := StateEpoch(2)
 
 	preRoot := New()
-	if err := preRoot.Insert(zeroKeyTest, zeroKeyTest, preTs, nil); err != nil {
+	if err := preRoot.Insert(zeroKeyTest, zeroKeyTest, preEpoch, nil); err != nil {
 		t.Fatalf("could not insert key: %v", err)
 	}
 	rootC := preRoot.Commit()
@@ -1202,11 +1202,11 @@ func TestProofVerificationPreStateExpiredPostStateResurrected(t *testing.T) {
 	preRoot.(*InternalNode).children[0] = expiredLeaf
 
 	postRoot := New()
-	if err := postRoot.Insert(zeroKeyTest, fourtyKeyTest, postTs, nil); err != nil {
+	if err := postRoot.Insert(zeroKeyTest, fourtyKeyTest, postEpoch, nil); err != nil {
 		t.Fatalf("could not insert key: %v", err)
 	}
 
-	proof, _, _, _, _ := MakeVerkleMultiProof(preRoot, postRoot, keylist{zeroKeyTest}, preTs, postTs, nil)
+	proof, _, _, _, _ := MakeVerkleMultiProof(preRoot, postRoot, keylist{zeroKeyTest}, preEpoch, postEpoch, nil)
 
 	p, diff, err := SerializeProof(proof)
 	if err != nil {
@@ -1218,7 +1218,7 @@ func TestProofVerificationPreStateExpiredPostStateResurrected(t *testing.T) {
 		t.Fatalf("error deserializing proof: %v", err)
 	}
 
-	if err = verifyVerkleProofWithPreState(dproof, preRoot, preTs); err != nil {
+	if err = verifyVerkleProofWithPreState(dproof, preRoot, preEpoch); err != nil {
 		t.Fatalf("could not verify verkle proof: %v", err)
 	}
 
@@ -1227,16 +1227,16 @@ func TestProofVerificationPreStateExpiredPostStateResurrected(t *testing.T) {
 		t.Fatalf("error recreating pre tree: %v", err)
 	}
 
-	dpostroot, err := PostStateTreeFromStateDiff(dpreroot, diff, postTs)
+	dpostroot, err := PostStateTreeFromStateDiff(dpreroot, diff, postEpoch)
 	if err != nil {
 		t.Fatalf("error recreating post tree: %v", err)
 	}
 
-	if err = verifyVerkleProofWithPreState(dproof, dpreroot, preTs); err != nil {
+	if err = verifyVerkleProofWithPreState(dproof, dpreroot, preEpoch); err != nil {
 		t.Fatalf("could not verify verkle proof: %v, original: %s reconstructed: %s", err, ToDot(dpreroot), ToDot(dpostroot))
 	}
 
-	got, err := dpostroot.Get(zeroKeyTest, postTs, nil)
+	got, err := dpostroot.Get(zeroKeyTest, postEpoch, nil)
 	if err != nil {
 		t.Fatalf("error getting key: %v", err)
 	}

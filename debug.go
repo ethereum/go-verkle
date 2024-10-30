@@ -42,7 +42,7 @@ type (
 		C      [32]byte        `json:"commitment"`
 		C1     [32]byte        `json:"c1"`
 		C2     [32]byte        `json:"c2"`
-		LastTs AccessTimestamp `json:"last_epoch"`
+		LastEpoch StateEpoch `json:"last_epoch"`
 	}
 
 	ExportableExpiredLeafNode struct {

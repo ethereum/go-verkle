@@ -188,20 +188,20 @@ func (sd StateDiff) Equal(other StateDiff) error {
 
 func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte, resolver NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
 	sort.Sort(keylist(keys))
-	return root.GetProofItems(keylist(keys), curTs, resolver)
+	return root.GetProofItems(keylist(keys), curEpoch, resolver)
 }
 
 // getProofElementsFromTree factors the logic that is used both in the proving and verification methods. It takes a pre-state
 // tree and an optional post-state tree, extracts the proof data from them and returns all the items required to build/verify
 // a proof.
-func getProofElementsFromTree(preroot, postroot VerkleNode, keys [][]byte, preTs, postTs AccessTimestamp, resolver NodeResolverFn) (*ProofElements, []byte, []Stem, [][]byte, error) {
+func getProofElementsFromTree(preroot, postroot VerkleNode, keys [][]byte, preEpoch, postEpoch StateEpoch, resolver NodeResolverFn) (*ProofElements, []byte, []Stem, [][]byte, error) {
 	// go-ipa won't accept no key as an input, catch this corner case
 	// and return an empty result.
 	if len(keys) == 0 {
 		return nil, nil, nil, nil, errors.New("no key provided for proof")
 	}
 
-	pe, es, poas, err := GetCommitmentsForMultiproof(preroot, keys, preTs, resolver)
+	pe, es, poas, err := GetCommitmentsForMultiproof(preroot, keys, preEpoch, resolver)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("error getting pre-state proof data: %w", err)
 	}
@@ -213,7 +213,7 @@ func getProofElementsFromTree(preroot, postroot VerkleNode, keys [][]byte, preTs
 		// keys were sorted already in the above GetcommitmentsForMultiproof.
 		// Set the post values, if they are untouched, leave them `nil`
 		for i := range keys {
-			val, err := postroot.Get(keys[i], postTs, resolver)
+			val, err := postroot.Get(keys[i], postEpoch, resolver)
 			if err != nil {
 				return nil, nil, nil, nil, fmt.Errorf("error getting post-state value for key %x: %w", keys[i], err)
 			}
@@ -228,8 +228,8 @@ func getProofElementsFromTree(preroot, postroot VerkleNode, keys [][]byte, preTs
 	return pe, es, poas, postvals, nil
 }
 
-func MakeVerkleMultiProof(preroot, postroot VerkleNode, keys [][]byte, preTs, postTs AccessTimestamp, resolver NodeResolverFn) (*Proof, []*Point, []byte, []*Fr, error) {
-	pe, es, poas, postvals, err := getProofElementsFromTree(preroot, postroot, keys, preTs, postTs, resolver)
+func MakeVerkleMultiProof(preroot, postroot VerkleNode, keys [][]byte, preEpoch, postEpoch StateEpoch, resolver NodeResolverFn) (*Proof, []*Point, []byte, []*Fr, error) {
+	pe, es, poas, postvals, err := getProofElementsFromTree(preroot, postroot, keys, preEpoch, postEpoch, resolver)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("get commitments for multiproof: %s", err)
 	}
@@ -271,8 +271,8 @@ func MakeVerkleMultiProof(preroot, postroot VerkleNode, keys [][]byte, preTs, po
 }
 
 // verifyVerkleProofWithPreState takes a proof and a trusted tree root and verifies that the proof is valid.
-func verifyVerkleProofWithPreState(proof *Proof, preroot VerkleNode, preTs AccessTimestamp) error {
-	pe, _, _, _, err := getProofElementsFromTree(preroot, nil, proof.Keys, preTs, 0, nil)
+func verifyVerkleProofWithPreState(proof *Proof, preroot VerkleNode, preEpoch StateEpoch) error {
+	pe, _, _, _, err := getProofElementsFromTree(preroot, nil, proof.Keys, preEpoch, 0, nil)
 	if err != nil {
 		return fmt.Errorf("error getting proof elements: %w", err)
 	}
@@ -612,7 +612,7 @@ func PreStateTreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) { // 
 
 // PostStateTreeFromProof uses the pre-state trie and the list of updated values
 // to produce the stateless post-state trie.
-func PostStateTreeFromStateDiff(preroot VerkleNode, statediff StateDiff, postTs AccessTimestamp) (VerkleNode, error) {
+func PostStateTreeFromStateDiff(preroot VerkleNode, statediff StateDiff, postEpoch StateEpoch) (VerkleNode, error) {
 	postroot := preroot.Copy()
 
 	for _, stemstatediff := range statediff {
@@ -633,7 +633,7 @@ func PostStateTreeFromStateDiff(preroot VerkleNode, statediff StateDiff, postTs 
 		if overwrites {
 			var stem [StemSize]byte
 			copy(stem[:StemSize], stemstatediff.Stem[:])
-			if err := postroot.(*InternalNode).InsertValuesAtStem(stem[:], values, postTs, stemstatediff.Resurrected, nil); err != nil {
+			if err := postroot.(*InternalNode).InsertValuesAtStem(stem[:], values, postEpoch, stemstatediff.Resurrected, nil); err != nil {
 				return nil, fmt.Errorf("error overwriting value in post state: %w", err)
 			}
 		}
@@ -650,7 +650,7 @@ func (x bytesSlice) Less(i, j int) bool { return bytes.Compare(x[i], x[j]) < 0 }
 func (x bytesSlice) Swap(i, j int)      { x[i], x[j] = x[j], x[i] }
 
 // Verify is the API function that verifies a verkle proofs as found in a block/execution payload.
-func Verify(vp *VerkleProof, preStateRoot []byte, postStateRoot []byte, statediff StateDiff, curTs AccessTimestamp) error {
+func Verify(vp *VerkleProof, preStateRoot []byte, postStateRoot []byte, statediff StateDiff, curEpoch StateEpoch) error {
 	proof, err := DeserializeProof(vp, statediff)
 	if err != nil {
 		return fmt.Errorf("verkle proof deserialization error: %w", err)
@@ -692,7 +692,7 @@ func Verify(vp *VerkleProof, preStateRoot []byte, postStateRoot []byte, statedif
 	// But all this can be avoided with a even faster way. The EVM block execution can
 	// keep track of the written keys, and compare that list with this post-values list.
 	// This can avoid regenerating the post-tree which is somewhat expensive.
-	posttree, err := PostStateTreeFromStateDiff(pretree, statediff, curTs)
+	posttree, err := PostStateTreeFromStateDiff(pretree, statediff, curEpoch)
 	if err != nil {
 		return fmt.Errorf("error rebuilding the post-tree from proof: %w", err)
 	}
@@ -701,5 +701,5 @@ func Verify(vp *VerkleProof, preStateRoot []byte, postStateRoot []byte, statedif
 		return fmt.Errorf("post tree root mismatch: %x != %x", regeneratedPostTreeRoot, postStateRoot)
 	}
 
-	return verifyVerkleProofWithPreState(proof, pretree, curTs)
+	return verifyVerkleProofWithPreState(proof, pretree, curEpoch)
 }

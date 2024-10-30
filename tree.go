@@ -68,13 +68,13 @@ func KeyToStem(key []byte) Stem {
 
 type VerkleNode interface {
 	// Insert or Update value into the tree
-	Insert([]byte, []byte, AccessTimestamp, NodeResolverFn) error
+	Insert([]byte, []byte, StateEpoch, NodeResolverFn) error
 
 	// Delete a leaf with the given key
-	Delete([]byte, AccessTimestamp, NodeResolverFn) (bool, error)
+	Delete([]byte, StateEpoch, NodeResolverFn) (bool, error)
 
 	// Get value at a given key
-	Get([]byte, AccessTimestamp, NodeResolverFn) ([]byte, error)
+	Get([]byte, StateEpoch, NodeResolverFn) ([]byte, error)
 
 	// Commit computes the commitment of the node. The
 	// result (the curve point) is cached.
@@ -91,7 +91,7 @@ type VerkleNode interface {
 	// returns them breadth-first. On top of that, it returns
 	// one "extension status" per stem, and an alternate stem
 	// if the key is missing but another stem has been found.
-	GetProofItems(keylist, AccessTimestamp, NodeResolverFn) (*ProofElements, []byte, []Stem, error)
+	GetProofItems(keylist, StateEpoch, NodeResolverFn) (*ProofElements, []byte, []Stem, error)
 
 	// Serialize encodes the node to RLP.
 	Serialize() ([]byte, error)
@@ -203,7 +203,7 @@ type (
 		// true in the context of a stateless tree.
 		isPOAStub bool
 
-		lastTs AccessTimestamp
+		lastEpoch StateEpoch
 	}
 )
 
@@ -228,6 +228,7 @@ func (n *InternalNode) toExportable() *ExportableInternalNode {
 				Values: child.values,
 				C:      child.commitment.Bytes(),
 				C1:     child.c1.Bytes(),
+				LastEpoch: child.lastEpoch,
 			}
 		case *ExpiredLeafNode:
 			exportable.Children[i] = &ExportableExpiredLeafNode{
@@ -275,7 +276,7 @@ func NewStatelessInternal(depth byte, comm *Point) VerkleNode {
 }
 
 // New creates a new leaf node
-func NewLeafNode(stem Stem, values [][]byte, lastTs AccessTimestamp) (*LeafNode, error) {
+func NewLeafNode(stem Stem, values [][]byte, lastEpoch StateEpoch) (*LeafNode, error) {
 	cfg := GetConfig()
 
 	// C1.
@@ -318,7 +319,7 @@ func NewLeafNode(stem Stem, values [][]byte, lastTs AccessTimestamp) (*LeafNode,
 		return nil, fmt.Errorf("batch mapping to scalar fields: %s", err)
 	}
 
-	poly[4].SetUint64(uint64(lastTs))
+	poly[4].SetUint64(uint64(lastEpoch))
 
 	return &LeafNode{
 		// depth will be 0, but the commitment calculation
@@ -328,20 +329,20 @@ func NewLeafNode(stem Stem, values [][]byte, lastTs AccessTimestamp) (*LeafNode,
 		commitment: cfg.CommitToPoly(poly[:], NodeWidth-5),
 		c1:         c1,
 		c2:         c2,
-		lastTs:     lastTs,
+		lastEpoch:     lastEpoch,
 	}, nil
 }
 
 // NewLeafNodeWithNoComms create a leaf node but does not compute its
 // commitments. The created node's commitments are intended to be
 // initialized with `SetTrustedBytes` in a deserialization context.
-func NewLeafNodeWithNoComms(stem Stem, values [][]byte, lastTs AccessTimestamp) *LeafNode {
+func NewLeafNodeWithNoComms(stem Stem, values [][]byte, lastEpoch StateEpoch) *LeafNode {
 	return &LeafNode{
 		// depth will be 0, but the commitment calculation
 		// does not need it, and so it won't be free.
 		values: values,
 		stem:   stem,
-		lastTs: lastTs,
+		lastEpoch: lastEpoch,
 	}
 }
 
@@ -371,13 +372,13 @@ func (n *InternalNode) cowChild(index byte) {
 	}
 }
 
-func (n *InternalNode) Insert(key []byte, value []byte, curTs AccessTimestamp, resolver NodeResolverFn) error {
+func (n *InternalNode) Insert(key []byte, value []byte, curEpoch StateEpoch, resolver NodeResolverFn) error {
 	values := make([][]byte, NodeWidth)
 	values[key[StemSize]] = value
-	return n.InsertValuesAtStem(KeyToStem(key), values, curTs, false, resolver)
+	return n.InsertValuesAtStem(KeyToStem(key), values, curEpoch, false, resolver)
 }
 
-func (n *InternalNode) InsertValuesAtStem(stem Stem, values [][]byte, curTs AccessTimestamp, isResurrect bool, resolver NodeResolverFn) error {
+func (n *InternalNode) InsertValuesAtStem(stem Stem, values [][]byte, curEpoch StateEpoch, isResurrect bool, resolver NodeResolverFn) error {
 	nChild := offset2key(stem, n.depth) // index of the child pointed by the next byte in the key
 
 	switch child := n.children[nChild].(type) {
@@ -386,7 +387,7 @@ func (n *InternalNode) InsertValuesAtStem(stem Stem, values [][]byte, curTs Acce
 	case Empty:
 		n.cowChild(nChild)
 		var err error
-		n.children[nChild], err = NewLeafNode(stem, values, curTs)
+		n.children[nChild], err = NewLeafNode(stem, values, curEpoch)
 		if err != nil {
 			return err
 		}
@@ -407,14 +408,14 @@ func (n *InternalNode) InsertValuesAtStem(stem Stem, values [][]byte, curTs Acce
 		n.cowChild(nChild)
 		// recurse to handle the case of a LeafNode child that
 		// splits.
-		return n.InsertValuesAtStem(stem, values, curTs, isResurrect, resolver)
+		return n.InsertValuesAtStem(stem, values, curEpoch, isResurrect, resolver)
 	case *ExpiredLeafNode:
 		if !isResurrect {
 			return errExpired
 		}
 
 		// create a new leaf node with the given values
-		leaf, err := NewLeafNode(stem, values, curTs)
+		leaf, err := NewLeafNode(stem, values, curEpoch)
 		if err != nil {
 			return err
 		}
@@ -429,7 +430,7 @@ func (n *InternalNode) InsertValuesAtStem(stem Stem, values [][]byte, curTs Acce
 				return errIsPOAStub
 			}
 			n.cowChild(nChild)
-			return child.insertMultiple(stem, values, curTs)
+			return child.insertMultiple(stem, values, curEpoch)
 		}
 		n.cowChild(nChild)
 
@@ -445,12 +446,12 @@ func (n *InternalNode) InsertValuesAtStem(stem Stem, values [][]byte, curTs Acce
 
 		nextWordInInsertedKey := offset2key(stem, n.depth+1)
 		if nextWordInInsertedKey == nextWordInExistingKey {
-			return newBranch.InsertValuesAtStem(stem, values, curTs, isResurrect, resolver)
+			return newBranch.InsertValuesAtStem(stem, values, curEpoch, isResurrect, resolver)
 		}
 
 		// Next word differs, so this was the last level.
 		// Insert it directly into its final slot.
-		leaf, err := NewLeafNode(stem, values, curTs)
+		leaf, err := NewLeafNode(stem, values, curEpoch)
 		if err != nil {
 			return err
 		}
@@ -459,7 +460,7 @@ func (n *InternalNode) InsertValuesAtStem(stem Stem, values [][]byte, curTs Acce
 		newBranch.children[nextWordInInsertedKey] = leaf
 	case *InternalNode:
 		n.cowChild(nChild)
-		return child.InsertValuesAtStem(stem, values, curTs, isResurrect, resolver)
+		return child.InsertValuesAtStem(stem, values, curEpoch, isResurrect, resolver)
 	default: // It should be an UknownNode.
 		return errUnknownNodeType
 	}
@@ -584,7 +585,7 @@ func (n *InternalNode) CreatePath(path []byte, stemInfo stemInfo, comms []*Point
 // GetValuesAtStem returns the all NodeWidth values of the stem.
 // The returned slice is internal to the tree, so it *must* be considered readonly
 // for callers.
-func (n *InternalNode) GetValuesAtStem(stem Stem, curTs AccessTimestamp, resolver NodeResolverFn) ([][]byte, error) {
+func (n *InternalNode) GetValuesAtStem(stem Stem, curEpoch StateEpoch, resolver NodeResolverFn) ([][]byte, error) {
 	nchild := offset2key(stem, n.depth) // index of the child pointed by the next byte in the key
 	switch child := n.children[nchild].(type) {
 	case UnknownNode:
@@ -606,11 +607,11 @@ func (n *InternalNode) GetValuesAtStem(stem Stem, curTs AccessTimestamp, resolve
 		n.children[nchild] = resolved
 		// recurse to handle the case of a LeafNode child that
 		// splits.
-		return n.GetValuesAtStem(stem, curTs, resolver)
+		return n.GetValuesAtStem(stem, curEpoch, resolver)
 	case *ExpiredLeafNode:
 		return nil, errExpired
 	case *LeafNode:
-		if IsExpired(child.lastTs, curTs) {
+		if IsExpired(child.lastEpoch, curEpoch) {
 			return nil, errExpired
 		}
 
@@ -624,13 +625,13 @@ func (n *InternalNode) GetValuesAtStem(stem Stem, curTs AccessTimestamp, resolve
 		}
 		return nil, nil
 	case *InternalNode:
-		return child.GetValuesAtStem(stem, curTs, resolver)
+		return child.GetValuesAtStem(stem, curEpoch, resolver)
 	default:
 		return nil, errUnknownNodeType
 	}
 }
 
-func (n *InternalNode) Delete(key []byte, curTs AccessTimestamp, resolver NodeResolverFn) (bool, error) {
+func (n *InternalNode) Delete(key []byte, curEpoch StateEpoch, resolver NodeResolverFn) (bool, error) {
 	nChild := offset2key(key, n.depth)
 	switch child := n.children[nChild].(type) {
 	case Empty:
@@ -649,12 +650,12 @@ func (n *InternalNode) Delete(key []byte, curTs AccessTimestamp, resolver NodeRe
 			return false, err
 		}
 		n.children[nChild] = c
-		return n.Delete(key, curTs, resolver)
+		return n.Delete(key, curEpoch, resolver)
 	case *ExpiredLeafNode:
 		return false, errExpired
 	default:
 		n.cowChild(nChild)
-		del, err := child.Delete(key, curTs, resolver)
+		del, err := child.Delete(key, curEpoch, resolver)
 		if err != nil {
 			return false, err
 		}
@@ -683,7 +684,7 @@ func (n *InternalNode) Delete(key []byte, curTs AccessTimestamp, resolver NodeRe
 // DeleteAtStem delete a full stem. Unlike Delete, it will error out if the stem that is to
 // be deleted does not exist in the tree, because it's meant to be used by rollback code,
 // that should only delete things that exist.
-// TODO(weiihann): check if need to compare access timestamp
+// TODO(weiihann): check if need to compare access epochs
 func (n *InternalNode) DeleteAtStem(key []byte, resolver NodeResolverFn) (bool, error) {
 	nChild := offset2key(key, n.depth)
 	switch child := n.children[nChild].(type) {
@@ -815,11 +816,11 @@ func (n *InternalNode) FlushAtDepth(depth uint8, flush NodeFlushFn) {
 	}
 }
 
-func (n *InternalNode) Get(key []byte, curTs AccessTimestamp, resolver NodeResolverFn) ([]byte, error) {
+func (n *InternalNode) Get(key []byte, curEpoch StateEpoch, resolver NodeResolverFn) ([]byte, error) {
 	if len(key) != StemSize+1 {
 		return nil, fmt.Errorf("invalid key length, expected %d, got %d", StemSize+1, len(key))
 	}
-	stemValues, err := n.GetValuesAtStem(KeyToStem(key), curTs, resolver)
+	stemValues, err := n.GetValuesAtStem(KeyToStem(key), curEpoch, resolver)
 	if err != nil {
 		return nil, err
 	}
@@ -989,7 +990,7 @@ func groupKeys(keys keylist, depth byte) []keylist {
 	return groups
 }
 
-func (n *InternalNode) GetProofItems(keys keylist, curTs AccessTimestamp, resolver NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
+func (n *InternalNode) GetProofItems(keys keylist, curEpoch StateEpoch, resolver NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
 	var (
 		groups = groupKeys(keys, n.depth)
 		pe     = &ProofElements{
@@ -1084,7 +1085,7 @@ func (n *InternalNode) GetProofItems(keys keylist, curTs AccessTimestamp, resolv
 			continue
 		}
 
-		pec, es, other, err := n.children[childIdx].GetProofItems(group, curTs, resolver)
+		pec, es, other, err := n.children[childIdx].GetProofItems(group, curEpoch, resolver)
 		if err != nil {
 			// TODO: add a test case to cover this scenario.
 			return nil, nil, nil, err
@@ -1195,7 +1196,7 @@ func (n *InternalNode) touchCoW(index byte) {
 	n.cowChild(index)
 }
 
-func (n *LeafNode) Insert(key []byte, value []byte, curTs AccessTimestamp, _ NodeResolverFn) error {
+func (n *LeafNode) Insert(key []byte, value []byte, curEpoch StateEpoch, _ NodeResolverFn) error {
 	if n.isPOAStub {
 		return errIsPOAStub
 	}
@@ -1204,7 +1205,7 @@ func (n *LeafNode) Insert(key []byte, value []byte, curTs AccessTimestamp, _ Nod
 		return fmt.Errorf("invalid key size: %d", len(key))
 	}
 
-	if IsExpired(n.lastTs, curTs) {
+	if IsExpired(n.lastEpoch, curEpoch) {
 		return errExpired
 	}
 
@@ -1214,27 +1215,27 @@ func (n *LeafNode) Insert(key []byte, value []byte, curTs AccessTimestamp, _ Nod
 	}
 	values := make([][]byte, NodeWidth)
 	values[key[StemSize]] = value
-	return n.insertMultiple(stem, values, curTs)
+	return n.insertMultiple(stem, values, curEpoch)
 }
 
-func (n *LeafNode) insertMultiple(stem Stem, values [][]byte, curTs AccessTimestamp) error {
+func (n *LeafNode) insertMultiple(stem Stem, values [][]byte, curEpoch StateEpoch) error {
 	// Sanity check: ensure the stems are the same.
 	if !equalPaths(stem, n.stem) {
 		return errInsertIntoOtherStem
 	}
 
-	if IsExpired(n.lastTs, curTs) {
+	if IsExpired(n.lastEpoch, curEpoch) {
 		return errExpired
 	}
 
-	if err := n.updateMultipleLeaves(values, curTs); err != nil {
+	if err := n.updateMultipleLeaves(values, curEpoch); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (n *LeafNode) updateC(cxIndex int, newC Fr, oldC Fr, curTs AccessTimestamp) {
+func (n *LeafNode) updateC(cxIndex int, newC Fr, oldC Fr, curEpoch StateEpoch) {
 	// Calculate the Fr-delta.
 	var deltaC Fr
 	deltaC.Sub(&newC, &oldC)
@@ -1243,8 +1244,8 @@ func (n *LeafNode) updateC(cxIndex int, newC Fr, oldC Fr, curTs AccessTimestamp)
 	var poly [NodeWidth]Fr
 	poly[cxIndex] = deltaC
 
-	if n.lastTs != curTs {
-		poly[4].SetUint64(uint64(curTs))
+	if n.lastEpoch != curEpoch {
+		poly[4].SetUint64(uint64(curEpoch))
 	}
 
 	// Add delta to the current commitment.
@@ -1286,7 +1287,7 @@ func (n *LeafNode) updateCn(index byte, value []byte, c *Point) error {
 	return nil
 }
 
-func (n *LeafNode) updateLeaf(index byte, value []byte, curTs AccessTimestamp) error {
+func (n *LeafNode) updateLeaf(index byte, value []byte, curEpoch StateEpoch) error {
 	// Update the corresponding C1 or C2 commitment.
 	var c *Point
 	var oldC Point
@@ -1309,14 +1310,14 @@ func (n *LeafNode) updateLeaf(index byte, value []byte, curTs AccessTimestamp) e
 
 	// If index is in the first NodeWidth/2 elements, we need to update C1. Otherwise, C2.
 	cxIndex := 2 + int(index)/(NodeWidth/2) // [1, stem, -> C1, C2 <-]
-	n.updateC(cxIndex, frs[0], frs[1], curTs)
-	n.updateLastTs(curTs)
+	n.updateC(cxIndex, frs[0], frs[1], curEpoch)
+	n.updateLastTs(curEpoch)
 
 	n.values[index] = value
 	return nil
 }
 
-func (n *LeafNode) updateMultipleLeaves(values [][]byte, curTs AccessTimestamp) error { // skipcq: GO-R1005
+func (n *LeafNode) updateMultipleLeaves(values [][]byte, curEpoch StateEpoch) error { // skipcq: GO-R1005
 	var oldC1, oldC2 *Point
 
 	// We iterate the values, and we update the C1 and/or C2 commitments depending on the index.
@@ -1362,21 +1363,21 @@ func (n *LeafNode) updateMultipleLeaves(values [][]byte, curTs AccessTimestamp) 
 		if err := banderwagon.BatchMapToScalarField([]*Fr{&frs[0], &frs[1], &frs[2], &frs[3]}, []*Point{n.c1, oldC1, n.c2, oldC2}); err != nil {
 			return fmt.Errorf("batch mapping to scalar fields: %s", err)
 		}
-		n.updateC(c1Idx, frs[0], frs[1], curTs)
-		n.updateC(c2Idx, frs[2], frs[3], curTs)
-		n.updateLastTs(curTs)
+		n.updateC(c1Idx, frs[0], frs[1], curEpoch)
+		n.updateC(c2Idx, frs[2], frs[3], curEpoch)
+		n.updateLastTs(curEpoch)
 	} else if oldC1 != nil { // Case 2. (C1 touched)
 		if err := banderwagon.BatchMapToScalarField([]*Fr{&frs[0], &frs[1]}, []*Point{n.c1, oldC1}); err != nil {
 			return fmt.Errorf("batch mapping to scalar fields: %s", err)
 		}
-		n.updateC(c1Idx, frs[0], frs[1], curTs)
-		n.updateLastTs(curTs)
+		n.updateC(c1Idx, frs[0], frs[1], curEpoch)
+		n.updateLastTs(curEpoch)
 	} else if oldC2 != nil { // Case 2. (C2 touched)
 		if err := banderwagon.BatchMapToScalarField([]*Fr{&frs[0], &frs[1]}, []*Point{n.c2, oldC2}); err != nil {
 			return fmt.Errorf("batch mapping to scalar fields: %s", err)
 		}
-		n.updateC(c2Idx, frs[0], frs[1], curTs)
-		n.updateLastTs(curTs)
+		n.updateC(c2Idx, frs[0], frs[1], curEpoch)
+		n.updateLastTs(curEpoch)
 	}
 
 	return nil
@@ -1384,13 +1385,13 @@ func (n *LeafNode) updateMultipleLeaves(values [][]byte, curTs AccessTimestamp) 
 
 // Delete deletes a value from the leaf, return `true` as a second
 // return value, if the parent should entirely delete the child.
-func (n *LeafNode) Delete(k []byte, curTs AccessTimestamp, _ NodeResolverFn) (bool, error) {
+func (n *LeafNode) Delete(k []byte, curEpoch StateEpoch, _ NodeResolverFn) (bool, error) {
 	// Sanity check: ensure the key header is the same:
 	if !equalPaths(k, n.stem) {
 		return false, nil
 	}
 
-	if IsExpired(n.lastTs, curTs) {
+	if IsExpired(n.lastEpoch, curEpoch) {
 		return false, errExpired
 	}
 
@@ -1457,11 +1458,11 @@ func (n *LeafNode) Delete(k []byte, curTs AccessTimestamp, _ NodeResolverFn) (bo
 		n.commitment.Sub(n.commitment, cfg.CommitToPoly(poly[:], 0))
 
 		// TODO(weiihann): can this be done together with the previous?
-		if n.lastTs != curTs {
+		if n.lastEpoch != curEpoch {
 			var poly [5]Fr
-			poly[4].SetUint64(uint64(curTs))
+			poly[4].SetUint64(uint64(curEpoch))
 			n.commitment.Add(n.commitment, cfg.CommitToPoly(poly[:], 0))
-			n.updateLastTs(curTs)
+			n.updateLastTs(curEpoch)
 		}
 
 		// Clear the corresponding commitment
@@ -1485,10 +1486,10 @@ func (n *LeafNode) Delete(k []byte, curTs AccessTimestamp, _ NodeResolverFn) (bo
 	// the method, as it needs the original
 	// value to compute the commitment diffs.
 	n.values[k[StemSize]] = original
-	return false, n.updateLeaf(k[StemSize], nil, curTs)
+	return false, n.updateLeaf(k[StemSize], nil, curEpoch)
 }
 
-func (n *LeafNode) Get(k []byte, curTs AccessTimestamp, _ NodeResolverFn) ([]byte, error) {
+func (n *LeafNode) Get(k []byte, curEpoch StateEpoch, _ NodeResolverFn) ([]byte, error) {
 	if n.isPOAStub {
 		return nil, errIsPOAStub
 	}
@@ -1524,8 +1525,8 @@ func (n *LeafNode) Commit() *Point {
 	return n.commitment
 }
 
-func (n *LeafNode) updateLastTs(curTs AccessTimestamp) {
-	n.lastTs = curTs
+func (n *LeafNode) updateLastTs(curEpoch StateEpoch) {
+	n.lastEpoch = curEpoch
 }
 
 // fillSuffixTreePoly takes one of the two suffix tree and
@@ -1576,7 +1577,7 @@ func leafToComms(poly []Fr, val []byte) error {
 	return nil
 }
 
-func (n *LeafNode) GetProofItems(keys keylist, curTs AccessTimestamp, resolver NodeResolverFn) (*ProofElements, []byte, []Stem, error) { // skipcq: GO-R1005
+func (n *LeafNode) GetProofItems(keys keylist, curEpoch StateEpoch, resolver NodeResolverFn) (*ProofElements, []byte, []Stem, error) { // skipcq: GO-R1005
 	var (
 		poly [NodeWidth]Fr // top-level polynomial
 		pe                 = &ProofElements{
@@ -1593,7 +1594,7 @@ func (n *LeafNode) GetProofItems(keys keylist, curTs AccessTimestamp, resolver N
 	)
 
 	// If the leaf node is expired, generate the proof of expiry.
-	if IsExpired(n.lastTs, curTs) {
+	if IsExpired(n.lastEpoch, curEpoch) {
 		for i := range keys {
 			pe.ByPath[string(keys[i][:n.depth])] = n.commitment
 			pe.Vals[i] = nil
@@ -1605,7 +1606,7 @@ func (n *LeafNode) GetProofItems(keys keylist, curTs AccessTimestamp, resolver N
 		return &ProofElements{}, esses, poass, nil
 	}
 
-	// Initialize the top-level polynomial with 1 + stem + C1 + C2 + lastTs
+	// Initialize the top-level polynomial with 1 + stem + C1 + C2 + lastEpoch
 	poly[0].SetUint64(1)
 	if err := StemFromLEBytes(&poly[1], n.stem); err != nil {
 		return nil, nil, nil, fmt.Errorf("error serializing stem '%x': %w", n.stem, err)
@@ -1653,8 +1654,8 @@ func (n *LeafNode) GetProofItems(keys keylist, curTs AccessTimestamp, resolver N
 		pe.Fis = append(pe.Fis, poly[:])
 	}
 
-	// add last accessed timestamp
-	poly[4].SetUint64(uint64(n.lastTs))
+	// add last accessed epoch
+	poly[4].SetUint64(uint64(n.lastEpoch))
 	pe.Cis = append(pe.Cis, n.commitment)
 	pe.Zis = append(pe.Zis, 4)
 	pe.Yis = append(pe.Yis, &poly[4])
@@ -1748,7 +1749,7 @@ func (n *LeafNode) GetProofItems(keys keylist, curTs AccessTimestamp, resolver N
 }
 
 // Serialize serializes a LeafNode.
-// The format is: <nodeType><stem><bitlist><comm><c1comm><c2comm><lastTs><children...>
+// The format is: <nodeType><stem><bitlist><comm><c1comm><c2comm><lastEpoch><children...>
 func (n *LeafNode) Serialize() ([]byte, error) {
 	cBytes := banderwagon.BatchToBytesUncompressed(n.commitment, n.c1, n.c2)
 	return n.serializeLeafWithUncompressedCommitments(cBytes[0], cBytes[1], cBytes[2]), nil
@@ -2012,8 +2013,8 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 
 	// Create the serialization.
 	var result []byte
-	lastTs := make([]byte, EpochSize)
-	binary.BigEndian.PutUint64(lastTs, uint64(n.lastTs))
+	lastEpoch := make([]byte, EpochSize)
+	binary.BigEndian.PutUint64(lastEpoch, uint64(n.lastEpoch))
 	switch {
 	case count == 1:
 		var buf [singleSlotLeafSize]byte
@@ -2022,7 +2023,7 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 		copy(result[leafStemOffset:], n.stem[:StemSize])
 		copy(result[leafStemOffset+StemSize:], c1Bytes[:])
 		copy(result[leafStemOffset+StemSize+banderwagon.UncompressedSize:], cBytes[:])
-		copy(result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize:], lastTs)
+		copy(result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize:], lastEpoch)
 		result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize+EpochSize] = byte(lastIdx)
 		copy(result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize+EpochSize+leafValueIndexSize:], n.values[lastIdx][:])
 	case isEoA:
@@ -2032,7 +2033,7 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 		copy(result[leafStemOffset:], n.stem[:StemSize])
 		copy(result[leafStemOffset+StemSize:], c1Bytes[:])
 		copy(result[leafStemOffset+StemSize+banderwagon.UncompressedSize:], cBytes[:])
-		copy(result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize:], lastTs)
+		copy(result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize:], lastEpoch)
 		copy(result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize+EpochSize:], n.values[1])                                 // copy balance
 		copy(result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize+EpochSize+leafBalanceSize:], n.values[2][:leafNonceSize]) // copy nonce
 	default:
@@ -2043,7 +2044,7 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 		copy(result[leafCommitmentOffset:], cBytes[:])
 		copy(result[leafC1CommitmentOffset:], c1Bytes[:])
 		copy(result[leafC2CommitmentOffset:], c2Bytes[:])
-		copy(result[leafLastTsOffset:], lastTs)
+		copy(result[leafLastTsOffset:], lastEpoch)
 		copy(result[leafChildrenOffset:], children)
 	}
 

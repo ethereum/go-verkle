@@ -35,15 +35,15 @@ func NewExpiredLeafNode(stem Stem, commitment *Point) *ExpiredLeafNode {
 	return &ExpiredLeafNode{stem: stem, commitment: commitment}
 }
 
-func (n *ExpiredLeafNode) Insert([]byte, []byte, AccessTimestamp, NodeResolverFn) error {
+func (n *ExpiredLeafNode) Insert([]byte, []byte, StateEpoch, NodeResolverFn) error {
 	return errExpired
 }
 
-func (n *ExpiredLeafNode) Delete([]byte, AccessTimestamp, NodeResolverFn) (bool, error) {
+func (n *ExpiredLeafNode) Delete([]byte, StateEpoch, NodeResolverFn) (bool, error) {
 	return false, errExpired
 }
 
-func (n *ExpiredLeafNode) Get([]byte, AccessTimestamp, NodeResolverFn) ([]byte, error) {
+func (n *ExpiredLeafNode) Get([]byte, StateEpoch, NodeResolverFn) ([]byte, error) {
 	return nil, errExpired
 }
 
@@ -58,7 +58,7 @@ func (n *ExpiredLeafNode) Commitment() *Point {
 	return n.commitment
 }
 
-func (n *ExpiredLeafNode) GetProofItems(keys keylist, curTs AccessTimestamp, resolver NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
+func (n *ExpiredLeafNode) GetProofItems(keys keylist, curEpoch StateEpoch, resolver NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
 	var (
 		pe = &ProofElements{
 			Vals:   make([][]byte, len(keys)),

@@ -31,15 +31,15 @@ type Empty struct{}
 
 var errDirectInsertIntoEmptyNode = errors.New("an empty node should not be inserted directly into")
 
-func (Empty) Insert([]byte, []byte, AccessTimestamp, NodeResolverFn) error {
+func (Empty) Insert([]byte, []byte, StateEpoch, NodeResolverFn) error {
 	return errDirectInsertIntoEmptyNode
 }
 
-func (Empty) Delete([]byte, AccessTimestamp, NodeResolverFn) (bool, error) {
+func (Empty) Delete([]byte, StateEpoch, NodeResolverFn) (bool, error) {
 	return false, errors.New("cant delete an empty node")
 }
 
-func (Empty) Get([]byte, AccessTimestamp, NodeResolverFn) ([]byte, error) {
+func (Empty) Get([]byte, StateEpoch, NodeResolverFn) ([]byte, error) {
 	return nil, nil
 }
 
@@ -53,7 +53,7 @@ func (Empty) Commitment() *Point {
 	return &id
 }
 
-func (Empty) GetProofItems(keylist, AccessTimestamp, NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
+func (Empty) GetProofItems(keylist, StateEpoch, NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
 	return nil, nil, nil, errors.New("trying to produce a commitment for an empty subtree")
 }
 

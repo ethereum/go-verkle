@@ -31,8 +31,8 @@ func TestInsertSameLeafNoExpired(t *testing.T) {
 		t.Fatalf("expected value %x, got %x", testValue, leaf.values[oneKeyTest[StemSize]])
 	}
 
-	if leaf.lastTs != 1 {
-		t.Fatalf("expected last accessed to be 1, got %d", leaf.lastTs)
+	if leaf.lastEpoch != 1 {
+		t.Fatalf("expected last accessed to be 1, got %d", leaf.lastEpoch)
 	}
 }
 
@@ -58,8 +58,8 @@ func TestInsertSameLeafExpired(t *testing.T) {
 		t.Fatalf("expected value %x, got %x", testValue, leaf.values[zeroKeyTest[StemSize]])
 	}
 
-	if leaf.lastTs != 0 {
-		t.Fatalf("expected last accessed to be 0, got %d", leaf.lastTs)
+	if leaf.lastEpoch != 0 {
+		t.Fatalf("expected last accessed to be 0, got %d", leaf.lastEpoch)
 	}
 }
 
@@ -93,12 +93,12 @@ func TestInsertDiffLeaf(t *testing.T) {
 		t.Fatalf("expected value %x, got %x", testValue, leaff.values[ffx32KeyTest[StemSize]])
 	}
 
-	if leaf0.lastTs != 0 {
-		t.Fatalf("expected last accessed to be 0, got %d", leaf0.lastTs)
+	if leaf0.lastEpoch != 0 {
+		t.Fatalf("expected last accessed to be 0, got %d", leaf0.lastEpoch)
 	}
 
-	if leaff.lastTs != 2 {
-		t.Fatalf("expected last accessed to be 2, got %d", leaff.lastTs)
+	if leaff.lastEpoch != 2 {
+		t.Fatalf("expected last accessed to be 2, got %d", leaff.lastEpoch)
 	}
 }
 
@@ -124,8 +124,8 @@ func TestGetNoExpired(t *testing.T) {
 		t.Fatalf("expected value %x, got %x", testValue, val)
 	}
 
-	if leaf.lastTs != 0 {
-		t.Fatalf("expected last accessed to be 0, got %d", leaf.lastTs)
+	if leaf.lastEpoch != 0 {
+		t.Fatalf("expected last accessed to be 0, got %d", leaf.lastEpoch)
 	}
 }
 
@@ -151,8 +151,8 @@ func TestGetExpired(t *testing.T) {
 		t.Fatalf("expected leaf node, got %T", root.(*InternalNode).children[0])
 	}
 
-	if leaf.lastTs != 0 {
-		t.Fatalf("expected last accessed to be 0, got %d", leaf.lastTs)
+	if leaf.lastEpoch != 0 {
+		t.Fatalf("expected last accessed to be 0, got %d", leaf.lastEpoch)
 	}
 }
 
@@ -192,8 +192,8 @@ func TestDelLeafExpired(t *testing.T) {
 		t.Fatalf("expected empty node, got %T", root.(*InternalNode).children[0])
 	}
 
-	if leaf.lastTs != 0 {
-		t.Fatalf("expected last accessed to be 0, got %d", leaf.lastTs)
+	if leaf.lastEpoch != 0 {
+		t.Fatalf("expected last accessed to be 0, got %d", leaf.lastEpoch)
 	}
 }
 
@@ -222,7 +222,7 @@ func TestRootCommitExpired(t *testing.T) {
 	}
 }
 
-func TestRootCommitDiffTimestamp(t *testing.T) {
+func TestRootCommitDiffEpoch(t *testing.T) {
 	t.Parallel()
 
 	root1 := New()
