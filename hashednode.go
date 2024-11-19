@@ -32,15 +32,15 @@ import (
 
 type HashedNode struct{}
 
-func (HashedNode) Insert([]byte, []byte, StateEpoch, NodeResolverFn) error {
+func (HashedNode) Insert([]byte, []byte, StatePeriod, NodeResolverFn) error {
 	return errInsertIntoHash
 }
 
-func (HashedNode) Delete([]byte, StateEpoch, NodeResolverFn) (bool, error) {
+func (HashedNode) Delete([]byte, StatePeriod, NodeResolverFn) (bool, error) {
 	return false, errors.New("cant delete a hashed node in-place")
 }
 
-func (HashedNode) Get([]byte, StateEpoch, NodeResolverFn) ([]byte, error) {
+func (HashedNode) Get([]byte, StatePeriod, NodeResolverFn) ([]byte, error) {
 	return nil, errors.New("can not read from a hash node")
 }
 

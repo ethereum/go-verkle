@@ -1187,8 +1187,8 @@ func TestProofVerificationWithPostState(t *testing.T) { // skipcq: GO-R1005
 func TestProofVerificationPreStateExpiredPostStateResurrected(t *testing.T) {
 	t.Parallel()
 
-	preEpoch := StateEpoch(0)
-	postEpoch := StateEpoch(2)
+	preEpoch := StatePeriod(0)
+	postEpoch := StatePeriod(2)
 
 	preRoot := New()
 	if err := preRoot.Insert(zeroKeyTest, zeroKeyTest, preEpoch, nil); err != nil {

@@ -39,15 +39,15 @@ func NewExpiredLeafNode(stem Stem, commitment *Point) *ExpiredLeafNode {
 	return &ExpiredLeafNode{stem: stem, commitment: commitment}
 }
 
-func (n *ExpiredLeafNode) Insert([]byte, []byte, StateEpoch, NodeResolverFn) error {
+func (n *ExpiredLeafNode) Insert([]byte, []byte, StatePeriod, NodeResolverFn) error {
 	return errExpired
 }
 
-func (n *ExpiredLeafNode) Delete([]byte, StateEpoch, NodeResolverFn) (bool, error) {
+func (n *ExpiredLeafNode) Delete([]byte, StatePeriod, NodeResolverFn) (bool, error) {
 	return false, errExpired
 }
 
-func (n *ExpiredLeafNode) Get([]byte, StateEpoch, NodeResolverFn) ([]byte, error) {
+func (n *ExpiredLeafNode) Get([]byte, StatePeriod, NodeResolverFn) ([]byte, error) {
 	return nil, errExpired
 }
 

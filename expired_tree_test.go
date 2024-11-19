@@ -31,8 +31,8 @@ func TestInsertSameLeafNoExpired(t *testing.T) {
 		t.Fatalf("expected value %x, got %x", testValue, leaf.values[oneKeyTest[StemSize]])
 	}
 
-	if leaf.lastEpoch != 1 {
-		t.Fatalf("expected last accessed to be 1, got %d", leaf.lastEpoch)
+	if leaf.lastPeriod != 1 {
+		t.Fatalf("expected last accessed to be 1, got %d", leaf.lastPeriod)
 	}
 }
 
@@ -46,7 +46,7 @@ func TestInsertSameLeafExpired(t *testing.T) {
 
 	err := root.Insert(oneKeyTest, testValue, 2, nil)
 	if !errors.Is(err, errExpired) {
-		t.Fatalf("expected epoch expired error when inserting, got %v", err)
+		t.Fatalf("expected period expired error when inserting, got %v", err)
 	}
 
 	leaf, ok := root.(*InternalNode).children[0].(*LeafNode)
@@ -58,8 +58,8 @@ func TestInsertSameLeafExpired(t *testing.T) {
 		t.Fatalf("expected value %x, got %x", testValue, leaf.values[zeroKeyTest[StemSize]])
 	}
 
-	if leaf.lastEpoch != 0 {
-		t.Fatalf("expected last accessed to be 0, got %d", leaf.lastEpoch)
+	if leaf.lastPeriod != 0 {
+		t.Fatalf("expected last accessed to be 0, got %d", leaf.lastPeriod)
 	}
 }
 
@@ -93,12 +93,12 @@ func TestInsertDiffLeaf(t *testing.T) {
 		t.Fatalf("expected value %x, got %x", testValue, leaff.values[ffx32KeyTest[StemSize]])
 	}
 
-	if leaf0.lastEpoch != 0 {
-		t.Fatalf("expected last accessed to be 0, got %d", leaf0.lastEpoch)
+	if leaf0.lastPeriod != 0 {
+		t.Fatalf("expected last accessed to be 0, got %d", leaf0.lastPeriod)
 	}
 
-	if leaff.lastEpoch != 2 {
-		t.Fatalf("expected last accessed to be 2, got %d", leaff.lastEpoch)
+	if leaff.lastPeriod != 2 {
+		t.Fatalf("expected last accessed to be 2, got %d", leaff.lastPeriod)
 	}
 }
 
@@ -124,8 +124,8 @@ func TestGetNoExpired(t *testing.T) {
 		t.Fatalf("expected value %x, got %x", testValue, val)
 	}
 
-	if leaf.lastEpoch != 0 {
-		t.Fatalf("expected last accessed to be 0, got %d", leaf.lastEpoch)
+	if leaf.lastPeriod != 0 {
+		t.Fatalf("expected last accessed to be 0, got %d", leaf.lastPeriod)
 	}
 }
 
@@ -139,7 +139,7 @@ func TestGetExpired(t *testing.T) {
 
 	val, err := root.Get(zeroKeyTest, 2, nil)
 	if !errors.Is(err, errExpired) {
-		t.Fatalf("expected epoch expired error when getting, got %v", err)
+		t.Fatalf("expected period expired error when getting, got %v", err)
 	}
 
 	if val != nil {
@@ -151,8 +151,8 @@ func TestGetExpired(t *testing.T) {
 		t.Fatalf("expected leaf node, got %T", root.(*InternalNode).children[0])
 	}
 
-	if leaf.lastEpoch != 0 {
-		t.Fatalf("expected last accessed to be 0, got %d", leaf.lastEpoch)
+	if leaf.lastPeriod != 0 {
+		t.Fatalf("expected last accessed to be 0, got %d", leaf.lastPeriod)
 	}
 }
 
@@ -184,7 +184,7 @@ func TestDelLeafExpired(t *testing.T) {
 
 	_, err := root.Delete(zeroKeyTest, 2, nil)
 	if !errors.Is(err, errExpired) {
-		t.Fatalf("expected epoch expired error when deleting, got %v", err)
+		t.Fatalf("expected period expired error when deleting, got %v", err)
 	}
 
 	leaf, ok := root.(*InternalNode).children[0].(*LeafNode)
@@ -192,8 +192,8 @@ func TestDelLeafExpired(t *testing.T) {
 		t.Fatalf("expected empty node, got %T", root.(*InternalNode).children[0])
 	}
 
-	if leaf.lastEpoch != 0 {
-		t.Fatalf("expected last accessed to be 0, got %d", leaf.lastEpoch)
+	if leaf.lastPeriod != 0 {
+		t.Fatalf("expected last accessed to be 0, got %d", leaf.lastPeriod)
 	}
 }
 

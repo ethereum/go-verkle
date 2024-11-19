@@ -56,12 +56,12 @@ const (
 	leafC1CommitmentOffset = leafCommitmentOffset + banderwagon.UncompressedSize
 	leafC2CommitmentOffset = leafC1CommitmentOffset + banderwagon.UncompressedSize
 	leafChildrenOffset     = leafC2CommitmentOffset + banderwagon.UncompressedSize
-	leafLastEpochOffset    = leafChildrenOffset + epochSize
+	leafLastEpochOffset    = leafChildrenOffset + periodSize
 	leafBasicDataSize      = 32
 	leafSlotSize           = 32
 	leafValueIndexSize     = 1
-	singleSlotLeafSize     = nodeTypeSize + StemSize + 2*banderwagon.UncompressedSize + leafValueIndexSize + leafSlotSize + epochSize
-	eoaLeafSize            = nodeTypeSize + StemSize + 2*banderwagon.UncompressedSize + leafBasicDataSize + epochSize
+	singleSlotLeafSize     = nodeTypeSize + StemSize + 2*banderwagon.UncompressedSize + leafValueIndexSize + leafSlotSize + periodSize
+	eoaLeafSize            = nodeTypeSize + StemSize + 2*banderwagon.UncompressedSize + leafBasicDataSize + periodSize
 	expiredLeafSize        = nodeTypeSize + StemSize + banderwagon.UncompressedSize
 )
 
@@ -77,9 +77,9 @@ var errSerializedPayloadTooShort = errors.New("verkle payload is too short")
 // ParseNode deserializes a node into its proper VerkleNode instance.
 // The serialized bytes have the format:
 // - Internal nodes:   <nodeType><bitlist><commitment>
-// - Leaf nodes:       <nodeType><stem><bitlist><comm><c1comm><c2comm><lastEpoch><children...>
-// - EoA nodes:        <nodeType><stem><comm><c1comm><lastEpoch><balance><nonce>
-// - single slot node: <nodeType><stem><comm><cncomm><lastEpoch><leaf index><slot>
+// - Leaf nodes:       <nodeType><stem><bitlist><comm><c1comm><c2comm><lastPeriod><children...>
+// - EoA nodes:        <nodeType><stem><comm><c1comm><lastPeriod><balance><nonce>
+// - single slot node: <nodeType><stem><comm><cncomm><lastPeriod><leaf index><slot>
 // - Expired leaf nodes:       <nodeType><stem><commitment>
 func ParseNode(serializedNode []byte, depth byte) (VerkleNode, error) {
 	// Check that the length of the serialized node is at least the smallest possible serialized node.
@@ -119,7 +119,7 @@ func parseLeafNode(serialized []byte, depth byte) (VerkleNode, error) {
 	ln := NewLeafNodeWithNoComms(
 		serialized[leafStemOffset:leafStemOffset+StemSize],
 		values[:],
-		StateEpochFromBytes(serialized[leafLastEpochOffset:leafLastEpochOffset+epochSize]))
+		StatePeriodFromBytes(serialized[leafLastEpochOffset:leafLastEpochOffset+periodSize]))
 	ln.setDepth(depth)
 	ln.c1 = new(Point)
 
@@ -144,11 +144,11 @@ func parseLeafNode(serialized []byte, depth byte) (VerkleNode, error) {
 
 func parseEoAccountNode(serialized []byte, depth byte) (VerkleNode, error) {
 	var values [NodeWidth][]byte
-	offset := leafStemOffset + StemSize + 2*banderwagon.UncompressedSize + epochSize
-	epochOffset := offset - epochSize
+	offset := leafStemOffset + StemSize + 2*banderwagon.UncompressedSize + periodSize
+	periodOffset := offset - periodSize
 	values[0] = serialized[offset : offset+leafBasicDataSize] // basic data
 	values[1] = EmptyCodeHash[:]
-	ln := NewLeafNodeWithNoComms(serialized[leafStemOffset:leafStemOffset+StemSize], values[:], StateEpochFromBytes(serialized[epochOffset:epochOffset+epochSize]))
+	ln := NewLeafNodeWithNoComms(serialized[leafStemOffset:leafStemOffset+StemSize], values[:], StatePeriodFromBytes(serialized[periodOffset:periodOffset+periodSize]))
 	ln.setDepth(depth)
 	ln.c1 = new(Point)
 	if err := ln.c1.SetBytesUncompressed(serialized[leafStemOffset+StemSize:leafStemOffset+StemSize+banderwagon.UncompressedSize], true); err != nil {
@@ -165,13 +165,13 @@ func parseEoAccountNode(serialized []byte, depth byte) (VerkleNode, error) {
 func parseSingleSlotNode(serialized []byte, depth byte) (VerkleNode, error) {
 	var values [NodeWidth][]byte
 	offset := leafStemOffset
-	epochOffset := leafStemOffset + StemSize + 2*banderwagon.UncompressedSize
-	ln := NewLeafNodeWithNoComms(serialized[offset:offset+StemSize], values[:], StateEpochFromBytes(serialized[epochOffset:epochOffset+epochSize]))
+	periodOffset := leafStemOffset + StemSize + 2*banderwagon.UncompressedSize
+	ln := NewLeafNodeWithNoComms(serialized[offset:offset+StemSize], values[:], StatePeriodFromBytes(serialized[periodOffset:periodOffset+periodSize]))
 	offset += StemSize
 	cnCommBytes := serialized[offset : offset+banderwagon.UncompressedSize]
 	offset += banderwagon.UncompressedSize
 	rootCommBytes := serialized[offset : offset+banderwagon.UncompressedSize]
-	offset += banderwagon.UncompressedSize + epochSize
+	offset += banderwagon.UncompressedSize + periodSize
 	idx := serialized[offset]
 	offset += leafValueIndexSize
 	values[idx] = serialized[offset : offset+leafSlotSize] // copy slot

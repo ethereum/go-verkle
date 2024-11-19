@@ -4,16 +4,16 @@ import (
 	"encoding/binary"
 )
 
-type StateEpoch uint16
+type StatePeriod uint16
 
 const (
 	NumActiveEpochs = 2
 )
 
-func IsExpired(prev StateEpoch, cur StateEpoch) bool {
+func IsExpired(prev StatePeriod, cur StatePeriod) bool {
 	return cur-prev >= NumActiveEpochs
 }
 
-func StateEpochFromBytes(b []byte) StateEpoch {
-	return StateEpoch(binary.BigEndian.Uint16(b))
+func StatePeriodFromBytes(b []byte) StatePeriod {
+	return StatePeriod(binary.BigEndian.Uint16(b))
 }

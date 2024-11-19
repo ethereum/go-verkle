@@ -97,7 +97,7 @@ func firstDiffByteIdx(stem1 []byte, stem2 []byte) int {
 	panic("stems are equal")
 }
 
-func (n *InternalNode) InsertMigratedLeaves(leaves []LeafNode, curEpoch StateEpoch, resolver NodeResolverFn) error {
+func (n *InternalNode) InsertMigratedLeaves(leaves []LeafNode, curPeriod StatePeriod, resolver NodeResolverFn) error {
 	sort.Slice(leaves, func(i, j int) bool {
 		return bytes.Compare(leaves[i].stem, leaves[j].stem) < 0
 	})
@@ -132,13 +132,13 @@ func (n *InternalNode) InsertMigratedLeaves(leaves []LeafNode, curEpoch StateEpo
 			start := currStemFirstByte
 			end := i
 			group.Go(func() error {
-				return n.insertMigratedLeavesSubtree(leaves[start:end], curEpoch, resolver)
+				return n.insertMigratedLeavesSubtree(leaves[start:end], curPeriod, resolver)
 			})
 			currStemFirstByte = i
 		}
 	}
 	group.Go(func() error {
-		return n.insertMigratedLeavesSubtree(leaves[currStemFirstByte:], curEpoch, resolver)
+		return n.insertMigratedLeavesSubtree(leaves[currStemFirstByte:], curPeriod, resolver)
 	})
 	if err := group.Wait(); err != nil {
 		return fmt.Errorf("inserting migrated leaves: %w", err)
@@ -147,7 +147,7 @@ func (n *InternalNode) InsertMigratedLeaves(leaves []LeafNode, curEpoch StateEpo
 	return nil
 }
 
-func (n *InternalNode) insertMigratedLeavesSubtree(leaves []LeafNode, curEpoch StateEpoch, resolver NodeResolverFn) error { // skipcq: GO-R1005
+func (n *InternalNode) insertMigratedLeavesSubtree(leaves []LeafNode, curPeriod StatePeriod, resolver NodeResolverFn) error { // skipcq: GO-R1005
 	for i := range leaves {
 		ln := leaves[i]
 		parent := n
@@ -192,7 +192,7 @@ func (n *InternalNode) insertMigratedLeavesSubtree(leaves []LeafNode, curEpoch S
 					}
 				}
 
-				if err := node.updateMultipleLeaves(nonPresentValues, curEpoch); err != nil {
+				if err := node.updateMultipleLeaves(nonPresentValues, curPeriod); err != nil {
 					return fmt.Errorf("updating leaves: %s", err)
 				}
 				continue

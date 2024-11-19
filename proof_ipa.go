@@ -194,7 +194,7 @@ func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte, resolver NodeRe
 // getProofElementsFromTree factors the logic that is used both in the proving and verification methods. It takes a pre-state
 // tree and an optional post-state tree, extracts the proof data from them and returns all the items required to build/verify
 // a proof.
-func getProofElementsFromTree(preroot, postroot VerkleNode, keys [][]byte, postEpoch StateEpoch, resolver NodeResolverFn) (*ProofElements, []byte, []Stem, [][]byte, error) {
+func getProofElementsFromTree(preroot, postroot VerkleNode, keys [][]byte, postEpoch StatePeriod, resolver NodeResolverFn) (*ProofElements, []byte, []Stem, [][]byte, error) {
 	// go-ipa won't accept no key as an input, catch this corner case
 	// and return an empty result.
 	if len(keys) == 0 {
@@ -228,7 +228,7 @@ func getProofElementsFromTree(preroot, postroot VerkleNode, keys [][]byte, postE
 	return pe, es, poas, postvals, nil
 }
 
-func MakeVerkleMultiProof(preroot, postroot VerkleNode, keys [][]byte, postEpoch StateEpoch, resolver NodeResolverFn) (*Proof, []*Point, []byte, []*Fr, error) {
+func MakeVerkleMultiProof(preroot, postroot VerkleNode, keys [][]byte, postEpoch StatePeriod, resolver NodeResolverFn) (*Proof, []*Point, []byte, []*Fr, error) {
 	pe, es, poas, postvals, err := getProofElementsFromTree(preroot, postroot, keys, postEpoch, resolver)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("get commitments for multiproof: %s", err)
@@ -612,7 +612,7 @@ func PreStateTreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) { // 
 
 // PostStateTreeFromProof uses the pre-state trie and the list of updated values
 // to produce the stateless post-state trie.
-func PostStateTreeFromStateDiff(preroot VerkleNode, statediff StateDiff, postEpoch StateEpoch) (VerkleNode, error) {
+func PostStateTreeFromStateDiff(preroot VerkleNode, statediff StateDiff, postEpoch StatePeriod) (VerkleNode, error) {
 	postroot := preroot.Copy()
 
 	for _, stemstatediff := range statediff {
@@ -650,7 +650,7 @@ func (x bytesSlice) Less(i, j int) bool { return bytes.Compare(x[i], x[j]) < 0 }
 func (x bytesSlice) Swap(i, j int)      { x[i], x[j] = x[j], x[i] }
 
 // Verify is the API function that verifies a verkle proofs as found in a block/execution payload.
-func Verify(vp *VerkleProof, preStateRoot []byte, postStateRoot []byte, statediff StateDiff, curEpoch StateEpoch) error {
+func Verify(vp *VerkleProof, preStateRoot []byte, postStateRoot []byte, statediff StateDiff, curPeriod StatePeriod) error {
 	proof, err := DeserializeProof(vp, statediff)
 	if err != nil {
 		return fmt.Errorf("verkle proof deserialization error: %w", err)
@@ -692,7 +692,7 @@ func Verify(vp *VerkleProof, preStateRoot []byte, postStateRoot []byte, statedif
 	// But all this can be avoided with a even faster way. The EVM block execution can
 	// keep track of the written keys, and compare that list with this post-values list.
 	// This can avoid regenerating the post-tree which is somewhat expensive.
-	posttree, err := PostStateTreeFromStateDiff(pretree, statediff, curEpoch)
+	posttree, err := PostStateTreeFromStateDiff(pretree, statediff, curPeriod)
 	if err != nil {
 		return fmt.Errorf("error rebuilding the post-tree from proof: %w", err)
 	}
