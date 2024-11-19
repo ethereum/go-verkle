@@ -1946,7 +1946,6 @@ func (n *InternalNode) serializeInternalWithUncompressedCommitment(pointsIdx map
 }
 
 var (
-	zero24           [24]byte
 	zero32           [32]byte
 	EmptyCodeHash, _ = hex.DecodeString("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
 )
@@ -1959,7 +1958,7 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 	children := make([]byte, 0, NodeWidth*LeafValueSize)
 	var (
 		bitlist        [bitlistSize]byte
-		isEoA          = false // TODO: EoA serialization optimization is broken -- re-enable when fixed.
+		isEoA          = true
 		count, lastIdx int
 	)
 	for i, v := range n.values {
@@ -1977,28 +1976,16 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 			switch i {
 			case 0:
 				// Version should be 0
-				isEoA = v != nil && bytes.Equal(v, zero32[:])
-			case 1:
-				// Balance should not be nil
 				isEoA = v != nil
-			case 2:
-				// Nonce should have its last 24 bytes set to 0
-				isEoA = v != nil && bytes.Equal(v[leafNonceSize:], zero24[:])
-			case 3:
+			case 1:
 				// Code hash should be the empty code hash
 				isEoA = v != nil && bytes.Equal(v, EmptyCodeHash[:])
-			case 4:
-				// Code size must be 0
-				isEoA = v != nil && bytes.Equal(v, zero32[:])
 			default:
 				// All other values must be nil
 				isEoA = v == nil
 			}
 		}
 	}
-
-	// TODO: single slot serialization optimization is apparently broken -- force disabling it until is fixed.
-	count = 256
 
 	// Create the serialization.
 	var result []byte
@@ -2010,7 +1997,11 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 		result = buf[:]
 		result[0] = singleSlotType
 		copy(result[leafStemOffset:], n.stem[:StemSize])
-		copy(result[leafStemOffset+StemSize:], c1Bytes[:])
+		if lastIdx < 128 {
+			copy(result[leafStemOffset+StemSize:], c1Bytes[:])
+		} else {
+			copy(result[leafStemOffset+StemSize:], c2Bytes[:])
+		}
 		copy(result[leafStemOffset+StemSize+banderwagon.UncompressedSize:], cBytes[:])
 		copy(result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize:], lastEpoch)
 		result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize+epochSize] = byte(lastIdx)
@@ -2023,8 +2014,7 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 		copy(result[leafStemOffset+StemSize:], c1Bytes[:])
 		copy(result[leafStemOffset+StemSize+banderwagon.UncompressedSize:], cBytes[:])
 		copy(result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize:], lastEpoch)
-		copy(result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize+epochSize:], n.values[1])                                 // copy balance
-		copy(result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize+epochSize+leafBalanceSize:], n.values[2][:leafNonceSize]) // copy nonce
+		copy(result[leafStemOffset+StemSize+2*banderwagon.UncompressedSize+epochSize:], n.values[0]) // copy basic data
 	default:
 		result = make([]byte, nodeTypeSize+StemSize+bitlistSize+3*banderwagon.UncompressedSize+epochSize+len(children))
 		result[0] = leafType

@@ -1158,7 +1158,7 @@ func TestProofVerificationWithPostState(t *testing.T) { // skipcq: GO-R1005
 				t.Fatalf("error deserializing proof: %v", err)
 			}
 
-			if err = verifyVerkleProofWithPreState(dproof, root, 0); err != nil {
+			if err = verifyVerkleProofWithPreState(dproof, root); err != nil {
 				t.Fatalf("could not verify verkle proof: %v, original: %s reconstructed: %s", err, ToDot(root), ToDot(postroot))
 			}
 
@@ -1176,7 +1176,7 @@ func TestProofVerificationWithPostState(t *testing.T) { // skipcq: GO-R1005
 				t.Fatalf("differing root commitments %x != %x", dpostroot.Commitment().Bytes(), postroot.Commitment().Bytes())
 			}
 
-			if err = verifyVerkleProofWithPreState(dproof, dpreroot, 0); err != nil {
+			if err = verifyVerkleProofWithPreState(dproof, dpreroot); err != nil {
 				t.Fatalf("could not verify verkle proof: %v, original: %s reconstructed: %s", err, ToDot(dpreroot), ToDot(dpostroot))
 			}
 		})
@@ -1218,7 +1218,7 @@ func TestProofVerificationPreStateExpiredPostStateResurrected(t *testing.T) {
 		t.Fatalf("error deserializing proof: %v", err)
 	}
 
-	if err = verifyVerkleProofWithPreState(dproof, preRoot, preEpoch); err != nil {
+	if err = verifyVerkleProofWithPreState(dproof, preRoot); err != nil {
 		t.Fatalf("could not verify verkle proof: %v", err)
 	}
 
@@ -1232,7 +1232,7 @@ func TestProofVerificationPreStateExpiredPostStateResurrected(t *testing.T) {
 		t.Fatalf("error recreating post tree: %v", err)
 	}
 
-	if err = verifyVerkleProofWithPreState(dproof, dpreroot, preEpoch); err != nil {
+	if err = verifyVerkleProofWithPreState(dproof, dpreroot); err != nil {
 		t.Fatalf("could not verify verkle proof: %v, original: %s reconstructed: %s", err, ToDot(dpreroot), ToDot(dpostroot))
 	}
 

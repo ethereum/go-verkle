@@ -271,7 +271,7 @@ func MakeVerkleMultiProof(preroot, postroot VerkleNode, keys [][]byte, postEpoch
 }
 
 // verifyVerkleProofWithPreState takes a proof and a trusted tree root and verifies that the proof is valid.
-func verifyVerkleProofWithPreState(proof *Proof, preroot VerkleNode, preEpoch StateEpoch) error {
+func verifyVerkleProofWithPreState(proof *Proof, preroot VerkleNode) error {
 	pe, _, _, _, err := getProofElementsFromTree(preroot, nil, proof.Keys, 0, nil)
 	if err != nil {
 		return fmt.Errorf("error getting proof elements: %w", err)
@@ -701,5 +701,5 @@ func Verify(vp *VerkleProof, preStateRoot []byte, postStateRoot []byte, statedif
 		return fmt.Errorf("post tree root mismatch: %x != %x", regeneratedPostTreeRoot, postStateRoot)
 	}
 
-	return verifyVerkleProofWithPreState(proof, pretree, curEpoch)
+	return verifyVerkleProofWithPreState(proof, pretree)
 }
