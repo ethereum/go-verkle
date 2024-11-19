@@ -45,7 +45,7 @@ func BatchNewLeafNode(nodesValues []BatchNewLeafNodeData) ([]LeafNode, error) {
 					}
 
 					var leaf *LeafNode
-					leaf, err := NewLeafNode(nv.Stem, valsslice)
+					leaf, err := NewLeafNode(nv.Stem, valsslice, 0)
 					if err != nil {
 						return err
 					}
@@ -97,7 +97,7 @@ func firstDiffByteIdx(stem1 []byte, stem2 []byte) int {
 	panic("stems are equal")
 }
 
-func (n *InternalNode) InsertMigratedLeaves(leaves []LeafNode, resolver NodeResolverFn) error {
+func (n *InternalNode) InsertMigratedLeaves(leaves []LeafNode, curPeriod StatePeriod, resolver NodeResolverFn) error {
 	sort.Slice(leaves, func(i, j int) bool {
 		return bytes.Compare(leaves[i].stem, leaves[j].stem) < 0
 	})
@@ -132,13 +132,13 @@ func (n *InternalNode) InsertMigratedLeaves(leaves []LeafNode, resolver NodeReso
 			start := currStemFirstByte
 			end := i
 			group.Go(func() error {
-				return n.insertMigratedLeavesSubtree(leaves[start:end], resolver)
+				return n.insertMigratedLeavesSubtree(leaves[start:end], curPeriod, resolver)
 			})
 			currStemFirstByte = i
 		}
 	}
 	group.Go(func() error {
-		return n.insertMigratedLeavesSubtree(leaves[currStemFirstByte:], resolver)
+		return n.insertMigratedLeavesSubtree(leaves[currStemFirstByte:], curPeriod, resolver)
 	})
 	if err := group.Wait(); err != nil {
 		return fmt.Errorf("inserting migrated leaves: %w", err)
@@ -147,7 +147,7 @@ func (n *InternalNode) InsertMigratedLeaves(leaves []LeafNode, resolver NodeReso
 	return nil
 }
 
-func (n *InternalNode) insertMigratedLeavesSubtree(leaves []LeafNode, resolver NodeResolverFn) error { // skipcq: GO-R1005
+func (n *InternalNode) insertMigratedLeavesSubtree(leaves []LeafNode, curPeriod StatePeriod, resolver NodeResolverFn) error { // skipcq: GO-R1005
 	for i := range leaves {
 		ln := leaves[i]
 		parent := n
@@ -192,7 +192,7 @@ func (n *InternalNode) insertMigratedLeavesSubtree(leaves []LeafNode, resolver N
 					}
 				}
 
-				if err := node.updateMultipleLeaves(nonPresentValues); err != nil {
+				if err := node.updateMultipleLeaves(nonPresentValues, curPeriod); err != nil {
 					return fmt.Errorf("updating leaves: %s", err)
 				}
 				continue
