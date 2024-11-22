@@ -30,7 +30,6 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"unsafe"
 
 	ipa "github.com/crate-crypto/go-ipa"
 	"github.com/crate-crypto/go-ipa/common"
@@ -115,17 +114,20 @@ type Proof struct {
 	PostValues [][]byte
 }
 
-type SuffixStateDiff struct {
-	Suffix       byte      `json:"suffix"`
-	CurrentValue *[32]byte `json:"currentValue"`
-	NewValue     *[32]byte `json:"newValue"`
-}
-
-type SuffixStateDiffs []SuffixStateDiff
-
 type StemStateDiff struct {
-	Stem        [StemSize]byte   `json:"stem"`
-	SuffixDiffs SuffixStateDiffs `json:"suffixDiffs"`
+	Stem [StemSize]byte `json:"stem"`
+
+	UpdatedSuffixes []byte   `json:"updatedsuffixes"`
+	UpdatedCurrent  [][]byte `json:"updatedcurrent"`
+	UpdatedNew      [][]byte `json:"updatednew"`
+
+	ReadSuffixes []byte   `json:"readsuffixes"`
+	ReadCurrent  [][]byte `json:"readcurrent"`
+
+	InsertedSuffixes []byte   `json:"insertedsuffixes"`
+	InsertedNew      [][]byte `json:"insertednew"`
+
+	UntouchedSuffixes []byte `json:"untouchedsuffixes"`
 }
 
 type StateDiff []StemStateDiff
@@ -134,16 +136,47 @@ func (sd StateDiff) Copy() StateDiff {
 	ret := make(StateDiff, len(sd))
 	for i := range sd {
 		copy(ret[i].Stem[:], sd[i].Stem[:])
-		ret[i].SuffixDiffs = make([]SuffixStateDiff, len(sd[i].SuffixDiffs))
-		for j := range sd[i].SuffixDiffs {
-			ret[i].SuffixDiffs[j].Suffix = sd[i].SuffixDiffs[j].Suffix
-			if sd[i].SuffixDiffs[j].CurrentValue != nil {
-				ret[i].SuffixDiffs[j].CurrentValue = &[32]byte{}
-				copy((*ret[i].SuffixDiffs[j].CurrentValue)[:], (*sd[i].SuffixDiffs[j].CurrentValue)[:])
+
+		ret[i].UpdatedSuffixes = make([]byte, len(sd[i].UpdatedSuffixes))
+		copy(ret[i].UpdatedSuffixes, sd[i].UpdatedSuffixes)
+		ret[i].ReadSuffixes = make([]byte, len(sd[i].ReadSuffixes))
+		copy(ret[i].ReadSuffixes, sd[i].ReadSuffixes)
+		ret[i].InsertedSuffixes = make([]byte, len(sd[i].InsertedSuffixes))
+		copy(ret[i].InsertedSuffixes, sd[i].InsertedSuffixes)
+		ret[i].UntouchedSuffixes = make([]byte, len(sd[i].UntouchedSuffixes))
+		copy(ret[i].UntouchedSuffixes, sd[i].UntouchedSuffixes)
+
+		ret[i].UpdatedCurrent = make([][]byte, len(sd[i].UpdatedCurrent))
+		for j := range sd[i].UpdatedCurrent {
+			if len(sd[i].UpdatedCurrent[j]) == 0 {
+
+			} else {
+				copy(ret[i].UpdatedCurrent[j], sd[i].UpdatedCurrent[j])
 			}
-			if sd[i].SuffixDiffs[j].NewValue != nil {
-				ret[i].SuffixDiffs[j].NewValue = &[32]byte{}
-				copy((*ret[i].SuffixDiffs[j].NewValue)[:], (*sd[i].SuffixDiffs[j].NewValue)[:])
+		}
+		ret[i].ReadCurrent = make([][]byte, len(sd[i].ReadCurrent))
+		for j := range sd[i].ReadCurrent {
+			if len(sd[i].ReadCurrent[j]) == 0 {
+
+			} else {
+				copy(ret[i].ReadCurrent[j], sd[i].ReadCurrent[j])
+			}
+		}
+
+		ret[i].UpdatedNew = make([][]byte, len(sd[i].UpdatedNew))
+		for j := range sd[i].UpdatedNew {
+			if len(sd[i].UpdatedNew[j]) == 0 {
+
+			} else {
+				copy(ret[i].UpdatedNew[j], sd[i].UpdatedNew[j])
+			}
+		}
+		ret[i].InsertedNew = make([][]byte, len(sd[i].InsertedNew))
+		for j := range sd[i].InsertedNew {
+			if len(sd[i].InsertedNew[j]) == 0 {
+
+			} else {
+				copy(ret[i].InsertedNew[j], sd[i].InsertedNew[j])
 			}
 		}
 	}
@@ -287,6 +320,16 @@ func verifyVerkleProof(proof *Proof, Cs []*Point, indices []uint8, ys []*Fr, tc 
 	return ipa.CheckMultiProof(tr, tc.conf, proof.Multipoint, Cs, ys, indices)
 }
 
+func isInsertion(preLen, postLen int) bool {
+	return preLen == 0 && postLen != 0
+}
+func isRead(preLen, postLen int) bool {
+	return preLen != 0 && postLen == 0
+}
+func isUpdate(preLen, postLen int) bool {
+	return preLen != 0 && postLen != 0
+}
+
 // SerializeProof serializes the proof in the rust-verkle format:
 // * len(Proof of absence stem) || Proof of absence stems
 // * len(depths) || serialize(depth || ext statusi)
@@ -323,32 +366,45 @@ func SerializeProof(proof *Proof) (*VerkleProof, StateDiff, error) {
 			stemdiff = &statediff[len(statediff)-1]
 			copy(stemdiff.Stem[:], stem)
 		}
-		stemdiff.SuffixDiffs = append(stemdiff.SuffixDiffs, SuffixStateDiff{Suffix: key[StemSize]})
-		newsd := &stemdiff.SuffixDiffs[len(stemdiff.SuffixDiffs)-1]
-
-		var valueLen = len(proof.PreValues[i])
-		switch valueLen {
-		case 0:
-			// null value
-		case 32:
-			newsd.CurrentValue = (*[32]byte)(proof.PreValues[i])
+		preLen := len(proof.PreValues[i])
+		postLen := len(proof.PostValues[i])
+		switch {
+		case isInsertion(preLen, postLen):
+			stemdiff.InsertedSuffixes = append(stemdiff.InsertedSuffixes, key[StemSize])
+			if postLen == 0 {
+				stemdiff.InsertedNew = append(stemdiff.InsertedNew, proof.PostValues[i])
+			} else {
+				var aligned [32]byte
+				copy(aligned[:postLen], proof.PostValues[i])
+				stemdiff.InsertedNew = append(stemdiff.InsertedNew, aligned[:])
+			}
+		case isRead(preLen, postLen):
+			stemdiff.ReadSuffixes = append(stemdiff.ReadSuffixes, key[StemSize])
+			if preLen == 0 {
+				stemdiff.ReadCurrent = append(stemdiff.ReadCurrent, proof.PreValues[i])
+			} else {
+				var aligned [32]byte
+				copy(aligned[:preLen], proof.PreValues[i])
+				stemdiff.ReadCurrent = append(stemdiff.ReadCurrent, aligned[:])
+			}
+		case isUpdate(preLen, postLen):
+			stemdiff.UpdatedSuffixes = append(stemdiff.UpdatedSuffixes, key[StemSize])
+			if preLen == 0 {
+				stemdiff.UpdatedCurrent = append(stemdiff.UpdatedCurrent, proof.PreValues[i])
+			} else {
+				var aligned [32]byte
+				copy(aligned[:preLen], proof.PreValues[i])
+				stemdiff.UpdatedCurrent = append(stemdiff.UpdatedCurrent, aligned[:])
+			}
+			if postLen == 0 {
+				stemdiff.UpdatedNew = append(stemdiff.UpdatedNew, proof.PostValues[i])
+			} else {
+				var aligned [32]byte
+				copy(aligned[:postLen], proof.PostValues[i])
+				stemdiff.UpdatedNew = append(stemdiff.UpdatedNew, aligned[:])
+			}
 		default:
-			var aligned [32]byte
-			copy(aligned[:valueLen], proof.PreValues[i])
-			newsd.CurrentValue = (*[32]byte)(unsafe.Pointer(&aligned[0]))
-		}
-
-		valueLen = len(proof.PostValues[i])
-		switch valueLen {
-		case 0:
-			// null value
-		case 32:
-			newsd.NewValue = (*[32]byte)(proof.PostValues[i])
-		default:
-			// TODO remove usage of unsafe
-			var aligned [32]byte
-			copy(aligned[:valueLen], proof.PostValues[i])
-			newsd.NewValue = (*[32]byte)(unsafe.Pointer(&aligned[0]))
+			stemdiff.UntouchedSuffixes = append(stemdiff.UntouchedSuffixes, key[StemSize])
 		}
 	}
 
@@ -413,22 +469,37 @@ func DeserializeProof(vp *VerkleProof, statediff StateDiff) (*Proof, error) {
 
 	// turn statediff into keys and values
 	for _, stemdiff := range statediff {
-		for _, suffixdiff := range stemdiff.SuffixDiffs {
+		for i, suffix := range stemdiff.UpdatedSuffixes {
 			var k [32]byte
 			copy(k[:StemSize], stemdiff.Stem[:])
-			k[StemSize] = suffixdiff.Suffix
+			k[StemSize] = suffix
 			keys = append(keys, k[:])
-			if suffixdiff.CurrentValue != nil {
-				prevalues = append(prevalues, suffixdiff.CurrentValue[:])
-			} else {
-				prevalues = append(prevalues, nil)
-			}
-
-			if suffixdiff.NewValue != nil {
-				postvalues = append(postvalues, suffixdiff.NewValue[:])
-			} else {
-				postvalues = append(postvalues, nil)
-			}
+			prevalues = append(prevalues, stemdiff.UpdatedCurrent[i])
+			postvalues = append(postvalues, stemdiff.UpdatedNew[i])
+		}
+		for i, suffix := range stemdiff.InsertedSuffixes {
+			var k [32]byte
+			copy(k[:StemSize], stemdiff.Stem[:])
+			k[StemSize] = suffix
+			keys = append(keys, k[:])
+			prevalues = append(prevalues, nil)
+			postvalues = append(postvalues, stemdiff.InsertedNew[i])
+		}
+		for i, suffix := range stemdiff.ReadSuffixes {
+			var k [32]byte
+			copy(k[:StemSize], stemdiff.Stem[:])
+			k[StemSize] = suffix
+			keys = append(keys, k[:])
+			prevalues = append(prevalues, stemdiff.ReadCurrent[i])
+			postvalues = append(postvalues, nil)
+		}
+		for _, suffix := range stemdiff.UntouchedSuffixes {
+			var k [32]byte
+			copy(k[:StemSize], stemdiff.Stem[:])
+			k[StemSize] = suffix
+			keys = append(keys, k[:])
+			prevalues = append(prevalues, nil)
+			postvalues = append(postvalues, nil)
 		}
 	}
 
@@ -590,20 +661,28 @@ func PostStateTreeFromStateDiff(preroot VerkleNode, statediff StateDiff) (Verkle
 
 	for _, stemstatediff := range statediff {
 		var (
-			values     = make([][]byte, NodeWidth)
-			overwrites bool
+			values    = make([][]byte, NodeWidth)
+			overwrite bool
 		)
 
-		for _, suffixdiff := range stemstatediff.SuffixDiffs {
-			if /* len(suffixdiff.NewValue) > 0 - this only works for a slice */ suffixdiff.NewValue != nil {
+		for i, suffix := range stemstatediff.InsertedSuffixes {
+			if /* len(suffixdiff.NewValue) > 0 - this only works for a slice */ stemstatediff.InsertedNew[i] != nil {
 				// if this value is non-nil, it means InsertValuesAtStem should be
 				// called, otherwise, skip updating the tree.
-				overwrites = true
-				values[suffixdiff.Suffix] = suffixdiff.NewValue[:]
+				values[suffix] = stemstatediff.InsertedNew[i]
+				overwrite = true
+			}
+		}
+		for i, suffix := range stemstatediff.UpdatedSuffixes {
+			if /* len(suffixdiff.NewValue) > 0 - this only works for a slice */ stemstatediff.UpdatedNew[i] != nil {
+				// if this value is non-nil, it means InsertValuesAtStem should be
+				// called, otherwise, skip updating the tree.
+				values[suffix] = stemstatediff.UpdatedNew[i]
+				overwrite = true
 			}
 		}
 
-		if overwrites {
+		if overwrite {
 			var stem [StemSize]byte
 			copy(stem[:StemSize], stemstatediff.Stem[:])
 			if err := postroot.(*InternalNode).InsertValuesAtStem(stem[:], values, nil); err != nil {
