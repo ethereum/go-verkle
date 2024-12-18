@@ -10,8 +10,8 @@ const (
 	NumActiveEpochs = 2
 )
 
-func IsExpired(prev StatePeriod, cur StatePeriod) bool {
-	return cur >= prev+NumActiveEpochs // TODO(weiihann): deal with overflow
+func IsExpired(prev, cur StatePeriod) bool {
+	return cur > prev && cur - prev >= NumActiveEpochs // TODO(weiihann): deal with overflow
 }
 
 func StatePeriodFromBytes(b []byte) StatePeriod {
