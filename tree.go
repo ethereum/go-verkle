@@ -468,6 +468,11 @@ func (n *InternalNode) InsertValuesAtStem(stem Stem, values [][]byte, curPeriod 
 	return nil
 }
 
+// TODO(weiihann): implement this
+func (n *InternalNode) Revive(stem Stem, values [][]byte, curPeriod StatePeriod) error {
+	return n.InsertValuesAtStem(stem, values, curPeriod, true, nil)
+}
+
 // CreatePath inserts a given stem in the tree, placing it as
 // described by stemInfo. Its third parameters is the list of
 // commitments that have not been assigned a node. It returns
@@ -1310,7 +1315,7 @@ func (n *LeafNode) updateLeaf(index byte, value []byte, curPeriod StatePeriod) e
 
 	// If index is in the first NodeWidth/2 elements, we need to update C1. Otherwise, C2.
 	cxIndex := 2 + int(index)/(NodeWidth/2) // [1, stem, -> C1, C2 <-]
-	n.updateLastEpoch(curPeriod)
+	n.updatePeriod(curPeriod)
 	n.updateC(cxIndex, frs[0], frs[1], curPeriod)
 
 	n.values[index] = value
@@ -1365,19 +1370,19 @@ func (n *LeafNode) updateMultipleLeaves(values [][]byte, curPeriod StatePeriod) 
 		}
 		n.updateC(c1Idx, frs[0], frs[1], curPeriod)
 		n.updateC(c2Idx, frs[2], frs[3], curPeriod)
-		n.updateLastEpoch(curPeriod)
+		n.updatePeriod(curPeriod)
 	} else if oldC1 != nil { // Case 2. (C1 touched)
 		if err := banderwagon.BatchMapToScalarField([]*Fr{&frs[0], &frs[1]}, []*Point{n.c1, oldC1}); err != nil {
 			return fmt.Errorf("batch mapping to scalar fields: %s", err)
 		}
 		n.updateC(c1Idx, frs[0], frs[1], curPeriod)
-		n.updateLastEpoch(curPeriod)
+		n.updatePeriod(curPeriod)
 	} else if oldC2 != nil { // Case 2. (C2 touched)
 		if err := banderwagon.BatchMapToScalarField([]*Fr{&frs[0], &frs[1]}, []*Point{n.c2, oldC2}); err != nil {
 			return fmt.Errorf("batch mapping to scalar fields: %s", err)
 		}
 		n.updateC(c2Idx, frs[0], frs[1], curPeriod)
-		n.updateLastEpoch(curPeriod)
+		n.updatePeriod(curPeriod)
 	}
 
 	return nil
@@ -1462,7 +1467,7 @@ func (n *LeafNode) Delete(k []byte, curPeriod StatePeriod, _ NodeResolverFn) (bo
 			var poly [5]Fr
 			poly[4].SetUint64(uint64(curPeriod))
 			n.commitment.Add(n.commitment, cfg.CommitToPoly(poly[:], 0))
-			n.updateLastEpoch(curPeriod)
+			n.updatePeriod(curPeriod)
 		}
 
 		// Clear the corresponding commitment
@@ -1494,6 +1499,10 @@ func (n *LeafNode) Get(k []byte, curPeriod StatePeriod, _ NodeResolverFn) ([]byt
 		return nil, errIsPOAStub
 	}
 
+	if IsExpired(n.lastPeriod, curPeriod) {
+		return nil, errExpired
+	}
+
 	if !equalPaths(k, n.stem) {
 		// If keys differ, return nil in order to
 		// signal that the key isn't present in the
@@ -1501,6 +1510,8 @@ func (n *LeafNode) Get(k []byte, curPeriod StatePeriod, _ NodeResolverFn) ([]byt
 		// the behavior of Geth's SecureTrie.
 		return nil, nil
 	}
+
+	n.updatePeriod(curPeriod)
 	// value can be nil, as expected by geth
 	return n.values[k[StemSize]], nil
 }
@@ -1525,7 +1536,7 @@ func (n *LeafNode) Commit() *Point {
 	return n.commitment
 }
 
-func (n *LeafNode) updateLastEpoch(curPeriod StatePeriod) {
+func (n *LeafNode) updatePeriod(curPeriod StatePeriod) {
 	n.lastPeriod = curPeriod
 }
 

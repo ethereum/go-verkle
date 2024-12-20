@@ -1502,11 +1502,11 @@ func TestBatchMigratedKeyValues(t *testing.T) {
 						t.Fatalf("failed to create leaves: %v", err)
 					}
 
-					if err := tree.(*InternalNode).InsertMigratedLeaves(newLeaves, 0, nil); err != nil {
+					if err := tree.(*InternalNode).InsertMigratedLeaves(newLeaves, nil); err != nil {
 						t.Fatalf("failed to insert key: %v", err)
 					}
 
-					if err = tree.(*InternalNode).InsertMigratedLeaves(newLeaves, 0, nil); err != nil {
+					if err = tree.(*InternalNode).InsertMigratedLeaves(newLeaves, nil); err != nil {
 						t.Fatalf("failed to insert key: %v", err)
 					}
 					batchedRoot := tree.Commit().Bytes()
@@ -1593,7 +1593,7 @@ func BenchmarkBatchLeavesInsert(b *testing.B) {
 		if err != nil {
 			b.Fatalf("failed to batch-create leaf node: %v", err)
 		}
-		if err := tree.(*InternalNode).InsertMigratedLeaves(newLeaves, 0, nil); err != nil {
+		if err := tree.(*InternalNode).InsertMigratedLeaves(newLeaves, nil); err != nil {
 			b.Fatalf("failed to insert key: %v", err)
 		}
 
