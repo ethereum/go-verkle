@@ -381,7 +381,7 @@ func TestDeleteAtStem(t *testing.T) {
 	var init Point
 	init.Set(tree.Commit())
 
-	if _, err := tree.(*InternalNode).DeleteAtStem(key1[:31], nil); err != err {
+	if _, err := tree.(*InternalNode).DeleteAtStem(key1[:31], period0, nil); err != err {
 		t.Error(err)
 	}
 
@@ -400,7 +400,7 @@ func TestDeleteAtStem(t *testing.T) {
 		t.Error("leaf hasnt been deleted")
 	}
 
-	if _, err := tree.(*InternalNode).DeleteAtStem(zeroKeyTest[:31], nil); err != errDeleteMissing {
+	if _, err := tree.(*InternalNode).DeleteAtStem(zeroKeyTest[:31], period0, nil); err != errDeleteMissing {
 		t.Fatal(err)
 	}
 }

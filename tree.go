@@ -690,7 +690,7 @@ func (n *InternalNode) Delete(key []byte, curPeriod StatePeriod, resolver NodeRe
 // be deleted does not exist in the tree, because it's meant to be used by rollback code,
 // that should only delete things that exist.
 // TODO(weiihann): check if need to compare access periods
-func (n *InternalNode) DeleteAtStem(key []byte, resolver NodeResolverFn) (bool, error) {
+func (n *InternalNode) DeleteAtStem(key []byte, curPeriod StatePeriod, resolver NodeResolverFn) (bool, error) {
 	nChild := offset2key(key, n.depth)
 	switch child := n.children[nChild].(type) {
 	case Empty:
@@ -709,12 +709,16 @@ func (n *InternalNode) DeleteAtStem(key []byte, resolver NodeResolverFn) (bool, 
 			return false, err
 		}
 		n.children[nChild] = c
-		return n.DeleteAtStem(key, resolver)
+		return n.DeleteAtStem(key, curPeriod, resolver)
 	case *ExpiredLeafNode:
 		return false, errExpired
 	case *LeafNode:
 		if !bytes.Equal(child.stem, key[:31]) {
 			return false, errDeleteMissing
+		}
+
+		if IsExpired(child.lastPeriod, curPeriod) {
+			return false, errExpired
 		}
 
 		n.cowChild(nChild)
@@ -732,7 +736,7 @@ func (n *InternalNode) DeleteAtStem(key []byte, resolver NodeResolverFn) (bool, 
 		return true, nil
 	case *InternalNode:
 		n.cowChild(nChild)
-		del, err := child.DeleteAtStem(key, resolver)
+		del, err := child.DeleteAtStem(key, curPeriod, resolver)
 		if err != nil {
 			return false, err
 		}
