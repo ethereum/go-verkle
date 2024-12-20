@@ -44,6 +44,10 @@ func (HashedNode) Get([]byte, StatePeriod, NodeResolverFn) ([]byte, error) {
 	return nil, errors.New("can not read from a hash node")
 }
 
+func (HashedNode) Revive(Stem, [][]byte, StatePeriod, NodeResolverFn) error {
+	return errors.New("cannot revive a hashed node")
+}
+
 func (HashedNode) Commit() *Point {
 	// TODO: we should reconsider what to do with the VerkleNode interface and how
 	//       HashedNode fits into the picture, since Commit(), Commitment() and Hash()

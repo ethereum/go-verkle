@@ -1150,7 +1150,7 @@ func TestInsertStem(t *testing.T) {
 	values[5] = zeroKeyTest
 	values[192] = fourtyKeyTest
 
-	if err := root1.(*InternalNode).InsertValuesAtStem(KeyToStem(fourtyKeyTest), values, 0, false, nil); err != nil {
+	if err := root1.(*InternalNode).InsertValuesAtStem(KeyToStem(fourtyKeyTest), values, 0, nil); err != nil {
 		t.Fatalf("error inserting: %s", err)
 	}
 	r1c := root1.Commit()
@@ -1198,7 +1198,7 @@ func TestInsertStemTouchingBothHalves(t *testing.T) {
 	newValues := make([][]byte, NodeWidth)
 	newValues[1] = testValue
 	newValues[NodeWidth-2] = testValue
-	if err := root.(*InternalNode).InsertValuesAtStem(KeyToStem(zeroKeyTest), newValues, 0, false, nil); err != nil {
+	if err := root.(*InternalNode).InsertValuesAtStem(KeyToStem(zeroKeyTest), newValues, 0, nil); err != nil {
 		t.Fatalf("error inserting stem: %v", err)
 	}
 	root.Commit()

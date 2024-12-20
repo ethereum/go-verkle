@@ -41,6 +41,10 @@ func (UnknownNode) Get([]byte, StatePeriod, NodeResolverFn) ([]byte, error) {
 	return nil, nil
 }
 
+func (UnknownNode) Revive(Stem, [][]byte, StatePeriod, NodeResolverFn) error {
+	return errors.New("cannot revive an unknown node")
+}
+
 func (n UnknownNode) Commit() *Point {
 	return n.Commitment()
 }

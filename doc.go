@@ -39,6 +39,7 @@ var (
 	errMissingNodeInStateless = errors.New("trying to access a node that is missing from the stateless view")
 	errIsPOAStub              = errors.New("trying to read/write a proof of absence leaf node")
 	errExpired                = errors.New("trying to access an expired leaf node")
+	errNotExpired             = errors.New("trying to revive a non-expired leaf node")
 )
 
 const (

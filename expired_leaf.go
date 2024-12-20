@@ -27,6 +27,7 @@ package verkle
 
 import (
 	"fmt"
+	"errors"
 )
 
 type ExpiredLeafNode struct {
@@ -49,6 +50,10 @@ func (n *ExpiredLeafNode) Delete([]byte, StatePeriod, NodeResolverFn) (bool, err
 
 func (n *ExpiredLeafNode) Get([]byte, StatePeriod, NodeResolverFn) ([]byte, error) {
 	return nil, errExpired
+}
+
+func (n *ExpiredLeafNode) Revive(Stem, [][]byte, StatePeriod, NodeResolverFn) error {
+	return errors.New("cannot revive an expired leaf node directly")
 }
 
 func (n *ExpiredLeafNode) Commit() *Point {

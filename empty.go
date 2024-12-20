@@ -43,6 +43,10 @@ func (Empty) Get([]byte, StatePeriod, NodeResolverFn) ([]byte, error) {
 	return nil, nil
 }
 
+func (Empty) Revive(Stem, [][]byte, StatePeriod, NodeResolverFn) error {
+	return errors.New("cannot revive an empty node")
+}
+
 func (n Empty) Commit() *Point {
 	return n.Commitment()
 }

@@ -630,10 +630,15 @@ func PostStateTreeFromStateDiff(preroot VerkleNode, statediff StateDiff, postEpo
 			}
 		}
 
+		var stem [StemSize]byte
+		copy(stem[:StemSize], stemstatediff.Stem[:])
+
+		if stemstatediff.Resurrected {
+			postroot.Revive(stem[:], values, postEpoch, nil)
+		}
+
 		if overwrites {
-			var stem [StemSize]byte
-			copy(stem[:StemSize], stemstatediff.Stem[:])
-			if err := postroot.(*InternalNode).InsertValuesAtStem(stem[:], values, postEpoch, stemstatediff.Resurrected, nil); err != nil {
+			if err := postroot.(*InternalNode).InsertValuesAtStem(stem[:], values, postEpoch, nil); err != nil {
 				return nil, fmt.Errorf("error overwriting value in post state: %w", err)
 			}
 		}

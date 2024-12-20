@@ -99,6 +99,8 @@ type VerkleNode interface {
 	// Copy a node and its children
 	Copy() VerkleNode
 
+	Revive(Stem, [][]byte, StatePeriod, NodeResolverFn) error
+
 	// toDot returns a string representing this subtree in DOT language
 	toDot(string, string) string
 
@@ -375,10 +377,10 @@ func (n *InternalNode) cowChild(index byte) {
 func (n *InternalNode) Insert(key []byte, value []byte, curPeriod StatePeriod, resolver NodeResolverFn) error {
 	values := make([][]byte, NodeWidth)
 	values[key[StemSize]] = value
-	return n.InsertValuesAtStem(KeyToStem(key), values, curPeriod, false, resolver)
+	return n.InsertValuesAtStem(KeyToStem(key), values, curPeriod, resolver)
 }
 
-func (n *InternalNode) InsertValuesAtStem(stem Stem, values [][]byte, curPeriod StatePeriod, isResurrect bool, resolver NodeResolverFn) error {
+func (n *InternalNode) InsertValuesAtStem(stem Stem, values [][]byte, curPeriod StatePeriod, resolver NodeResolverFn) error {
 	nChild := offset2key(stem, n.depth) // index of the child pointed by the next byte in the key
 
 	switch child := n.children[nChild].(type) {
@@ -408,21 +410,9 @@ func (n *InternalNode) InsertValuesAtStem(stem Stem, values [][]byte, curPeriod 
 		n.cowChild(nChild)
 		// recurse to handle the case of a LeafNode child that
 		// splits.
-		return n.InsertValuesAtStem(stem, values, curPeriod, isResurrect, resolver)
+		return n.InsertValuesAtStem(stem, values, curPeriod, resolver)
 	case *ExpiredLeafNode:
-		if !isResurrect {
-			return errExpired
-		}
-
-		// create a new leaf node with the given values
-		leaf, err := NewLeafNode(stem, values, curPeriod)
-		if err != nil {
-			return err
-		}
-		leaf.setDepth(n.depth + 1)
-		n.children[nChild] = leaf
-
-		return nil
+		return errExpired
 	case *LeafNode:
 		if equalPaths(child.stem, stem) {
 			// We can't insert any values into a POA leaf node.
@@ -446,7 +436,7 @@ func (n *InternalNode) InsertValuesAtStem(stem Stem, values [][]byte, curPeriod 
 
 		nextWordInInsertedKey := offset2key(stem, n.depth+1)
 		if nextWordInInsertedKey == nextWordInExistingKey {
-			return newBranch.InsertValuesAtStem(stem, values, curPeriod, isResurrect, resolver)
+			return newBranch.InsertValuesAtStem(stem, values, curPeriod, resolver)
 		}
 
 		// Next word differs, so this was the last level.
@@ -460,7 +450,7 @@ func (n *InternalNode) InsertValuesAtStem(stem Stem, values [][]byte, curPeriod 
 		newBranch.children[nextWordInInsertedKey] = leaf
 	case *InternalNode:
 		n.cowChild(nChild)
-		return child.InsertValuesAtStem(stem, values, curPeriod, isResurrect, resolver)
+		return child.InsertValuesAtStem(stem, values, curPeriod, resolver)
 	default: // It should be an UknownNode.
 		return errUnknownNodeType
 	}
@@ -468,9 +458,46 @@ func (n *InternalNode) InsertValuesAtStem(stem Stem, values [][]byte, curPeriod 
 	return nil
 }
 
-// TODO(weiihann): implement this
-func (n *InternalNode) Revive(stem Stem, values [][]byte, curPeriod StatePeriod) error {
-	return n.InsertValuesAtStem(stem, values, curPeriod, true, nil)
+func (n *InternalNode) Revive(stem Stem, values [][]byte, curPeriod StatePeriod, resolver NodeResolverFn) error {
+	nChild := offset2key(stem, n.depth)
+
+	switch child := n.children[nChild].(type) {
+	case UnknownNode:
+		return errMissingNodeInStateless
+	case Empty:
+		// TODO(weiihann): double confirm this
+		return errors.New("cannot revive an empty node")
+	case HashedNode:
+		if resolver == nil {
+			return errInsertIntoHash
+		}
+		serialized, err := resolver(stem[:n.depth+1])
+		if err != nil {
+			return fmt.Errorf("verkle tree: error resolving node %x at depth %d: %w", stem, n.depth, err)
+		}
+		resolved, err := ParseNode(serialized, n.depth+1)
+		if err != nil {
+			return fmt.Errorf("verkle tree: error parsing resolved node %x: %w", stem, err)
+		}
+		n.children[nChild] = resolved
+		n.cowChild(nChild)
+		return n.Revive(stem, values, curPeriod, resolver)
+	case *ExpiredLeafNode:
+		// create a new leaf node with the given values
+		leaf, err := NewLeafNode(stem, values, curPeriod)
+		if err != nil {
+			return err
+		}
+
+		leaf.setDepth(n.depth + 1)
+		n.children[nChild] = leaf
+
+		return nil
+	case *LeafNode:
+		return child.Revive(stem, values, curPeriod, resolver)
+	}
+
+	return nil
 }
 
 // CreatePath inserts a given stem in the tree, placing it as
@@ -1518,6 +1545,23 @@ func (n *LeafNode) Get(k []byte, curPeriod StatePeriod, _ NodeResolverFn) ([]byt
 	n.updatePeriod(curPeriod)
 	// value can be nil, as expected by geth
 	return n.values[k[StemSize]], nil
+}
+
+func (n *LeafNode) Revive(stem Stem, values [][]byte, curPeriod StatePeriod, resolver NodeResolverFn) error {
+	// TODO(weiihann): double confirm this, do we want to just refresh period instead of returning error?
+	if !IsExpired(n.lastPeriod, curPeriod) {
+		return errNotExpired
+	}
+
+	// Ensure the values are the same
+	for i := range values {
+		if !bytes.Equal(n.values[i], values[i]) {
+			return errors.New("values mismatch in revive")
+		}
+	}
+
+	n.updatePeriod(curPeriod)
+	return nil
 }
 
 func (n *LeafNode) Hash() *Fr {
