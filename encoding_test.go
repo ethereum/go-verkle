@@ -198,7 +198,7 @@ func TestParseExpiredLeaf(t *testing.T) {
 
 	comm := srs[0]
 	stem := ffx32KeyTest[:StemSize]
-	el := NewExpiredLeafNode(stem, &comm)
+	el := NewExpiredLeafNode(stem, period2, &comm)
 
 	serialized, err := el.Serialize()
 	if err != nil {
@@ -221,5 +221,9 @@ func TestParseExpiredLeaf(t *testing.T) {
 
 	if !el2.commitment.Equal(&comm) {
 		t.Fatalf("invalid commitment, got %x, expected %x", el2.commitment, comm)
+	}
+
+	if el2.lastPeriod != period2 {
+		t.Fatalf("invalid last period, got %d, expected %d", el2.lastPeriod, period2)
 	}
 }
