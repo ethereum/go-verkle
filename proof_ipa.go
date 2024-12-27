@@ -636,7 +636,7 @@ func PostStateTreeFromStateDiff(preroot VerkleNode, statediff StateDiff, postEpo
 		if stemstatediff.Resurrected {
 			// We skip verifying the revive of reconstructed leaf node because the post values may already be
 			// modified after reviving
-			if err := postroot.Revive(stem[:], values, period0, postEpoch, nil, true); err != nil {
+			if err := postroot.Revive(stem[:], values, period0, postEpoch, nil); err != nil {
 				return nil, fmt.Errorf("error reviving in post state: %w", err)
 			}
 		} else if overwrites {

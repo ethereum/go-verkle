@@ -99,7 +99,7 @@ type VerkleNode interface {
 	// Copy a node and its children
 	Copy() VerkleNode
 
-	Revive(Stem, [][]byte, StatePeriod, StatePeriod, NodeResolverFn, bool) error
+	Revive(Stem, [][]byte, StatePeriod, StatePeriod, NodeResolverFn) error
 
 	// toDot returns a string representing this subtree in DOT language
 	toDot(string, string) string
@@ -458,7 +458,7 @@ func (n *InternalNode) InsertValuesAtStem(stem Stem, values [][]byte, curPeriod 
 	return nil
 }
 
-func (n *InternalNode) Revive(stem Stem, values [][]byte, oldPeriod, curPeriod StatePeriod, resolver NodeResolverFn, skipVerify bool) error {
+func (n *InternalNode) Revive(stem Stem, values [][]byte, oldPeriod, curPeriod StatePeriod, resolver NodeResolverFn) error {
 	nChild := offset2key(stem, n.depth)
 
 	switch child := n.children[nChild].(type) {
@@ -481,21 +481,15 @@ func (n *InternalNode) Revive(stem Stem, values [][]byte, oldPeriod, curPeriod S
 		}
 		n.children[nChild] = resolved
 		n.cowChild(nChild)
-		return n.Revive(stem, values, oldPeriod, curPeriod, resolver, skipVerify)
+		return n.Revive(stem, values, oldPeriod, curPeriod, resolver)
 	case *ExpiredLeafNode:
-		// Create new leaf node with appropriate period based on verification mode
-		period := curPeriod
-		if !skipVerify {
-			period = oldPeriod
-		}
-	
-		leaf, err := NewLeafNode(stem, values, period)
+		leaf, err := NewLeafNode(stem, values, oldPeriod)
 		if err != nil {
 			return err
 		}
 	
 		// Verify commitment matches if needed
-		if !skipVerify && !child.Commitment().Equal(leaf.Commitment()) {
+		if !child.Commitment().Equal(leaf.Commitment()) {
 			return errReviveCommitmentMismatch
 		}
 	
@@ -506,7 +500,7 @@ func (n *InternalNode) Revive(stem Stem, values [][]byte, oldPeriod, curPeriod S
 	
 		return nil
 	case *LeafNode:
-		return child.Revive(stem, values, oldPeriod, curPeriod, resolver, skipVerify)
+		return child.Revive(stem, values, oldPeriod, curPeriod, resolver)
 	}
 
 	return nil
@@ -1556,7 +1550,7 @@ func (n *LeafNode) Get(k []byte, curPeriod StatePeriod, _ NodeResolverFn) ([]byt
 	return n.values[k[StemSize]], nil
 }
 
-func (n *LeafNode) Revive(stem Stem, values [][]byte, oldPeriod, curPeriod StatePeriod, resolver NodeResolverFn, skipVerify bool) error {
+func (n *LeafNode) Revive(stem Stem, values [][]byte, oldPeriod, curPeriod StatePeriod, resolver NodeResolverFn) error {
     // No-op if already in current period
     if n.lastPeriod == curPeriod {
         return nil

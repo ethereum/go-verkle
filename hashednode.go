@@ -44,7 +44,7 @@ func (HashedNode) Get([]byte, StatePeriod, NodeResolverFn) ([]byte, error) {
 	return nil, errors.New("can not read from a hash node")
 }
 
-func (HashedNode) Revive(Stem, [][]byte, StatePeriod, StatePeriod, NodeResolverFn, bool) error {
+func (HashedNode) Revive(Stem, [][]byte, StatePeriod, StatePeriod, NodeResolverFn) error {
 	return errors.New("cannot revive a hashed node")
 }
 

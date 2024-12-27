@@ -52,7 +52,7 @@ func (n *ExpiredLeafNode) Get([]byte, StatePeriod, NodeResolverFn) ([]byte, erro
 	return nil, errExpired
 }
 
-func (n *ExpiredLeafNode) Revive(Stem, [][]byte, StatePeriod, StatePeriod, NodeResolverFn, bool) error {
+func (n *ExpiredLeafNode) Revive(Stem, [][]byte, StatePeriod, StatePeriod, NodeResolverFn) error {
 	return errors.New("cannot revive an expired leaf node directly")
 }
 
