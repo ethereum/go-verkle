@@ -651,7 +651,7 @@ func (n *InternalNode) GetValuesAtStem(stem Stem, curPeriod StatePeriod, resolve
 	case *ExpiredLeafNode:
 		return nil, errExpired
 	case *LeafNode:
-		if IsExpired(child.lastPeriod, curPeriod) {
+		if child.isExpired(curPeriod) {
 			return nil, errExpired
 		}
 
@@ -752,7 +752,7 @@ func (n *InternalNode) DeleteAtStem(key []byte, curPeriod StatePeriod, resolver 
 			return false, errDeleteMissing
 		}
 
-		if IsExpired(child.lastPeriod, curPeriod) {
+		if child.isExpired(curPeriod) {
 			return false, errExpired
 		}
 
@@ -1249,7 +1249,7 @@ func (n *LeafNode) Insert(key []byte, value []byte, curPeriod StatePeriod, _ Nod
 		return fmt.Errorf("invalid key size: %d", len(key))
 	}
 
-	if IsExpired(n.lastPeriod, curPeriod) {
+	if n.isExpired(curPeriod) {
 		return errExpired
 	}
 
@@ -1268,7 +1268,7 @@ func (n *LeafNode) insertMultiple(stem Stem, values [][]byte, curPeriod StatePer
 		return errInsertIntoOtherStem
 	}
 
-	if IsExpired(n.lastPeriod, curPeriod) {
+	if n.isExpired(curPeriod) {
 		return errExpired
 	}
 
@@ -1435,7 +1435,7 @@ func (n *LeafNode) Delete(k []byte, curPeriod StatePeriod, _ NodeResolverFn) (bo
 		return false, nil
 	}
 
-	if IsExpired(n.lastPeriod, curPeriod) {
+	if n.isExpired(curPeriod) {
 		return false, errExpired
 	}
 
@@ -1535,7 +1535,7 @@ func (n *LeafNode) Get(k []byte, curPeriod StatePeriod, _ NodeResolverFn) ([]byt
 		return nil, errIsPOAStub
 	}
 
-	if IsExpired(n.lastPeriod, curPeriod) {
+	if n.isExpired(curPeriod) {
 		return nil, errExpired
 	}
 
@@ -1609,6 +1609,10 @@ func (n *LeafNode) updatePeriod(curPeriod StatePeriod) {
 	var poly [5]Fr
 	poly[4].SetUint64(uint64(curPeriod))
 	n.commitment.Add(n.commitment, cfg.CommitToPoly(poly[:], 0))
+}
+
+func (n *LeafNode) isExpired(cur StatePeriod) bool {
+	return IsExpired(n.lastPeriod, cur)
 }
 
 // fillSuffixTreePoly takes one of the two suffix tree and
