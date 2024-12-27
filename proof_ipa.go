@@ -634,13 +634,12 @@ func PostStateTreeFromStateDiff(preroot VerkleNode, statediff StateDiff, postEpo
 		copy(stem[:StemSize], stemstatediff.Stem[:])
 
 		if stemstatediff.Resurrected {
-			// TODO(weiihann): handle this
-			if err := postroot.Revive(stem[:], values, postEpoch, postEpoch, nil); err != nil {
+			// We skip verifying the revive of reconstructed leaf node because the post values may already be
+			// modified after reviving
+			if err := postroot.Revive(stem[:], values, period0, postEpoch, nil, true); err != nil {
 				return nil, fmt.Errorf("error reviving in post state: %w", err)
 			}
-		}
-
-		if overwrites {
+		} else if overwrites {
 			if err := postroot.(*InternalNode).InsertValuesAtStem(stem[:], values, postEpoch, nil); err != nil {
 				return nil, fmt.Errorf("error overwriting value in post state: %w", err)
 			}

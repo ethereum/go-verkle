@@ -8,10 +8,11 @@ type StatePeriod uint16
 
 const (
 	NumActiveEpochs = 2
+	period0 = 0
 )
 
 func IsExpired(prev, cur StatePeriod) bool {
-	return cur > prev && cur - prev >= NumActiveEpochs // TODO(weiihann): deal with overflow
+	return cur > prev && cur - prev >= NumActiveEpochs
 }
 
 func StatePeriodFromBytes(b []byte) StatePeriod {

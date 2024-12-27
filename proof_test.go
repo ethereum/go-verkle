@@ -38,7 +38,6 @@ import (
 )
 
 const (
-	period0 = 0
 	period2 = 2
 )
 

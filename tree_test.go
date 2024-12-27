@@ -618,6 +618,28 @@ func TestConcurrentTrees(t *testing.T) {
 	}
 }
 
+func TestLeafUpdatePeriod(t *testing.T) {
+	t.Parallel()
+
+	values := make([][]byte, NodeWidth)
+	values[0] = []byte{1}
+	leaf1, err := NewLeafNode(zeroKeyTest, values, period2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	comm1 := leaf1.Commit()
+
+	leaf2, err := NewLeafNode(zeroKeyTest, values, period0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	leaf2.updatePeriod(period2)
+	comm2 := leaf2.Commit()
+	if !comm1.Equal(comm2) {
+		t.Error("commitment not updated")
+	}
+}
+
 func BenchmarkCommitLeaves(b *testing.B) {
 	benchmarkCommitNLeaves(b, 1000)
 	benchmarkCommitNLeaves(b, 10000)
