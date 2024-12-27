@@ -634,7 +634,10 @@ func PostStateTreeFromStateDiff(preroot VerkleNode, statediff StateDiff, postEpo
 		copy(stem[:StemSize], stemstatediff.Stem[:])
 
 		if stemstatediff.Resurrected {
-			postroot.Revive(stem[:], values, postEpoch, nil)
+			// TODO(weiihann): handle this
+			if err := postroot.Revive(stem[:], values, postEpoch, postEpoch, nil); err != nil {
+				return nil, fmt.Errorf("error reviving in post state: %w", err)
+			}
 		}
 
 		if overwrites {
@@ -655,7 +658,7 @@ func (x bytesSlice) Less(i, j int) bool { return bytes.Compare(x[i], x[j]) < 0 }
 func (x bytesSlice) Swap(i, j int)      { x[i], x[j] = x[j], x[i] }
 
 // Verify is the API function that verifies a verkle proofs as found in a block/execution payload.
-func Verify(vp *VerkleProof, preStateRoot []byte, postStateRoot []byte, statediff StateDiff, curPeriod StatePeriod) error {
+func Verify(vp *VerkleProof, preStateRoot []byte, postStateRoot []byte, statediff StateDiff, postPeriod StatePeriod) error {
 	proof, err := DeserializeProof(vp, statediff)
 	if err != nil {
 		return fmt.Errorf("verkle proof deserialization error: %w", err)
@@ -697,7 +700,7 @@ func Verify(vp *VerkleProof, preStateRoot []byte, postStateRoot []byte, statedif
 	// But all this can be avoided with a even faster way. The EVM block execution can
 	// keep track of the written keys, and compare that list with this post-values list.
 	// This can avoid regenerating the post-tree which is somewhat expensive.
-	posttree, err := PostStateTreeFromStateDiff(pretree, statediff, curPeriod)
+	posttree, err := PostStateTreeFromStateDiff(pretree, statediff, postPeriod)
 	if err != nil {
 		return fmt.Errorf("error rebuilding the post-tree from proof: %w", err)
 	}

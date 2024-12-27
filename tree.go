@@ -99,7 +99,7 @@ type VerkleNode interface {
 	// Copy a node and its children
 	Copy() VerkleNode
 
-	Revive(Stem, [][]byte, StatePeriod, NodeResolverFn) error
+	Revive(Stem, [][]byte, StatePeriod, StatePeriod, NodeResolverFn) error
 
 	// toDot returns a string representing this subtree in DOT language
 	toDot(string, string) string
@@ -458,7 +458,7 @@ func (n *InternalNode) InsertValuesAtStem(stem Stem, values [][]byte, curPeriod 
 	return nil
 }
 
-func (n *InternalNode) Revive(stem Stem, values [][]byte, curPeriod StatePeriod, resolver NodeResolverFn) error {
+func (n *InternalNode) Revive(stem Stem, values [][]byte, oldPeriod, curPeriod StatePeriod, resolver NodeResolverFn) error {
 	nChild := offset2key(stem, n.depth)
 
 	switch child := n.children[nChild].(type) {
@@ -481,12 +481,16 @@ func (n *InternalNode) Revive(stem Stem, values [][]byte, curPeriod StatePeriod,
 		}
 		n.children[nChild] = resolved
 		n.cowChild(nChild)
-		return n.Revive(stem, values, curPeriod, resolver)
+		return n.Revive(stem, values, oldPeriod, curPeriod, resolver)
 	case *ExpiredLeafNode:
-		// create a new leaf node with the given values
-		leaf, err := NewLeafNode(stem, values, curPeriod)
+		// reconstruct expired leaf node
+		leaf, err := NewLeafNode(stem, values, oldPeriod)
 		if err != nil {
 			return err
+		}
+
+		if !child.Commitment().Equal(leaf.Commitment()) {
+			return errReviveCommitmentMismatch
 		}
 
 		leaf.setDepth(n.depth + 1)
@@ -494,7 +498,7 @@ func (n *InternalNode) Revive(stem Stem, values [][]byte, curPeriod StatePeriod,
 
 		return nil
 	case *LeafNode:
-		return child.Revive(stem, values, curPeriod, resolver)
+		return child.Revive(stem, values, oldPeriod, curPeriod, resolver)
 	}
 
 	return nil
@@ -1547,21 +1551,30 @@ func (n *LeafNode) Get(k []byte, curPeriod StatePeriod, _ NodeResolverFn) ([]byt
 	return n.values[k[StemSize]], nil
 }
 
-func (n *LeafNode) Revive(stem Stem, values [][]byte, curPeriod StatePeriod, resolver NodeResolverFn) error {
-	// TODO(weiihann): double confirm this, do we want to just refresh period instead of returning error?
-	if !IsExpired(n.lastPeriod, curPeriod) {
-		return errNotExpired
-	}
+func (n *LeafNode) Revive(stem Stem, values [][]byte, oldPeriod, curPeriod StatePeriod, resolver NodeResolverFn) error {
+    // No-op if already in current period
+    if n.lastPeriod == curPeriod {
+        return nil
+    }
 
-	// Ensure the values are the same
-	for i := range values {
-		if !bytes.Equal(n.values[i], values[i]) {
-			return errors.New("values mismatch in revive")
-		}
+    // Verify period, stem and values match
+	if n.lastPeriod != oldPeriod {
+		return errRevivePeriodMismatch
 	}
+    if !bytes.Equal(n.stem, stem) {
+        return errReviveStemMismatch
+    }
+	if len(n.values) != len(values) {
+		return errReviveValuesMismatch
+	}
+    for i := range values {
+        if !bytes.Equal(n.values[i], values[i]) {
+            return errReviveValuesMismatch
+        }
+    }
 
-	n.updatePeriod(curPeriod)
-	return nil
+    n.updatePeriod(curPeriod)
+    return nil
 }
 
 func (n *LeafNode) Hash() *Fr {
