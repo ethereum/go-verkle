@@ -858,7 +858,7 @@ func TestProofOfExpiryOneLeaf(t *testing.T) {
 
 	leaf := root.(*InternalNode).children[0].(*LeafNode)
 
-	expiredLeaf := NewExpiredLeafNode(leaf.stem, leaf.lastPeriod, leaf.commitment)
+	expiredLeaf := NewExpiredLeafNode(leaf.stem, leaf.commitment)
 	expiredLeaf.setDepth(1)
 	root.(*InternalNode).children[0] = expiredLeaf
 
@@ -905,12 +905,12 @@ func TestProofOfExpiryMultipleLeaves(t *testing.T) {
 	init := root.Commit()
 
 	leaf0 := root.(*InternalNode).children[0].(*LeafNode)
-	expiredLeaf0 := NewExpiredLeafNode(leaf0.stem, leaf0.lastPeriod, leaf0.commitment)
+	expiredLeaf0 := NewExpiredLeafNode(leaf0.stem, leaf0.commitment)
 	expiredLeaf0.setDepth(1)
 	root.(*InternalNode).children[0] = expiredLeaf0
 
 	leaff := root.(*InternalNode).children[255].(*LeafNode)
-	expiredLeaff := NewExpiredLeafNode(leaff.stem, leaff.lastPeriod, leaff.commitment)
+	expiredLeaff := NewExpiredLeafNode(leaff.stem, leaff.commitment)
 	expiredLeaff.setDepth(1)
 	root.(*InternalNode).children[255] = expiredLeaff
 
@@ -1202,7 +1202,7 @@ func TestProofVerificationPreStateExpiredPostStateResurrected(t *testing.T) {
 	rootC := preRoot.Commit()
 
 	leaf := preRoot.(*InternalNode).children[0].(*LeafNode)
-	expiredLeaf := NewExpiredLeafNode(leaf.stem, leaf.lastPeriod, leaf.commitment)
+	expiredLeaf := NewExpiredLeafNode(leaf.stem, leaf.commitment)
 	expiredLeaf.setDepth(1)
 	preRoot.(*InternalNode).children[0] = expiredLeaf
 

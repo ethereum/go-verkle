@@ -213,7 +213,7 @@ func TestRootCommitExpired(t *testing.T) {
 	var init Point
 	init.Set(root.Commit())
 
-	expiredLeaf := NewExpiredLeafNode(leaf.stem, leaf.lastPeriod, leaf.commitment)
+	expiredLeaf := NewExpiredLeafNode(leaf.stem, leaf.commitment)
 	root.(*InternalNode).children[0] = expiredLeaf
 
 	comm := root.Commit()

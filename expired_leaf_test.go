@@ -11,7 +11,7 @@ func TestExpiredLeafBasic(t *testing.T) {
 	cfg := GetConfig()
 	srs := cfg.conf.SRS
 	comm := srs[0]
-	leaf := NewExpiredLeafNode(zeroKeyTest[:StemSize], period0, &comm)
+	leaf := NewExpiredLeafNode(zeroKeyTest[:StemSize], &comm)
 
 	err := leaf.Insert(zeroKeyTest, zeroKeyTest, 0, nil)
 	if !errors.Is(err, errExpired) {

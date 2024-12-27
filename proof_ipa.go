@@ -105,21 +105,14 @@ func (vp *VerkleProof) Equal(other *VerkleProof) error {
 	return nil
 }
 
-// TODO(weiihann): add PoeStems for proof of expiry? It should be a list of (stem, lastPeriod)
 type Proof struct {
 	Multipoint *ipa.MultiProof // multipoint argument
 	ExtStatus  []byte          // the extension status of each stem
 	Cs         []*Point        // commitments, sorted by their path in the tree
 	PoaStems   []Stem          // stems proving another stem is absent
-	// PoeInfos    []PoeInfo       // stems proving another stem is expired
 	Keys       [][]byte
 	PreValues  [][]byte
 	PostValues [][]byte
-}
-
-type PoeInfo struct {
-	Stem Stem
-	Period StatePeriod
 }
 
 type SuffixStateDiff struct {

@@ -28,18 +28,16 @@ package verkle
 import (
 	"fmt"
 	"errors"
-	"encoding/binary"
 )
 
 type ExpiredLeafNode struct {
 	stem       Stem
-	lastPeriod StatePeriod
 	commitment *Point
 	depth      byte // used for proof only, not commitment calculation
 }
 
-func NewExpiredLeafNode(stem Stem, lastPeriod StatePeriod, commitment *Point) *ExpiredLeafNode {
-	return &ExpiredLeafNode{stem: stem, lastPeriod: lastPeriod, commitment: commitment}
+func NewExpiredLeafNode(stem Stem, commitment *Point) *ExpiredLeafNode {
+	return &ExpiredLeafNode{stem: stem, commitment: commitment}
 }
 
 func (n *ExpiredLeafNode) Insert([]byte, []byte, StatePeriod, NodeResolverFn) error {
@@ -97,11 +95,7 @@ func (n *ExpiredLeafNode) Serialize() ([]byte, error) {
 	result := buf[:]
 	result[0] = expiredLeafType
 	copy(result[leafStemOffset:], n.stem[:StemSize])
-	
-	lastPeriod := make([]byte, periodSize)
-	binary.BigEndian.PutUint16(lastPeriod, uint16(n.lastPeriod))
-	copy(result[leafStemOffset+StemSize:], lastPeriod)
-	copy(result[leafStemOffset+StemSize+periodSize:], cBytes[:])
+	copy(result[leafStemOffset+StemSize:], cBytes[:])
 
 	return result, nil
 }

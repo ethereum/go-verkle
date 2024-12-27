@@ -47,7 +47,6 @@ type (
 
 	ExportableExpiredLeafNode struct {
 		Stem       Stem     `json:"stem"`
-		LastPeriod StatePeriod `json:"last_period"`
 		Commitment [32]byte `json:"commitment"`
 	}
 )
