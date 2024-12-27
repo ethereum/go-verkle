@@ -2062,7 +2062,7 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 	// Create the serialization.
 	var result []byte
 	lastPeriod := make([]byte, periodSize)
-	binary.BigEndian.PutUint64(lastPeriod, uint64(n.lastPeriod))
+	binary.BigEndian.PutUint16(lastPeriod, uint16(n.lastPeriod))
 	switch {
 	case count == 1:
 		var buf [singleSlotLeafSize]byte
