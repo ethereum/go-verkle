@@ -235,6 +235,7 @@ func (n *InternalNode) toExportable() *ExportableInternalNode {
 		case *ExpiredLeafNode:
 			exportable.Children[i] = &ExportableExpiredLeafNode{
 				Stem:       child.stem,
+				LastPeriod: child.lastPeriod,
 				Commitment: child.commitment.Bytes(),
 			}
 		default:
@@ -585,6 +586,7 @@ func (n *InternalNode) CreatePath(path []byte, stemInfo stemInfo, comms []*Point
 			if len(stemInfo.stem) != StemSize {
 				return comms, fmt.Errorf("invalid stem size %d", len(stemInfo.stem))
 			}
+			// TODO(weiihann): add last period
 			newchild := &ExpiredLeafNode{
 				commitment: comms[0],
 				stem:       stemInfo.stem,

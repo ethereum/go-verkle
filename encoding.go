@@ -62,7 +62,7 @@ const (
 	leafValueIndexSize     = 1
 	singleSlotLeafSize     = nodeTypeSize + StemSize + 2*banderwagon.UncompressedSize + leafValueIndexSize + leafSlotSize + periodSize
 	eoaLeafSize            = nodeTypeSize + StemSize + 2*banderwagon.UncompressedSize + leafBasicDataSize + periodSize
-	expiredLeafSize        = nodeTypeSize + StemSize + banderwagon.UncompressedSize
+	expiredLeafSize        = nodeTypeSize + StemSize + periodSize + banderwagon.UncompressedSize
 )
 
 func bit(bitlist []byte, nr int) bool {
@@ -198,10 +198,11 @@ func parseSingleSlotNode(serialized []byte, depth byte) (VerkleNode, error) {
 
 func parseExpiredLeafNode(serialized []byte, depth byte) (VerkleNode, error) {
 	l := &ExpiredLeafNode{}
-	l.stem = serialized[leafStemOffset : leafStemOffset+StemSize]
 	l.setDepth(depth)
+	l.stem = serialized[leafStemOffset : leafStemOffset+StemSize]
+	l.lastPeriod = StatePeriodFromBytes(serialized[leafStemOffset+StemSize:leafStemOffset+StemSize+periodSize])
 	l.commitment = new(Point)
-	if err := l.commitment.SetBytesUncompressed(serialized[leafStemOffset+StemSize:], true); err != nil {
+	if err := l.commitment.SetBytesUncompressed(serialized[leafStemOffset+StemSize+periodSize:], true); err != nil {
 		return nil, fmt.Errorf("setting commitment: %w", err)
 	}
 	return l, nil
