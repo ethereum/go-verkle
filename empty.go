@@ -43,7 +43,7 @@ func (Empty) Get([]byte, StatePeriod, NodeResolverFn) ([]byte, error) {
 	return nil, nil
 }
 
-func (Empty) Revive(Stem, [][]byte, StatePeriod, StatePeriod, NodeResolverFn) error {
+func (Empty) Revive(Stem, [][]byte, StatePeriod, StatePeriod, bool, NodeResolverFn) error {
 	return errors.New("cannot revive an empty node")
 }
 
@@ -57,8 +57,8 @@ func (Empty) Commitment() *Point {
 	return &id
 }
 
-func (Empty) GetProofItems(keylist, NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
-	return nil, nil, nil, errors.New("trying to produce a commitment for an empty subtree")
+func (Empty) GetProofItems(keylist, NodeResolverFn, StatePeriod) (*ProofElements, []byte, []Stem, []StatePeriod, error) {
+	return nil, nil, nil, nil, errors.New("trying to produce a commitment for an empty subtree")
 }
 
 func (Empty) Serialize() ([]byte, error) {

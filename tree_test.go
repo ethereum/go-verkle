@@ -1047,7 +1047,7 @@ func TestEmptyCommitment(t *testing.T) {
 		t.Fatalf("inserting into the original failed: %v", err)
 	}
 	root.Commit()
-	pe, _, _, err := root.GetProofItems(keylist{ffx32KeyTest}, nil)
+	pe, _, _, _, err := root.GetProofItems(keylist{ffx32KeyTest}, nil, period0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1114,7 +1114,7 @@ func TestGetProofItemsNoPoaIfStemPresent(t *testing.T) {
 	key1, _ := hex.DecodeString("ffff00ffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
 	key2, _ := hex.DecodeString("ffffff00ffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
 
-	_, esses, poas, err := root.GetProofItems(keylist{key1, key2, ffx32KeyTest}, nil)
+	_, esses, poas, _, err := root.GetProofItems(keylist{key1, key2, ffx32KeyTest}, nil, period0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1369,7 +1369,7 @@ func TestRustBanderwagonBlock48(t *testing.T) {
 
 	r := tree.Commit()
 
-	proof, cis, zis, yis, _ := MakeVerkleMultiProof(tree, nil, keys, 0, nil)
+	proof, cis, zis, yis, _ := MakeVerkleMultiProof(tree, nil, keys, period0, period0, nil)
 	vp, statediff, err := SerializeProof(proof)
 	if err != nil {
 		t.Fatal(err)
@@ -1390,7 +1390,7 @@ func TestRustBanderwagonBlock48(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pe, _, _, err := droot.GetProofItems(keylist(keys), nil)
+	pe, _, _, _, err := droot.GetProofItems(keylist(keys), nil, period0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1841,7 +1841,7 @@ func runRandTest(rt randTest) error {
 				continue
 			}
 			root.Commit()
-			proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, nil, keys, 0, nil)
+			proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, nil, keys, period0, period0, nil)
 			if ok, err := verifyVerkleProof(proof, cis, zis, yis, cfg); !ok || err != nil {
 				rt[i].err = fmt.Errorf("could not verify verkle proof: %s, err %v", ToDot(root), err)
 			}

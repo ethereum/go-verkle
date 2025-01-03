@@ -51,7 +51,7 @@ func TestEmptyFuncs(t *testing.T) {
 		t.Fatal("commitment and commit mismatch")
 	}
 
-	if _, _, _, err := e.GetProofItems(nil, nil); err == nil {
+	if _, _, _, _, err := e.GetProofItems(nil, nil, period0); err == nil {
 		t.Fatal("get proof items should error")
 	}
 

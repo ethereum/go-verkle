@@ -186,14 +186,14 @@ func (vp *VerkleProof) UnmarshalJSON(data []byte) error {
 type stemStateDiffMarshaller struct {
 	Stem        string           `json:"stem"`
 	SuffixDiffs SuffixStateDiffs `json:"suffixDiffs"`
-	Resurrected bool             `json:"resurrected"`
+	PeriodExpired *StatePeriod    `json:"periodExpired,omitempty"`
 }
 
 func (ssd StemStateDiff) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&stemStateDiffMarshaller{
 		Stem:        HexToPrefixedString(ssd.Stem[:]),
 		SuffixDiffs: ssd.SuffixDiffs,
-		Resurrected: ssd.Resurrected,
+		PeriodExpired: ssd.PeriodExpired,
 	})
 }
 
@@ -209,7 +209,7 @@ func (ssd *StemStateDiff) UnmarshalJSON(data []byte) error {
 	}
 	*ssd = StemStateDiff{
 		SuffixDiffs: aux.SuffixDiffs,
-		Resurrected: aux.Resurrected,
+		PeriodExpired: aux.PeriodExpired,
 	}
 	copy(ssd.Stem[:], stem)
 	return nil

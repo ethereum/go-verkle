@@ -54,7 +54,7 @@ func (n *ExpiredLeafNode) Get([]byte, StatePeriod, NodeResolverFn) ([]byte, erro
 	return nil, errExpired
 }
 
-func (n *ExpiredLeafNode) Revive(Stem, [][]byte, StatePeriod, StatePeriod, NodeResolverFn) error {
+func (n *ExpiredLeafNode) Revive(Stem, [][]byte, StatePeriod, StatePeriod, bool, NodeResolverFn) error {
 	return errors.New("cannot revive an expired leaf node directly")
 }
 
@@ -69,7 +69,7 @@ func (n *ExpiredLeafNode) Commitment() *Point {
 	return n.commitment
 }
 
-func (n *ExpiredLeafNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
+func (n *ExpiredLeafNode) GetProofItems(keys keylist, resolver NodeResolverFn, _ StatePeriod) (*ProofElements, []byte, []Stem, []StatePeriod, error) {
 	var (
 		pe = &ProofElements{
 			Vals:   make([][]byte, len(keys)),
@@ -87,7 +87,7 @@ func (n *ExpiredLeafNode) GetProofItems(keys keylist, resolver NodeResolverFn) (
 		poass = append(poass, n.stem)
 	}
 
-	return pe, esses, poass, nil
+	return pe, esses, poass, []StatePeriod{n.lastPeriod}, nil
 }
 
 func (n *ExpiredLeafNode) Serialize() ([]byte, error) {

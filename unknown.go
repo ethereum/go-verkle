@@ -41,7 +41,7 @@ func (UnknownNode) Get([]byte, StatePeriod, NodeResolverFn) ([]byte, error) {
 	return nil, nil
 }
 
-func (UnknownNode) Revive(Stem, [][]byte, StatePeriod, StatePeriod, NodeResolverFn) error {
+func (UnknownNode) Revive(Stem, [][]byte, StatePeriod, StatePeriod, bool, NodeResolverFn) error {
 	return errors.New("cannot revive an unknown node")
 }
 
@@ -55,8 +55,8 @@ func (UnknownNode) Commitment() *Point {
 	return &id
 }
 
-func (UnknownNode) GetProofItems(keylist, NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
-	return nil, nil, nil, errors.New("can't generate proof items for unknown node")
+func (UnknownNode) GetProofItems(keylist, NodeResolverFn, StatePeriod) (*ProofElements, []byte, []Stem, []StatePeriod, error) {
+	return nil, nil, nil, nil, errors.New("can't generate proof items for unknown node")
 }
 
 func (UnknownNode) Serialize() ([]byte, error) {

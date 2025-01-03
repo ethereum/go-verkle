@@ -91,7 +91,7 @@ type VerkleNode interface {
 	// returns them breadth-first. On top of that, it returns
 	// one "extension status" per stem, and an alternate stem
 	// if the key is missing but another stem has been found.
-	GetProofItems(keylist, NodeResolverFn) (*ProofElements, []byte, []Stem, error)
+	GetProofItems(keylist, NodeResolverFn, StatePeriod) (*ProofElements, []byte, []Stem, []StatePeriod, error)
 
 	// Serialize encodes the node to RLP.
 	Serialize() ([]byte, error)
@@ -99,7 +99,7 @@ type VerkleNode interface {
 	// Copy a node and its children
 	Copy() VerkleNode
 
-	Revive(Stem, [][]byte, StatePeriod, StatePeriod, NodeResolverFn) error
+	Revive(Stem, [][]byte, StatePeriod, StatePeriod, bool, NodeResolverFn) error
 
 	// toDot returns a string representing this subtree in DOT language
 	toDot(string, string) string
@@ -413,7 +413,30 @@ func (n *InternalNode) InsertValuesAtStem(stem Stem, values [][]byte, curPeriod 
 		// splits.
 		return n.InsertValuesAtStem(stem, values, curPeriod, resolver)
 	case *ExpiredLeafNode:
-		return errExpired
+		// If the stem is the same as the expired leaf node, we can't insert
+		if equalPaths(child.stem, stem) {
+			return errExpired
+		}
+		// Otherwise, insert a branch node
+		nextWordInExistingKey := offset2key(child.stem, n.depth+1)
+		newBranch := newInternalNode(n.depth + 1).(*InternalNode)
+		newBranch.cowChild(nextWordInExistingKey)
+		n.children[nChild] = newBranch
+		newBranch.children[nextWordInExistingKey] = child
+		child.depth += 1
+
+		nextWordInInsertedKey := offset2key(stem, n.depth+1)
+		if nextWordInInsertedKey == nextWordInExistingKey {
+			return newBranch.InsertValuesAtStem(stem, values, curPeriod, resolver)
+		}
+
+		leaf, err := NewLeafNode(stem, values, curPeriod)
+		if err != nil {
+			return err
+		}
+		leaf.setDepth(n.depth + 2)
+		newBranch.cowChild(nextWordInInsertedKey)
+		newBranch.children[nextWordInInsertedKey] = leaf
 	case *LeafNode:
 		if equalPaths(child.stem, stem) {
 			// We can't insert any values into a POA leaf node.
@@ -459,7 +482,7 @@ func (n *InternalNode) InsertValuesAtStem(stem Stem, values [][]byte, curPeriod 
 	return nil
 }
 
-func (n *InternalNode) Revive(stem Stem, values [][]byte, oldPeriod, curPeriod StatePeriod, resolver NodeResolverFn) error {
+func (n *InternalNode) Revive(stem Stem, values [][]byte, oldPeriod, curPeriod StatePeriod, skipReviveVerify bool,resolver NodeResolverFn) error {
 	nChild := offset2key(stem, n.depth)
 
 	switch child := n.children[nChild].(type) {
@@ -482,8 +505,18 @@ func (n *InternalNode) Revive(stem Stem, values [][]byte, oldPeriod, curPeriod S
 		}
 		n.children[nChild] = resolved
 		n.cowChild(nChild)
-		return n.Revive(stem, values, oldPeriod, curPeriod, resolver)
+		return n.Revive(stem, values, oldPeriod, curPeriod, skipReviveVerify, resolver)
 	case *ExpiredLeafNode:
+		if skipReviveVerify {
+			leaf, err := NewLeafNode(stem, values, curPeriod)
+			if err != nil {
+				return err
+			}
+			leaf.setDepth(n.depth + 1)
+			n.children[nChild] = leaf
+			return nil
+		}
+
 		leaf, err := NewLeafNode(stem, values, oldPeriod)
 		if err != nil {
 			return err
@@ -501,7 +534,7 @@ func (n *InternalNode) Revive(stem Stem, values [][]byte, oldPeriod, curPeriod S
 	
 		return nil
 	case *LeafNode:
-		return child.Revive(stem, values, oldPeriod, curPeriod, resolver)
+		return child.Revive(stem, values, oldPeriod, curPeriod, skipReviveVerify, resolver)
 	}
 
 	return nil
@@ -586,10 +619,10 @@ func (n *InternalNode) CreatePath(path []byte, stemInfo stemInfo, comms []*Point
 			if len(stemInfo.stem) != StemSize {
 				return comms, fmt.Errorf("invalid stem size %d", len(stemInfo.stem))
 			}
-			// TODO(weiihann): add last period
 			newchild := &ExpiredLeafNode{
 				commitment: comms[0],
 				stem:       stemInfo.stem,
+				lastPeriod: stemInfo.period,
 				depth:      n.depth + 1,
 			}
 			n.children[path[0]] = newchild
@@ -724,7 +757,6 @@ func (n *InternalNode) Delete(key []byte, curPeriod StatePeriod, resolver NodeRe
 // DeleteAtStem delete a full stem. Unlike Delete, it will error out if the stem that is to
 // be deleted does not exist in the tree, because it's meant to be used by rollback code,
 // that should only delete things that exist.
-// TODO(weiihann): check if need to compare access periods
 func (n *InternalNode) DeleteAtStem(key []byte, curPeriod StatePeriod, resolver NodeResolverFn) (bool, error) {
 	nChild := offset2key(key, n.depth)
 	switch child := n.children[nChild].(type) {
@@ -1034,7 +1066,7 @@ func groupKeys(keys keylist, depth byte) []keylist {
 	return groups
 }
 
-func (n *InternalNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
+func (n *InternalNode) GetProofItems(keys keylist, resolver NodeResolverFn, curPeriod StatePeriod) (*ProofElements, []byte, []Stem, []StatePeriod, error) {
 	var (
 		groups = groupKeys(keys, n.depth)
 		pe     = &ProofElements{
@@ -1047,6 +1079,7 @@ func (n *InternalNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*Pr
 
 		esses []byte = nil // list of extension statuses
 		poass []Stem       // list of proof-of-absence stems
+		expiryPeriods []StatePeriod
 	)
 
 	// fill in the polynomial for this node
@@ -1062,15 +1095,15 @@ func (n *InternalNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*Pr
 				copy(childpath[:n.depth+1], keys[0][:n.depth])
 				childpath[n.depth] = byte(i)
 				if resolver == nil {
-					return nil, nil, nil, fmt.Errorf("no resolver for path %x", childpath)
+					return nil, nil, nil, nil, fmt.Errorf("no resolver for path %x", childpath)
 				}
 				serialized, err := resolver(childpath)
 				if err != nil {
-					return nil, nil, nil, fmt.Errorf("error resolving for path %x: %w", childpath, err)
+					return nil, nil, nil, nil, fmt.Errorf("error resolving for path %x: %w", childpath, err)
 				}
 				c, err = ParseNode(serialized, n.depth+1)
 				if err != nil {
-					return nil, nil, nil, err
+					return nil, nil, nil, nil, err
 				}
 				n.children[i] = c
 			} else {
@@ -1083,7 +1116,7 @@ func (n *InternalNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*Pr
 		}
 	}
 	if err := banderwagon.BatchMapToScalarField(fiPtrs[:], points[:]); err != nil {
-		return nil, nil, nil, fmt.Errorf("batch mapping to scalar fields: %s", err)
+		return nil, nil, nil, nil, fmt.Errorf("batch mapping to scalar fields: %s", err)
 	}
 
 	for _, group := range groups {
@@ -1108,7 +1141,7 @@ func (n *InternalNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*Pr
 		switch n.children[childIdx].(type) {
 		case UnknownNode:
 			// TODO: add a test case to cover this scenario.
-			return nil, nil, nil, errMissingNodeInStateless
+			return nil, nil, nil, nil,errMissingNodeInStateless
 		case Empty:
 			// Special case of a proof of absence: no children
 			// commitment, as the value is 0.
@@ -1129,17 +1162,18 @@ func (n *InternalNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*Pr
 			continue
 		}
 
-		pec, es, other, err := n.children[childIdx].GetProofItems(group, resolver)
+		pec, es, other, otherEs, err := n.children[childIdx].GetProofItems(group, resolver, curPeriod)
 		if err != nil {
 			// TODO: add a test case to cover this scenario.
-			return nil, nil, nil, err
+			return nil, nil, nil, nil, err
 		}
 		pe.Merge(pec)
 		poass = append(poass, other...)
 		esses = append(esses, es...)
+		expiryPeriods = append(expiryPeriods, otherEs...)
 	}
 
-	return pe, esses, poass, nil
+	return pe, esses, poass, expiryPeriods, nil
 }
 
 // Serialize returns the serialized form of the internal node.
@@ -1552,7 +1586,7 @@ func (n *LeafNode) Get(k []byte, curPeriod StatePeriod, _ NodeResolverFn) ([]byt
 	return n.values[k[StemSize]], nil
 }
 
-func (n *LeafNode) Revive(stem Stem, values [][]byte, oldPeriod, curPeriod StatePeriod, resolver NodeResolverFn) error {
+func (n *LeafNode) Revive(stem Stem, values [][]byte, oldPeriod, curPeriod StatePeriod, _ bool, resolver NodeResolverFn) error {
     // No-op if already in current period
     if n.lastPeriod == curPeriod {
         return nil
@@ -1663,7 +1697,7 @@ func leafToComms(poly []Fr, val []byte) error {
 	return nil
 }
 
-func (n *LeafNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*ProofElements, []byte, []Stem, error) { // skipcq: GO-R1005
+func (n *LeafNode) GetProofItems(keys keylist, resolver NodeResolverFn, curPeriod StatePeriod) (*ProofElements, []byte, []Stem, []StatePeriod, error) { // skipcq: GO-R1005
 	var (
 		poly [NodeWidth]Fr // top-level polynomial
 		pe                 = &ProofElements{
@@ -1676,13 +1710,20 @@ func (n *LeafNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*ProofE
 		}
 
 		esses []byte = nil // list of extension statuses
-		poass []Stem       // list of proof-of-absence and proof-of-expiry stems
+		poass []Stem       // list of proof-of-absence
 	)
+
+	// Leaf node is expired but not yet garbage collected, create a temporary expired leaf node
+	// and return its proof items.
+	if n.isExpired(curPeriod) {
+		expireLeaf := NewExpiredLeafNode(n.stem, n.lastPeriod, n.commitment)
+		return expireLeaf.GetProofItems(keys, resolver, curPeriod)
+	}
 
 	// Initialize the top-level polynomial with 1 + stem + C1 + C2 + lastPeriod
 	poly[0].SetUint64(1)
 	if err := StemFromLEBytes(&poly[1], n.stem); err != nil {
-		return nil, nil, nil, fmt.Errorf("error serializing stem '%x': %w", n.stem, err)
+		return nil, nil, nil, nil, fmt.Errorf("error serializing stem '%x': %w", n.stem, err)
 	}
 
 	// First pass: add top-level elements first
@@ -1704,14 +1745,14 @@ func (n *LeafNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*ProofE
 	// Also, we _need_ them independently of hasC1 or hasC2 since the prover needs `Fis`.
 	if !n.isPOAStub {
 		if err := banderwagon.BatchMapToScalarField([]*Fr{&poly[2], &poly[3]}, []*Point{n.c1, n.c2}); err != nil {
-			return nil, nil, nil, fmt.Errorf("batch mapping to scalar fields: %s", err)
+			return nil, nil, nil, nil, fmt.Errorf("batch mapping to scalar fields: %s", err)
 		}
 	} else if hasC1 || hasC2 || n.c1 != nil || n.c2 != nil {
 		// This LeafNode is a proof of absence stub. It must be true that
 		// both c1 and c2 are nil, and that hasC1 and hasC2 are false.
 		// Let's just check that to be sure, since the code below can't use
 		// poly[2] or poly[3].
-		return nil, nil, nil, fmt.Errorf("invalid proof of absence stub")
+		return nil, nil, nil, nil,fmt.Errorf("invalid proof of absence stub")
 	}
 
 	if hasC1 {
@@ -1727,8 +1768,6 @@ func (n *LeafNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*ProofE
 		pe.Fis = append(pe.Fis, poly[:])
 	}
 
-	// We do not check for expiry, as we assume that the expiry detection is done before
-	// proof creation.
 	poly[4].SetUint64(uint64(n.lastPeriod))
 
 	pe.Cis = append(pe.Cis, n.commitment)
@@ -1781,12 +1820,12 @@ func (n *LeafNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*ProofE
 		)
 		if suffix >= 128 {
 			if _, err = fillSuffixTreePoly(suffPoly[:], n.values[128:]); err != nil {
-				return nil, nil, nil, fmt.Errorf("filling suffix tree poly: %w", err)
+				return nil, nil, nil, nil,fmt.Errorf("filling suffix tree poly: %w", err)
 			}
 			scomm = n.c2
 		} else {
 			if _, err = fillSuffixTreePoly(suffPoly[:], n.values[:128]); err != nil {
-				return nil, nil, nil, fmt.Errorf("filling suffix tree poly: %w", err)
+				return nil, nil, nil, nil,fmt.Errorf("filling suffix tree poly: %w", err)
 			}
 			scomm = n.c1
 		}
@@ -1820,7 +1859,7 @@ func (n *LeafNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*ProofE
 		pe.ByPath[slotPath] = scomm
 	}
 
-	return pe, esses, poass, nil
+	return pe, esses, poass, nil, nil
 }
 
 // Serialize serializes a LeafNode.

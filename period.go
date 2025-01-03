@@ -8,7 +8,9 @@ type StatePeriod uint16
 
 const (
 	NumActiveEpochs = 2
-	period0 = 0
+	period0 = StatePeriod(0)
+	period1 = StatePeriod(1)
+	period2 = StatePeriod(2)
 )
 
 func IsExpired(prev, cur StatePeriod) bool {
