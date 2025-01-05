@@ -46,7 +46,7 @@ func TestHashedNodeFuncs(t *testing.T) {
 	if v != nil {
 		t.Fatal("non-nil get from a hashed node")
 	}
-	if _, _, _, _, err := e.GetProofItems(nil, nil, period0); err == nil {
+	if _, _, _, _, err := e.GetProofItems(nil, nil); err == nil {
 		t.Fatal("got nil error when getting proof items from a hashed node")
 	}
 	if _, err := e.Serialize(); err != errSerializeHashedNode {

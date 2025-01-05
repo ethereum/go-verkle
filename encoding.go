@@ -56,13 +56,13 @@ const (
 	leafC1CommitmentOffset = leafCommitmentOffset + banderwagon.UncompressedSize
 	leafC2CommitmentOffset = leafC1CommitmentOffset + banderwagon.UncompressedSize
 	leafChildrenOffset     = leafC2CommitmentOffset + banderwagon.UncompressedSize
-	leafLastEpochOffset    = leafChildrenOffset + periodSize
+	leafLastPeriodOffset    = leafChildrenOffset + periodSize
 	leafBasicDataSize      = 32
 	leafSlotSize           = 32
 	leafValueIndexSize     = 1
 	singleSlotLeafSize     = nodeTypeSize + StemSize + 2*banderwagon.UncompressedSize + leafValueIndexSize + leafSlotSize + periodSize
 	eoaLeafSize            = nodeTypeSize + StemSize + 2*banderwagon.UncompressedSize + leafBasicDataSize + periodSize
-	expiredLeafSize        = nodeTypeSize + StemSize + periodSize + banderwagon.UncompressedSize
+	expiredLeafSize        = nodeTypeSize + StemSize + banderwagon.UncompressedSize
 )
 
 func bit(bitlist []byte, nr int) bool {
@@ -77,9 +77,9 @@ var errSerializedPayloadTooShort = errors.New("verkle payload is too short")
 // ParseNode deserializes a node into its proper VerkleNode instance.
 // The serialized bytes have the format:
 // - Internal nodes:   <nodeType><bitlist><commitment>
-// - Leaf nodes:       <nodeType><stem><bitlist><comm><c1comm><c2comm><lastPeriod><children...>
-// - EoA nodes:        <nodeType><stem><comm><c1comm><lastPeriod><balance><nonce>
-// - single slot node: <nodeType><stem><comm><cncomm><lastPeriod><leaf index><slot>
+// - Leaf nodes:       <nodeType><stem><bitlist><comm><c1comm><c2comm><period><children...>
+// - EoA nodes:        <nodeType><stem><comm><c1comm><period><balance><nonce>
+// - single slot node: <nodeType><stem><comm><cncomm><period><leaf index><slot>
 // - Expired leaf nodes:       <nodeType><stem><commitment>
 func ParseNode(serializedNode []byte, depth byte) (VerkleNode, error) {
 	// Check that the length of the serialized node is at least the smallest possible serialized node.
@@ -119,7 +119,7 @@ func parseLeafNode(serialized []byte, depth byte) (VerkleNode, error) {
 	ln := NewLeafNodeWithNoComms(
 		serialized[leafStemOffset:leafStemOffset+StemSize],
 		values[:],
-		StatePeriodFromBytes(serialized[leafLastEpochOffset:leafLastEpochOffset+periodSize]))
+		StatePeriodFromBytes(serialized[leafLastPeriodOffset:leafLastPeriodOffset+periodSize]))
 	ln.setDepth(depth)
 	ln.c1 = new(Point)
 
@@ -200,9 +200,8 @@ func parseExpiredLeafNode(serialized []byte, depth byte) (VerkleNode, error) {
 	l := &ExpiredLeafNode{}
 	l.setDepth(depth)
 	l.stem = serialized[leafStemOffset : leafStemOffset+StemSize]
-	l.lastPeriod = StatePeriodFromBytes(serialized[leafStemOffset+StemSize:leafStemOffset+StemSize+periodSize])
 	l.commitment = new(Point)
-	if err := l.commitment.SetBytesUncompressed(serialized[leafStemOffset+StemSize+periodSize:], true); err != nil {
+	if err := l.commitment.SetBytesUncompressed(serialized[leafStemOffset+StemSize:], true); err != nil {
 		return nil, fmt.Errorf("setting commitment: %w", err)
 	}
 	return l, nil
@@ -225,6 +224,7 @@ func CreateInternalNode(bitlist []byte, raw []byte, depth byte) (*InternalNode, 
 			if b&mask[j] != 0 {
 				node.children[8*i+j] = HashedNode{}
 			} else {
+				
 				node.children[8*i+j] = Empty(struct{}{})
 			}
 		}

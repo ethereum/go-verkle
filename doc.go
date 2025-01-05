@@ -43,6 +43,7 @@ var (
 	errReviveValuesMismatch   	= errors.New("values mismatch in revive")
 	errReviveStemMismatch    	= errors.New("stem mismatch in revive")
 	errRevivePeriodMismatch 	= errors.New("period mismatch in revive")
+	errRevivePeriodOlderThanNew = errors.New("revive old period is older than the new period")
 )
 
 const (
@@ -50,5 +51,4 @@ const (
 	extStatusAbsentEmpty = byte(iota) // missing child node along the path
 	extStatusAbsentOther              // path led to a node with a different stem
 	extStatusPresent                  // stem was present
-	extStatusExpired                  // stem was present but expired
 )

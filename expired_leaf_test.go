@@ -11,19 +11,19 @@ func TestExpiredLeafBasic(t *testing.T) {
 	cfg := GetConfig()
 	srs := cfg.conf.SRS
 	comm := srs[0]
-	leaf := NewExpiredLeafNode(zeroKeyTest[:StemSize], period0, &comm)
+	leaf := NewExpiredLeafNode(zeroKeyTest[:StemSize], &comm)
 
-	err := leaf.Insert(zeroKeyTest, zeroKeyTest, 0, nil)
+	err := leaf.Insert(zeroKeyTest, zeroKeyTest, period2, nil)
 	if !errors.Is(err, errExpired) {
 		t.Fatalf("expected period expired error when inserting, got %v", err)
 	}
 
-	_, err = leaf.Delete(zeroKeyTest, 0, nil)
+	_, err = leaf.Delete(zeroKeyTest, period2, nil)
 	if !errors.Is(err, errExpired) {
 		t.Fatalf("expected period expired error when deleting, got %v", err)
 	}
 
-	v, err := leaf.Get(zeroKeyTest, 0, nil)
+	v, err := leaf.Get(zeroKeyTest, period2, nil)
 	if !errors.Is(err, errExpired) {
 		t.Fatalf("expected period expired error when getting, got %v", err)
 	}

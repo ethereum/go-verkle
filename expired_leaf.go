@@ -28,18 +28,16 @@ package verkle
 import (
 	"fmt"
 	"errors"
-	"encoding/binary"
 )
 
 type ExpiredLeafNode struct {
 	stem       Stem
-	lastPeriod StatePeriod
 	commitment *Point
 	depth      byte // used for proof only, not commitment calculation
 }
 
-func NewExpiredLeafNode(stem Stem, lastPeriod StatePeriod, commitment *Point) *ExpiredLeafNode {
-	return &ExpiredLeafNode{stem: stem, lastPeriod: lastPeriod, commitment: commitment}
+func NewExpiredLeafNode(stem Stem, commitment *Point) *ExpiredLeafNode {
+	return &ExpiredLeafNode{stem: stem, commitment: commitment}
 }
 
 func (n *ExpiredLeafNode) Insert([]byte, []byte, StatePeriod, NodeResolverFn) error {
@@ -69,25 +67,8 @@ func (n *ExpiredLeafNode) Commitment() *Point {
 	return n.commitment
 }
 
-func (n *ExpiredLeafNode) GetProofItems(keys keylist, resolver NodeResolverFn, _ StatePeriod) (*ProofElements, []byte, []Stem, []StatePeriod, error) {
-	var (
-		pe = &ProofElements{
-			Vals:   make([][]byte, len(keys)),
-			ByPath: map[string]*Point{},
-		}
-		esses []byte = nil
-		poass []Stem
-	)
-
-	for i := range keys {
-		pe.ByPath[string(keys[i][:n.depth])] = n.commitment
-		pe.Vals[i] = nil
-
-		esses = append(esses, extStatusExpired|(n.depth<<3))
-		poass = append(poass, n.stem)
-	}
-
-	return pe, esses, poass, []StatePeriod{n.lastPeriod}, nil
+func (n *ExpiredLeafNode) GetProofItems(keylist, NodeResolverFn) (*ProofElements, []byte, []Stem, []StatePeriod, error) {
+	return nil, nil, nil, nil, errors.New("cannot get proof items from expired leaf node")
 }
 
 func (n *ExpiredLeafNode) Serialize() ([]byte, error) {
@@ -97,11 +78,7 @@ func (n *ExpiredLeafNode) Serialize() ([]byte, error) {
 	result := buf[:]
 	result[0] = expiredLeafType
 	copy(result[leafStemOffset:], n.stem[:StemSize])
-	
-	lastPeriod := make([]byte, periodSize)
-	binary.BigEndian.PutUint16(lastPeriod, uint16(n.lastPeriod))
-	copy(result[leafStemOffset+StemSize:], lastPeriod)
-	copy(result[leafStemOffset+StemSize+periodSize:], cBytes[:])
+	copy(result[leafStemOffset+StemSize:], cBytes[:])
 
 	return result, nil
 }
@@ -112,8 +89,7 @@ func (n *ExpiredLeafNode) Copy() VerkleNode {
 	l.depth = n.depth
 	copy(l.stem, n.stem)
 	if n.commitment != nil {
-		l.commitment = new(Point)
-		l.commitment.Set(n.commitment)
+		l.commitment = new(Point).Set(n.commitment)
 	}
 
 	return l

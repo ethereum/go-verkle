@@ -31,8 +31,8 @@ func TestInsertSameLeafNoExpired(t *testing.T) {
 		t.Fatalf("expected value %x, got %x", testValue, leaf.values[oneKeyTest[StemSize]])
 	}
 
-	if leaf.lastPeriod != period1 {
-		t.Fatalf("expected last accessed to be 1, got %d", leaf.lastPeriod)
+	if leaf.period != period1 {
+		t.Fatalf("expected last accessed to be 1, got %d", leaf.period)
 	}
 }
 
@@ -58,8 +58,8 @@ func TestInsertSameLeafExpired(t *testing.T) {
 		t.Fatalf("expected value %x, got %x", testValue, leaf.values[zeroKeyTest[StemSize]])
 	}
 
-	if leaf.lastPeriod != period0 {
-		t.Fatalf("expected last accessed to be 0, got %d", leaf.lastPeriod)
+	if leaf.period != period0 {
+		t.Fatalf("expected last accessed to be 0, got %d", leaf.period)
 	}
 }
 
@@ -93,12 +93,12 @@ func TestInsertDiffLeaf(t *testing.T) {
 		t.Fatalf("expected value %x, got %x", testValue, leaff.values[ffx32KeyTest[StemSize]])
 	}
 
-	if leaf0.lastPeriod != period0 {
-		t.Fatalf("expected last accessed to be 0, got %d", leaf0.lastPeriod)
+	if leaf0.period != period0 {
+		t.Fatalf("expected last accessed to be 0, got %d", leaf0.period)
 	}
 
-	if leaff.lastPeriod != period2 {
-		t.Fatalf("expected last accessed to be 2, got %d", leaff.lastPeriod)
+	if leaff.period != period2 {
+		t.Fatalf("expected last accessed to be 2, got %d", leaff.period)
 	}
 }
 
@@ -115,7 +115,7 @@ func TestInsertExpiredLeafSibling(t *testing.T) {
 		t.Fatalf("expected leaf node, got %T", root.(*InternalNode).children[0])
 	}
 
-	root.(*InternalNode).children[0] = NewExpiredLeafNode(leaf.stem, leaf.lastPeriod, leaf.commitment)
+	root.(*InternalNode).children[0] = NewExpiredLeafNode(leaf.stem, leaf.commitment)
 
 	if err := root.Insert(forkOneKeyTest, testValue, period2, nil); err != nil {
 		t.Fatalf("error inserting: %v", err)
@@ -163,8 +163,8 @@ func TestGetNoExpired(t *testing.T) {
 		t.Fatalf("expected value %x, got %x", testValue, val)
 	}
 
-	if leaf.lastPeriod != period0 {
-		t.Fatalf("expected last accessed to be 0, got %d", leaf.lastPeriod)
+	if leaf.period != period0 {
+		t.Fatalf("expected last accessed to be 0, got %d", leaf.period)
 	}
 }
 
@@ -190,8 +190,8 @@ func TestGetExpired(t *testing.T) {
 		t.Fatalf("expected leaf node, got %T", root.(*InternalNode).children[0])
 	}
 
-	if leaf.lastPeriod != period0 {
-		t.Fatalf("expected last accessed to be 0, got %d", leaf.lastPeriod)
+	if leaf.period != period0 {
+		t.Fatalf("expected last accessed to be 0, got %d", leaf.period)
 	}
 }
 
@@ -231,8 +231,28 @@ func TestDelLeafExpired(t *testing.T) {
 		t.Fatalf("expected empty node, got %T", root.(*InternalNode).children[0])
 	}
 
-	if leaf.lastPeriod != period0 {
-		t.Fatalf("expected last accessed to be 0, got %d", leaf.lastPeriod)
+	if leaf.period != period0 {
+		t.Fatalf("expected last accessed to be 0, got %d", leaf.period)
+	}
+}
+
+func TestUpdatePeriod(t *testing.T) {
+	values := make([][]byte, NodeWidth)
+	values[0] = testValue
+	leaf1, err := NewLeafNode(zeroKeyTest, values, period1)
+	if err != nil {
+		t.Fatalf("error creating leaf node: %v", err)
+	}
+
+	leaf1.updatePeriod(period2)
+
+	leaf2, err := NewLeafNode(zeroKeyTest, values, period2)
+	if err != nil {
+		t.Fatalf("error creating leaf node: %v", err)
+	}
+
+	if !leaf1.Commitment().Equal(leaf2.Commitment()) {
+		t.Fatalf("expected commitment to be %x, got %x", leaf1.Commitment(), leaf2.Commitment())
 	}
 }
 
@@ -244,25 +264,30 @@ func TestReviveExpired(t *testing.T) {
 		t.Fatalf("error inserting: %v", err)
 	}
 
-	leaf, ok := root.(*InternalNode).children[0].(*LeafNode)
-	if !ok {
-		t.Fatalf("expected leaf node, got %T", root.(*InternalNode).children[0])
-	}
-
-	expiredLeaf := NewExpiredLeafNode(leaf.stem, leaf.lastPeriod, leaf.commitment)
+	leaf := root.(*InternalNode).children[0].(*LeafNode)
+	expiredLeaf := NewExpiredLeafNode(leaf.stem, new(Point).Set(leaf.commitment))
+	expiredLeaf.setDepth(1)
 	root.(*InternalNode).children[0] = expiredLeaf
 
-	if err := root.Revive(leaf.stem, leaf.values, leaf.lastPeriod, period2, false, nil); err != nil {
+	if err := root.Revive(leaf.stem, leaf.values, leaf.period, period2, false, nil); err != nil {
 		t.Fatalf("error reviving: %v", err)
 	}
+	comm1 := root.Commit()
 
-	rLeaf, ok := root.(*InternalNode).children[0].(*LeafNode)
-	if !ok {
-		t.Fatalf("expected leaf node, got %T", root.(*InternalNode).children[0])
+	rLeaf := root.(*InternalNode).children[0].(*LeafNode)
+	if rLeaf.period != period2 {
+		t.Fatalf("expected last accessed to be 2, got %d", rLeaf.period)
 	}
 
-	if rLeaf.lastPeriod != period2 {
-		t.Fatalf("expected last accessed to be 2, got %d", rLeaf.lastPeriod)
+	// Create a new root and insert the same key-value with the post-revive period
+	root2 := New()
+	if err := root2.Insert(zeroKeyTest, testValue, period2, nil); err != nil {
+		t.Fatalf("error inserting: %v", err)
+	}
+	comm2 := root2.Commit()
+
+	if !comm1.Equal(comm2) {
+		t.Fatalf("expected commitment to be %x, got %x", comm1, comm2)
 	}
 }
 
@@ -281,7 +306,7 @@ func TestReviveNoExpired(t *testing.T) {
 
 	comm := root.Commit()
 
-	if err := root.Revive(leaf.stem, leaf.values, leaf.lastPeriod, period0, false, nil); err != nil {
+	if err := root.Revive(leaf.stem, leaf.values, leaf.period, period0, false, nil); err != nil {
 		t.Fatalf("error reviving: %v", err)
 	}
 
@@ -290,8 +315,8 @@ func TestReviveNoExpired(t *testing.T) {
 		t.Fatalf("expected leaf node, got %T", root.(*InternalNode).children[0])
 	}
 
-	if rLeaf.lastPeriod != period0 {
-		t.Fatalf("expected last accessed to be 0, got %d", rLeaf.lastPeriod)
+	if rLeaf.period != period0 {
+		t.Fatalf("expected last accessed to be 0, got %d", rLeaf.period)
 	}
 
 	rComm := root.Commit()
@@ -316,7 +341,7 @@ func TestRootCommitExpired(t *testing.T) {
 	var init Point
 	init.Set(root.Commit())
 
-	expiredLeaf := NewExpiredLeafNode(leaf.stem, leaf.lastPeriod, leaf.commitment)
+	expiredLeaf := NewExpiredLeafNode(leaf.stem, leaf.commitment)
 	root.(*InternalNode).children[0] = expiredLeaf
 
 	comm := root.Commit()
