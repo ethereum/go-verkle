@@ -31,22 +31,22 @@ func TestHashedNodeFuncs(t *testing.T) {
 	t.Parallel()
 
 	e := HashedNode{}
-	err := e.Insert(zeroKeyTest, zeroKeyTest, nil)
+	err := e.Insert(zeroKeyTest, zeroKeyTest, 0, nil)
 	if err != errInsertIntoHash {
 		t.Fatal("got nil error when inserting into a hashed node")
 	}
-	_, err = e.Delete(zeroKeyTest, nil)
+	_, err = e.Delete(zeroKeyTest, 0, nil)
 	if err == nil {
 		t.Fatal("got nil error when deleting from a hashed node")
 	}
-	v, err := e.Get(zeroKeyTest, nil)
+	v, err := e.Get(zeroKeyTest, 0, nil)
 	if err == nil {
 		t.Fatal("got nil error when getting from a hashed node")
 	}
 	if v != nil {
 		t.Fatal("non-nil get from a hashed node")
 	}
-	if _, _, _, err := e.GetProofItems(nil, nil); err == nil {
+	if _, _, _, _, err := e.GetProofItems(nil, nil); err == nil {
 		t.Fatal("got nil error when getting proof items from a hashed node")
 	}
 	if _, err := e.Serialize(); err != errSerializeHashedNode {

@@ -45,7 +45,7 @@ func BatchNewLeafNode(nodesValues []BatchNewLeafNodeData) ([]LeafNode, error) {
 					}
 
 					var leaf *LeafNode
-					leaf, err := NewLeafNode(nv.Stem, valsslice)
+					leaf, err := NewLeafNode(nv.Stem, valsslice, 0)
 					if err != nil {
 						return err
 					}
@@ -192,7 +192,7 @@ func (n *InternalNode) insertMigratedLeavesSubtree(leaves []LeafNode, resolver N
 					}
 				}
 
-				if err := node.updateMultipleLeaves(nonPresentValues); err != nil {
+				if err := node.updateMultipleLeaves(nonPresentValues, 0); err != nil {
 					return fmt.Errorf("updating leaves: %s", err)
 				}
 				continue

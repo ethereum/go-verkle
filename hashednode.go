@@ -32,16 +32,20 @@ import (
 
 type HashedNode struct{}
 
-func (HashedNode) Insert([]byte, []byte, NodeResolverFn) error {
+func (HashedNode) Insert([]byte, []byte, StatePeriod, NodeResolverFn) error {
 	return errInsertIntoHash
 }
 
-func (HashedNode) Delete([]byte, NodeResolverFn) (bool, error) {
+func (HashedNode) Delete([]byte, StatePeriod, NodeResolverFn) (bool, error) {
 	return false, errors.New("cant delete a hashed node in-place")
 }
 
-func (HashedNode) Get([]byte, NodeResolverFn) ([]byte, error) {
+func (HashedNode) Get([]byte, StatePeriod, NodeResolverFn) ([]byte, error) {
 	return nil, errors.New("can not read from a hash node")
+}
+
+func (HashedNode) Revive(Stem, [][]byte, StatePeriod, StatePeriod, bool, NodeResolverFn) error {
+	return errors.New("cannot revive a hashed node")
 }
 
 func (HashedNode) Commit() *Point {
@@ -58,8 +62,8 @@ func (HashedNode) Commitment() *Point {
 	panic("can not get commitment of a hash node")
 }
 
-func (HashedNode) GetProofItems(keylist, NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
-	return nil, nil, nil, errors.New("can not get the full path, and there is no proof of absence")
+func (HashedNode) GetProofItems(keylist, NodeResolverFn) (*ProofElements, []byte, []Stem, []StatePeriod, error) {
+	return nil, nil, nil, nil, errors.New("can not get the full path, and there is no proof of absence")
 }
 
 func (HashedNode) Serialize() ([]byte, error) {

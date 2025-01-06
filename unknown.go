@@ -29,16 +29,20 @@ import "errors"
 
 type UnknownNode struct{}
 
-func (UnknownNode) Insert([]byte, []byte, NodeResolverFn) error {
+func (UnknownNode) Insert([]byte, []byte, StatePeriod, NodeResolverFn) error {
 	return errMissingNodeInStateless
 }
 
-func (UnknownNode) Delete([]byte, NodeResolverFn) (bool, error) {
+func (UnknownNode) Delete([]byte, StatePeriod, NodeResolverFn) (bool, error) {
 	return false, errors.New("cant delete in a subtree missing form a stateless view")
 }
 
-func (UnknownNode) Get([]byte, NodeResolverFn) ([]byte, error) {
+func (UnknownNode) Get([]byte, StatePeriod, NodeResolverFn) ([]byte, error) {
 	return nil, nil
+}
+
+func (UnknownNode) Revive(Stem, [][]byte, StatePeriod, StatePeriod, bool, NodeResolverFn) error {
+	return errors.New("cannot revive an unknown node")
 }
 
 func (n UnknownNode) Commit() *Point {
@@ -51,8 +55,8 @@ func (UnknownNode) Commitment() *Point {
 	return &id
 }
 
-func (UnknownNode) GetProofItems(keylist, NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
-	return nil, nil, nil, errors.New("can't generate proof items for unknown node")
+func (UnknownNode) GetProofItems(keylist, NodeResolverFn) (*ProofElements, []byte, []Stem, []StatePeriod, error) {
+	return nil, nil, nil, nil, errors.New("can't generate proof items for unknown node")
 }
 
 func (UnknownNode) Serialize() ([]byte, error) {

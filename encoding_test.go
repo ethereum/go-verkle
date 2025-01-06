@@ -22,7 +22,7 @@ func TestLeafStemLength(t *testing.T) {
 	// Serialize a leaf with no values, but whose stem is 32 bytes. The
 	// serialization should trim the extra byte.
 	toolong := make([]byte, 32)
-	leaf, err := NewLeafNode(toolong, make([][]byte, NodeWidth))
+	leaf, err := NewLeafNode(toolong, make([][]byte, NodeWidth), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,7 +30,7 @@ func TestLeafStemLength(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(ser) != nodeTypeSize+StemSize+bitlistSize+3*banderwagon.UncompressedSize {
+	if len(ser) != nodeTypeSize+StemSize+bitlistSize+3*banderwagon.UncompressedSize+periodSize {
 		t.Fatalf("invalid serialization when the stem is longer than 31 bytes: %x (%d bytes != %d)", ser, len(ser), nodeTypeSize+StemSize+bitlistSize+2*banderwagon.UncompressedSize)
 	}
 }
@@ -46,7 +46,7 @@ func TestInvalidNodeEncoding(t *testing.T) {
 	// Test an invalid node type.
 	values := make([][]byte, NodeWidth)
 	values[42] = testValue
-	ln, err := NewLeafNode(ffx32KeyTest, values)
+	ln, err := NewLeafNode(ffx32KeyTest, values, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestParseNodeEoA(t *testing.T) {
 	values[2] = fourtyKeyTest[:] // set nonce to 64
 	values[3] = EmptyCodeHash[:] // set empty code hash
 	values[4] = zero32[:]        // zero-size
-	ln, err := NewLeafNode(ffx32KeyTest[:31], values)
+	ln, err := NewLeafNode(ffx32KeyTest[:31], values, 0)
 	if err != nil {
 		t.Fatalf("error creating leaf node: %v", err)
 	}
@@ -133,10 +133,11 @@ func TestParseNodeEoA(t *testing.T) {
 		t.Fatalf("invalid commitment, got %x, expected %x", lnd.commitment, ln.commitment)
 	}
 }
+
 func TestParseNodeSingleSlot(t *testing.T) {
 	values := make([][]byte, 256)
 	values[153] = EmptyCodeHash
-	ln, err := NewLeafNode(ffx32KeyTest[:31], values)
+	ln, err := NewLeafNode(ffx32KeyTest[:31], values, 0)
 	if err != nil {
 		t.Fatalf("error creating leaf node: %v", err)
 	}
@@ -190,5 +191,37 @@ func TestParseNodeSingleSlot(t *testing.T) {
 
 	if !lnd.commitment.Equal(ln.commitment) {
 		t.Fatalf("invalid commitment, got %x, expected %x", lnd.commitment, ln.commitment)
+	}
+}
+
+func TestParseExpiredLeaf(t *testing.T) {
+	cfg := GetConfig()
+	srs := cfg.conf.SRS
+
+	comm := srs[0]
+	stem := ffx32KeyTest[:StemSize]
+	el := NewExpiredLeafNode(stem, &comm)
+
+	serialized, err := el.Serialize()
+	if err != nil {
+		t.Fatalf("error serializing expired leaf node: %v", err)
+	}
+
+	deserialized, err := ParseNode(serialized, 0)
+	if err != nil {
+		t.Fatalf("error deserializing expired leaf node: %v", err)
+	}
+
+	el2, ok := deserialized.(*ExpiredLeafNode)
+	if !ok {
+		t.Fatalf("expected expired leaf node, got %T", deserialized)
+	}
+
+	if !bytes.Equal(el2.stem, stem) {
+		t.Fatalf("invalid stem, got %x, expected %x", el2.stem, stem)
+	}
+
+	if !el2.commitment.Equal(&comm) {
+		t.Fatalf("invalid commitment, got %x, expected %x", el2.commitment, comm)
 	}
 }

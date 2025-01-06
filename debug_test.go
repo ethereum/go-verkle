@@ -33,16 +33,16 @@ func TestJSON(t *testing.T) {
 	t.Parallel()
 
 	root := New()
-	if err := root.Insert(zeroKeyTest, fourtyKeyTest, nil); err != nil {
+	if err := root.Insert(zeroKeyTest, fourtyKeyTest, 0, nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := root.Insert(oneKeyTest, zeroKeyTest, nil); err != nil {
+	if err := root.Insert(oneKeyTest, zeroKeyTest, 0, nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := root.Insert(forkOneKeyTest, zeroKeyTest, nil); err != nil { // Force an internal node in the first layer.
+	if err := root.Insert(forkOneKeyTest, zeroKeyTest, 0, nil); err != nil { // Force an internal node in the first layer.
 		t.Fatal(err)
 	}
-	if err := root.Insert(fourtyKeyTest, oneKeyTest, nil); err != nil {
+	if err := root.Insert(fourtyKeyTest, oneKeyTest, 0, nil); err != nil {
 		t.Fatal(err)
 	}
 	root.(*InternalNode).children[152] = HashedNode{}

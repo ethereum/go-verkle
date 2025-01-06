@@ -35,6 +35,7 @@ const (
 	NodeWidth          = 256
 	NodeBitWidth  byte = 8
 	StemSize           = 31
+	periodSize         = 2
 )
 
 func equalPaths(key1, key2 []byte) bool {

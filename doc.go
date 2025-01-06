@@ -38,6 +38,12 @@ var (
 	errUnknownNodeType        = errors.New("unknown node type detected")
 	errMissingNodeInStateless = errors.New("trying to access a node that is missing from the stateless view")
 	errIsPOAStub              = errors.New("trying to read/write a proof of absence leaf node")
+	errExpired                = errors.New("trying to access an expired leaf node")
+	errReviveCommitmentMismatch = errors.New("commitment mismatch in revive")
+	errReviveValuesMismatch   	= errors.New("values mismatch in revive")
+	errReviveStemMismatch    	= errors.New("stem mismatch in revive")
+	errRevivePeriodMismatch 	= errors.New("period mismatch in revive")
+	errRevivePeriodOlderThanNew = errors.New("revive old period is older than the new period")
 )
 
 const (

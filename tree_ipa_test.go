@@ -85,7 +85,7 @@ func TestInsertKey0Value0(t *testing.T) {
 		srs       = cfg.conf.SRS
 	)
 
-	if err := root.Insert(zeroKeyTest, zeroKeyTest, nil); err != nil {
+	if err := root.Insert(zeroKeyTest, zeroKeyTest, 0, nil); err != nil {
 		t.Fatalf("insert failed: %s", err)
 	}
 	comm := root.Commit()
@@ -118,7 +118,7 @@ func TestInsertKey1Value1(t *testing.T) {
 		1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
 		25, 26, 27, 28, 29, 30, 31, 32,
 	}
-	if err := root.Insert(key, key, nil); err != nil {
+	if err := root.Insert(key, key, 0, nil); err != nil {
 		t.Fatalf("insert failed: %s", err)
 	}
 	comm := root.Commit()
@@ -156,10 +156,10 @@ func TestInsertSameStemTwoLeaves(t *testing.T) {
 		1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
 		25, 26, 27, 28, 29, 30, 31, 128,
 	}
-	if err := root.Insert(key_a, key_a, nil); err != nil {
+	if err := root.Insert(key_a, key_a, 0, nil); err != nil {
 		t.Fatalf("insert failed: %s", err)
 	}
-	if err := root.Insert(key_b, key_b, nil); err != nil {
+	if err := root.Insert(key_b, key_b, 0, nil); err != nil {
 		t.Fatalf("insert failed: %s", err)
 	}
 	comm := root.Commit()
@@ -211,10 +211,10 @@ func TestInsertKey1Val1Key2Val2(t *testing.T) {
 		srs                 = cfg.conf.SRS
 	)
 	key_b, _ := hex.DecodeString("0101010101010101010101010101010101010101010101010101010101010101")
-	if err := root.Insert(zeroKeyTest, zeroKeyTest, nil); err != nil {
+	if err := root.Insert(zeroKeyTest, zeroKeyTest, 0, nil); err != nil {
 		t.Fatalf("insert failed: %s", err)
 	}
-	if err := root.Insert(key_b, key_b, nil); err != nil {
+	if err := root.Insert(key_b, key_b, 0, nil); err != nil {
 		t.Fatalf("insert failed: %s", err)
 	}
 	comm := root.Commit()

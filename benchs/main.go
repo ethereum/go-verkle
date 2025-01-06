@@ -49,7 +49,7 @@ func benchmarkInsertInExisting() {
 		for i := 0; i < 5; i++ {
 			root := verkle.New()
 			for _, k := range keys {
-				if err := root.Insert(k, value, nil); err != nil {
+				if err := root.Insert(k, value, 0, nil); err != nil {
 					panic(err)
 				}
 			}
@@ -58,7 +58,7 @@ func benchmarkInsertInExisting() {
 			// Now insert the 10k leaves and measure time
 			start := time.Now()
 			for _, k := range toInsertKeys {
-				if err := root.Insert(k, value, nil); err != nil {
+				if err := root.Insert(k, value, 0, nil); err != nil {
 					panic(err)
 				}
 			}
