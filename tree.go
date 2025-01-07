@@ -1861,8 +1861,8 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 		if isEoA {
 			switch i {
 			case 0:
-				// Version should be 0
-				isEoA = v != nil
+				// Version + reserved fields + code size should be 0
+				isEoA = v != nil && bytes.Equal(v[0:8], zero32[0:8])
 			case 1:
 				// Code hash should be the empty code hash
 				isEoA = v != nil && bytes.Equal(v, EmptyCodeHash[:])

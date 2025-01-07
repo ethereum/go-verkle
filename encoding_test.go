@@ -2,6 +2,8 @@ package verkle
 
 import (
 	"bytes"
+	"encoding/binary"
+	"math/big"
 	"testing"
 
 	"github.com/crate-crypto/go-ipa/banderwagon"
@@ -62,11 +64,10 @@ func TestInvalidNodeEncoding(t *testing.T) {
 
 func TestParseNodeEoA(t *testing.T) {
 	values := make([][]byte, 256)
-	values[0] = zero32[:]
-	values[1] = EmptyCodeHash[:] // set empty code hash as balance, because why not
-	values[2] = fourtyKeyTest[:] // set nonce to 64
-	values[3] = EmptyCodeHash[:] // set empty code hash
-	values[4] = zero32[:]        // zero-size
+	values[0] = make([]byte, 32)
+	binary.BigEndian.PutUint64(values[0][8:], 64)  // nonce = 64
+	copy(values[0][30:], big.NewInt(1337).Bytes()) // balance = 1337
+	values[1] = EmptyCodeHash[:]                   // set empty code hash as balance, because why not
 	ln, err := NewLeafNode(ffx32KeyTest[:31], values)
 	if err != nil {
 		t.Fatalf("error creating leaf node: %v", err)
@@ -77,10 +78,8 @@ func TestParseNodeEoA(t *testing.T) {
 		t.Fatalf("error serializing leaf node: %v", err)
 	}
 
-	// TODO uncomment when the EoA serialization issue is fixed
-	// if serialized[0] != eoAccountType {
-	if serialized[0] != leafType {
-		t.Fatalf("invalid encoding type, got %d, expected %d", serialized[0], leafType)
+	if serialized[0] != eoAccountType {
+		t.Fatalf("invalid encoding type, got %d, expected %d", serialized[0], eoAccountType)
 	}
 
 	deserialized, err := ParseNode(serialized, 5)
@@ -101,24 +100,24 @@ func TestParseNodeEoA(t *testing.T) {
 		t.Fatalf("invalid stem, got %x, expected %x", lnd.stem, ffx32KeyTest[:31])
 	}
 
-	if !bytes.Equal(lnd.values[0], zero32[:]) {
-		t.Fatalf("invalid version, got %x, expected %x", lnd.values[0], zero32[:])
+	if lnd.values[0][0] != 0 {
+		t.Fatalf("invalid version, got %x, expected %x", lnd.values[0][0], 0)
+	}
+
+	if cs := binary.BigEndian.Uint32(lnd.values[0][4:]); cs != 0 {
+		t.Fatalf("invalid code size, got %x, expected %x", cs, 0)
+	}
+
+	if nonce := binary.BigEndian.Uint64(lnd.values[0][8:]); nonce != 64 {
+		t.Fatalf("invalid nonce, got %x, expected %x", nonce, 64)
+	}
+
+	if balance := new(big.Int).SetBytes(lnd.values[0][16:]); balance.Cmp(big.NewInt(1337)) != 0 {
+		t.Fatalf("invalid balance, got %x, expected %x", balance, 1337)
 	}
 
 	if !bytes.Equal(lnd.values[1], EmptyCodeHash[:]) {
 		t.Fatalf("invalid balance, got %x, expected %x", lnd.values[1], EmptyCodeHash[:])
-	}
-
-	if !bytes.Equal(lnd.values[2], fourtyKeyTest[:]) {
-		t.Fatalf("invalid nonce, got %x, expected %x", lnd.values[2], fourtyKeyTest[:])
-	}
-
-	if !bytes.Equal(lnd.values[3], EmptyCodeHash[:]) {
-		t.Fatalf("invalid code hash, got %x, expected %x", lnd.values[3], EmptyCodeHash[:])
-	}
-
-	if !bytes.Equal(lnd.values[4], zero32[:]) {
-		t.Fatalf("invalid code size, got %x, expected %x", lnd.values[4], zero32[:])
 	}
 
 	if !lnd.c2.Equal(&banderwagon.Identity) {
