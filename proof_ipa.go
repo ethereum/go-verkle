@@ -185,8 +185,8 @@ func (sd StateDiff) Equal(other StateDiff) error {
 }
 
 func GetCommitmentsForMultiproof(root VerkleNode, keys [][]byte, resolver NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
-	sort.Sort(keylist(keys))
-	return root.GetProofItems(keylist(keys), resolver)
+	sort.Sort(Keylist(keys))
+	return root.GetProofItems(Keylist(keys), resolver)
 }
 
 // getProofElementsFromTree factors the logic that is used both in the proving and verification methods. It takes a pre-state

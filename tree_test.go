@@ -1025,7 +1025,7 @@ func TestEmptyCommitment(t *testing.T) {
 		t.Fatalf("inserting into the original failed: %v", err)
 	}
 	root.Commit()
-	pe, _, _, err := root.GetProofItems(keylist{ffx32KeyTest}, nil)
+	pe, _, _, err := root.GetProofItems(Keylist{ffx32KeyTest}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1092,7 +1092,7 @@ func TestGetProofItemsNoPoaIfStemPresent(t *testing.T) {
 	key1, _ := hex.DecodeString("ffff00ffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
 	key2, _ := hex.DecodeString("ffffff00ffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
 
-	_, esses, poas, err := root.GetProofItems(keylist{key1, key2, ffx32KeyTest}, nil)
+	_, esses, poas, err := root.GetProofItems(Keylist{key1, key2, ffx32KeyTest}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

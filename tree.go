@@ -42,17 +42,17 @@ type (
 	NodeResolverFn func([]byte) ([]byte, error)
 )
 
-type keylist [][]byte
+type Keylist [][]byte
 
-func (kl keylist) Len() int {
+func (kl Keylist) Len() int {
 	return len(kl)
 }
 
-func (kl keylist) Less(i, j int) bool {
+func (kl Keylist) Less(i, j int) bool {
 	return bytes.Compare(kl[i], kl[j]) == -1
 }
 
-func (kl keylist) Swap(i, j int) {
+func (kl Keylist) Swap(i, j int) {
 	kl[i], kl[j] = kl[j], kl[i]
 }
 
@@ -90,7 +90,7 @@ type VerkleNode interface {
 	// returns them breadth-first. On top of that, it returns
 	// one "extension status" per stem, and an alternate stem
 	// if the key is missing but another stem has been found.
-	GetProofItems(keylist, NodeResolverFn) (*ProofElements, []byte, []Stem, error)
+	GetProofItems(Keylist, NodeResolverFn) (*ProofElements, []byte, []Stem, error)
 
 	// Serialize encodes the node to RLP.
 	Serialize() ([]byte, error)
@@ -908,19 +908,19 @@ func commitNodesAtLevel(nodes []*InternalNode) error {
 }
 
 // groupKeys groups a set of keys based on their byte at a given depth.
-func groupKeys(keys keylist, depth byte) []keylist {
+func groupKeys(keys Keylist, depth byte) []Keylist {
 	// special case: no key
 	if len(keys) == 0 {
-		return []keylist{}
+		return []Keylist{}
 	}
 
 	// special case: only one key left
 	if len(keys) == 1 {
-		return []keylist{keys}
+		return []Keylist{keys}
 	}
 
 	// there are at least two keys left in the list at this depth
-	groups := make([]keylist, 0, len(keys))
+	groups := make([]Keylist, 0, len(keys))
 	firstkey, lastkey := 0, 1
 	for ; lastkey < len(keys); lastkey++ {
 		key := keys[lastkey]
@@ -938,7 +938,7 @@ func groupKeys(keys keylist, depth byte) []keylist {
 	return groups
 }
 
-func (n *InternalNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
+func (n *InternalNode) GetProofItems(keys Keylist, resolver NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
 	var (
 		groups = groupKeys(keys, n.depth)
 		pe     = &ProofElements{
@@ -1490,7 +1490,7 @@ func leafToComms(poly []Fr, val []byte) error {
 	return nil
 }
 
-func (n *LeafNode) GetProofItems(keys keylist, _ NodeResolverFn) (*ProofElements, []byte, []Stem, error) { // skipcq: GO-R1005
+func (n *LeafNode) GetProofItems(keys Keylist, _ NodeResolverFn) (*ProofElements, []byte, []Stem, error) { // skipcq: GO-R1005
 	var (
 		poly [NodeWidth]Fr // top-level polynomial
 		pe                 = &ProofElements{

@@ -53,7 +53,7 @@ func (Empty) Commitment() *Point {
 	return &id
 }
 
-func (Empty) GetProofItems(keylist, NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
+func (Empty) GetProofItems(Keylist, NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
 	return nil, nil, nil, errors.New("trying to produce a commitment for an empty subtree")
 }
 

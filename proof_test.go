@@ -453,7 +453,7 @@ func TestProofDeserialize(t *testing.T) {
 	}
 	_ = deserialized
 
-	pe, _, _, err := root.GetProofItems(keylist{absentkey[:]}, nil)
+	pe, _, _, err := root.GetProofItems(Keylist{absentkey[:]}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -735,7 +735,7 @@ func TestStatelessDeserialize(t *testing.T) {
 		string(fourtyKeyTest): fourtyKeyTest,
 		string(ffx32KeyTest):  fourtyKeyTest,
 	}
-	proveKeys := keylist{zeroKeyTest, fourtyKeyTest}
+	proveKeys := Keylist{zeroKeyTest, fourtyKeyTest}
 
 	testSerializeDeserializeProof(t, insertKVs, proveKeys)
 }
@@ -748,7 +748,7 @@ func TestStatelessDeserializeMissingLeafNode(t *testing.T) {
 		string(oneKeyTest):   fourtyKeyTest,
 		string(ffx32KeyTest): fourtyKeyTest,
 	}
-	proveKeys := keylist{zeroKeyTest, fourtyKeyTest}
+	proveKeys := Keylist{zeroKeyTest, fourtyKeyTest}
 
 	testSerializeDeserializeProof(t, insertKVs, proveKeys)
 }
@@ -760,7 +760,7 @@ func TestStatelessDeserializeAbsentValueInExistingLeafNode(t *testing.T) {
 		string(zeroKeyTest):  fourtyKeyTest,
 		string(ffx32KeyTest): fourtyKeyTest,
 	}
-	proveKeys := keylist{zeroKeyTest, oneKeyTest}
+	proveKeys := Keylist{zeroKeyTest, oneKeyTest}
 
 	testSerializeDeserializeProof(t, insertKVs, proveKeys)
 }
@@ -774,7 +774,7 @@ func TestStatelessDeserializeDepth2(t *testing.T) {
 		string(key1):         fourtyKeyTest,
 		string(ffx32KeyTest): fourtyKeyTest,
 	}
-	proveKeys := keylist{zeroKeyTest, key1}
+	proveKeys := Keylist{zeroKeyTest, key1}
 
 	testSerializeDeserializeProof(t, insertKVs, proveKeys)
 }
@@ -791,7 +791,7 @@ func TestProofVerificationThreeStemsInSameExtensionStatus(t *testing.T) {
 		string(key3_0): fourtyKeyTest,
 		string(key3_1): fourtyKeyTest,
 	}
-	proveKeys := keylist{zeroKeyTest, key2_0, key3_0, key3_1, key4_0}
+	proveKeys := Keylist{zeroKeyTest, key2_0, key3_0, key3_1, key4_0}
 
 	testSerializeDeserializeProof(t, insertKVs, proveKeys)
 }
@@ -805,7 +805,7 @@ func TestProofVerificationTwoLeavesWithDifferentValues(t *testing.T) {
 		string(zeroKeyTest): fourtyKeyTest,
 		string(key2):        forkOneKeyTest,
 	}
-	proveKeys := keylist{zeroKeyTest, key2}
+	proveKeys := Keylist{zeroKeyTest, key2}
 
 	testSerializeDeserializeProof(t, insertKVs, proveKeys)
 }
@@ -818,7 +818,7 @@ func TestProofOfAbsenceBorderCase(t *testing.T) {
 	insertKVs := map[string][]byte{
 		string(oneKeyTest): fourtyKeyTest,
 	}
-	proveKeys := keylist{oneKeyTest, key1}
+	proveKeys := Keylist{oneKeyTest, key1}
 
 	testSerializeDeserializeProof(t, insertKVs, proveKeys)
 }
@@ -831,12 +831,12 @@ func TestProofOfAbsenceBorderCaseReversed(t *testing.T) {
 	insertKVs := map[string][]byte{
 		string(key1): fourtyKeyTest,
 	}
-	proveKeys := keylist{oneKeyTest, key1}
+	proveKeys := Keylist{oneKeyTest, key1}
 
 	testSerializeDeserializeProof(t, insertKVs, proveKeys)
 }
 
-func testSerializeDeserializeProof(t *testing.T, insertKVs map[string][]byte, proveKeys keylist) {
+func testSerializeDeserializeProof(t *testing.T, insertKVs map[string][]byte, proveKeys Keylist) {
 	t.Helper()
 
 	root := New()
@@ -1088,7 +1088,7 @@ func TestGenerateProofWithOnlyAbsentKeys(t *testing.T) {
 
 	// Create a proof with a key with the same first byte, but different second byte (i.e: absent).
 	absentKey, _ := hex.DecodeString("4010000000000000000000000000000000000000000000000000000000000000")
-	proof, cis, zis, yis, err := MakeVerkleMultiProof(root, nil, keylist{absentKey}, nil)
+	proof, cis, zis, yis, err := MakeVerkleMultiProof(root, nil, Keylist{absentKey}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1113,7 +1113,7 @@ func TestGenerateProofWithOnlyAbsentKeys(t *testing.T) {
 	}
 
 	// From the rebuilt tree, validate the proof.
-	pe, _, _, err := GetCommitmentsForMultiproof(droot, keylist{absentKey}, nil)
+	pe, _, _, err := GetCommitmentsForMultiproof(droot, Keylist{absentKey}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1168,7 +1168,7 @@ func TestDoubleProofOfAbsence(t *testing.T) {
 	// in that leaf node. i.e: two proof of absence in the same leaf node with no proof of presence.
 	key2, _ := hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000100")
 	key3, _ := hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000200")
-	proof, _, _, _, _ := MakeVerkleMultiProof(root, nil, keylist{key2, key3}, nil)
+	proof, _, _, _, _ := MakeVerkleMultiProof(root, nil, Keylist{key2, key3}, nil)
 
 	serialized, statediff, err := SerializeProof(proof)
 	if err != nil {
@@ -1217,7 +1217,7 @@ func TestProveAbsenceInEmptyHalf(t *testing.T) {
 
 	key2, _ := hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000100")
 	key3, _ := hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000000")
-	proof, _, _, _, _ := MakeVerkleMultiProof(root, nil, keylist{key2, key3}, nil)
+	proof, _, _, _, _ := MakeVerkleMultiProof(root, nil, Keylist{key2, key3}, nil)
 
 	serialized, statediff, err := SerializeProof(proof)
 	if err != nil {

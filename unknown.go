@@ -51,7 +51,7 @@ func (UnknownNode) Commitment() *Point {
 	return &id
 }
 
-func (UnknownNode) GetProofItems(keylist, NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
+func (UnknownNode) GetProofItems(Keylist, NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
 	return nil, nil, nil, errors.New("can't generate proof items for unknown node")
 }
 
