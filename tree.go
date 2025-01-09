@@ -99,7 +99,7 @@ type VerkleNode interface {
 	// Copy a node and its children
 	Copy() VerkleNode
 
-	Revive(Stem, [][]byte, StatePeriod, StatePeriod, bool, NodeResolverFn) error
+	Revive(Stem, [][]byte, StatePeriod, StatePeriod, bool /* skip update period and commitment*/, NodeResolverFn) error
 
 	// toDot returns a string representing this subtree in DOT language
 	toDot(string, string) string
@@ -492,7 +492,7 @@ func (n *InternalNode) Revive(stem Stem, values [][]byte, oldPeriod, curPeriod S
 	case UnknownNode:
 		return errMissingNodeInStateless
 	case Empty:
-		// TODO(weiihann): double confirm this
+		// TODO(weiihann): If the commitment is 0, there's a case to be made that the tx should not fail
 		return errors.New("cannot revive an empty node")
 	case HashedNode:
 		if resolver == nil {
@@ -529,6 +529,7 @@ func (n *InternalNode) Revive(stem Stem, values [][]byte, oldPeriod, curPeriod S
 		
 		return nil
 	case *LeafNode:
+		// Leaf node might not be pruned yet, so we continue to do revive verification
 		return child.Revive(stem, values, oldPeriod, curPeriod, skipUpdate, resolver)
 	}
 
