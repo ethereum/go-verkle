@@ -1910,3 +1910,40 @@ func (n *LeafNode) serializeLeafWithUncompressedCommitments(cBytes, c1Bytes, c2B
 
 	return result
 }
+
+// HashNodeFromInternal hashed all the internal nodes under this node, exclude itself
+func (n *InternalNode) HashNodeFromInternal() {
+	for i, child := range n.children {
+		switch childNode := child.(type) {
+		case *LeafNode:
+			n.children[i] = HashedNode{}
+		case *InternalNode:
+			childNode.HashNodeFromInternal()
+			n.children[i] = HashedNode{}
+		}
+	}
+}
+
+// GetInternalNode returns the internal node at the path key, if it exists.
+func (n *InternalNode) GetInternalNode(path []byte, flushDepth byte) (VerkleNode, error) {
+	curNode := n
+
+	for i := byte(0); i < flushDepth; i++ {
+		nchild := offset2key(path, curNode.depth)
+		switch child := curNode.children[nchild].(type) {
+		case UnknownNode:
+			return nil, errMissingNodeInStateless
+		case Empty:
+			return nil, nil
+		case HashedNode:
+			return nil, fmt.Errorf("encounter hashedNode on path")
+		case *LeafNode:
+			return nil, nil
+		case *InternalNode:
+			curNode = child
+		default:
+			return nil, errUnknownNodeType
+		}
+	}
+	return curNode, nil
+}
