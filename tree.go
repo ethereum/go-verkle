@@ -176,7 +176,7 @@ type (
 	// Represents an internal node at any level
 	InternalNode struct {
 		// List of child nodes of this internal node.
-		children []VerkleNode
+		children [NodeWidth]VerkleNode
 
 		// node depth in the tree, in bits
 		depth byte
@@ -239,7 +239,6 @@ func (n *InternalNode) ToJSON() ([]byte, error) {
 
 func newInternalNode(depth byte) VerkleNode {
 	node := new(InternalNode)
-	node.children = make([]VerkleNode, NodeWidth)
 	for idx := range node.children {
 		node.children[idx] = Empty(struct{}{})
 	}
@@ -255,7 +254,6 @@ func New() VerkleNode {
 
 func NewStatelessInternal(depth byte, comm *Point) VerkleNode {
 	node := &InternalNode{
-		children:   make([]VerkleNode, NodeWidth),
 		depth:      depth,
 		commitment: comm,
 	}
@@ -334,7 +332,7 @@ func NewLeafNodeWithNoComms(stem Stem, values [][]byte) *LeafNode {
 
 // Children return the children of the node. The returned slice is
 // internal to the tree, so callers *must* consider it readonly.
-func (n *InternalNode) Children() []VerkleNode {
+func (n *InternalNode) Children() [NodeWidth]VerkleNode {
 	return n.children
 }
 
@@ -1073,7 +1071,6 @@ func (n *InternalNode) Serialize() ([]byte, error) {
 
 func (n *InternalNode) Copy() VerkleNode {
 	ret := &InternalNode{
-		children:   make([]VerkleNode, len(n.children)),
 		commitment: new(Point),
 		depth:      n.depth,
 	}
