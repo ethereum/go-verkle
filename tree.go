@@ -188,6 +188,8 @@ type (
 		// Cache the commitment value
 		commitment *Point
 
+		// I guess this basically stores the commitment of the child node
+		// BEFORE it was updated.
 		cow map[byte]*Point
 	}
 
@@ -521,11 +523,11 @@ func (n *InternalNode) Revive(stem Stem, values [][]byte, oldPeriod, curPeriod S
 		}
 	
 		leaf.setDepth(n.depth + 1)
-		if !skipUpdate {
-			leaf.updatePeriod(curPeriod)
-		}
 		n.children[nChild] = leaf
 		n.cowChild(nChild)
+		if !skipUpdate && leaf.needsPeriodUpdate(curPeriod) {
+			leaf.updatePeriod(curPeriod)
+		}
 		
 		return nil
 	case *LeafNode:
@@ -676,6 +678,10 @@ func (n *InternalNode) GetValuesAtStem(stem Stem, curPeriod StatePeriod, resolve
 			if child.isPOAStub {
 				return nil, errIsPOAStub
 			}
+			if child.needsPeriodUpdate(curPeriod) {
+				n.cowChild(nchild)
+				child.updatePeriod(curPeriod)
+			}
 			return child.values, nil
 		}
 		return nil, nil
@@ -683,6 +689,44 @@ func (n *InternalNode) GetValuesAtStem(stem Stem, curPeriod StatePeriod, resolve
 		return child.GetValuesAtStem(stem, curPeriod, resolver)
 	default:
 		return nil, errUnknownNodeType
+	}
+}
+
+func (n *InternalNode) RefreshPeriodAtStem(stem Stem, curPeriod StatePeriod, resolver NodeResolverFn) error {
+	nchild := offset2key(stem, n.depth) // index of the child pointed by the next byte in the key
+	switch child := n.children[nchild].(type) {
+	case UnknownNode:
+		return errMissingNodeInStateless
+	case Empty:
+		return nil
+	case HashedNode:
+		if resolver == nil {
+			return fmt.Errorf("hashed node %x at depth %d along stem %x could not be resolved: %w", child.Commitment().Bytes(), n.depth, stem, errReadFromInvalid)
+		}
+		serialized, err := resolver(stem[:n.depth+1])
+		if err != nil {
+			return fmt.Errorf("resolving node %x at depth %d: %w", stem, n.depth, err)
+		}
+		resolved, err := ParseNode(serialized, n.depth+1)
+		if err != nil {
+			return fmt.Errorf("verkle tree: error parsing resolved node %x: %w", stem, err)
+		}
+		n.children[nchild] = resolved
+		// recurse to handle the case of a LeafNode child that
+		// splits.
+		return n.RefreshPeriodAtStem(stem, curPeriod, resolver)
+	case *ExpiredLeafNode:
+		return errExpired
+	case *LeafNode:
+		if child.needsPeriodUpdate(curPeriod) {
+			n.cowChild(nchild)
+			child.updatePeriod(curPeriod)
+		}
+		return nil
+	case *InternalNode:
+		return child.RefreshPeriodAtStem(stem, curPeriod, resolver)
+	default:
+		return errUnknownNodeType
 	}
 }
 
@@ -1621,13 +1665,12 @@ func (n *LeafNode) Commit() *Point {
 	return n.commitment
 }
 
+func (n *LeafNode) needsPeriodUpdate(curPeriod StatePeriod) bool {
+	return curPeriod > n.period
+}
+
 // updatePeriod updates the last period of the leaf node and updates the commitment
 func (n *LeafNode) updatePeriod(curPeriod StatePeriod) {
-	// no-op if the current period is the same
-	if curPeriod <= n.period {
-		return
-	}
-
 	var poly [5]Fr
 	poly[4].SetUint64(uint64(curPeriod - n.period))
 	n.commitment.Add(n.commitment, cfg.CommitToPoly(poly[:], 0))
@@ -1842,7 +1885,8 @@ func (n *LeafNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*ProofE
 		slotPath := string(key[:n.depth]) + string([]byte{2 + suffix/128})
 		pe.ByPath[slotPath] = scomm
 	}
-
+	
+	ps = append(ps, n.period)
 	return pe, esses, poass, ps, nil
 }
 

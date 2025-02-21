@@ -11,6 +11,7 @@ const (
 	period0 = StatePeriod(0)
 	period1 = StatePeriod(1)
 	period2 = StatePeriod(2)
+	period3 = StatePeriod(3)
 )
 
 func IsExpired(prev, cur StatePeriod) bool {

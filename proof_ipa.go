@@ -127,7 +127,7 @@ type SuffixStateDiffs []SuffixStateDiff
 type StemStateDiff struct {
 	Stem        [StemSize]byte   `json:"stem"`
 	SuffixDiffs SuffixStateDiffs `json:"suffixDiffs"`
-	PrePeriod   StatePeriod     `json:"prePeriod,omitempty"`
+	PrePeriod   StatePeriod      `json:"prePeriod,omitempty"`
 }
 
 type StateDiff []StemStateDiff
@@ -331,6 +331,7 @@ func SerializeProof(proof *Proof) (*VerkleProof, StateDiff, error) {
 		}
 
 		stemdiff.SuffixDiffs = append(stemdiff.SuffixDiffs, SuffixStateDiff{Suffix: key[StemSize]})
+		stemdiff.PrePeriod = proof.PrePeriods[i]
 		newsd := &stemdiff.SuffixDiffs[len(stemdiff.SuffixDiffs)-1]
 
 		var valueLen = len(proof.PreValues[i])
@@ -608,6 +609,7 @@ func PostStateTreeFromStateDiff(preroot VerkleNode, statediff StateDiff, postPer
 		var (
 			values     = make([][]byte, NodeWidth)
 			overwrites bool
+			refresh bool
 		)
 
 		for _, suffixdiff := range stemstatediff.SuffixDiffs {
@@ -616,6 +618,8 @@ func PostStateTreeFromStateDiff(preroot VerkleNode, statediff StateDiff, postPer
 				// called, otherwise, skip updating the tree.
 				overwrites = true
 				values[suffixdiff.Suffix] = suffixdiff.NewValue[:]
+			} else { // If it's nil, it means that the period has been updated, we still need to update the tree
+				refresh = true
 			}
 		}
 
@@ -624,6 +628,12 @@ func PostStateTreeFromStateDiff(preroot VerkleNode, statediff StateDiff, postPer
 			copy(stem[:StemSize], stemstatediff.Stem[:])
 			if err := postroot.(*InternalNode).InsertValuesAtStem(stem[:], values, postPeriod, true, nil); err != nil {
 				return nil, fmt.Errorf("error overwriting value in post state: %w", err)
+			}
+		} else if refresh {
+			var stem [StemSize]byte
+			copy(stem[:StemSize], stemstatediff.Stem[:])
+			if err := postroot.(*InternalNode).RefreshPeriodAtStem(stem[:], postPeriod, nil); err != nil {
+				return nil, fmt.Errorf("error getting value in post state: %w", err)
 			}
 		}
 	}

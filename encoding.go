@@ -55,8 +55,8 @@ const (
 	leafCommitmentOffset   = leafBitlistOffset + bitlistSize
 	leafC1CommitmentOffset = leafCommitmentOffset + banderwagon.UncompressedSize
 	leafC2CommitmentOffset = leafC1CommitmentOffset + banderwagon.UncompressedSize
-	leafChildrenOffset     = leafC2CommitmentOffset + banderwagon.UncompressedSize
-	leafLastPeriodOffset    = leafChildrenOffset + periodSize
+	leafLastPeriodOffset   = leafC2CommitmentOffset + banderwagon.UncompressedSize
+	leafChildrenOffset     = leafLastPeriodOffset + periodSize
 	leafBasicDataSize      = 32
 	leafSlotSize           = 32
 	leafValueIndexSize     = 1

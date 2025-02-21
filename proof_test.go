@@ -1081,8 +1081,8 @@ func TestProofVerificationWithPostState(t *testing.T) { // skipcq: GO-R1005
 func TestProofVerificationPreStateExpiredPostStateRevived(t *testing.T) {
 	t.Parallel()
 
-	prePeriod := period0
-	postPeriod := period2
+	prePeriod := period1
+	postPeriod := period3
 
 	preRoot := New()
 	if err := preRoot.Insert(zeroKeyTest, zeroKeyTest, prePeriod, nil); err != nil {
@@ -1143,6 +1143,66 @@ func TestProofVerificationPreStateExpiredPostStateRevived(t *testing.T) {
 	}
 
 	if !bytes.Equal(got, fourtyKeyTest) {
+		t.Fatalf("value mismatch for key %x: %x != %x", zeroKeyTest, got, fourtyKeyTest)
+	}
+}
+
+func TestProofVerificationReadUpdate(t *testing.T) {
+	t.Parallel()
+
+	prePeriod := period1
+	postPeriod := period2
+
+	preRoot := New()
+	if err := preRoot.Insert(zeroKeyTest, zeroKeyTest, prePeriod, nil); err != nil {
+		t.Fatalf("could not insert key: %v", err)
+	}
+	preRootCommit := new(Point).Set(preRoot.Commit())
+
+	postRoot := New()
+	if _, err := postRoot.Get(zeroKeyTest, postPeriod, nil); err != nil {
+		t.Fatalf("could not insert key: %v", err)
+	}
+
+	proof, _, _, _, err := MakeVerkleMultiProof(preRoot, postRoot, keylist{zeroKeyTest}, postPeriod, nil)
+	if err != nil {
+		t.Fatalf("error making proof: %v", err)
+	}
+
+	p, diff, err := SerializeProof(proof)
+	if err != nil {
+		t.Fatalf("error serializing proof: %v", err)
+	}
+
+	dproof, err := DeserializeProof(p, diff)
+	if err != nil {
+		t.Fatalf("error deserializing proof: %v", err)
+	}
+
+	if err = verifyVerkleProofWithPreState(dproof, preRoot); err != nil {
+		t.Fatalf("could not verify verkle proof: %v", err)
+	}
+
+	dpreroot, err := PreStateTreeFromProof(dproof, preRootCommit)
+	if err != nil {
+		t.Fatalf("error recreating pre tree: %v", err)
+	}
+
+	dpostroot, err := PostStateTreeFromStateDiff(dpreroot, diff, postPeriod)
+	if err != nil {
+		t.Fatalf("error recreating post tree: %v", err)
+	}
+
+	if err = verifyVerkleProofWithPreState(dproof, dpreroot); err != nil {
+		t.Fatalf("could not verify verkle proof: %v, original: %s reconstructed: %s", err, ToDot(dpreroot), ToDot(dpostroot))
+	}
+
+	got, err := dpostroot.Get(zeroKeyTest, postPeriod, nil)
+	if err != nil {
+		t.Fatalf("error getting key: %v", err)
+	}
+
+	if !bytes.Equal(got, zeroKeyTest) {
 		t.Fatalf("value mismatch for key %x: %x != %x", zeroKeyTest, got, fourtyKeyTest)
 	}
 }

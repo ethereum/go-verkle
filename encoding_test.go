@@ -192,6 +192,38 @@ func TestParseNodeSingleSlot(t *testing.T) {
 	}
 }
 
+func TestLeafWithPeriod(t *testing.T) {
+	t.Parallel()
+
+	toolong := make([]byte, 32)
+	period10 := StatePeriod(10)
+	leaf, err := NewLeafNode(toolong, make([][]byte, NodeWidth), period10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ser, err := leaf.Serialize()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ser) != nodeTypeSize+StemSize+bitlistSize+3*banderwagon.UncompressedSize+periodSize {
+		t.Fatalf("invalid serialization when the stem is longer than 31 bytes: %x (%d bytes != %d)", ser, len(ser), nodeTypeSize+StemSize+bitlistSize+2*banderwagon.UncompressedSize)
+	}
+
+	deserialized, err := ParseNode(ser, 0)
+	if err != nil {
+		t.Fatalf("error deserializing leaf node: %v", err)
+	}
+
+	leaf, ok := deserialized.(*LeafNode)
+	if !ok {
+		t.Fatalf("expected leaf node, got %T", deserialized)
+	}
+
+	if leaf.period != period10 {
+		t.Fatalf("invalid period, got %d, expected %d", leaf.period, period10)
+	}
+}
+
 func TestParseExpiredLeaf(t *testing.T) {
 	cfg := GetConfig()
 	srs := cfg.conf.SRS
