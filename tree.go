@@ -1384,9 +1384,9 @@ func (n *LeafNode) Delete(k []byte, _ NodeResolverFn) (bool, error) {
 
 		// Clear the corresponding commitment
 		if k[StemSize] < 128 {
-			n.c1 = nil
+			n.c1 = new(Point).SetIdentity()
 		} else {
-			n.c2 = nil
+			n.c2 = new(Point).SetIdentity()
 		}
 
 		return false, nil
