@@ -32,12 +32,15 @@ var (
 	errDeleteHash             = errors.New("trying to delete from a hashed subtree")
 	errDeleteMissing          = errors.New("trying to delete a missing group")
 	errDeleteUnknown          = errors.New("trying to delete an out-of-view node")
+	errDeleteEmpty            = errors.New("can't delete an empty node")
 	errReadFromInvalid        = errors.New("trying to read from an invalid child")
 	errSerializeHashedNode    = errors.New("trying to serialize a hashed internal node")
+	errSerializeUnknownNode   = errors.New("trying to serialize a subtree missing from the stateless view")
 	errInsertIntoOtherStem    = errors.New("insert splits a stem where it should not happen")
 	errUnknownNodeType        = errors.New("unknown node type detected")
 	errMissingNodeInStateless = errors.New("trying to access a node that is missing from the stateless view")
 	errIsPOAStub              = errors.New("trying to read/write a proof of absence leaf node")
+	errGetProofItemsUnknownNode = errors.New("can't generate proof items for unknown node")
 )
 
 const (

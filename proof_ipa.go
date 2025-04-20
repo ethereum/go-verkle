@@ -294,22 +294,24 @@ func verifyVerkleProof(proof *Proof, Cs []*Point, indices []uint8, ys []*Fr, tc 
 // * Multipoint proof
 // it also returns the serialized keys and values
 func SerializeProof(proof *Proof) (*VerkleProof, StateDiff, error) {
+	// SerializeProof serializes a proof into a format that can be stored in a block.
+	// it also returns the serialized keys and values
 	otherstems := make([][StemSize]byte, len(proof.PoaStems))
-	for i, stem := range proof.PoaStems {
-		copy(otherstems[i][:], stem)
+	for i, poaStem := range proof.PoaStems {
+		copy(otherstems[i][:], poaStem)
 	}
 
 	cbp := make([][32]byte, len(proof.Cs))
-	for i, C := range proof.Cs {
-		serialized := C.Bytes()
-		copy(cbp[i][:], serialized[:])
+	for i, c := range proof.Cs {
+		serializedC := c.Bytes()
+		copy(cbp[i][:], serializedC[:])
 	}
 
 	var cls, crs [IPA_PROOF_DEPTH][32]byte
-	for i := 0; i < IPA_PROOF_DEPTH; i++ {
-
+	for i := range proof.Multipoint.IPA.L {
 		l := proof.Multipoint.IPA.L[i].Bytes()
 		copy(cls[i][:], l[:])
+
 		r := proof.Multipoint.IPA.R[i].Bytes()
 		copy(crs[i][:], r[:])
 	}
@@ -492,6 +494,13 @@ func PreStateTreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) { // 
 		i++
 	}
 
+	// Build an index of keys by stem to avoid O(N²) lookups
+	keyStemIndex := make(map[string][]int)
+	for j, k := range proof.Keys {
+		stem := KeyToStem(k)
+		keyStemIndex[string(stem)] = append(keyStemIndex[string(stem)], j)
+	}
+
 	// assign one or more stem to each stem info
 	for i, es := range proof.ExtStatus {
 		si := stemInfo{
@@ -503,16 +512,16 @@ func PreStateTreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) { // 
 		case extStatusAbsentEmpty:
 			// All keys that are part of a proof of absence, must contain empty
 			// prestate values. If that isn't the case, the proof is invalid.
-			for j := range proof.Keys { // TODO: DoS risk, use map or binary search.
-				if bytes.HasPrefix(proof.Keys[j], stems[i]) && proof.PreValues[j] != nil {
+			for _, j := range keyStemIndex[string(stems[i])] {
+				if proof.PreValues[j] != nil {
 					return nil, fmt.Errorf("proof of absence (empty) stem %x has a value", si.stem)
 				}
 			}
 		case extStatusAbsentOther:
 			// All keys that are part of a proof of absence, must contain empty
 			// prestate values. If that isn't the case, the proof is invalid.
-			for j := range proof.Keys { // TODO: DoS risk, use map or binary search.
-				if bytes.HasPrefix(proof.Keys[j], stems[i]) && proof.PreValues[j] != nil {
+			for _, j := range keyStemIndex[string(stems[i])] {
+				if proof.PreValues[j] != nil {
 					return nil, fmt.Errorf("proof of absence (other) stem %x has a value", si.stem)
 				}
 			}
@@ -537,12 +546,10 @@ func PreStateTreeFromProof(proof *Proof, rootC *Point) (VerkleNode, error) { // 
 		case extStatusPresent:
 			si.values = map[byte][]byte{}
 			si.stem = stems[i]
-			for j, k := range proof.Keys { // TODO: DoS risk, use map or binary search.
-				if bytes.Equal(KeyToStem(k), si.stem) {
-					si.values[k[StemSize]] = proof.PreValues[j]
-					si.has_c1 = si.has_c1 || (k[StemSize] < 128)
-					si.has_c2 = si.has_c2 || (k[StemSize] >= 128)
-				}
+			for _, j := range keyStemIndex[string(si.stem)] {
+				si.values[proof.Keys[j][StemSize]] = proof.PreValues[j]
+				si.has_c1 = si.has_c1 || (proof.Keys[j][StemSize] < 128)
+				si.has_c2 = si.has_c2 || (proof.Keys[j][StemSize] >= 128)
 			}
 		default:
 			return nil, fmt.Errorf("invalid extension status: %d", si.stemType)

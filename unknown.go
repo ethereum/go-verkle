@@ -25,8 +25,6 @@
 
 package verkle
 
-import "errors"
-
 type UnknownNode struct{}
 
 func (UnknownNode) Insert([]byte, []byte, NodeResolverFn) error {
@@ -34,7 +32,7 @@ func (UnknownNode) Insert([]byte, []byte, NodeResolverFn) error {
 }
 
 func (UnknownNode) Delete([]byte, NodeResolverFn) (bool, error) {
-	return false, errors.New("cant delete in a subtree missing form a stateless view")
+	return false, errDeleteUnknown
 }
 
 func (UnknownNode) Get([]byte, NodeResolverFn) ([]byte, error) {
@@ -52,11 +50,11 @@ func (UnknownNode) Commitment() *Point {
 }
 
 func (UnknownNode) GetProofItems(Keylist, NodeResolverFn) (*ProofElements, []byte, []Stem, error) {
-	return nil, nil, nil, errors.New("can't generate proof items for unknown node")
+	return nil, nil, nil, errGetProofItemsUnknownNode
 }
 
 func (UnknownNode) Serialize() ([]byte, error) {
-	return nil, errors.New("trying to serialize a subtree missing from the statless view")
+	return nil, errSerializeUnknownNode
 }
 
 func (UnknownNode) Copy() VerkleNode {

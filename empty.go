@@ -36,7 +36,7 @@ func (Empty) Insert([]byte, []byte, NodeResolverFn) error {
 }
 
 func (Empty) Delete([]byte, NodeResolverFn) (bool, error) {
-	return false, errors.New("cant delete an empty node")
+	return false, errDeleteEmpty
 }
 
 func (Empty) Get([]byte, NodeResolverFn) ([]byte, error) {
