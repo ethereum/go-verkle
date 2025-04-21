@@ -27,7 +27,7 @@ package verkle
 
 import (
 	"encoding/hex"
-	"fmt"
+	// "fmt"
 	"strconv"
 	"testing"
 	"time"
@@ -218,7 +218,6 @@ func TestInsertKey1Val1Key2Val2(t *testing.T) {
 		t.Fatalf("insert failed: %s", err)
 	}
 	comm := root.Commit()
-	fmt.Println(root.toDot("", ""))
 
 	extensionAndSuffixOneKey(t, zeroKeyTest, zeroKeyTest, &t1)
 	t1.MapToScalarField(&v1)

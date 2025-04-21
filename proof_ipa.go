@@ -321,6 +321,7 @@ func SerializeProof(proof *Proof) (*VerkleProof, StateDiff, error) {
 
 	var stemdiff *StemStateDiff
 	var statediff StateDiff
+	var periodIdx int
 
 	for i, key := range proof.Keys {
 		stem := KeyToStem(key)
@@ -328,10 +329,11 @@ func SerializeProof(proof *Proof) (*VerkleProof, StateDiff, error) {
 			statediff = append(statediff, StemStateDiff{})
 			stemdiff = &statediff[len(statediff)-1]
 			copy(stemdiff.Stem[:], stem)
+			stemdiff.PrePeriod = proof.PrePeriods[periodIdx]
+			periodIdx++
 		}
 
 		stemdiff.SuffixDiffs = append(stemdiff.SuffixDiffs, SuffixStateDiff{Suffix: key[StemSize]})
-		stemdiff.PrePeriod = proof.PrePeriods[i]
 		newsd := &stemdiff.SuffixDiffs[len(stemdiff.SuffixDiffs)-1]
 
 		var valueLen = len(proof.PreValues[i])

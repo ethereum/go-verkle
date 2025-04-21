@@ -1014,8 +1014,6 @@ func TestToDot(t *testing.T) {
 		t.Fatalf("inserting into the original failed: %v", err)
 	}
 
-	fmt.Println(ToDot(root))
-
 	// ensure the ToDot output contains a single HashedNode
 	// TODO see other TODO above
 	// if !strings.Contains(ToDot(root), "hash00") {

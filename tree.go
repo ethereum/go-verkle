@@ -1185,6 +1185,7 @@ func (n *InternalNode) GetProofItems(keys keylist, resolver NodeResolverFn) (*Pr
 				// Append one nil value per key in this missing stem
 				pe.Vals = append(pe.Vals, nil)
 			}
+			ps = append(ps, period0)
 			continue
 		}
 
