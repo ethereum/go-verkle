@@ -692,6 +692,48 @@ func (n *InternalNode) GetValuesAtStem(stem Stem, curPeriod StatePeriod, resolve
 	}
 }
 
+type ReviveWitness struct {
+	Stem Stem
+	Values [][]byte
+	LastPeriod StatePeriod
+}
+
+func (n *InternalNode) GetReviveWitness(stem Stem, resolver NodeResolverFn) (ReviveWitness, error) {
+	nchild := offset2key(stem, n.depth) // index of the child pointed by the next byte in the key
+	switch child := n.children[nchild].(type) {
+	case UnknownNode:
+		return ReviveWitness{}, errMissingNodeInStateless
+	case Empty:
+		return ReviveWitness{}, nil
+	case HashedNode:
+		if resolver == nil {
+			return ReviveWitness{}, fmt.Errorf("hashed node %x at depth %d along stem %x could not be resolved: %w", child.Commitment().Bytes(), n.depth, stem, errReadFromInvalid)
+		}
+		serialized, err := resolver(stem[:n.depth+1])
+		if err != nil {
+			return ReviveWitness{}, fmt.Errorf("resolving node %x at depth %d: %w", stem, n.depth, err)
+		}
+		resolved, err := ParseNode(serialized, n.depth+1)
+		if err != nil {
+			return ReviveWitness{}, fmt.Errorf("verkle tree: error parsing resolved node %x: %w", stem, err)
+		}
+		n.children[nchild] = resolved
+		return n.GetReviveWitness(stem, resolver)
+	case *ExpiredLeafNode:
+		return ReviveWitness{}, errExpiredPruned
+	case *LeafNode:
+		return ReviveWitness{
+			Stem: stem,
+			Values: child.values,
+			LastPeriod: child.period,
+		}, nil
+	case *InternalNode:
+		return child.GetReviveWitness(stem, resolver)
+	default:
+		return ReviveWitness{}, errUnknownNodeType
+	}
+}
+
 func (n *InternalNode) RefreshPeriodAtStem(stem Stem, curPeriod StatePeriod, resolver NodeResolverFn) error {
 	nchild := offset2key(stem, n.depth) // index of the child pointed by the next byte in the key
 	switch child := n.children[nchild].(type) {

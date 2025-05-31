@@ -39,6 +39,7 @@ var (
 	errMissingNodeInStateless = errors.New("trying to access a node that is missing from the stateless view")
 	errIsPOAStub              = errors.New("trying to read/write a proof of absence leaf node")
 	errExpired                = errors.New("trying to access an expired leaf node")
+	errExpiredPruned           = errors.New("leaf node is expired and pruned")
 	errReviveCommitmentMismatch = errors.New("commitment mismatch in revive")
 	errReviveValuesMismatch   	= errors.New("values mismatch in revive")
 	errReviveStemMismatch    	= errors.New("stem mismatch in revive")
