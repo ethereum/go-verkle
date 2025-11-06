@@ -145,7 +145,8 @@ func parseEoAccountNode(serialized []byte, depth byte) (VerkleNode, error) {
 	if err := ln.c1.SetBytesUncompressed(serialized[leafStemOffset+StemSize:leafStemOffset+StemSize+banderwagon.UncompressedSize], true); err != nil {
 		return nil, fmt.Errorf("error setting leaf C1 commitment: %w", err)
 	}
-	ln.c2 = &banderwagon.Identity
+	ln.c2 = new(Point)
+	*ln.c2 = banderwagon.Identity
 	ln.commitment = new(Point)
 	if err := ln.commitment.SetBytesUncompressed(serialized[leafStemOffset+StemSize+banderwagon.UncompressedSize:leafStemOffset+StemSize+banderwagon.UncompressedSize*2], true); err != nil {
 		return nil, fmt.Errorf("error setting leaf root commitment: %w", err)
@@ -171,13 +172,15 @@ func parseSingleSlotNode(serialized []byte, depth byte) (VerkleNode, error) {
 		if err := ln.c1.SetBytesUncompressed(cnCommBytes, true); err != nil {
 			return nil, fmt.Errorf("error setting leaf C1 commitment: %w", err)
 		}
-		ln.c2 = &banderwagon.Identity
+		ln.c2 = new(Point)
+		*ln.c2 = banderwagon.Identity
 	} else {
 		ln.c2 = new(Point)
 		if err := ln.c2.SetBytesUncompressed(cnCommBytes, true); err != nil {
 			return nil, fmt.Errorf("error setting leaf C2 commitment: %w", err)
 		}
-		ln.c1 = &banderwagon.Identity
+		ln.c1 = new(Point)
+		*ln.c1 = banderwagon.Identity
 	}
 	ln.commitment = new(Point)
 	if err := ln.commitment.SetBytesUncompressed(rootCommBytes, true); err != nil {

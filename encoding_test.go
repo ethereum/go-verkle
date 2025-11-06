@@ -191,3 +191,43 @@ func TestParseNodeSingleSlot(t *testing.T) {
 		t.Fatalf("invalid commitment, got %x, expected %x", lnd.commitment, ln.commitment)
 	}
 }
+
+func TestLeaf_FirstC2Write_DoesNotMutate_GlobalIdentity(t *testing.T) {
+	// Build a leaf with exactly one value in c1 (suffix 7), so Serialize() picks single-slot encoding.
+	values := make([][]byte, NodeWidth)
+	values[7] = word32(0x11)
+
+	ln, err := NewLeafNode(ffx32KeyTest[:StemSize], values)
+	if err != nil {
+		t.Fatalf("NewLeafNode: %v", err)
+	}
+	ser, err := ln.Serialize()
+	if err != nil {
+		t.Fatalf("Serialize: %v", err)
+	}
+	if got := ser[0]; got != singleSlotType {
+		t.Fatalf("expected single-slot encoding, got type=%d", got)
+	}
+
+	node, err := ParseNode(ser, 0)
+	if err != nil {
+		t.Fatalf("ParseNode: %v", err)
+	}
+	leaf, ok := node.(*LeafNode)
+	if !ok {
+		t.Fatalf("expected *LeafNode, got %T", node)
+	}
+
+	// Snapshot global identity (value copy) to compare later.
+	idBefore := banderwagon.Identity
+
+	// First write into c2 (suffix 128). This must NOT mutate banderwagon.Identity.
+	val := word32(0x03)
+	if err := leaf.updateCn(128, val, leaf.c2); err != nil {
+		t.Fatalf("updateCn(c2): %v", err)
+	}
+
+	if idBefore != banderwagon.Identity {
+		t.Fatalf("BUG: first c2 write mutated global banderwagon.Identity")
+	}
+}
