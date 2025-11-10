@@ -231,3 +231,9 @@ func TestLeaf_FirstC2Write_DoesNotMutate_GlobalIdentity(t *testing.T) {
 		t.Fatalf("BUG: first c2 write mutated global banderwagon.Identity")
 	}
 }
+
+func word32(tag byte) []byte {
+	b := make([]byte, 32)
+	b[31] = tag
+	return b
+}
