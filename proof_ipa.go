@@ -611,7 +611,10 @@ func PostStateTreeFromStateDiff(preroot VerkleNode, statediff StateDiff) (Verkle
 			}
 		}
 	}
-	postroot.Commit()
+	_, err := postroot.Commit()
+	if err != nil {
+    	return nil, fmt.Errorf("committing post root failed: %w", err)
+	}
 
 	return postroot, nil
 }

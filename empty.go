@@ -43,8 +43,8 @@ func (Empty) Get([]byte, NodeResolverFn) ([]byte, error) {
 	return nil, nil
 }
 
-func (n Empty) Commit() *Point {
-	return n.Commitment()
+func (n Empty) Commit() (*Point, error) {
+	return n.Commitment(), nil
 }
 
 func (Empty) Commitment() *Point {

@@ -40,12 +40,19 @@ func TestProofEmptyTree(t *testing.T) {
 	t.Parallel()
 
 	root := New()
-	root.Commit()
+	_, err := root.Commit()
+	if err != nil {
+		t.Fatalf("committing root failed: %v", err)
+	}
 
 	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, nil, [][]byte{ffx32KeyTest}, nil)
 	cfg := GetConfig()
 	if ok, err := verifyVerkleProof(proof, cis, zis, yis, cfg); !ok || err != nil {
-		t.Fatalf("could not verify verkle proof: %s", ToDot(root))
+		dot, err := ToDot(root)
+		if err != nil {
+    		t.Fatalf("could not generate dot: %v", err)
+		}
+		t.Fatalf("could not verify verkle proof: %s", dot)
 	}
 }
 
@@ -62,13 +69,19 @@ func TestProofVerifyTwoLeaves(t *testing.T) {
 	if err := root.Insert(ffx32KeyTest, zeroKeyTest, nil); err != nil {
 		t.Fatalf("could not insert key: %v", err)
 	}
-	root.Commit()
+	if _, err := root.Commit(); err != nil {
+		t.Fatalf("committing root failed: %v", err)
+	}
 
 	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, nil, [][]byte{ffx32KeyTest}, nil)
 
 	cfg := GetConfig()
 	if ok, err := verifyVerkleProof(proof, cis, zis, yis, cfg); !ok || err != nil {
-		t.Fatalf("could not verify verkle proof: %s", ToDot(root))
+		dot, err := ToDot(root)
+		if err != nil {
+    		t.Fatalf("could not generate dot: %v", err)
+		}
+		t.Fatalf("could not verify verkle proof: %s", dot)		
 	}
 }
 
@@ -89,7 +102,9 @@ func TestProofVerifyMultipleLeaves(t *testing.T) {
 			t.Fatalf("could not insert key: %v", err)
 		}
 	}
-	root.Commit()
+	if _, err := root.Commit(); err != nil {
+		t.Fatalf("committing root failed: %v", err)
+	}
 
 	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, nil, [][]byte{keys[0]}, nil)
 
@@ -116,7 +131,9 @@ func TestMultiProofVerifyMultipleLeaves(t *testing.T) {
 			t.Fatalf("could not insert key: %v", err)
 		}
 	}
-	root.Commit()
+	if _, err := root.Commit(); err != nil {
+		t.Fatalf("committing root failed: %v", err)
+	}
 
 	proof, _, _, _, _ := MakeVerkleMultiProof(root, nil, keys[0:2], nil)
 
@@ -151,7 +168,9 @@ func TestMultiProofVerifyMultipleLeavesWithAbsentStem(t *testing.T) {
 			copy(absentstem[:], key[:StemSize])
 		}
 	}
-	root.Commit()
+	if _, err := root.Commit(); err != nil {
+		t.Fatalf("committing root failed: %v", err)
+	}
 
 	absent := make([]byte, 32)
 	absent[2] = 3 // not in the proof, but leads to a stem
@@ -190,7 +209,9 @@ func TestMultiProofVerifyMultipleLeavesCommitmentRedundancy(t *testing.T) {
 	if err := root.Insert(keys[1], fourtyKeyTest, nil); err != nil {
 		t.Fatalf("could not insert key: %v", err)
 	}
-	root.Commit()
+	if _, err := root.Commit(); err != nil {
+		t.Fatalf("committing root failed: %v", err)
+	}
 
 	proof, _, _, _, _ := MakeVerkleMultiProof(root, nil, keys, nil)
 
@@ -214,7 +235,9 @@ func TestProofOfAbsenceInternalVerify(t *testing.T) {
 	if err := root.Insert(oneKeyTest, zeroKeyTest, nil); err != nil {
 		t.Fatalf("could not insert key: %v", err)
 	}
-	root.Commit()
+	if _, err := root.Commit(); err != nil {
+		t.Fatalf("committing root failed: %v", err)
+	}
 
 	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, nil, [][]byte{ffx32KeyTest}, nil)
 
@@ -234,7 +257,9 @@ func TestProofOfAbsenceLeafVerify(t *testing.T) {
 	if err := root.Insert(ffx32KeyTest, zeroKeyTest, nil); err != nil {
 		t.Fatalf("could not insert key: %v", err)
 	}
-	root.Commit()
+	if _, err := root.Commit(); err != nil {
+		t.Fatalf("committing root failed: %v", err)
+	}
 
 	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, nil, [][]byte{oneKeyTest}, nil)
 
@@ -253,7 +278,9 @@ func TestProofOfAbsenceLeafVerifyOtherSuffix(t *testing.T) {
 	if err := root.Insert(ffx32KeyTest, zeroKeyTest, nil); err != nil {
 		t.Fatalf("could not insert key: %v", err)
 	}
-	root.Commit()
+	if _, err := root.Commit(); err != nil {
+		t.Fatalf("committing root failed: %v", err)
+	}
 
 	key := func() []byte {
 		ret, _ := hex.DecodeString("0000000000000000000000000000000000000000000000000000000000000080")
@@ -281,7 +308,9 @@ func TestProofOfAbsenceStemVerify(t *testing.T) {
 		return ret
 	}()
 
-	root.Commit()
+	if _, err := root.Commit(); err != nil {
+		t.Fatalf("committing root failed: %v", err)
+	}
 	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, nil, [][]byte{key}, nil)
 
 	cfg := GetConfig()
@@ -302,6 +331,9 @@ func BenchmarkProofCalculation(b *testing.B) {
 		if err := root.Insert(key, zeroKeyTest, nil); err != nil {
 			b.Fatal(err)
 		}
+	}
+	if _, err := root.Commit(); err != nil {
+		b.Fatalf("committing root failed: %v", err)
 	}
 
 	b.ResetTimer()
@@ -327,8 +359,10 @@ func BenchmarkProofVerification(b *testing.B) {
 			b.Fatal(err)
 		}
 	}
+	if _, err := root.Commit(); err != nil {
+		b.Fatalf("committing root failed: %v", err)
+	}
 
-	root.Commit()
 	proof, cis, zis, yis, _ := MakeVerkleMultiProof(root, nil, [][]byte{keys[len(keys)/2]}, nil)
 
 	b.ResetTimer()
@@ -358,6 +392,9 @@ func TestProofSerializationNoAbsentStem(t *testing.T) {
 		if err := root.Insert(key, fourtyKeyTest, nil); err != nil {
 			t.Fatalf("could not insert key: %v", err)
 		}
+	}
+	if _, err := root.Commit(); err != nil {
+		t.Fatalf("committing root failed: %v", err)
 	}
 
 	proof, _, _, _, _ := MakeVerkleMultiProof(root, nil, [][]byte{keys[0]}, nil)
@@ -390,7 +427,9 @@ func TestProofSerializationWithAbsentStem(t *testing.T) {
 			t.Fatalf("could not insert key: %v", err)
 		}
 	}
-	root.Commit()
+	if _, err := root.Commit(); err != nil {
+		t.Fatalf("committing root failed: %v", err)
+	}
 
 	// Create stem  0x0000020100000.... that is not present in the tree,
 	// however stem 0x0000020000000.... is present and will be returned
@@ -431,7 +470,9 @@ func TestProofDeserialize(t *testing.T) {
 			t.Fatalf("could not insert key: %v", err)
 		}
 	}
-	root.Commit()
+	if _, err := root.Commit(); err != nil {
+		t.Fatalf("committing root failed: %v", err)
+	}
 
 	// Create stem  0x0000020100000.... that is not present in the tree,
 	// however stem 0x0000020000000.... is present and will be returned
@@ -467,7 +508,9 @@ func TestProofOfAbsenceEdgeCase(t *testing.T) {
 	t.Parallel()
 
 	root := New()
-	root.Commit()
+	if _, err := root.Commit(); err != nil {
+		t.Fatalf("committing root failed: %v", err)
+	}
 
 	ret, _ := hex.DecodeString("0303030303030303030303030303030303030303030303030303030303030303")
 	proof, cs, zis, yis, _ := MakeVerkleMultiProof(root, nil, [][]byte{ret}, nil)
@@ -487,7 +530,10 @@ func TestProofOfAbsenceOtherMultipleLeaves(t *testing.T) {
 	if err := root.Insert(key, testValue, nil); err != nil {
 		t.Fatalf("could not insert key: %v", err)
 	}
-	rootC := root.Commit()
+	rootC, err := root.Commit()
+	if err != nil {
+		t.Fatalf("committing root failed: %v", err)
+	}
 
 	ret1, _ := hex.DecodeString("0303030303030303030303030303030303030303030303030303030303030300")
 	ret2, _ := hex.DecodeString("0303030303030303030303030303030303030303030303030303030303030301")
@@ -528,7 +574,11 @@ func TestProofOfAbsenceOtherMultipleLeaves(t *testing.T) {
 	for node.depth < 4 {
 		child, ok := node.children[ret3[node.depth]].(*InternalNode)
 		if !ok {
-			t.Fatalf("expected Internal node at depth %d, trie = %s", node.depth, ToDot(deserialized))
+			dot, err := ToDot(deserialized)
+			if err != nil {
+    			t.Fatalf("could not generate dot: %v", err)
+			}
+			t.Fatalf("expected Internal node at depth %d, trie = %s", node.depth, dot)
 		}
 		node = child
 	}
@@ -549,7 +599,9 @@ func TestProofOfAbsenceNoneMultipleStems(t *testing.T) {
 	if err := root.Insert(key, testValue, nil); err != nil {
 		t.Fatalf("could not insert key: %v", err)
 	}
-	root.Commit()
+	if _, err := root.Commit(); err != nil {
+		t.Fatalf("committing root failed: %v", err)
+	}
 
 	ret1, _ := hex.DecodeString("0303030303030303030303030303030303030303030303030303030303030300")
 	ret2, _ := hex.DecodeString("0303030303030303030303030303030303030303030303030303030303030200")
@@ -846,7 +898,9 @@ func testSerializeDeserializeProof(t *testing.T, insertKVs map[string][]byte, pr
 			t.Fatalf("could not insert key: %v", err)
 		}
 	}
-	root.Commit()
+	if _, err := root.Commit(); err != nil {
+		t.Fatalf("committing root failed: %v", err)
+	}
 
 	absentKeys := map[string]struct{}{}
 	proveKVs := map[string][]byte{}
@@ -872,7 +926,11 @@ func testSerializeDeserializeProof(t *testing.T, insertKVs map[string][]byte, pr
 	if err != nil {
 		t.Fatalf("error deserializing proof: %v", err)
 	}
-	droot, err := PreStateTreeFromProof(dproof, root.Commit())
+	comm, err := root.Commit()
+	if err != nil {
+    	t.Fatalf("commit failed: %v", err)
+	}
+	droot, err := PreStateTreeFromProof(dproof, comm)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -890,8 +948,16 @@ func testSerializeDeserializeProof(t *testing.T, insertKVs map[string][]byte, pr
 
 		// Each node commitment in the original and reconstructed path must match.
 		for i := range originalPath {
-			if !originalPath[i].Commit().Equal(reconstructedPath[i].Commit()) {
-				t.Fatalf("key %x: node %d: original path node commitment %x, reconstructed path node commitment %x", key, i, originalPath[i].Commit().Bytes(), reconstructedPath[i].Commit().Bytes())
+			origComm, err := originalPath[i].Commit()
+			if err != nil {
+    			t.Fatalf("commit failed: %v", err)
+			}
+			reconComm, err := reconstructedPath[i].Commit()
+			if err != nil {
+    			t.Fatalf("commit failed: %v", err)
+			}
+			if !origComm.Equal(reconComm) {
+				t.Fatalf("key %x: node %d: original path node commitment %x, reconstructed path node commitment %x", key, i, origComm.Bytes(), reconComm.Bytes())
 			}
 		}
 
@@ -1001,7 +1067,10 @@ func TestProofVerificationWithPostState(t *testing.T) { // skipcq: GO-R1005
 					t.Fatalf("could not insert key: %v", err)
 				}
 			}
-			rootC := root.Commit()
+			rootC, err := root.Commit()
+			if err != nil {
+				t.Fatalf("committing root failed: %v", err)
+			}
 
 			postroot := root.Copy()
 			for i := range data.updatekeys {
@@ -1009,7 +1078,9 @@ func TestProofVerificationWithPostState(t *testing.T) { // skipcq: GO-R1005
 					t.Fatalf("could not insert key: %v", err)
 				}
 			}
-			postroot.Commit()
+			if _, err := postroot.Commit(); err != nil {
+				t.Fatalf("committing post root failed: %v", err)
+			}
 
 			proof, _, _, _, _ := MakeVerkleMultiProof(root, postroot, data.keystoprove, nil)
 
@@ -1051,7 +1122,15 @@ func TestProofVerificationWithPostState(t *testing.T) { // skipcq: GO-R1005
 			}
 
 			if err = verifyVerkleProofWithPreState(dproof, root); err != nil {
-				t.Fatalf("could not verify verkle proof: %v, original: %s reconstructed: %s", err, ToDot(root), ToDot(postroot))
+				rootDot, err := ToDot(root)
+				if err != nil {
+    				t.Fatalf("could not generate root dot: %v", err)
+				}
+				postDot, err := ToDot(postroot)
+				if err != nil {
+    				t.Fatalf("could not generate post dot: %v", err)
+				}
+				t.Fatalf("could not verify verkle proof: %v, original: %s reconstructed: %s", err, rootDot, postDot)
 			}
 
 			dpreroot, err := PreStateTreeFromProof(dproof, rootC)
@@ -1064,12 +1143,24 @@ func TestProofVerificationWithPostState(t *testing.T) { // skipcq: GO-R1005
 				t.Fatalf("error recreating post tree: %v", err)
 			}
 			// Check that the reconstructed post-state tree root matches the real tree.
-			if !postroot.Commitment().Equal(dpostroot.Commitment()) {
-				t.Fatalf("differing root commitments %x != %x", dpostroot.Commitment().Bytes(), postroot.Commitment().Bytes())
+			comm, err := postroot.Commit()
+			if err != nil {
+				t.Fatalf("commit failed: %v", err)
+			}
+			if !dpostroot.Commitment().Equal(comm) {
+				t.Fatalf("differing root commitments %x != %x", dpostroot.Commitment().Bytes(), comm.Bytes())
 			}
 
 			if err = verifyVerkleProofWithPreState(dproof, dpreroot); err != nil {
-				t.Fatalf("could not verify verkle proof: %v, original: %s reconstructed: %s", err, ToDot(dpreroot), ToDot(dpostroot))
+				preDot, err := ToDot(dpreroot)
+				if err != nil {
+    				t.Fatalf("could not generate pre dot: %v", err)
+				}
+				postDot, err := ToDot(dpostroot)
+				if err != nil {
+    				t.Fatalf("could not generate post dot: %v", err)
+				}
+				t.Fatalf("could not verify verkle proof: %v, original: %s reconstructed: %s", err, preDot, postDot)
 			}
 		})
 	}
@@ -1084,7 +1175,9 @@ func TestGenerateProofWithOnlyAbsentKeys(t *testing.T) {
 	if err := root.Insert(presentKey, zeroKeyTest, nil); err != nil {
 		t.Fatalf("inserting into the original failed: %v", err)
 	}
-	root.Commit()
+	if _, err := root.Commit(); err != nil {
+		t.Fatalf("committing root failed: %v", err)
+	}
 
 	// Create a proof with a key with the same first byte, but different second byte (i.e: absent).
 	absentKey, _ := hex.DecodeString("4010000000000000000000000000000000000000000000000000000000000000")
@@ -1107,9 +1200,16 @@ func TestGenerateProofWithOnlyAbsentKeys(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	droot, err := PreStateTreeFromProof(dproof, root.Commit())
+	// Get the commitment once and store it
+	comm, err := root.Commit()
 	if err != nil {
-		t.Fatal(err)
+    	t.Fatalf("commit failed: %v", err)
+	}
+
+// Use the stored commitment for both operations
+	droot, err := PreStateTreeFromProof(dproof, comm)
+	if err != nil {
+    	t.Fatal(err)
 	}
 
 	// From the rebuilt tree, validate the proof.
@@ -1180,13 +1280,21 @@ func TestDoubleProofOfAbsence(t *testing.T) {
 		t.Fatalf("error deserializing proof: %v", err)
 	}
 
-	droot, err := PreStateTreeFromProof(dproof, root.Commit())
+	// Get the commitment once and store it
+	comm, err := root.Commit()
+	if err != nil {
+		t.Fatalf("commit failed: %v", err)
+	}
+
+	// Use the stored commitment for both operations
+	droot, err := PreStateTreeFromProof(dproof, comm)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if !droot.Commit().Equal(root.Commit()) {
-		t.Fatal("differing root commitments")
+	// Use Commitment() for comparison since we already have the commitment
+	if !droot.Commitment().Equal(comm) {
+		t.Fatalf("differing root commitments %x != %x", droot.Commitment().Bytes(), comm.Bytes())
 	}
 
 	// Depite we have two proof of absences for different steams, we should only have one
@@ -1229,13 +1337,21 @@ func TestProveAbsenceInEmptyHalf(t *testing.T) {
 		t.Fatalf("error deserializing proof: %v", err)
 	}
 
-	droot, err := PreStateTreeFromProof(dproof, root.Commit())
+	// Get the commitment once and store it
+	comm, err := root.Commit()
 	if err != nil {
-		t.Fatal(err)
+    	t.Fatalf("commit failed: %v", err)
 	}
 
-	if !droot.Commit().Equal(root.Commit()) {
-		t.Fatal("differing root commitments")
+	// Use the stored commitment for both operations
+	droot, err := PreStateTreeFromProof(dproof, comm)
+	if err != nil {
+    	t.Fatal(err)
+	}
+
+	// Use Commitment() for comparison since we already have the commitment
+	if !droot.Commitment().Equal(comm) {
+    	t.Fatalf("differing root commitments %x != %x", droot.Commitment().Bytes(), comm.Bytes())
 	}
 
 	if len(proof.PoaStems) != 0 {

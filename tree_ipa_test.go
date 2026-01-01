@@ -88,7 +88,10 @@ func TestInsertKey0Value0(t *testing.T) {
 	if err := root.Insert(zeroKeyTest, zeroKeyTest, nil); err != nil {
 		t.Fatalf("insert failed: %s", err)
 	}
-	comm := root.Commit()
+	comm, err := root.Commit()
+	if err != nil {
+		t.Fatalf("committing root failed: %v", err)
+	}
 
 	extensionAndSuffixOneKey(t, zeroKeyTest, zeroKeyTest, &expectedP)
 
@@ -121,7 +124,10 @@ func TestInsertKey1Value1(t *testing.T) {
 	if err := root.Insert(key, key, nil); err != nil {
 		t.Fatalf("insert failed: %s", err)
 	}
-	comm := root.Commit()
+	comm, err := root.Commit()
+	if err != nil {
+		t.Fatalf("committing root failed: %v", err)
+	}
 
 	extensionAndSuffixOneKey(t, key, key, &expectedP)
 	expectedP.MapToScalarField(&v)
@@ -162,11 +168,13 @@ func TestInsertSameStemTwoLeaves(t *testing.T) {
 	if err := root.Insert(key_b, key_b, nil); err != nil {
 		t.Fatalf("insert failed: %s", err)
 	}
-	comm := root.Commit()
+	comm, err := root.Commit()
+	if err != nil {
+		t.Fatalf("committing root failed: %v", err)
+	}
 
 	stemComm0 := srs[0]
-	err := StemFromLEBytes(&v, KeyToStem(key_a))
-	if err != nil {
+	if err := StemFromLEBytes(&v, KeyToStem(key_a)); err != nil {
 		t.Fatal(err)
 	}
 	stemComm1.ScalarMul(&srs[1], &v)
@@ -217,7 +225,10 @@ func TestInsertKey1Val1Key2Val2(t *testing.T) {
 	if err := root.Insert(key_b, key_b, nil); err != nil {
 		t.Fatalf("insert failed: %s", err)
 	}
-	comm := root.Commit()
+	comm, err := root.Commit()
+	if err != nil {
+		t.Fatalf("committing root failed: %v", err)
+	}
 	fmt.Println(root.toDot("", ""))
 
 	extensionAndSuffixOneKey(t, zeroKeyTest, zeroKeyTest, &t1)
@@ -242,7 +253,10 @@ func TestEmptyTrie(t *testing.T) {
 	t.Parallel()
 
 	root := New()
-	comm := root.Commit()
+	comm, err := root.Commit()
+	if err != nil {
+		t.Fatalf("committing root failed: %v", err)
+	}
 
 	if !comm.Equal(identity) {
 		t.Fatalf("invalid root commitment %v != %v", comm, identity)

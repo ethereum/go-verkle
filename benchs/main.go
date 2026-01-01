@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/rand"
 	"fmt"
+	"log"
 	"os"
 	"runtime/pprof"
 	"time"
@@ -53,7 +54,9 @@ func benchmarkInsertInExisting() {
 					panic(err)
 				}
 			}
-			root.Commit()
+			if _, err := root.Commit(); err != nil {
+				log.Fatal(err)
+			}
 
 			// Now insert the 10k leaves and measure time
 			start := time.Now()
@@ -62,7 +65,9 @@ func benchmarkInsertInExisting() {
 					panic(err)
 				}
 			}
-			root.Commit()
+			if _, err := root.Commit(); err != nil {
+				log.Fatal(err)
+			}
 			elapsed := time.Since(start)
 			fmt.Printf("Took %v to insert and commit %d leaves\n", elapsed, toInsert)
 		}

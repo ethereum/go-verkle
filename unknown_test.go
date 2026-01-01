@@ -18,9 +18,13 @@ func TestUnknownFuncs(t *testing.T) {
 	}
 	var identity Point
 	identity.SetIdentity()
-	if comm := un.Commit(); !comm.Equal(&identity) {
-		t.Errorf("got %v, want identity", comm)
+	comm, err := un.Commit()
+	if err == nil {
+		t.Fatal("unknown node should return error on commit")
 	}
+	if comm != nil {
+        t.Errorf("commit should return nil point")
+    }
 	if comm := un.Commitment(); !comm.Equal(&identity) {
 		t.Errorf("got %v, want identity", comm)
 	}

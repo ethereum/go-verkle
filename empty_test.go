@@ -47,7 +47,11 @@ func TestEmptyFuncs(t *testing.T) {
 		t.Fatal("non-nil get from empty")
 	}
 
-	if !e.Commitment().Equal(e.Commit()) {
+	comm, err := e.Commit()
+	if err != nil {
+    	t.Fatalf("commit failed: %v", err)
+	}
+	if !e.Commitment().Equal(comm)  {
 		t.Fatal("commitment and commit mismatch")
 	}
 

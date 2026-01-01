@@ -46,7 +46,9 @@ func TestJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 	root.(*InternalNode).children[152] = HashedNode{}
-	root.Commit()
+	if _, err := root.Commit(); err != nil {
+		t.Fatalf("committing root failed: %v", err)
+	}
 
 	output, err := root.(*InternalNode).ToJSON()
 	if err != nil {

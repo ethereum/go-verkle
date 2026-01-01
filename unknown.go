@@ -25,7 +25,10 @@
 
 package verkle
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 type UnknownNode struct{}
 
@@ -41,8 +44,8 @@ func (UnknownNode) Get([]byte, NodeResolverFn) ([]byte, error) {
 	return nil, nil
 }
 
-func (n UnknownNode) Commit() *Point {
-	return n.Commitment()
+func (n UnknownNode) Commit() (*Point, error) {
+	return nil, fmt.Errorf("cannot commit unknown node")
 }
 
 func (UnknownNode) Commitment() *Point {
