@@ -5,9 +5,6 @@ run:
   tests: true
   # default is true. Enables skipping of directories:
   #   vendor$, third_party$, testdata$, examples$, Godeps$, builtin$
-  skip-dirs-use-default: true
-  exclude-files:
-    - core/genesis_alloc.go
 
 linters:
   disable-all: true
