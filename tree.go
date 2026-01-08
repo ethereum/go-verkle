@@ -77,7 +77,7 @@ type VerkleNode interface {
 
 	// Commit computes the commitment of the node. The
 	// result (the curve point) is cached.
-	Commit() *Point
+	Commit() (*Point, error)
 
 	// Commitment is a getter for the cached commitment
 	// to this node.
@@ -720,14 +720,20 @@ func (n *InternalNode) Flush(flush NodeFlushFn) {
 		}
 	)
 
-	n.Commit()
+	if _, err := n.Commit(); err != nil {
+		panic(fmt.Errorf("committing internal node: %w", err))
+	}
 	for i, child := range n.children {
 		if c, ok := child.(*InternalNode); ok {
-			c.Commit()
+			if _, err := c.Commit(); err != nil {
+				panic(fmt.Errorf("committing child internal node: %w", err))
+			}
 			c.Flush(flushAndCapturePath)
 			n.children[i] = HashedNode{}
 		} else if c, ok := child.(*LeafNode); ok {
-			c.Commit()
+			if _, err := c.Commit(); err != nil {
+				panic(fmt.Errorf("committing leaf node: %w", err))
+			}
 			flushAndCapturePath(c.stem[:n.depth+1], n.children[i])
 			n.children[i] = HashedNode{}
 		}
@@ -744,7 +750,9 @@ func (n *InternalNode) FlushAtDepth(depth uint8, flush NodeFlushFn) {
 		c, ok := child.(*InternalNode)
 		if !ok {
 			if c, ok := child.(*LeafNode); ok {
-				c.Commit()
+				if _, err := c.Commit(); err != nil {
+					panic(fmt.Errorf("committing leaf node: %w", err))
+				}
 				flush(c.stem[:c.depth], c)
 				n.children[i] = HashedNode{}
 			}
@@ -757,7 +765,9 @@ func (n *InternalNode) FlushAtDepth(depth uint8, flush NodeFlushFn) {
 			continue
 		}
 
-		child.Commit()
+		if _, err := child.Commit(); err != nil {
+			panic(fmt.Errorf("committing internal node: %w", err))
+		}
 		c.Flush(flush)
 		n.children[i] = HashedNode{}
 	}
@@ -806,9 +816,9 @@ func (n *InternalNode) fillLevels(levels [][]*InternalNode) {
 	}
 }
 
-func (n *InternalNode) Commit() *Point {
+func (n *InternalNode) Commit() (*Point, error) {
 	if len(n.cow) == 0 {
-		return n.commitment
+		return n.commitment, nil
 	}
 
 	internalNodeLevels := make([][]*InternalNode, StemSize)
@@ -823,11 +833,11 @@ func (n *InternalNode) Commit() *Point {
 		minBatchSize := 4
 		if len(nodes) <= minBatchSize {
 			if err := commitNodesAtLevel(nodes); err != nil {
-				// TODO: make Commit() return an error
-				panic(err)
+				return nil, fmt.Errorf("committing nodes at level %d: %w", level, err)
 			}
 		} else {
 			var wg sync.WaitGroup
+			errChan := make(chan error, 1)
 			numBatches := runtime.NumCPU()
 			batchSize := (len(nodes) + numBatches - 1) / numBatches
 			if batchSize < minBatchSize {
@@ -843,16 +853,21 @@ func (n *InternalNode) Commit() *Point {
 				go func() {
 					defer wg.Done()
 					if err := commitNodesAtLevel(nodes[start:end]); err != nil {
-						// TODO: make Commit() return an error
-						panic(err)
+						select {
+						case errChan <- fmt.Errorf("committing nodes at level %d: %w", level, err):
+						default:
+						}
 					}
-
 				}()
 			}
 			wg.Wait()
+			close(errChan)
+			if err := <-errChan; err != nil {
+				return nil, err
+			}
 		}
 	}
-	return n.commitment
+	return n.commitment, nil
 }
 
 func commitNodesAtLevel(nodes []*InternalNode) error {
@@ -1438,8 +1453,8 @@ func (n *LeafNode) Commitment() *Point {
 	return n.commitment
 }
 
-func (n *LeafNode) Commit() *Point {
-	return n.commitment
+func (n *LeafNode) Commit() (*Point, error) {
+	return n.commitment, nil
 }
 
 // fillSuffixTreePoly takes one of the two suffix tree and
@@ -1713,9 +1728,11 @@ func setBit(bitlist []byte, index int) {
 	bitlist[index/8] |= mask[index%8]
 }
 
-func ToDot(root VerkleNode) string {
-	root.Commit()
-	return fmt.Sprintf("digraph D {\n%s}", root.toDot("", ""))
+func ToDot(root VerkleNode) (string, error) {
+	if _, err := root.Commit(); err != nil {
+		return "", fmt.Errorf("committing root node: %w", err)
+	}
+	return fmt.Sprintf("digraph D {\n%s}", root.toDot("", "")), nil
 }
 
 // SerializedNode contains a serialization of a tree node.
@@ -1733,7 +1750,9 @@ type SerializedNode struct {
 // available in memory.
 func (n *InternalNode) BatchSerialize() ([]SerializedNode, error) {
 	// Commit to the node to update all the nodes commitments.
-	n.Commit()
+	if _, err := n.Commit(); err != nil {
+		return nil, fmt.Errorf("committing root node: %w", err)
+	}
 
 	// Collect all nodes that we need to serialize.
 	nodes := make([]VerkleNode, 0, 1024)
