@@ -631,6 +631,53 @@ func (n *InternalNode) Delete(key []byte, resolver NodeResolverFn) (bool, error)
 	}
 }
 
+// EraseStem overwrites values with 0s, which is the (currently specced) way of deleting
+// leaves in verkle trees. It will, however, not create anything if it finds that the
+// stem isn't present in the tree.
+func (n *InternalNode) EraseStem(key []byte, resolver NodeResolverFn) error {
+	nChild := offset2key(key, n.depth)
+	switch child := n.children[nChild].(type) {
+	case Empty:
+		// don't create a 0 substree if it's missing from the tree
+	case HashedNode:
+		if resolver == nil {
+			return errDeleteHash
+		}
+		payload, err := resolver(key[:n.depth+1])
+		if err != nil {
+			return err
+		}
+		// deserialize the payload and set it as the child
+		c, err := ParseNode(payload, n.depth+1)
+		if err != nil {
+			return err
+		}
+		n.children[nChild] = c
+		return n.EraseStem(key, resolver)
+	case *LeafNode:
+		// if the stem are different, then there's nothing to
+		// do as no new leaf should be created.
+		if !bytes.Equal(key[:31], child.stem) {
+			return nil
+		}
+		// overwrite all non-zero values
+		for i := range child.values {
+			if child.values[i] != nil {
+				child.values[i] = zero32[:]
+			}
+		}
+	case *InternalNode:
+		n.cowChild(nChild)
+		err := child.EraseStem(key, resolver)
+		if err != nil {
+			return err
+		}
+	default:
+		return errUnknownNodeType
+	}
+	return nil
+}
+
 // DeleteAtStem delete a full stem. Unlike Delete, it will error out if the stem that is to
 // be deleted does not exist in the tree, because it's meant to be used by rollback code,
 // that should only delete things that exist.
