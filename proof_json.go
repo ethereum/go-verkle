@@ -29,6 +29,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"sort"
 )
 
 // HexToPrefixedString turns a byte slice into its hex representation
@@ -183,32 +184,46 @@ func (vp *VerkleProof) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// TODO use gencodec if that works
 type stemStateDiffMarshaller struct {
-	Stem        string           `json:"stem"`
-	SuffixDiffs SuffixStateDiffs `json:"suffixDiffs"`
+	Stem     string   `json:"stem"`
+	Suffixes string   `json:"suffixes"`
+	Current  []string `json:"current"`
+	New      []string `json:"new"`
 }
 
 func (ssd StemStateDiff) MarshalJSON() ([]byte, error) {
+	suffixes := make([]byte, 0, len(ssd.Updates)+len(ssd.Inserts))
+	for i := range ssd.Updates {
+		suffixes = append(suffixes, ssd.Updates[i].Suffix)
+	}
+	for i := range ssd.Inserts {
+		suffixes = append(suffixes, ssd.Inserts[i].Suffix)
+	}
+	sort.Slice(suffixes, func(i, j int) bool { return suffixes[i] < suffixes[j] })
 	return json.Marshal(&stemStateDiffMarshaller{
-		Stem:        HexToPrefixedString(ssd.Stem[:]),
-		SuffixDiffs: ssd.SuffixDiffs,
+		Stem:     HexToPrefixedString(ssd.Stem[:]),
+		Suffixes: HexToPrefixedString(suffixes),
+		// Current:
+		// TODO implement if it makes sense.
 	})
 }
 
 func (ssd *StemStateDiff) UnmarshalJSON(data []byte) error {
-	var aux stemStateDiffMarshaller
-	if err := json.Unmarshal(data, &aux); err != nil {
-		return fmt.Errorf("stemdiff unmarshal error: %w", err)
-	}
+	// var aux stemStateDiffMarshaller
+	// if err := json.Unmarshal(data, &aux); err != nil {
+	// 	return fmt.Errorf("stemdiff unmarshal error: %w", err)
+	// }
 
-	stem, err := PrefixedHexStringToBytes(aux.Stem)
-	if err != nil {
-		return fmt.Errorf("invalid hex string for stem: %w", err)
-	}
-	*ssd = StemStateDiff{
-		SuffixDiffs: aux.SuffixDiffs,
-	}
-	copy(ssd.Stem[:], stem)
+	// stem, err := PrefixedHexStringToBytes(aux.Stem)
+	// if err != nil {
+	// 	return fmt.Errorf("invalid hex string for stem: %w", err)
+	// }
+	// *ssd = StemStateDiff{
+	// 	SuffixDiffs: aux.SuffixDiffs,
+	// }
+	// copy(ssd.Stem[:], stem)
+	// TODO implement if it makes sense
 	return nil
 }
 
@@ -216,59 +231,4 @@ type suffixStateDiffMarshaller struct {
 	Suffix       byte    `json:"suffix"`
 	CurrentValue *string `json:"currentValue"`
 	NewValue     *string `json:"newValue"`
-}
-
-func (ssd SuffixStateDiff) MarshalJSON() ([]byte, error) {
-	var cvstr, nvstr *string
-	if ssd.CurrentValue != nil {
-		tempstr := HexToPrefixedString(ssd.CurrentValue[:])
-		cvstr = &tempstr
-	}
-	if ssd.NewValue != nil {
-		tempstr := HexToPrefixedString(ssd.NewValue[:])
-		nvstr = &tempstr
-	}
-	return json.Marshal(&suffixStateDiffMarshaller{
-		Suffix:       ssd.Suffix,
-		CurrentValue: cvstr,
-		NewValue:     nvstr,
-	})
-}
-
-func (ssd *SuffixStateDiff) UnmarshalJSON(data []byte) error {
-	aux := &suffixStateDiffMarshaller{}
-
-	if err := json.Unmarshal(data, &aux); err != nil {
-		return fmt.Errorf("suffix diff unmarshal error: %w", err)
-	}
-
-	if aux.CurrentValue != nil && len(*aux.CurrentValue) != 64 && len(*aux.CurrentValue) != 0 && len(*aux.CurrentValue) != 66 {
-		return fmt.Errorf("invalid hex string for current value: %s", *aux.CurrentValue)
-	}
-
-	*ssd = SuffixStateDiff{
-		Suffix: aux.Suffix,
-	}
-
-	if aux.CurrentValue != nil && len(*aux.CurrentValue) != 0 {
-		currentValueBytes, err := PrefixedHexStringToBytes(*aux.CurrentValue)
-		if err != nil {
-			return fmt.Errorf("error decoding hex string for current value: %v", err)
-		}
-
-		ssd.CurrentValue = &[32]byte{}
-		copy(ssd.CurrentValue[:], currentValueBytes)
-	}
-
-	if aux.NewValue != nil && len(*aux.NewValue) != 0 {
-		newValueBytes, err := PrefixedHexStringToBytes(*aux.NewValue)
-		if err != nil {
-			return fmt.Errorf("error decoding hex string for current value: %v", err)
-		}
-
-		ssd.NewValue = &[32]byte{}
-		copy(ssd.NewValue[:], newValueBytes)
-	}
-
-	return nil
 }
